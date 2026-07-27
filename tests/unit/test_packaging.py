@@ -13,6 +13,9 @@ import getpass
 import importlib
 import json
 import pkgutil
+import subprocess
+import sys
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -113,10 +116,54 @@ def test_no_subpackage_was_left_out_of_the_required_list() -> None:
 def test_torch_free_modules_import_without_torch(name: str) -> None:
     """These must work from a bare ``pip install miniverl``.
 
-    The import itself is the assertion: if any of these grew a module-scope
-    ``import torch``, the CI core job (which never installs torch) would fail.
+    Importing in-process only proves the module *can* be imported here, where an
+    earlier test may already have loaded torch. The real property is asserted by
+    :func:`test_importing_a_subpackage_does_not_pull_in_torch` below.
     """
     importlib.import_module(name)
+
+
+def test_importing_a_subpackage_does_not_pull_in_torch() -> None:
+    """No ``import miniverl.<subpackage>`` may require torch.
+
+    ``miniverl.teachers`` used to re-export ``LocalTeacherScorer`` eagerly, and
+    that module imports torch at module scope, so ``import miniverl.teachers``
+    failed outright on a bare install. Nothing here caught it: the in-process
+    test above passes whenever torch happens to be installed, so the defect only
+    appeared on the CI matrix that omits torch.
+
+    Checking ``sys.modules`` in a fresh interpreter asserts the property itself
+    rather than a proxy for it, and it fails in a torch-*ful* environment too --
+    which is the only reason it is useful during development.
+    """
+    program = textwrap.dedent(
+        """
+        import importlib, json, sys
+
+        offenders = {}
+        for name in json.loads(sys.argv[1]):
+            module = f"miniverl.{name}"
+            for loaded in [m for m in sys.modules if m == "torch" or m.startswith("torch.")]:
+                del sys.modules[loaded]
+            importlib.import_module(module)
+            if "torch" in sys.modules:
+                offenders[module] = True
+        print(json.dumps(sorted(offenders)))
+        """
+    )
+    completed = subprocess.run(
+        [sys.executable, "-c", program, json.dumps(list(REQUIRED_SUBPACKAGES))],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    assert completed.returncode == 0, completed.stderr
+    offenders = json.loads(completed.stdout.strip().splitlines()[-1])
+    assert not offenders, (
+        f"these subpackages import torch at module scope: {offenders}. "
+        "Resolve the torch-dependent names through a module-level __getattr__, "
+        "as miniverl.losses and miniverl.teachers do."
+    )
 
 
 def test_the_report_template_ships_with_the_package() -> None:

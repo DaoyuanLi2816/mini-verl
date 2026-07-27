@@ -126,16 +126,30 @@ def test_bucketed_never_exceeds_exact(pair, k):
     float32 behaviour is covered by tests/unit/test_losses_bucketed.py.
 
     The allowance carries a cancellation term, which Hypothesis forced into
-    existence with ``teacher=[0, 0]``, ``student=[20, 0.03]``, ``k=1``. When the
-    student puts essentially all of its mass on the top bucket, its log-prob is
-    a difference of two nearly equal numbers -- here ``20 - logsumexp = -2.1e-9``
-    -- so it carries about one ulp of *absolute* error no matter the precision.
-    ``log1mexp`` then divides that error by the tail mass to get the tail
-    log-prob, amplifying it by ``1 / q_tail``. At ``q_tail = 2.1e-9`` that turns
-    1e-15 into 5e-8, which is real arithmetic, not a violated inequality. The
-    term below models exactly that and stays around 1e-14 -- negligible -- for
-    every non-degenerate input, so the test remains sharp where sharpness means
-    something.
+    existence twice, with mirror-image inputs:
+
+    * ``teacher=[0, 0]``, ``student=[20, 0.03]``, ``k=1`` -- the *student*
+      saturates its top bucket;
+    * ``teacher=[0, 19.28]``, ``student=[0, 0]``, ``k=1`` -- the *teacher* does.
+
+    Either way, a distribution holding all but ``d`` of its mass in the top
+    bucket has a top log-prob of ``-d``, formed as ``logit - logsumexp``: a
+    difference of two nearly equal numbers, so it carries about one ulp of
+    *absolute* error at any precision. ``log1mexp`` then turns that into the tail
+    log-prob and, because its slope there is ``1 / d``, divides the error by the
+    tail mass. The divergence multiplies that log by the *other* distribution's
+    mass on the same bucket, so the error reaching the result scales with
+    ``q_tail / p_tail`` for reverse KL and ``p_tail / q_tail`` for forward KL --
+    which is why the bound below is symmetric in the two, and why a term keyed to
+    only one side let the mirror case through.
+
+    Concretely, in the second example the teacher's tail mass is 4.2e-9 while the
+    uniform student puts 0.5 there, so a 4.3e-15 error becomes 5e-7. That is real
+    arithmetic, not a violated inequality. For any non-degenerate input both
+    ratios are near 1 and the whole term is about 1e-14, so the test stays sharp
+    where sharpness means something. At ``k == V`` both tail masses are exactly
+    zero, the tail bucket contributes nothing, and the clamps below leave the
+    term at ``2 * eps * (1 + max|logit|)``.
     """
     from miniverl.losses.bucketed import (
         bucketed_divergence,
@@ -149,10 +163,13 @@ def test_bucketed_never_exceeds_exact(pair, k):
     idx, lp, tail = teacher_topk_targets(teacher, top_k=k)
 
     eps = torch.finfo(student.dtype).eps
-    # Absolute error in `logit - logsumexp`, then amplified by 1 / q_tail.
     _, student_tail = student_bucket_log_probs(student, idx)
+    # One ulp of `logit - logsumexp`, amplified by the ratio of the two tail
+    # masses in whichever direction the divergence happens to weight it.
+    scale = eps * (1.0 + torch.maximum(teacher.abs().amax(dim=-1), student.abs().amax(dim=-1)))
+    p_tail = tail.exp().clamp_min(eps)
     q_tail = student_tail.exp().clamp_min(eps)
-    cancellation = eps * (1.0 + student.abs().amax(dim=-1)) / q_tail
+    cancellation = scale * (q_tail / p_tail + p_tail / q_tail)
 
     for divergence in ("forward_kl", "reverse_kl", "jsd"):
         bucketed = bucketed_divergence(
@@ -273,7 +290,15 @@ def test_weighted_mean_is_a_weighted_mean(values, weights):
         return
     # Any positive weight sum -- however tiny -- must give the true weighted
     # mean, which is always bounded by the range of the values.
-    expected = float((per_token * w).sum()) / denominator
+    #
+    # The reference is computed in float64 on purpose. Computing `(per_token * w)`
+    # in float32, as this test used to, reproduces the very error it is meant to
+    # detect: at `w = 1.4e-45` (float32's smallest subnormal) the product
+    # `1.5 * 1.4e-45` rounds to twice the subnormal minimum, so a float32
+    # reference "expects" 2.0 as the mean of a single 1.5. Hypothesis found that
+    # input, `weighted_mean` now accumulates in float64 and returns 1.5, and the
+    # reference has to be at least as accurate as the code it checks.
+    expected = float((per_token.double() * w.double()).sum() / w.double().sum())
     assert result == pytest.approx(expected, rel=1e-4, abs=1e-5)
     assert min(values[:n]) - 1e-4 <= result <= max(values[:n]) + 1e-4
 

@@ -160,7 +160,10 @@ jobs:
         run: |
           python - <<'PY'
           import pathlib, re, sys
-          pattern = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b|NotImplementedError")
+          # `raise NotImplementedError` marks an unfinished implementation.
+          # *Catching* one is the opposite: defensive handling of a dependency
+          # that raises it, so only the raising form is a defect here.
+          pattern = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b|raise\s+NotImplementedError")
           bad = []
           for root in ("src", "tests", "examples", "scripts"):
               for path in pathlib.Path(root).rglob("*.py"):
