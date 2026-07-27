@@ -50,6 +50,7 @@ from miniverl.environments.base import (
     ToolCall,
     ToolEnvironment,
 )
+from miniverl.errors import ToolEnvironmentError
 from miniverl.models.base import CausalLMBackend
 from miniverl.schemas.trajectory import (
     SpanType,
@@ -273,6 +274,7 @@ class RolloutRunner:
         invalid_calls = 0
         generated_tokens = 0
         verification: VerificationRecord | None = None
+        metadata_error: str | None = None
         termination = TerminationReason.MAX_TURNS
 
         for turn_id in range(turn_budget):
@@ -306,7 +308,13 @@ class RolloutRunner:
                     tool_name=None,
                     call_id=None,
                 )
-                result = self.environment.verify(parsed.final_answer or "")
+                try:
+                    result = self.environment.verify(parsed.final_answer or "")
+                except ToolEnvironmentError as exc:
+                    turns.append(Turn(turn_id=turn_id, is_final=True))
+                    termination = TerminationReason.ENVIRONMENT_ERROR
+                    metadata_error = exc.message
+                    break
                 verification = VerificationRecord(
                     solved=result.solved,
                     reward=result.reward,
@@ -366,7 +374,37 @@ class RolloutRunner:
                     termination = TerminationReason.REPEATED_CALL_LIMIT
                     break
 
-                step = self.environment.step(ToolCall(name=name, arguments=arguments))
+                try:
+                    step = self.environment.step(ToolCall(name=name, arguments=arguments))
+                except ToolEnvironmentError as exc:
+                    # A tool that raises rather than returning StepResult(ok=False)
+                    # is an environment defect, not a policy mistake. End the
+                    # episode with its own termination reason so the failure shows
+                    # up in the taxonomy instead of being blamed on the model.
+                    self._add_observation(
+                        builder,
+                        turn_id=turn_id,
+                        body=render_tool_result(False, error=f"environment error: {exc.message}"),
+                        state_id=None,
+                        call_id=call_id,
+                    )
+                    turns.append(
+                        Turn(
+                            turn_id=turn_id,
+                            tool_call=ToolCallRecord(
+                                call_id=call_id,
+                                name=name,
+                                arguments=arguments,
+                                raw_text=generation.text,
+                            ),
+                            tool_result=ToolResultRecord(
+                                call_id=call_id, ok=False, error=exc.message
+                            ),
+                        )
+                    )
+                    termination = TerminationReason.ENVIRONMENT_ERROR
+                    metadata_error = exc.message
+                    break
                 if not step.ok:
                     invalid_calls += 1
                 self._add_observation(
@@ -458,6 +496,7 @@ class RolloutRunner:
                 "temperature": sample_temperature,
                 "difficulty": task.difficulty,
                 "split": task.split,
+                **({"environment_error": metadata_error} if metadata_error else {}),
             },
         )
 
@@ -470,7 +509,14 @@ class RolloutRunner:
         policy_version: int = 0,
         trajectory_id: str | None = None,
     ) -> Trajectory:
-        """Render the environment's reference actions as a trajectory."""
+        """Render the environment's reference actions as a trajectory.
+
+        Unlike :meth:`rollout`, this does **not** catch
+        :class:`~miniverl.errors.ToolEnvironmentError`. An oracle that cannot
+        execute its own reference actions is a defect in the environment, and a
+        truncated oracle trace would silently degrade every SFT target built
+        from it, so the failure is allowed to propagate.
+        """
         self.environment.reset(task)
         builder = self._new_builder(task)
         turns: list[Turn] = []

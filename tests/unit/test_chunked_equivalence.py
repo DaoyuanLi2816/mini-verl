@@ -69,7 +69,7 @@ def test_chunked_value_matches_unchunked(chunk_size):
         backward=False,
     )
     reference = _naive_loss(hidden, lm_head, teacher_logits, weights)
-    assert out.loss == pytest.approx(float(reference), abs=1e-5)
+    assert out.loss == pytest.approx(float(reference.detach()), abs=1e-5)
     assert out.num_positions == 37
     assert out.num_chunks == (37 + chunk_size - 1) // chunk_size if chunk_size <= 37 else 1
 

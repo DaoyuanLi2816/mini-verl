@@ -15,6 +15,7 @@ import torch
 __all__ = [
     "LOG_PROB_FLOOR",
     "NEG_CLAMP",
+    "neg_clamp_for",
     "to_float32",
     "log_softmax_f32",
     "log1mexp",
@@ -29,9 +30,25 @@ __all__ = [
 #: gradients free of ``inf - inf = nan``.
 LOG_PROB_FLOOR: float = -1.0e30
 
-#: Largest value ``log1mexp`` accepts.  ``log(1 - exp(x))`` diverges as
-#: ``x -> 0``; clamping at ``-1e-7`` bounds the result near ``-16.1``.
+#: Fallback bound for ``log1mexp`` when the dtype is unknown.  ``log(1 - exp(x))``
+#: diverges as ``x -> 0``, so the input is clamped; ``-1e-7`` is float32's
+#: resolution near 1.0 and bounds the result near ``-16.1``.
 NEG_CLAMP: float = -1.0e-7
+
+
+def neg_clamp_for(dtype: torch.dtype) -> float:
+    """Largest input ``log1mexp`` accepts for ``dtype``.
+
+    The clamp is not arbitrary: it is the point past which ``1 - exp(x)`` stops
+    being representable.  Using ``finfo(dtype).eps`` means float32 keeps the
+    ~1e-7 bound it has always had while float64 resolves a tail mass a billion
+    times smaller, so a test written in float64 measures the mathematics rather
+    than a float32 constant.
+    """
+    if dtype in (torch.float32, torch.float64, torch.float16, torch.bfloat16):
+        return -float(torch.finfo(dtype).eps)
+    return NEG_CLAMP
+
 
 _LOG_HALF = -math.log(2.0)
 
@@ -61,8 +78,15 @@ def log1mexp(x: torch.Tensor) -> torch.Tensor:
     evaluated on *sanitized* inputs so the unused branch cannot inject ``nan``
     into the backward pass -- the usual failure mode of a naive
     ``torch.where`` over the raw tensor.
+
+    The input is clamped at :func:`neg_clamp_for` for its dtype.  In float32
+    that caps the recoverable tail mass at about ``1e-7``, so a teacher whose
+    top-k captures all but ``1e-9`` of the mass is reported as capturing all but
+    ``1e-7``.  That is a float32 resolution limit, not a choice, and it is why
+    the effective reverse-KL tail penalty is bounded near 16.1 nats rather than
+    the ``log(1 / tail_epsilon)`` that ``tail_epsilon`` alone would suggest.
     """
-    x = x.clamp(max=NEG_CLAMP)
+    x = x.clamp(max=neg_clamp_for(x.dtype))
     near_zero = x > _LOG_HALF
     safe_far = torch.full_like(x, _LOG_HALF - 1.0)
     x_near = torch.where(near_zero, x, safe_far)

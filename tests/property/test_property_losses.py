@@ -182,11 +182,12 @@ def test_teacher_topk_mass_and_tail_sum_to_one(pair, k):
 
 
 @SETTINGS
-@given(x=st.floats(min_value=-60.0, max_value=-1e-7, allow_nan=False))
+@given(x=st.floats(min_value=-60.0, max_value=-1e-12, allow_nan=False))
 def test_log1mexp_matches_the_reference_outside_the_clamp(x):
-    from miniverl.losses.numerics import NEG_CLAMP, log1mexp
+    """In float64 the clamp is ~2.2e-16, so the reference holds almost everywhere."""
+    from miniverl.losses.numerics import log1mexp, neg_clamp_for
 
-    assume(x <= NEG_CLAMP)
+    assume(x <= neg_clamp_for(torch.float64))
     value = float(log1mexp(torch.tensor([x], dtype=torch.float64)))
     assert math.isfinite(value)
     expected = math.log1p(-math.exp(x))
@@ -194,22 +195,29 @@ def test_log1mexp_matches_the_reference_outside_the_clamp(x):
 
 
 @SETTINGS
-@given(x=st.floats(min_value=-1e-7, max_value=-0.0, allow_nan=False))
-def test_log1mexp_clamps_instead_of_diverging_near_zero(x):
+@given(
+    x=st.floats(min_value=-1e-7, max_value=-0.0, allow_nan=False),
+    dtype_name=st.sampled_from(["float32", "float64"]),
+)
+def test_log1mexp_clamps_instead_of_diverging_near_zero(x, dtype_name):
     """``log(1 - exp(x))`` -> -inf as x -> 0; the clamp bounds it, by design.
 
-    Without the bound a teacher whose top-k captures the entire mass would make
-    the tail bucket ``-inf`` and poison the loss. The clamp is documented as
-    ``NEG_CLAMP``, and this pins its exact effect.
+    Without the bound, a teacher whose top-k captures the entire mass would make
+    the tail bucket ``-inf`` and poison the loss. The bound is the dtype's own
+    resolution near 1.0, so float32 saturates at about 1e-7 while float64
+    resolves nine more decades. This pins both.
     """
-    from miniverl.losses.numerics import NEG_CLAMP, log1mexp
+    from miniverl.losses.numerics import log1mexp, neg_clamp_for
 
-    assume(x > NEG_CLAMP)
-    value = float(log1mexp(torch.tensor([x], dtype=torch.float64)))
-    floor = float(log1mexp(torch.tensor([NEG_CLAMP], dtype=torch.float64)))
+    dtype = getattr(torch, dtype_name)
+    clamp = neg_clamp_for(dtype)
+    value = float(log1mexp(torch.tensor([x], dtype=dtype)))
     assert math.isfinite(value)
-    assert value == pytest.approx(floor, abs=1e-9)
-    assert value == pytest.approx(math.log(1e-7), abs=1e-6)
+    if x > clamp:
+        floor = float(log1mexp(torch.tensor([clamp], dtype=dtype)))
+        assert value == pytest.approx(floor, rel=1e-5)
+    else:
+        assert value == pytest.approx(math.log1p(-math.exp(x)), rel=1e-4)
 
 
 # ----------------------------------------------------------- reduction

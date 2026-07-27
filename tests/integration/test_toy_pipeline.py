@@ -357,3 +357,74 @@ def test_eval_is_deterministic_under_greedy_decoding(tmp_path: Path):
     assert first["generated_tokens"] == second["generated_tokens"]
     assert first["termination_reasons"] == second["termination_reasons"]
     trainer.close()
+
+
+def test_a_raising_tool_ends_the_episode_with_its_own_termination_reason(tmp_path: Path):
+    """An environment that raises is an environment defect, not a policy mistake.
+
+    ``TerminationReason.ENVIRONMENT_ERROR`` exists for exactly this case. Without
+    it a broken tool would either crash a training run or be recorded as the
+    model's failure, which would poison the failure taxonomy.
+
+    The *oracle* path deliberately does not catch this: an oracle that cannot run
+    its own reference actions is a bug in the environment and must fail loudly.
+    """
+    from miniverl.agent.loop import RolloutRunner
+    from miniverl.agent.protocol import render_tool_call
+    from miniverl.config.models import RolloutConfig
+    from miniverl.environments import make_environment, make_splits
+    from miniverl.environments.base import StepResult, ToolCall
+    from miniverl.errors import ToolEnvironmentError
+    from miniverl.models.base import GenerationOutput
+    from miniverl.models.tokenizers import ToyTokenizer
+    from miniverl.models.toy import ToyBackend
+    from miniverl.schemas.trajectory import TerminationReason
+
+    calculator_cls = type(make_environment("calculator"))
+
+    class ExplodingCalculator(calculator_cls):  # type: ignore[misc, valid-type]
+        """A calculator whose tool raises instead of returning a StepResult."""
+
+        def step(self, call: ToolCall) -> StepResult:
+            raise ToolEnvironmentError("the tool backend fell over")
+
+    tokenizer = ToyTokenizer()
+
+    class ScriptedBackend(ToyBackend):
+        """A policy that always emits one well-formed tool call."""
+
+        def generate(self, prefix_token_ids, **kwargs) -> GenerationOutput:
+            text = render_tool_call("calculator", {"expression": "1 + 1"})
+            ids = tokenizer.encode(text)
+            return GenerationOutput(
+                token_ids=ids,
+                text=text,
+                stop_reason="stop_sequence",
+                matched_stop="</tool_call>",
+            )
+
+    backend = ScriptedBackend(
+        tokenizer=tokenizer, model_id="scripted", seed=0, hidden_size=32, num_layers=2
+    )
+    environment = ExplodingCalculator(prompt_style="compact")
+    task = make_splits(
+        environment, counts={"train": 1, "eval": 0, "test": 0}, seed=1, difficulty="easy"
+    )["train"][0]
+    runner = RolloutRunner(
+        backend=backend,
+        environment=environment,
+        config=RolloutConfig(max_turns=3, max_new_tokens_per_turn=8, max_total_tokens=400),
+    )
+
+    traj = runner.rollout(task, policy_version=0, seed=1)
+    assert traj.termination_reason is TerminationReason.ENVIRONMENT_ERROR
+    assert "fell over" in str(traj.metadata.get("environment_error", ""))
+    # The trajectory is still structurally valid and still masks tool output.
+    assert traj.length > 0
+    for span in traj.spans:
+        if span.span_type.value == "tool_result":
+            assert not any(traj.model_generated_mask[span.start : span.end])
+
+    # The oracle path fails loudly instead.
+    with pytest.raises(ToolEnvironmentError, match="fell over"):
+        runner.oracle_rollout(task)
