@@ -60,7 +60,7 @@ its own license; consult the installed distribution for the authoritative text.
 | accelerate (extra `train`) | Apache-2.0 | device placement helpers |
 | numpy (extra `train`) | BSD-3-Clause | array interop |
 | bitsandbytes (extra `cuda`) | MIT | NF4 quantization, 8-bit optimizer |
-| pytest, hypothesis, ruff, mypy, build, twine (extra `dev`) | MIT / Apache-2.0 / BSD | development only |
+| pytest, hypothesis, jsonschema, ruff, mypy, build, twine (extra `dev`) | MIT / Apache-2.0 / BSD | development only, not redistributed |
 
 ## Models
 

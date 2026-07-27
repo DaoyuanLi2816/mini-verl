@@ -164,7 +164,8 @@ def doctor(
         ("4-bit QLoRA", "qlora_4bit", 'pip install "miniverl[train,cuda]"'),
     ):
         ready = verdict[key]
-        mark = "[green]yes[/green]" if ready else "[yellow]no[/yellow]"
+        # Pad to the width of the longer word so the labels line up in a column.
+        mark = "[green]yes[/green]" if ready else "[yellow]no [/yellow]"
         suffix = "" if ready or not command else f"  ->  {command}"
         console.print(f"  {mark}  {_esc(label)}{_esc(suffix)}")
 
