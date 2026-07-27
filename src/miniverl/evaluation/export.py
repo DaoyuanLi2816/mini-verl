@@ -15,7 +15,7 @@ from typing import Any
 
 from miniverl import __version__
 from miniverl.errors import ReportError
-from miniverl.evaluation.schema import ArmResult, BenchmarkResult
+from miniverl.evaluation.schema import ArmResult, BenchmarkResult, finite_or_none
 from miniverl.reporting.data import ReportData
 from miniverl.utils.runs import utc_now, write_json
 
@@ -58,9 +58,7 @@ def export_run(
     throughput = data.throughput()
     selection = data.selection_counts()
     cache = data.cache_stats or {}
-    tokens_per_solved = final.get("tokens_per_solved_task")
-    if isinstance(tokens_per_solved, float) and tokens_per_solved != tokens_per_solved:
-        tokens_per_solved = None
+    tokens_per_solved = finite_or_none(final.get("tokens_per_solved_task"))
 
     arm = ArmResult(
         name=str(manifest.get("run_name") or data.run_id),

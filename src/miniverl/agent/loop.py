@@ -122,8 +122,12 @@ class RolloutStats:
             / max(self.tool_calls + self.invalid_tool_calls, 1),
             "generated_tokens": self.generated_tokens,
             "generated_tokens_per_task": self.generated_tokens / n,
+            # None, not NaN: JSON has no NaN literal, so writing one produces a
+            # metrics file that strict parsers (JavaScript's JSON.parse among
+            # them) reject. The quantity is genuinely undefined when nothing was
+            # solved, which is what null means.
             "tokens_per_solved_task": (
-                self.generated_tokens / self.solved if self.solved else float("nan")
+                self.generated_tokens / self.solved if self.solved else None
             ),
             "termination_reasons": dict(self.termination_reasons),
             "failure_categories": dict(self.failure_categories),

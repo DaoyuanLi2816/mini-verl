@@ -428,3 +428,60 @@ def test_a_raising_tool_ends_the_episode_with_its_own_termination_reason(tmp_pat
     # The oracle path fails loudly instead.
     with pytest.raises(ToolEnvironmentError, match="fell over"):
         runner.oracle_rollout(task)
+
+
+def test_every_json_artifact_of_a_run_is_strictly_valid_json(tmp_path: Path):
+    """Artifacts are data files, so a non-Python reader must be able to load them.
+
+    Python's ``json`` module both writes and accepts the non-standard ``NaN``
+    token, so a run could -- and did -- emit a ``metrics.jsonl`` that
+    ``JSON.parse`` and most non-Python parsers reject. Any quantity that can be
+    undefined has to be ``null`` instead, which is what
+    :func:`miniverl.evaluation.schema.finite_or_none` is for.
+
+    The toy student solves nothing at this budget, so the divide-by-zero in
+    ``tokens_per_solved_task`` is exercised rather than hypothetical.
+    """
+    import json
+
+    from miniverl.training.trainer import OPDTrainer
+
+    def strict(text: str, where: str) -> object:
+        def reject(constant: str) -> float:
+            raise AssertionError(f"{where} contains the non-standard JSON token {constant!r}")
+
+        return json.loads(text, parse_constant=reject)
+
+    config = _config(
+        tmp_path,
+        train={"cycles": 1, "sft_warmup_cycles": 1, "rollouts_per_cycle": 2},
+        eval={"enabled": True, "tasks": 4},
+    )
+    result = OPDTrainer.from_config(config, run_id="strict-json").train()
+
+    checked = 0
+    for path in sorted(Path(result.run_dir).rglob("*.json")):
+        strict(path.read_text(encoding="utf-8"), path.name)
+        checked += 1
+    metrics = []
+    for path in sorted(Path(result.run_dir).rglob("*.jsonl")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if line.strip():
+                record = strict(line, f"{path.name}:{number}")
+                if path.name == "metrics.jsonl":
+                    metrics.append(record)
+        checked += 1
+    assert checked >= 4, f"expected several JSON artifacts, found {checked}"
+
+    # And the undefined case really did occur, so the test is not vacuous.
+    def rollout_blocks():
+        for record in metrics:
+            block = record.get("rollouts") if isinstance(record, dict) else None
+            if isinstance(block, dict) and "tokens_per_solved_task" in block:
+                yield block
+
+    blocks = list(rollout_blocks())
+    assert blocks, "no rollout metrics were written, so this test would prove nothing"
+    assert any(b["tokens_per_solved_task"] is None for b in blocks), (
+        "expected a cycle that solved nothing, which is the null path this test guards"
+    )

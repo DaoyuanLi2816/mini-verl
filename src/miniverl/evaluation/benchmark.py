@@ -26,7 +26,7 @@ from typing import Any
 
 from miniverl import __version__
 from miniverl.config.models import RunConfig, TrainingMode
-from miniverl.evaluation.schema import ArmResult, BenchmarkConfig, BenchmarkResult
+from miniverl.evaluation.schema import ArmResult, BenchmarkConfig, BenchmarkResult, finite_or_none
 from miniverl.utils.env import collect_environment
 from miniverl.utils.logging import get_logger
 from miniverl.utils.runs import utc_now, write_json
@@ -197,12 +197,7 @@ def run_benchmark(
                         avg_tool_calls=float(evaluation["avg_tool_calls"]),
                         invalid_tool_call_rate=float(evaluation["invalid_tool_call_rate"]),
                         generated_tokens_per_task=float(evaluation["generated_tokens_per_task"]),
-                        tokens_per_solved_task=(
-                            float(evaluation["tokens_per_solved_task"])
-                            if evaluation["tokens_per_solved_task"]
-                            == evaluation["tokens_per_solved_task"]
-                            else None
-                        ),
+                        tokens_per_solved_task=finite_or_none(evaluation["tokens_per_solved_task"]),
                         selected_training_tokens=int(selection.get("selected_model_tokens", 0)),
                         teacher_queried_position_ratio=selection.get(
                             "teacher_queried_position_ratio"

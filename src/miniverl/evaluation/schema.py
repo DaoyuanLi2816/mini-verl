@@ -8,6 +8,7 @@ Pydantic model so the two can never drift.
 
 from __future__ import annotations
 
+import math
 from pathlib import Path, PurePath
 from typing import Any
 
@@ -23,9 +24,27 @@ __all__ = [
     "ArmResult",
     "BenchmarkResult",
     "json_schema",
+    "finite_or_none",
 ]
 
 BENCHMARK_SCHEMA_VERSION = 1
+
+
+def finite_or_none(value: object) -> float | None:
+    """Coerce to ``float``, mapping ``None`` and non-finite values to ``None``.
+
+    JSON has no literal for NaN or infinity. Python's ``json`` module emits the
+    non-standard ``NaN`` token anyway, which strict parsers reject, so any
+    quantity that can be undefined -- a ratio with a zero denominator, for
+    instance -- is normalized here before it reaches an artifact.
+    """
+    if value is None:
+        return None
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 class BenchmarkArm(BaseModel):
