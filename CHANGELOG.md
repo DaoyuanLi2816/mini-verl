@@ -72,6 +72,9 @@ one consumer GPU.
   divergence view, plus Markdown and JSON summaries.
 - A matched-budget benchmark harness that starts every arm from one shared
   cold-start checkpoint and records what it held constant.
+- `scripts/attribute_failures.py`, which re-scores collected trajectories with a
+  lenient answer parser so a zero success rate can be split into "could not do
+  the task" and "did the task and formatted it wrong".
 
 ### Measured
 
@@ -82,6 +85,17 @@ one consumer GPU.
 - Decode throughput on the same machine is kernel-launch bound: 11.19 tok/s with
   NF4 and 12.84 tok/s with bf16 LoRA, and a 14-token prefill (37.0 ms) costs
   about the same as a cached single-token step (30.9 ms).
+- **The matched-budget comparison on the non-saturating `hard` split came out
+  negative for on-policy distillation.** From one shared cold start at 62.5%,
+  with 12 identical optimizer steps: supervised continuation 100.0%, OPD against
+  the raw instruct teacher 0.0%, OPD against a privileged-context teacher 0.0%.
+  The failure is diagnosed from decoded transcripts in
+  `docs/rtx4080-baselines.md` and is most likely caused by the teacher, which was
+  never trained on the tool protocol; the experiment that would confirm it is
+  specified there but was not run. This is a single seed on one task family and
+  is not a general claim about the method -- but it is what this repository
+  measured about its own headline feature, so it is reported here rather than
+  only in the docs.
 
 ### Known limitations
 
