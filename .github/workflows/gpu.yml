@@ -61,7 +61,7 @@ jobs:
           print("submission validates against the published schema")
           PY
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: gpu-run
