@@ -124,13 +124,36 @@ def test_bucketed_never_exceeds_exact(pair, k):
     coarse-graining is the identity -- for example ``V == k + 1`` -- so in
     float32 the two sides can differ by a few ulps in either direction; the
     float32 behaviour is covered by tests/unit/test_losses_bucketed.py.
+
+    The allowance carries a cancellation term, which Hypothesis forced into
+    existence with ``teacher=[0, 0]``, ``student=[20, 0.03]``, ``k=1``. When the
+    student puts essentially all of its mass on the top bucket, its log-prob is
+    a difference of two nearly equal numbers -- here ``20 - logsumexp = -2.1e-9``
+    -- so it carries about one ulp of *absolute* error no matter the precision.
+    ``log1mexp`` then divides that error by the tail mass to get the tail
+    log-prob, amplifying it by ``1 / q_tail``. At ``q_tail = 2.1e-9`` that turns
+    1e-15 into 5e-8, which is real arithmetic, not a violated inequality. The
+    term below models exactly that and stays around 1e-14 -- negligible -- for
+    every non-degenerate input, so the test remains sharp where sharpness means
+    something.
     """
-    from miniverl.losses.bucketed import bucketed_divergence, teacher_topk_targets
+    from miniverl.losses.bucketed import (
+        bucketed_divergence,
+        student_bucket_log_probs,
+        teacher_topk_targets,
+    )
     from miniverl.losses.exact import exact_divergence
 
     teacher, student = pair
     k = min(k, teacher.shape[-1])
     idx, lp, tail = teacher_topk_targets(teacher, top_k=k)
+
+    eps = torch.finfo(student.dtype).eps
+    # Absolute error in `logit - logsumexp`, then amplified by 1 / q_tail.
+    _, student_tail = student_bucket_log_probs(student, idx)
+    q_tail = student_tail.exp().clamp_min(eps)
+    cancellation = eps * (1.0 + student.abs().amax(dim=-1)) / q_tail
+
     for divergence in ("forward_kl", "reverse_kl", "jsd"):
         bucketed = bucketed_divergence(
             teacher_topk_log_probs=lp,
@@ -142,7 +165,7 @@ def test_bucketed_never_exceeds_exact(pair, k):
         exact = exact_divergence(teacher, student, divergence=divergence)
         assert bool(torch.isfinite(bucketed).all())
         assert bool((bucketed >= -1e-5).all())
-        allowance = exact.abs() * 1e-9 + 1e-9
+        allowance = exact.abs() * 1e-9 + 1e-9 + cancellation
         assert bool((bucketed <= exact + allowance).all()), divergence
 
 
