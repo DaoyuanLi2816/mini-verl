@@ -21,9 +21,12 @@ from typing import Any
 
 import pytest
 import yaml
-from click.testing import Result
 from typer.main import get_command
-from typer.testing import CliRunner
+
+# `Result` comes from typer, not click. typer 0.27 dropped click as a dependency,
+# so importing it from `click.testing` only worked where click happened to be
+# installed for some other reason -- which was true locally and false in CI.
+from typer.testing import CliRunner, Result
 
 from miniverl import __version__
 from miniverl.cli import app
