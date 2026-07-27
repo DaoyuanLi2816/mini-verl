@@ -1,0 +1,58 @@
+# miniVERL matched-budget benchmark on a single RTX 4080 (16 GB).
+#
+# Why this exists separately from recipes/benchmark_calc.yaml: the toy backend
+# can only solve the `easy` calculator split, where supervised fine-tuning
+# saturates, so the CPU benchmark can demonstrate parity but not capability.
+# This configuration uses the real Qwen3 pair on the `hard` split (compute an
+# expression, then convert the result -- two dependent tool calls), which leaves
+# headroom above the cold start.
+#
+# Every arm resumes from the SAME cold-start checkpoint, weights only, and gets
+# the SAME number of optimizer steps. `eval.enabled: false` in the base turns off
+# the per-arm baseline/final evaluations so the only evaluation is the harness's
+# own held-out pass on the `test` split.
+#
+#   miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
+#
+# This is a SINGLE-SEED benchmark. No statistical significance is claimed.
+
+schema_version: 1
+name: gpu-calc-hard-matched
+description: >-
+  Cold start, then equal-step continuation under supervised fine-tuning and
+  on-policy distillation, on the chained calculator split with Qwen3-0.6B
+  distilled from Qwen3-1.7B on one 16 GB consumer GPU.
+
+base: ../../recipes/qwen_consumer_gpu_calc.yaml
+cold_start_cycles: 12
+eval_split: test
+seeds: [1234]
+output_dir: runs/benchmarks
+
+arms:
+  - name: cold-start-only
+    description: The shared cold start, evaluated with zero further optimizer steps.
+    overrides:
+      run: {mode: sft}
+      environment: {difficulty: hard, test_tasks: 24}
+      train: {cycles: 0, sft_warmup_cycles: 0}
+      eval: {enabled: false, tasks: 24, split: test}
+
+  - name: sft-continued
+    description: Off-policy baseline -- the same number of extra steps on oracle traces.
+    overrides:
+      run: {mode: sft}
+      environment: {difficulty: hard, test_tasks: 24}
+      train: {cycles: 12, sft_warmup_cycles: 0, learning_rate: 5.0e-5, lr_schedule: constant}
+      eval: {enabled: false, tasks: 24, split: test}
+
+  - name: opd-bucketed-k64
+    description: >-
+      Genuine on-policy distillation -- the student's own rollouts, scored by the
+      teacher on exactly those states, with compressed top-64 + tail reverse KL.
+    overrides:
+      run: {mode: opd}
+      environment: {difficulty: hard, test_tasks: 24}
+      train: {cycles: 12, sft_warmup_cycles: 0, learning_rate: 5.0e-5, lr_schedule: constant}
+      loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 64}
+      eval: {enabled: false, tasks: 24, split: test}

@@ -13,8 +13,8 @@ import torch
 
 __all__ = ["MIN_TOTAL_WEIGHT", "total_weight", "weighted_mean"]
 
-#: Denominator floor.  Only reachable when every selected token has zero
-#: weight, in which case the numerator is exactly zero too and the loss is 0.
+#: Denominator substituted when the weights sum to exactly zero.  The numerator
+#: is then exactly zero too, so the loss is 0 and the gradient is 0.
 MIN_TOTAL_WEIGHT: float = 1e-12
 
 
@@ -54,5 +54,9 @@ def weighted_mean(
         denom = denominator.to(torch.float32)
     else:
         denom = torch.as_tensor(float(denominator), dtype=torch.float32, device=x.device)
-    denom = torch.clamp(denom, min=MIN_TOTAL_WEIGHT)
+    # Substitute the floor only when the weights sum to *exactly* zero. Clamping
+    # instead would silently rescale the result for any tiny-but-positive weight
+    # sum: with weights summing to 2e-16 the true mean is still well defined and
+    # bounded by max(x), so dividing by the real total is both correct and safe.
+    denom = torch.where(denom > 0, denom, torch.full_like(denom, MIN_TOTAL_WEIGHT))
     return (x * w).sum() / denom

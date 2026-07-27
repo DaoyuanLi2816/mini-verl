@@ -1,0 +1,174 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    # The base install must work without torch. This job never installs it, so a
+    # heavy import leaking into the core path fails here rather than in a user's
+    # `pip install miniverl`.
+    name: core (no torch) py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install (base + dev only)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Assert torch is absent
+        run: |
+          python - <<'PY'
+          import importlib.util, sys
+          for name in ("torch", "transformers", "peft", "bitsandbytes"):
+              assert importlib.util.find_spec(name) is None, f"{name} must not be installed here"
+          import miniverl, miniverl.cli, miniverl.config, miniverl.schemas
+          import miniverl.inspection, miniverl.reporting, miniverl.cache, miniverl.environments
+          assert "torch" not in sys.modules, "importing miniverl pulled in torch"
+          print("core import path is torch-free")
+          PY
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: ruff format
+        run: ruff format --check .
+
+      - name: mypy
+        run: mypy src/miniverl
+
+      - name: pytest (torch-free subset)
+        run: pytest -q -m "not torch and not gpu and not network" -ra
+
+      - name: coverage gate for the pure core
+        run: |
+          pytest -q -m "not torch and not gpu and not network" \
+            --cov=miniverl.config --cov=miniverl.schemas --cov=miniverl.trajectory \
+            --cov=miniverl.selection --cov=miniverl.environments --cov=miniverl.agent.protocol \
+            --cov=miniverl.inspection --cov=miniverl.errors --cov=miniverl.cache.stats \
+            --cov-report=term-missing --cov-fail-under=85
+
+      - name: CLI smoke (base install)
+        run: |
+          miniverl --help
+          miniverl --version
+          miniverl doctor --json > doctor.json
+          python -c "import json; d=json.load(open('doctor.json')); assert d['verdict']['core_commands'] is True"
+          for recipe in recipes/*.yaml; do
+            case "$recipe" in
+              *benchmark_calc.yaml) continue ;;
+            esac
+            miniverl validate "$recipe" --json > /dev/null
+          done
+          miniverl train recipes/toy_cpu.yaml --dry-run --json > plan.json
+          python -c "import json; d=json.load(open('plan.json')); assert d['dry_run'] and not d['downloads_required']"
+          miniverl schema --out /tmp/benchmark-result.schema.json
+          python -c "import json; json.load(open('/tmp/benchmark-result.schema.json'))"
+          diff -q /tmp/benchmark-result.schema.json benchmarks/schema/benchmark-result.schema.json
+
+      - name: Missing extra produces an actionable message
+        run: |
+          set +e
+          out=$(miniverl demo --output /tmp/should-not-exist 2>&1)
+          status=$?
+          set -e
+          echo "$out"
+          test $status -ne 0
+          echo "$out" | grep -q 'pip install "miniverl\[train\]"'
+
+  cpu-ml:
+    name: cpu ml (torch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install with CPU torch
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev,train]"
+
+      - name: pytest (full CPU suite, with coverage gate)
+        env:
+          MINIVERL_LOG_LEVEL: WARNING
+          HF_HUB_OFFLINE: "1"
+        run: |
+          pytest -q -m "not gpu and not network" -ra \
+            --cov=miniverl --cov-report=term-missing --cov-fail-under=80
+
+      - name: End-to-end demo and every read-only command
+        env:
+          MINIVERL_LOG_LEVEL: WARNING
+        run: |
+          miniverl demo --output /tmp/miniverl-demo --fast --json > demo.json
+          python -c "import json; d=json.load(open('demo.json')); assert d['cycles_completed'] >= 1"
+          test -f /tmp/miniverl-demo/manifest.json
+          test -f /tmp/miniverl-demo/trajectories.jsonl
+          test -f /tmp/miniverl-demo/teacher-cache/index.json
+          test -f /tmp/miniverl-demo/report.html
+          miniverl inspect /tmp/miniverl-demo/trajectories.jsonl --json > inspect.json
+          python - <<'PY'
+          import json
+          d = json.load(open("inspect.json"))
+          excluded = d["provenance_check"]["context_span_types_excluded_from_loss"]
+          assert "tool_result" in excluded, excluded
+          assert 0.0 < d["model_token_fraction"] < 1.0
+          PY
+          miniverl cache stats /tmp/miniverl-demo/teacher-cache --json > cache.json
+          python -c "import json; d=json.load(open('cache.json')); assert d['problems']==[] and d['compression_ratio']>0"
+          miniverl cache validate /tmp/miniverl-demo/teacher-cache
+          miniverl report /tmp/miniverl-demo --out /tmp/miniverl-demo/report.html
+          python - <<'PY'
+          html = open("/tmp/miniverl-demo/report.html", encoding="utf-8").read()
+          assert "http://" not in html and "https://" not in html, "report must be self-contained"
+          assert "<script" not in html.lower()
+          PY
+          miniverl eval --run /tmp/miniverl-demo --tasks 2 --json > eval.json
+          python -c "import json; json.load(open('eval.json'))"
+          miniverl export-benchmark /tmp/miniverl-demo --json > export.json
+          python - <<'PY'
+          import json
+          from miniverl.evaluation.schema import BenchmarkResult
+          BenchmarkResult.model_validate(json.load(open("export.json"))["result"])
+          PY
+
+      - name: No unfinished implementation markers
+        run: |
+          python - <<'PY'
+          import pathlib, re, sys
+          pattern = re.compile(r"\b(TODO|FIXME|XXX|HACK)\b|NotImplementedError")
+          bad = []
+          for root in ("src", "tests", "examples", "scripts"):
+              for path in pathlib.Path(root).rglob("*.py"):
+                  for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                      if pattern.search(line):
+                          bad.append(f"{path}:{i}: {line.strip()}")
+          if bad:
+              print("\n".join(bad))
+              sys.exit(1)
+          print("no unfinished implementation markers")
+          PY

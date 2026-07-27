@@ -1,0 +1,25 @@
+version: 2
+
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 5
+    groups:
+      dev-tooling:
+        patterns: ["ruff", "mypy", "pytest*", "hypothesis", "build", "twine", "types-*"]
+    ignore:
+      # torch, transformers, peft and bitsandbytes move fast and interact; they
+      # are upgraded deliberately, with a GPU run, not by a bot.
+      - dependency-name: torch
+      - dependency-name: transformers
+      - dependency-name: peft
+      - dependency-name: bitsandbytes
+      - dependency-name: accelerate
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3

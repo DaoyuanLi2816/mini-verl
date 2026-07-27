@@ -1,0 +1,83 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  wheel:
+    name: build and install from the wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check dist/*
+          ls -la dist/
+
+      - name: The sdist must contain the recipes and the tests
+        run: |
+          python - <<'PY'
+          import glob, tarfile
+          [path] = glob.glob("dist/*.tar.gz")
+          with tarfile.open(path) as archive:
+              names = archive.getnames()
+          for needed in ("recipes/toy_cpu.yaml", "tests/conftest.py", "LICENSE", "README.md"):
+              assert any(n.endswith(needed) for n in names), f"{needed} missing from the sdist"
+          print("sdist contents look right")
+          PY
+
+      - name: The wheel must ship the report template
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+          [path] = glob.glob("dist/*.whl")
+          names = zipfile.ZipFile(path).namelist()
+          assert "miniverl/reporting/templates/report.html.j2" in names, names[:20]
+          assert not any(n.startswith("tests/") for n in names), "tests must not ship in the wheel"
+          print("wheel contents look right")
+          PY
+
+      - name: Install into a clean virtual environment and smoke test
+        run: |
+          python -m venv /tmp/wheel-test
+          . /tmp/wheel-test/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl
+          miniverl --help
+          miniverl --version
+          miniverl doctor --json > /tmp/doctor.json
+          python -c "import json; d=json.load(open('/tmp/doctor.json')); assert d['verdict']['core_commands'] is True"
+          python -c "import miniverl, sys; assert 'torch' not in sys.modules"
+          deactivate
+
+      - name: Install the training extra into a second clean environment
+        run: |
+          python -m venv /tmp/train-test
+          . /tmp/train-test/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install "$(echo dist/*.whl)[train]"
+          miniverl doctor --json > /tmp/doctor-train.json
+          python -c "import json; d=json.load(open('/tmp/doctor-train.json')); assert d['verdict']['cpu_training'] is True"
+          MINIVERL_LOG_LEVEL=WARNING miniverl demo --output /tmp/wheel-demo --fast --json > /tmp/demo.json
+          python -c "import json; d=json.load(open('/tmp/demo.json')); assert d['cycles_completed'] >= 1"
+          test -f /tmp/wheel-demo/report.html
+          deactivate
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 260" width="880" height="260" role="img"
+     aria-label="miniVERL - on-policy distillation for tool-using agents on one GPU">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#10141a"/>
+      <stop offset="55%" stop-color="#161c25"/>
+      <stop offset="100%" stop-color="#1d2530"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#5aa9f0"/>
+      <stop offset="100%" stop-color="#63c48d"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
+            orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d8794"/>
+    </marker>
+  </defs>
+
+  <rect width="880" height="260" rx="14" fill="url(#bg)"/>
+  <rect x="0" y="0" width="880" height="3" rx="1.5" fill="url(#accent)"/>
+
+  <!-- wordmark -->
+  <text x="48" y="82" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+        font-size="46" font-weight="700" letter-spacing="-1.2" fill="#e8ecf1">mini<tspan
+        fill="#5aa9f0">VERL</tspan></text>
+
+  <text x="48" y="116" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+        font-size="18" fill="#c3cbd6">On-policy distillation for tool-using agents on one GPU.</text>
+
+  <text x="48" y="142" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
+        font-size="13" fill="#7d8794">A readable, reproducible, 16GB-first post-training lab for
+        exact and budgeted on-policy distillation.</text>
+
+  <!-- pipeline schematic -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5">
+    <!-- student -->
+    <rect x="48" y="176" width="126" height="46" rx="8" fill="#1f2833" stroke="#33404f"/>
+    <text x="111" y="195" text-anchor="middle" fill="#e8ecf1">student pi_theta</text>
+    <text x="111" y="211" text-anchor="middle" fill="#7d8794">QLoRA, 16 GB</text>
+
+    <!-- env -->
+    <rect x="204" y="176" width="132" height="46" rx="8" fill="#1f2833" stroke="#33404f"/>
+    <text x="270" y="195" text-anchor="middle" fill="#e8ecf1">tools + verifier</text>
+    <text x="270" y="211" text-anchor="middle" fill="#7d8794">calc / json / sqlite</text>
+
+    <!-- trajectory -->
+    <rect x="366" y="176" width="150" height="46" rx="8" fill="#1f2833" stroke="#33404f"/>
+    <text x="441" y="195" text-anchor="middle" fill="#e8ecf1">typed token spans</text>
+    <text x="441" y="211" text-anchor="middle" fill="#7d8794">tool output = context</text>
+
+    <!-- teacher -->
+    <rect x="546" y="176" width="134" height="46" rx="8" fill="#1f2833" stroke="#33404f"/>
+    <text x="613" y="195" text-anchor="middle" fill="#e8ecf1">teacher scores</text>
+    <text x="613" y="211" text-anchor="middle" fill="#7d8794">those exact states</text>
+
+    <!-- update -->
+    <rect x="710" y="176" width="122" height="46" rx="8" fill="#1f2833" stroke="#5aa9f0"/>
+    <text x="771" y="195" text-anchor="middle" fill="#e8ecf1">masked KL</text>
+    <text x="771" y="211" text-anchor="middle" fill="#7d8794">top-k + tail</text>
+
+    <line x1="176" y1="199" x2="200" y2="199" stroke="#7d8794" stroke-width="1.4" marker-end="url(#arrow)"/>
+    <line x1="338" y1="199" x2="362" y2="199" stroke="#7d8794" stroke-width="1.4" marker-end="url(#arrow)"/>
+    <line x1="518" y1="199" x2="542" y2="199" stroke="#7d8794" stroke-width="1.4" marker-end="url(#arrow)"/>
+    <line x1="682" y1="199" x2="706" y2="199" stroke="#7d8794" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+    <!-- feedback edge -->
+    <path d="M 771 226 L 771 242 L 111 242 L 111 226" fill="none" stroke="#3d4a5a"
+          stroke-width="1.4" stroke-dasharray="4 4" marker-end="url(#arrow)"/>
+    <text x="441" y="255" text-anchor="middle" fill="#5b6674" font-size="10.5">policy version + 1;
+      the next batch is resampled from the updated student</text>
+  </g>
+</svg>

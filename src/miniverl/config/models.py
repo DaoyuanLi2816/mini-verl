@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from miniverl.errors import ConfigError
 
@@ -290,13 +290,35 @@ class RolloutConfig(_Base):
 class EnvironmentConfig(_Base):
     """Which deterministic local environment to train and evaluate on."""
 
-    name: str = Field(pattern="^(calculator|jsonnav|sqlite)$")
+    name: str = Field(min_length=1, max_length=64)
     params: dict[str, Any] = Field(default_factory=dict)
     train_tasks: int = Field(default=64, ge=1, le=100000)
     eval_tasks: int = Field(default=32, ge=1, le=100000)
     test_tasks: int = Field(default=32, ge=0, le=100000)
     split_seed: int = Field(default=7, ge=0)
     difficulty: str = Field(default="easy", pattern="^(easy|medium|hard)$")
+
+    @field_validator("name")
+    @classmethod
+    def _known_environment(cls, value: str) -> str:
+        """Check against the registry rather than a hard-coded list.
+
+        A literal pattern here would have made
+        :func:`miniverl.environments.registry.register` useless: a custom
+        environment would register successfully and then be rejected by config
+        validation. The import is inside the validator so that
+        ``import miniverl.config`` stays light.
+        """
+        from miniverl.environments.registry import available_environments
+
+        known = available_environments()
+        if value not in known:
+            raise ValueError(
+                f"unknown environment {value!r}; registered environments are "
+                f"{', '.join(known)}. Custom environments must be imported (which "
+                "runs their @register decorator) before the recipe is validated."
+            )
+        return value
 
 
 class TrainConfig(_Base):

@@ -1,0 +1,65 @@
+name: New environment
+description: Propose or contribute a tool environment.
+labels: ["environment"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        miniVERL environments must be **deterministic, local and exactly
+        verifiable**. There is no LLM-as-judge anywhere in the loop, and no
+        environment may touch the network, the user's filesystem outside a
+        temporary directory, or a shell.
+
+        Read `docs/design.md` and `src/miniverl/environments/base.py` first.
+
+  - type: input
+    id: name
+    attributes:
+      label: Environment name
+      placeholder: "regex_extract"
+    validations:
+      required: true
+
+  - type: textarea
+    id: tasks
+    attributes:
+      label: What does a task look like?
+      description: One concrete example prompt and its exact reference answer.
+    validations:
+      required: true
+
+  - type: textarea
+    id: tools
+    attributes:
+      label: Tools
+      description: Name, parameters and what each returns.
+    validations:
+      required: true
+
+  - type: textarea
+    id: verifier
+    attributes:
+      label: Verifier
+      description: >-
+        How is an answer graded exactly? If the answer can be right in more than
+        one surface form, say how you normalize.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: requirements
+    attributes:
+      label: Requirements
+      options:
+        - label: Task generation is deterministic given a seed.
+          required: true
+        - label: Train, eval and test splits are disjoint by construction.
+          required: true
+        - label: There is a deterministic oracle action sequence that solves every task.
+          required: true
+        - label: No network access, no shell, no arbitrary file access, no `eval`.
+          required: true
+        - label: Multi-turn -- at least one difficulty needs two dependent tool calls.
+          required: false
+        - label: It can provide a privileged context string for the teacher.
+          required: false

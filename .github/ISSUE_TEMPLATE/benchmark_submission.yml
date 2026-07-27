@@ -1,0 +1,65 @@
+name: Benchmark submission
+description: Report measured results from your own hardware.
+labels: ["benchmark"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Measured numbers from hardware we do not own are the most
+        useful contribution this project can receive.
+
+        Produce a submission file first:
+
+        ```bash
+        miniverl train <recipe>
+        miniverl export-benchmark runs/<run-id> --out my-result.json
+        ```
+
+        `export-benchmark` strips absolute paths and keeps only the GPU model,
+        VRAM, OS family and library versions. Please read it before posting.
+
+  - type: input
+    id: hardware
+    attributes:
+      label: GPU and VRAM
+      placeholder: "NVIDIA GeForce RTX 4080, 16 GiB"
+    validations:
+      required: true
+
+  - type: input
+    id: recipe
+    attributes:
+      label: Recipe used
+      placeholder: "recipes/qwen_consumer_gpu_calc.yaml, unmodified"
+    validations:
+      required: true
+
+  - type: textarea
+    id: result
+    attributes:
+      label: Contents of the exported result JSON
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: changes
+    attributes:
+      label: Any deviation from the shipped recipe
+      description: >-
+        List every key you changed. A result from a modified recipe is still
+        welcome; it just has to say so.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: honesty
+    attributes:
+      label: Confirmations
+      options:
+        - label: These numbers were measured on the hardware named above, not estimated.
+          required: true
+        - label: I ran the recipe to completion and did not select the best of several runs without saying so.
+          required: true
+        - label: I am willing to open a pull request adding this file under `benchmarks/results/`.
+          required: false

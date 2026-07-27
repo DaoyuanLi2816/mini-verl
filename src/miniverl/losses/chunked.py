@@ -226,7 +226,9 @@ def chunked_selected_position_loss(
     w = weights.to(torch.float32).to(device)
     if w.shape[0] != n:
         raise ValueError(f"weights has length {w.shape[0]} but hidden_states has {n} rows")
-    denom = torch.clamp(w.sum(), min=MIN_TOTAL_WEIGHT)
+    total = w.sum()
+    # Only an exactly-zero weight sum uses the floor; see losses/reduction.py.
+    denom = torch.where(total > 0, total, torch.full_like(total, MIN_TOTAL_WEIGHT))
 
     use_two_stage = backward and hidden_states.requires_grad
     work = hidden_states.detach().requires_grad_(True) if use_two_stage else hidden_states

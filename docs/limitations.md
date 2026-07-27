@@ -1,0 +1,345 @@
+# Limitations
+
+This page is the list of reasons not to trust miniVERL beyond what it has
+actually been shown to do. It is deliberately longer than the feature list.
+
+Everything below is traceable to a file in this repository or to a command that
+was run against it. Measurements come from one machine: Windows 11 Pro
+10.0.22631, RTX 4080 (16376 MiB, driver 596.49), CPython 3.12.13, torch
+2.13.0+cu130, transformers 5.14.1, peft 0.19.1, bitsandbytes 0.50.0. The GPU
+figures are recorded in `docs/rtx4080-baselines.md` and were produced by
+`scripts/gpu_smoke.py` and `scripts/gpu_probe_throughput.py`.
+
+## Modelling and objective
+
+### Same tokenizer on both sides, with no fallback
+
+The student and the teacher must tokenize identically. This is enforced by the
+code rather than documented and hoped for:
+
+- `miniverl.models.factory.build_tokenizer` returns **one** tokenizer object,
+  which both backends then share. When the teacher declares a different
+  tokenizer id, that tokenizer is loaded and its behavioural fingerprint is
+  compared against the student's; any difference raises
+  `TokenizerMismatchError` before a single weight is downloaded.
+- `miniverl.trajectory.alignment.build_alignment_map` and
+  `miniverl.teachers.local.LocalTeacherScorer.score` both re-check the
+  fingerprint on the teacher render used by `privileged_context` mode.
+
+`miniverl.models.tokenizers.assert_same_tokenizer` also exists, but it has no
+call sites in `src/` or `tests/` and is not in the module's `__all__`. Do not
+rely on it; the two checks above are the ones that run.
+
+The fingerprint is a SHA-256 over the tokenizer class name, `len(tokenizer)`,
+the EOS and PAD ids, the sorted additional special tokens, and the token ids
+produced for a fixed probe string containing chat and tool markup
+(`miniverl.models.tokenizers.PROBE_TEXT`). Two tokenizers that agree on
+metadata but disagree on the probe are still rejected.
+
+The reason is structural, not incidental. A bucketed teacher target is a set of
+vocabulary **indices** plus log-probabilities; the student gathers its own
+log-probabilities at those same indices. If the two vocabularies differ, the
+indices mean different tokens and the divergence is computed between unrelated
+coordinates. Making this work requires a token-alignment step that miniVERL does
+not have. Pick a teacher from the student's own model family.
+
+### `exact_full_vocab` is guarded, and the guard does not cover every path
+
+`loss.mode: exact_full_vocab` materializes complete `[chunk_size, V]`
+distributions. `loss.exact_max_vocab` (default `8192`) plus
+`loss.allow_large_exact` (default `false`) exist to stop you doing that
+accidentally on a 151936-entry vocabulary.
+
+Read the guard carefully, because it is narrower than it looks. In
+`miniverl.teachers.local.LocalTeacherScorer.score`, the check
+`_check_exact_is_affordable` runs only when the teacher is **not** resident,
+that is, when the targets have to be serialized for `memory.strategy: swap`.
+With `memory.strategy: resident` the exact path is taken without the guard:
+only `[N, H]` teacher hidden states are kept and the `[chunk, V]` logits are
+rebuilt per chunk on demand.
+
+That path is legal, and it is also expensive. A single `[256, 151936]` float32
+tensor is 148 MiB, and the chunk loop holds several of them at once (teacher
+logits, teacher log-probabilities, student logits, student log-probabilities)
+before any gradient is stored. If you enable exact mode on a full-size
+vocabulary, lower `loss.chunk_size` first.
+
+Exact-resident teacher targets are also **not cacheable**: the scorer returns
+`cacheable=None` for that shape, so no teacher cache is written and
+`miniverl cache stats` has nothing to report.
+
+### The bucketed divergence is a lower bound, not the KL you want
+
+`bucketed_topk_tail` coarse-grains both distributions into `K + 1` categories:
+one per teacher top-k token, plus a single bucket holding all remaining mass. By
+the data-processing inequality, the divergence between the coarse-grained
+distributions is **less than or equal to** the full-vocabulary divergence.
+Coarse-graining can only destroy information. `tests/unit/test_losses_bucketed.py`
+asserts this direction explicitly
+(`test_bucketed_lower_bounds_exact`, for `k` in `{1, 2, 8, 32}` and all three
+divergences) and asserts that equality is reached only when `k == V`
+(`test_full_k_converges_to_the_exact_loss`).
+
+Consequences you should not paper over:
+
+- A bucketed KL number is not comparable to a full-vocabulary KL number from
+  another codebase, and is not comparable across different `top_k`.
+- The reported teacher entropy is `bucketed_teacher_entropy`, the entropy of the
+  `K + 1` bucket distribution. It lower-bounds the true entropy for the same
+  reason, because merging the tail discards its internal spread.
+- Selecting fewer positions reduces the LM-head projection work, the cache size
+  and the number of loss positions. It does **not** proportionally reduce teacher
+  FLOPs, because the teacher still runs a full forward pass over the whole
+  sequence to produce hidden states. The reports name this
+  `teacher_queried_position_ratio` and never call it compute saved.
+
+### `tail_epsilon` changes the objective
+
+Both tails are floored at `log(tail_epsilon)` (default `1e-9`) and the
+`K + 1`-way vectors are then renormalized. Without the floor, a teacher whose
+top-k captures all of the mass combined with a student that still leaks
+probability outside that top-k gives `+inf` in reverse KL.
+
+The floor is not free. Every bucket probability is perturbed by O(`tail_epsilon`)
+by the flooring and renormalization, so the minimized quantity is not exactly
+the bucketed divergence either. More importantly, the reverse-KL penalty for
+student mass outside the teacher's top-k is capped at `log(1 / tail_epsilon)`
+nats, which at the default is about 20.7 nats rather than infinity
+(`test_reverse_kl_tail_penalty_is_bounded_by_log_one_over_epsilon`). Raising
+`tail_epsilon` weakens that penalty further; lowering it makes the gradient
+sharper and the loss noisier. Treat it as a hyperparameter of the objective, not
+as a numerical detail.
+
+## Training loop
+
+### One trajectory per forward pass
+
+`OPDTrainer._run_group` loops over the trajectories in a group and calls
+`hidden_states_at` plus `chunked_selected_position_loss` once per trajectory,
+each backward scaled by `1 / len(group)`, then takes a single optimizer step.
+There is no padded batching and no attention-mask assembly across sequences.
+
+Two things follow:
+
+- `train.gradient_accumulation_steps` **is** the effective batch size. It is not
+  a multiplier on top of some other batch dimension. The number of optimizer
+  steps per cycle is `ceil(rollouts_per_cycle / gradient_accumulation_steps)`.
+- Throughput does not benefit from the GPU's ability to batch. Short
+  trajectories are as expensive per token as long ones.
+
+If you set `gradient_accumulation_steps < rollouts_per_cycle` in `opd` mode,
+`miniverl validate` warns that only the first optimizer step of each rollout
+batch is strictly on-policy; the later steps consume trajectories sampled from a
+policy that has already been updated. The shipped 16 GB recipe sets
+`gradient_accumulation_steps: 6` equal to `rollouts_per_cycle: 6` for that
+reason.
+
+### `swap` is unavailable whenever anything is quantized
+
+`memory.strategy: swap` moves the student and its optimizer state to host memory
+while the teacher scores, then swaps back. bitsandbytes 4-bit and 8-bit
+parameters are pinned to the device they were quantized on and cannot make that
+round trip, so `OPDTrainer.from_config` raises `ConfigError` for
+`swap` plus any non-`none` quantization, and `auto` resolves to `resident` with
+the recorded reason:
+
+> auto -> resident: a quantized model cannot be moved off the accelerator, so
+> swap is unavailable
+
+This removes the main lever for fitting a large teacher on a small card exactly
+when you need it. On 16 GB the practical envelope is a quantized sub-1B student
+with a bf16 teacher of roughly 1.7B parameters, both resident. A bigger teacher
+means dropping quantization to regain `swap`, which costs student memory, or
+using a different tool.
+
+### OOM handling only halves the chunk
+
+`run_with_oom_retry` retries a CUDA OOM by halving `loss.chunk_size` down to
+`memory.min_chunk_size`, at most `memory.oom_retries` times. That is deliberate:
+the chunk size is mathematically neutral. Nothing else is adjusted
+automatically. Sequence length, batch size, models and objective are never
+changed behind your back, so a run that does not fit will fail rather than
+quietly train something different.
+
+## Evidence quality
+
+### The toy backend is a machinery harness, not a capability result
+
+`recipes/toy_cpu.yaml` runs the whole pipeline on CPU with a 186-entry
+reversible tokenizer and a small RMSNorm/RoPE/SwiGLU transformer (student:
+hidden 96, 3 layers). Its purpose is to exercise the loop end to end.
+`recipes/toy_exact_full_vocab.yaml` additionally exercises
+`loss.mode: exact_full_vocab`, which is affordable only at a vocabulary this
+small. Neither is evidence that distillation works.
+
+The toy measurements recorded during development make the point:
+
+| finding | measurement |
+| --- | --- |
+| Learned absolute position embeddings block copying | toy teacher reached train loss 0.0006 but **0%** eval success; every rollout had valid syntax and the wrong operands |
+| RoPE plus task diversity fixes it | 48 oracle traces gives **25%** eval success; 256 traces at 800 steps gives **87.5%** |
+| Too little diversity for the step budget | 1024 traces at the same 800 steps gives **18.8%**, only about 3 epochs |
+| Toy student SFT convergence (hidden 96, 3 layers, batch 8) | step 100: 0%, 200: 25%, 300: 75%, 400: 100%, 600: 87.5%; whole run 41 s on CPU |
+
+Note the non-monotonicity in the last row: 400 steps scored higher than 600. The
+evaluation sets behind these numbers are small, which is visible in the values
+themselves -- 25%, 75% and 87.5% are all coarse fractions -- so a single task
+moves the figure by more than ten percentage points and none of these
+differences are separable from noise. Do not quote toy numbers as accuracy
+results.
+
+### The 16 GB run demonstrates the pipeline, not an OPD-over-SFT win
+
+`recipes/qwen_consumer_gpu_calc.yaml` (run id `rtx4080-calc-opd`) completed 16
+optimizer steps in 481.1 s, and held-out greedy evaluation on 12 calculator
+tasks went from 0.0% to 100.0%.
+
+That headline is misleading unless you read the next sentence. The recipe runs
+`sft_warmup_cycles: 8` before `cycles: 8` of OPD, and **the first OPD rollout
+batch already scored 83.3%**. The supervised cold start did most of the work.
+The run shows that rollouts, teacher scoring, cache round-tripping, the
+divergence and the optimizer step all function together on a consumer card. It
+does not show that on-policy distillation beat SFT, and no arm of it was
+designed to test that.
+
+The task family is also close to saturated. At `difficulty: medium` the
+calculator environment emits either a three-term arithmetic expression or a
+single unit conversion (`CalculatorEnvironment.generate_task`), each solvable
+with one tool call. There is no headroom above 100% and very little between the
+cold start and the ceiling. Any comparison of objectives on this task will be
+measuring the wrong thing; use `difficulty: hard`, which adds four-term
+expressions and chained compute-then-convert tasks, or a different environment.
+
+### Single seed, single machine, single task family
+
+Every GPU number in this repository comes from one seed on one RTX 4080. The
+benchmark harness accepts a list of seeds and both `miniverl benchmark` and the
+generated Markdown print a `single seed -- no significance claimed` warning when
+only one is given, but the shipped results have not been repeated. No confidence
+interval, variance estimate or significance claim in this project is supported.
+
+### Throughput numbers are platform-specific and mostly measure kernel launches
+
+Single-sequence decode on this machine (64 new tokens from a 36-token prefix):
+
+| configuration | tokens/s | peak allocated |
+| --- | --- | --- |
+| NF4 + bf16, deterministic algorithms | 11.19 | 0.862 GiB |
+| NF4 + bf16, non-deterministic | 11.29 | - |
+| bf16 LoRA, deterministic algorithms | 12.84 | 1.170 GiB |
+| bf16 LoRA, non-deterministic | 14.12 | - |
+
+The interesting number is not in that table. A 14-token prefill costs 37.0 ms
+while a cached single-token step costs 30.9 ms. The work differs by 14x and the
+time differs by 20%, so decoding here is bound by kernel launch overhead, not by
+compute. For context, the LM head on one position takes 0.48 ms, decoding 64
+token ids takes 0.02 ms, and copying a 151936-float vector from device to host
+takes 0.11 ms.
+
+That means these throughput figures characterize this Windows/CUDA/torch
+combination as much as they characterize miniVERL. On a machine with lower
+launch overhead, or with CUDA graphs, or with a batched rollout engine, the
+ranking between NF4 and bf16 could change. Do not size a recipe for other
+hardware from this table.
+
+Memory, separately measured by `scripts/gpu_smoke.py` (1 SFT warmup cycle, 1 OPD
+cycle, 2 rollouts, 2 eval tasks): peak 4.251 GiB allocated and 4.762 GiB
+reserved, strategy resolved to `resident`, projection chunk 256, 0 OOM retries.
+The student had 10,092,544 trainable LoRA parameters out of 385,941,504
+NF4-packed parameters; the teacher had 1,720,574,976. A longer run with larger
+budgets will not have this peak.
+
+## Scope
+
+### Only two architectures are tested
+
+`miniverl.models.adapters.TESTED_ARCHITECTURES` is
+`("Qwen3ForCausalLM", "Qwen2ForCausalLM")`. The adapter resolves the decoder
+backbone and the LM head through documented Transformers APIs
+(`get_decoder`, `get_output_embeddings`, `get_base_model`) with a short list of
+attribute-path fallbacks, so other decoder-only causal LMs may work. They are
+untested, and a model whose head or backbone is not reachable raises with the
+class name rather than guessing.
+
+Models with tied embeddings, weight-sharing tricks, or a non-`Linear` output
+projection have not been exercised beyond the pinned Qwen3 pair (which does have
+`tie_word_embeddings: true`) and a tiny offline `Qwen3ForCausalLM` fixture.
+
+### Things this project does not contain
+
+A case-insensitive whole-word grep over `src/` returns zero hits for each of the
+following: `ray`, `vllm`, `sglang`, `fsdp`, `deepspeed`, `megatron`, `ppo`,
+`grpo`. There is likewise no vision or multimodal code path, no distributed
+initialization, and no `world_size` anywhere.
+
+Concretely, miniVERL has no distributed training, no multi-GPU or multi-node
+execution, no high-throughput rollout engine, no PPO, GRPO or any other RL
+objective, no reward model, no vision-language support, no dataset loader (all
+tasks are generated in-process by the three built-in environments), no
+cross-tokenizer distillation, and no containerized or networked tool sandbox.
+Tools execute in-process. Where that is risky the environment restricts the
+input rather than the process: the calculator walks a parsed `ast` with a closed
+node whitelist instead of calling `eval`, and the SQLite environment uses a
+`sqlite3` authorizer plus a function whitelist and permits one statement per
+call.
+
+`models.teacher.mode: privileged_context` works only with environments that
+implement `privileged_context()`. All three built-in environments do;
+`miniverl validate` warns if you point it at one that does not.
+
+### Cache precision
+
+`cache.dtype: float16` (used by the 16 GB recipe) halves the log-probability
+payload at a cost of roughly 1e-3 relative precision on the stored teacher
+log-probabilities. `float32` round-trips exactly. If you are comparing
+divergence magnitudes across runs, keep this fixed.
+
+## Known open defect
+
+`tests/property/test_property_losses.py::test_weighted_mean_is_a_weighted_mean`
+fails. Hypothesis found the counterexample during the documentation pass on
+2026-07-27, and it now reproduces from the example database:
+
+```
+values  = [0.0, 0.0, 0.0, 0.0, 1.0]
+weights = [0.0, 0.0, 0.0, 0.0, 2.220446049250313e-16]
+```
+
+`miniverl.losses.reduction.weighted_mean` clamps the denominator at
+`MIN_TOTAL_WEIGHT = 1e-12`. When the total weight is non-zero but far below that
+floor, the numerator is *not* zero, so the clamp inflates the result: here
+`2.22e-16 / 1e-12` gives `2.22e-4`, and the test asserts the result is within
+`1e-6` of zero. The comment on `MIN_TOTAL_WEIGHT` states the floor is "only
+reachable when every selected token has zero weight, in which case the numerator
+is exactly zero too", and that assumption is what the counterexample breaks.
+
+Reachability in a real run is remote but not impossible:
+`selection.critical_weight` and `selection.other_weight` are validated only as
+`> 0.0`, so a recipe could set a weight of `1e-16`.
+
+For completeness, the gate results behind this page, all run on 2026-07-27:
+`ruff check` clean, `ruff format --check` clean (92 files), `mypy` clean over 71
+source files, and `pytest -m "not gpu" --cov=miniverl` gives 858 passed, 1
+failed, 4 deselected in 39.32 s with 85% total branch coverage over 5847
+statements. The 4 GPU-marked tests are not included in that figure.
+
+## Roadmap (not implemented)
+
+Nothing in this section exists in the code. It is recorded here so that the
+sections above cannot be read as implying it does.
+
+- **Cross-tokenizer distillation.** Referenced as a roadmap item by the error
+  hints in `models/factory.py` and `trajectory/alignment.py`. Would require a
+  token-alignment layer between the two vocabularies. Not implemented.
+- **Entropy-aware forward/reverse KL mixing.** miniVERL records per-position
+  teacher entropy and reports it, which is the input such a scheme needs, but
+  the divergence is whichever single one `loss.divergence` names. Mixing forward
+  KL into high-entropy positions, as in arXiv:2603.07079, is **not implemented**.
+- **Padded batching of trajectories.** Would change what
+  `gradient_accumulation_steps` means. Not implemented.
+- **Swap for quantized models.** Requires dequantize-on-eviction or a second
+  copy of the weights. Not implemented, and rejected at config time today.
+- **Multi-GPU or multi-node execution.** Not implemented and not planned; use
+  verl (see [comparisons.md](comparisons.md)).
+- **A batched or engine-backed rollout path.** Not implemented.
+- **Additional tested architectures.** Only Qwen3 and Qwen2 are tested today.

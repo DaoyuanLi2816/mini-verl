@@ -1,0 +1,94 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: validate the tag against the package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip build twine
+          pip install -e ".[dev]"
+
+      - name: The tag, __init__.py, CHANGELOG.md and CITATION.cff must agree
+        run: |
+          python - <<'PY'
+          import os, pathlib, re, sys
+
+          ref = os.environ.get("GITHUB_REF", "")
+          tag = ref.rsplit("/", 1)[-1] if ref.startswith("refs/tags/") else ""
+          from miniverl import __version__ as version
+
+          problems = []
+          if tag and tag.lstrip("v") != version:
+              problems.append(f"tag {tag} does not match miniverl.__version__ {version}")
+
+          changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
+          if f"## [{version}]" not in changelog:
+              problems.append(f"CHANGELOG.md has no '## [{version}]' section")
+
+          citation = pathlib.Path("CITATION.cff").read_text(encoding="utf-8")
+          if not re.search(rf"^version:\s*{re.escape(version)}\s*$", citation, re.M):
+              problems.append(f"CITATION.cff version is not {version}")
+
+          if problems:
+              print("\n".join(problems))
+              sys.exit(1)
+          print(f"release metadata is consistent at {version}")
+          PY
+
+      - name: The release checklist must be complete
+        run: |
+          python - <<'PY'
+          import pathlib, sys
+
+          text = pathlib.Path("docs/release-checklist.md").read_text(encoding="utf-8")
+          # Everything before "## After the tag" must be done at tag time. The
+          # items after it are repository-settings actions that cannot be
+          # performed from a commit, so they are excluded on purpose.
+          head = text.split("## After the tag", 1)[0]
+          unchecked = [line for line in head.splitlines() if line.strip().startswith("- [ ]")]
+          if unchecked:
+              print("unchecked release-checklist items:")
+              print("\n".join(unchecked))
+              sys.exit(1)
+          print("release checklist is complete")
+          PY
+
+      - name: Build and check
+        run: |
+          python -m build
+          python -m twine check dist/*
+
+      - name: Full quality gate
+        run: |
+          ruff check .
+          ruff format --check .
+          mypy src/miniverl
+          pytest -q -m "not torch and not gpu and not network"
+
+      - name: Working tree must be clean
+        run: |
+          git status --short
+          test -z "$(git status --porcelain)"
+
+  # Publishing is intentionally NOT automated here. PyPI trusted publishing is
+  # documented in docs/release-checklist.md; enabling it requires a maintainer to
+  # register the publisher in the PyPI project settings first. No secrets are
+  # stored in this repository.

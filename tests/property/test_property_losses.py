@@ -236,9 +236,12 @@ def test_weighted_mean_is_a_weighted_mean(values, weights):
     w = torch.tensor(weights[:n], dtype=torch.float32)
     result = float(weighted_mean(per_token, w))
     denominator = float(total_weight(w))
-    if denominator <= 1e-12:
-        assert result == pytest.approx(0.0, abs=1e-6)
+    if denominator == 0.0:
+        # Every position masked out: a documented, safe zero.
+        assert result == 0.0
         return
+    # Any positive weight sum -- however tiny -- must give the true weighted
+    # mean, which is always bounded by the range of the values.
     expected = float((per_token * w).sum()) / denominator
     assert result == pytest.approx(expected, rel=1e-4, abs=1e-5)
     assert min(values[:n]) - 1e-4 <= result <= max(values[:n]) + 1e-4

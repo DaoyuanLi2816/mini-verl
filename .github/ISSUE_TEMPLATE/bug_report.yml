@@ -1,0 +1,65 @@
+name: Bug report
+description: Something behaves incorrectly or crashes.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, please run `miniverl doctor --json` and paste the output
+        below. It rules out half of the possible causes in one step.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: >-
+        The exact commands, and the recipe if you used one. If it reproduces with
+        a shipped recipe or with `miniverl demo`, say which.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Output of `miniverl doctor --json`
+      render: json
+    validations:
+      required: true
+
+  - type: textarea
+    id: manifest
+    attributes:
+      label: Contents of `runs/<run-id>/manifest.json`
+      description: >-
+        Optional but very useful. It contains no personal data by design -- no
+        username, hostname or home path.
+      render: json
+    validations:
+      required: false
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Full traceback or error output
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I am using a released version or a commit I can name.
+          required: true
+        - label: I have not pasted any secret, token or private path.
+          required: true

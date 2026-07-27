@@ -1,0 +1,73 @@
+name: gpu
+
+# Manual only. There is no GPU runner configured for this repository, so this
+# workflow is never part of a required check -- it exists so that a maintainer
+# with a self-hosted CUDA runner can execute the GPU tests on demand, and so the
+# exact commands are version-controlled rather than living in someone's shell
+# history.
+#
+# To use it, register a self-hosted runner with the label `cuda` and dispatch
+# this workflow. Without such a runner the job will simply stay queued; that is
+# expected and is not a failure of the project.
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_recipe:
+        description: "Also run the full 16 GB recipe (slow, ~10 minutes)"
+        type: boolean
+        default: false
+
+jobs:
+  gpu-tests:
+    name: gpu tests (self-hosted cuda)
+    runs-on: [self-hosted, cuda]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Environment
+        run: |
+          nvidia-smi
+          python --version
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev,train,cuda]"
+
+      - name: doctor
+        run: |
+          miniverl doctor
+          miniverl doctor --json > doctor.json
+          python -c "import json; d=json.load(open('doctor.json')); assert d['verdict']['gpu_training'] is True"
+
+      - name: GPU tests
+        run: pytest -q -m gpu -ra
+
+      - name: Full 16 GB recipe
+        if: ${{ inputs.run_recipe }}
+        env:
+          MINIVERL_LOG_LEVEL: INFO
+        run: |
+          miniverl train recipes/qwen_consumer_gpu_calc.yaml --output runs --run-id ci-4080 --json > train.json
+          miniverl eval --run runs/ci-4080 --split test --json > eval.json
+          miniverl report runs/ci-4080 --out runs/ci-4080/report.html
+          miniverl export-benchmark runs/ci-4080 --out runs/ci-4080/benchmark-submission.json
+          python - <<'PY'
+          import json
+          from miniverl.evaluation.schema import BenchmarkResult
+          BenchmarkResult.model_validate(json.load(open("runs/ci-4080/benchmark-submission.json")))
+          print("submission validates against the published schema")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gpu-run
+          path: |
+            runs/ci-4080/manifest.json
+            runs/ci-4080/eval.json
+            runs/ci-4080/summary.md
+            runs/ci-4080/benchmark-submission.json
+          if-no-files-found: ignore
