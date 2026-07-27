@@ -47,15 +47,20 @@ dimension, never from the tokenizer; a GPU test asserts both numbers.
 | gate | command | result |
 | --- | --- | --- |
 | lint | `ruff check .` | **clean** |
-| format | `ruff format --check .` | **clean, 133 files** |
+| format | `ruff format --check .` | **clean, 138 files** |
 | types | `mypy src/miniverl` | **clean, 71 source files** |
-| tests | `pytest -q -m "not gpu and not network" --cov=miniverl` | **929 passed, 4 deselected, 85% branch coverage** over 5855 statements |
+| tests | `pytest -q -m "not gpu and not network" --cov=miniverl` | **934 passed, 4 deselected, 85% branch coverage** over 5911 statements |
 | GPU tests | `pytest -q -m gpu` | **4 passed** |
 | build | `python -m build` | sdist + wheel built |
 | metadata | `python -m twine check dist/*` | **PASSED** for both |
 | wheel completeness | enumerate `src/miniverl` against the wheel | all 77 entries present |
 | clean install (core) | wheel into a fresh venv | `--help`, `--version`, `doctor --json` work; torch absent |
-| clean install (train) | wheel + `[train]` into a second fresh venv | `miniverl demo --fast` completes and writes `report.html` |
+| clean install (train) | wheel + `[train]` into a second fresh venv | `doctor` resolves a CPU-only torch and reports GPU training / QLoRA unavailable with the right remedy; both `examples/` scripts run to completion |
+| determinism | two `miniverl demo` runs in the clean venv, artifact-by-artifact | checkpoints and trajectories **bitwise identical**; `eval.json` differs only in seconds, throughput, timestamp and run id |
+| artifact portability | every `*.json` / `*.jsonl` parsed with `parse_constant` set to reject | **strict-valid** (this gate found 16 bare `NaN` tokens, now fixed) |
+| published results | `jsonschema` validate against `benchmarks/schema/` + personal-information scan | both result files valid and clean |
+| docs links | every relative markdown link and `#anchor` resolved | **37 files, 0 broken** |
+| CLI/docs parity | every `miniverl <cmd>` in the docs matched against the Typer app | all 11 commands documented, no phantom commands |
 | unfinished markers | `rg "TODO\|FIXME\|XXX\|HACK\|NotImplementedError" src tests examples scripts` | none |
 
 ## Completed, with evidence
@@ -124,12 +129,40 @@ whitelist), two statements in one call.
   determinism off). A 14-token prefill costs 37.0 ms and a cached one-token step
   costs 30.9 ms, so decoding here is **kernel-launch bound, not compute bound**.
 * **Matched-budget GPU benchmark** (`benchmarks/configs/gpu_calc_hard.yaml`,
-  chained calculator split, single seed): see
-  `docs/rtx4080-baselines.md`. First run: cold start 62.5%, continued SFT 100%,
-  OPD against the raw instruct teacher **0.0%** with the objective falling 2.33
-  -> 0.84 throughout. A privileged-context arm was added to test the reading
-  that the teacher, never having seen the tool protocol, was actively
-  mis-teaching; that run is recorded in the same file.
+  chained `hard` calculator split, single seed, 12 matched optimizer steps from
+  one shared cold start). Result published in
+  `benchmarks/results/rtx4080-calc-hard-matched.json`:
+
+  | arm | steps | success |
+  | --- | --- | --- |
+  | cold-start-only | 0 | 62.5% |
+  | sft-continued | 12 | **100.0%** |
+  | opd-bucketed-k64 | 12 | **0.0%** |
+  | opd-privileged-context | 12 | **0.0%** |
+
+  **On-policy distillation lost, and the privileged-context prediction was
+  wrong.** Decoding the final evaluations showed the two OPD arms fail
+  differently: the standard teacher drops the opening `<tool_call>` tag and
+  wraps answers in its own `<answer>` tags (83.3% invalid calls), while the
+  privileged teacher emits clean output and no tool calls at all (1.00 turns,
+  0.0% invalid) because it knows the answer and so never needs one.
+  `scripts/attribute_failures.py` re-scores the collected trajectories with a
+  lenient parser and shows formatting explains 4 of 24 failures for the standard
+  arm and **none** for the privileged arm, so neither number is a verifier
+  artifact. Full write-up in `docs/rtx4080-baselines.md`; both executions of the
+  benchmark are reported and nothing was discarded.
+
+* **Matched-budget CPU benchmark** (`recipes/benchmark_calc.yaml`, 7 arms x 2
+  seeds, all 14 completed): published in
+  `benchmarks/results/cpu-toy-calc-matched.json`. Changing the seed moves one
+  arm by up to **58 points** (cold-start-only: 66.7% at seed 1234, 8.3% at seed
+  20260727) while changing the objective moves it by at most 4 points at a fixed
+  seed. This is a parity check -- it shows all seven arms including
+  `exact_full_vocab` run to completion under identical budgets -- and the table
+  is in `benchmarks/README.md` so a reader can see that no ranking is available.
+  The first attempt of this benchmark restarted the cosine schedule and damaged
+  every arm; that attempt is recorded but not published, because it measured a
+  harness bug rather than any arm.
 
 ### Defects found and fixed during the build
 
@@ -149,6 +182,12 @@ Recorded because each one is a class of bug worth remembering.
 | Sampling drew from a CUDA tensor with a CPU generator | the first GPU smoke test | always draw on the CPU, which also makes a seed reproduce across devices |
 | Resume replayed completed cycles with a different LR schedule | the resume-equivalence test | `train()` continues at the checkpointed cycle; the teacher fit is wrapped in `fork_rng` |
 | The toy model could not learn to copy | measuring, not assuming | learned absolute positions -> RoPE; 48 traces -> 256 traces |
+| `ArmResult.run_dir` wrote an absolute path, carrying a username and home directory into a file meant for pull requests | a new privacy test over `benchmarks/results/` | a validator reduces any path to its final component |
+| The committed JSON schema was never checked against the model it is generated from, though `schema.py` claimed the two could not drift | writing the schema-validation test | a test asserts the committed file equals `json_schema()` |
+| 16 bare `NaN` tokens in `metrics.jsonl` and `eval.json`, which strict JSON parsers reject | diffing two identical demo runs | `tokens_per_solved_task` is `null` when nothing was solved, via `schema.finite_or_none`; a test parses every artifact with `parse_constant` set to reject |
+| `TerminationReason.ENVIRONMENT_ERROR` was declared but never assigned | auditing for dead public API | a raising tool now ends the policy rollout with it; the oracle path still raises, because a truncated oracle trace would silently degrade every SFT target |
+| `log1mexp` clamped at a fixed `-1e-7`, silently saturating tail mass below float32 resolution regardless of dtype | the documentation pass, then Hypothesis in float64 | the clamp derives from `finfo(dtype).eps`; the data-processing-inequality property now models the `1 / q_tail` error amplification instead of using a flat tolerance |
+| Both example scripts printed a bare `0.0%` with no context, which reads as a broken example | running them in a clean install | each prints the same "expected, not a capability claim" note that `miniverl demo` prints |
 
 ## Currently failing commands
 
@@ -156,30 +195,43 @@ None. Every gate in the table above passes.
 
 ## Unresolved design risks
 
-1. **The teacher is not taught the protocol.** The GPU benchmark shows that
-   distilling a protocol-cold-started student toward a raw instruct teacher can
-   *reduce* task success while the objective improves. This is a property of the
-   setup, not a bug, but the recipes must not imply otherwise, and
-   `docs/limitations.md` says so.
+1. **The teacher is not taught the protocol, and it is the top open question.**
+   The GPU benchmark shows that distilling a protocol-cold-started student
+   toward a raw instruct teacher *reduces* task success from 62.5% to 0.0% while
+   the objective improves monotonically. Giving that teacher privileged access
+   to the answer does not fix it -- it removes tool use entirely, because a
+   teacher that knows the answer never needs the tool. This is a property of the
+   setup rather than a bug in the implementation, but it means the repository
+   currently has **no evidence that its headline method helps**, and the README,
+   CHANGELOG and `docs/limitations.md` all say so in those terms. The experiment
+   that would settle it is specified in `docs/rtx4080-baselines.md` under *Not
+   run* and needs GPU time, not code.
 2. **The toy backend cannot rank methods.** It solves only the `easy` split,
    where SFT saturates. Measured: `medium` and `hard` stay at 0% even after 700
    SFT steps. The CPU benchmark is therefore a parity check, not a ranking.
 3. **Single-seed GPU results.** Two seeds on CPU, one on GPU. No significance is
-   claimed anywhere.
+   claimed anywhere. The CPU pair quantifies why this matters: the between-seed
+   spread there reaches 58 points against a between-arm spread of 4.
 4. **transformers 5.x API drift.** The dtype keyword is chosen by version
    comparison with an introspection fallback; a future rename would need a new
    branch.
 
 ## Next three actions
 
-1. Finish `docs/rtx4080-baselines.md` with the second GPU benchmark (the
-   privileged-context arm) and copy both result JSON files into
-   `benchmarks/results/`.
-2. Re-run the CPU matched benchmark with a constant, lower arm learning rate
-   (the first attempt restarted the cosine schedule at the base rate and damaged
-   every arm), and record both attempts.
-3. Run the final audit loop: scientific, ML-systems, OSS-maintainer,
-   adversarial-newcomer and security.
+Everything previously listed here is done. What remains is outside this
+environment and is listed under [External blockers](#external-blockers).
+
+1. Register the PyPI trusted publisher, then push the tag so
+   `.github/workflows/release.yml` can upload. The name `miniverl` was rechecked
+   on 2026-07-27 and is still unregistered (`curl -o /dev/null -w "%{http_code}"
+   https://pypi.org/pypi/miniverl/json` -> `404`; `mini-verl` and
+   `mini-verl-opd` are also free), so no fallback name is needed.
+2. Run the teacher-protocol experiment described in
+   `docs/rtx4080-baselines.md` under *Not run*. It is the single measurement
+   that would explain the negative benchmark, and it needs an unattended GPU
+   hour rather than any new code.
+3. Add a second GPU seed. Both OPD arms landed on exactly 0.0%, which is a floor
+   rather than a distribution.
 
 ## External blockers
 
