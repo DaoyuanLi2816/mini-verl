@@ -348,6 +348,7 @@ and runs each through `run_with_oom_retry`. Inside `_run_group`, condensed
 (`...` marks arguments elided for readability):
 
 ```python
+# src/miniverl/training/trainer.py, inside _run_group
 hidden = student.hidden_states_at(
     traj.token_ids, alignment.student_prediction_positions, with_grad=True
 )  # [N, H]
@@ -444,6 +445,31 @@ optimizer steps per cycle. If OPD would run more than one optimizer step per
 rollout batch, `train()` emits an `opd_multi_update_warning` event saying that
 steps after the first are only approximately on-policy, and `miniverl validate`
 prints the same warning before the run starts.
+
+### 4.1 The cold start does more than the OPD phase, and the run says so
+
+`train.sft_warmup_cycles` runs an oracle-trace cross-entropy phase before the
+KD/OPD loop. It is cheap (no generation) and it is what gets the policy emitting
+syntactically valid tool calls at all. It is also the reason a single end-to-end
+number is not evidence that OPD helped.
+
+On the one full 16 GB run of `recipes/qwen_consumer_gpu_calc.yaml` (run id
+`rtx4080-calc-opd`), 16 optimizer steps took 481.1 s and held-out greedy
+evaluation on 12 calculator tasks went from 0.0 percent to 100.0 percent.
+Attributing that to on-policy distillation would be wrong: the 8-cycle SFT cold
+start did most of the work, and the **first** OPD rollout batch already scored
+83.3 percent. The medium calculator task saturates. That run demonstrates that
+the pipeline executes correctly on a 16 GB card; it is not an OPD-over-SFT
+result, and nothing in this repository claims it is.
+
+Separating those two effects is what `miniverl benchmark` is for: it runs one
+shared SFT cold start per seed, loads it **weights-only** into every arm so no
+optimizer momentum leaks between arms, holds the splits, step count, rollout
+bounds and evaluation settings fixed, and records the override keys each arm
+changed. Quantities that cannot be matched by construction — generated tokens,
+selected training tokens, teacher query ratio, wall clock — are measured and
+reported per arm instead of being pretended away. With a single entry in
+`seeds:` the CLI prints that no statistical significance is claimed.
 
 ---
 
@@ -636,7 +662,7 @@ For a first pass through the source:
 
 1. `src/miniverl/schemas/trajectory.py` — the data contract everything rests on.
 2. `src/miniverl/trajectory/masks.py` — the target/prediction position
-   convention, 129 lines, and the source of the most dangerous possible bug.
+   convention, 129 lines, and the off-by-one this codebase is most careful about.
 3. `src/miniverl/losses/chunked.py` — the objective and the two-stage backward.
 4. `src/miniverl/training/trainer.py` — the orchestration, in the order this
    document describes.

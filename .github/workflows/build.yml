@@ -38,15 +38,47 @@ jobs:
           print("sdist contents look right")
           PY
 
-      - name: The wheel must ship the report template
+      - name: The wheel must contain every source module
+        # An unanchored `models/` rule in .gitignore once matched
+        # src/miniverl/models/ and silently dropped the whole package from the
+        # wheel. Enumerating the source tree is the check that catches that
+        # class of bug, rather than spot-checking a few known files.
         run: |
           python - <<'PY'
-          import glob, zipfile
+          import glob, pathlib, zipfile
           [path] = glob.glob("dist/*.whl")
-          names = zipfile.ZipFile(path).namelist()
-          assert "miniverl/reporting/templates/report.html.j2" in names, names[:20]
+          names = set(zipfile.ZipFile(path).namelist())
+          missing = [
+              p.relative_to("src").as_posix()
+              for pattern in ("*.py", "*.j2")
+              for p in pathlib.Path("src/miniverl").rglob(pattern)
+              if p.relative_to("src").as_posix() not in names
+          ]
+          assert not missing, f"missing from the wheel: {missing}"
+          assert "miniverl/reporting/templates/report.html.j2" in names
           assert not any(n.startswith("tests/") for n in names), "tests must not ship in the wheel"
-          print("wheel contents look right")
+          print(f"wheel contains all {len(names)} entries, including every source module")
+          PY
+
+      - name: Nothing under a source directory may be git-ignored
+        run: |
+          python - <<'PY'
+          import subprocess, sys
+          out = subprocess.run(
+              ["git", "status", "--ignored", "--short",
+               "src", "tests", "recipes", "docs", "examples", "benchmarks", "scripts"],
+              capture_output=True, text=True, check=True,
+          ).stdout
+          bad = [
+              line for line in out.splitlines()
+              if line.startswith("!!") and "__pycache__" not in line
+          ]
+          if bad:
+              print("git-ignored files inside a source directory:")
+              for line in bad:
+                  print(line)
+              sys.exit(1)
+          print("no source file is git-ignored")
           PY
 
       - name: Install into a clean virtual environment and smoke test

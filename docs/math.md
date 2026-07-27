@@ -423,7 +423,7 @@ $[chunk, V]$ student tensor is built either way.
 ## 5. Floors
 
 Two independent floors keep the tail arithmetic finite. They interact, and the
-interaction is easy to get wrong, so both are spelled out.
+interaction is a common source of error, so both are spelled out.
 
 ### 5.1 `log1mexp` and its two regimes
 
@@ -451,6 +451,7 @@ because the discarded branch still contributes to the backward pass.
 `log1mexp` clamps its input:
 
 ```python
+# src/miniverl/losses/numerics.py, first line of log1mexp
 x = x.clamp(max=NEG_CLAMP)  # NEG_CLAMP = -1.0e-7
 ```
 
@@ -498,6 +499,7 @@ in training.
 concatenating. From the source:
 
 ```python
+# src/miniverl/losses/bucketed.py, inside build_bucket_distributions
 log_eps = math.log(tail_epsilon)
 teacher = torch.cat(
     [
@@ -571,7 +573,7 @@ eps=1e-09  reverse_kl=15.9465  log(1/eps)=20.7233
 
 At $\varepsilon = 10^{-3}$ and $10^{-6}$ the `tail_epsilon` clamp binds and the
 value tracks $\log(1/\varepsilon)$. At $\varepsilon = 10^{-9}$ it does not: the
-value saturates at 15.95, just under the $16.12$ that `NEG_CLAMP` allows. The
+value saturates at 15.95, slightly under the $16.12$ that `NEG_CLAMP` allows. The
 run stays finite either way, which is the property being bought.
 
 ### 5.5 `LOG_PROB_FLOOR`
@@ -663,6 +665,7 @@ backbone once per chunk. Instead, excerpted from
 `chunked_selected_position_loss` (`...` marks elided lines):
 
 ```python
+# src/miniverl/losses/chunked.py, inside chunked_selected_position_loss
 denom = torch.clamp(w.sum(), min=MIN_TOTAL_WEIGHT)
 
 use_two_stage = backward and hidden_states.requires_grad
@@ -737,6 +740,7 @@ import torch
 
 from miniverl.losses.chunked import ExactTargetProvider, chunked_selected_position_loss
 
+torch.manual_seed(2026)  # torch.nn.Linear draws from the global generator
 g = torch.Generator().manual_seed(2026)
 hidden0 = torch.randn(37, 16, generator=g)
 lm_head = torch.nn.Linear(16, 48, bias=False)
@@ -766,15 +770,19 @@ for chunk, grad in grads.items():
 Output on the development machine:
 
 ```
-chunk=    1  chunks= 37  loss=1.9166372251
-chunk=    5  chunks=  8  loss=1.9166371822
-chunk=   37  chunks=  1  loss=1.9166370630
-chunk= 1000  chunks=  1  loss=1.9166370630
-1 max grad diff vs unchunked: 2.35741026699543e-09
-5 max grad diff vs unchunked: 3.055902197957039e-10
+chunk=    1  chunks= 37  loss=1.9415816478
+chunk=    5  chunks=  8  loss=1.9415816665
+chunk=   37  chunks=  1  loss=1.9415816069
+chunk= 1000  chunks=  1  loss=1.9415816069
+1 max grad diff vs unchunked: 2.2118911147117615e-09
+5 max grad diff vs unchunked: 9.313225746154785e-10
 37 max grad diff vs unchunked: 0.0
 1000 max grad diff vs unchunked: 0.0
 ```
+
+The residual disagreement is float32 summation-order noise at the $10^{-9}$
+level, three to four orders of magnitude below the `atol=1e-5` the equivalence
+tests use.
 
 Two details worth noting:
 

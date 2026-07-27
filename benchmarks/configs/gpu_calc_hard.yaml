@@ -50,9 +50,27 @@ arms:
     description: >-
       Genuine on-policy distillation -- the student's own rollouts, scored by the
       teacher on exactly those states, with compressed top-64 + tail reverse KL.
+      The teacher here is the raw instruct checkpoint: it has never seen the tool
+      protocol, which is the point of comparing it with the arm below.
     overrides:
       run: {mode: opd}
       environment: {difficulty: hard, test_tasks: 24}
       train: {cycles: 12, sft_warmup_cycles: 0, learning_rate: 5.0e-5, lr_schedule: constant}
       loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 64}
+      models: {teacher: {mode: standard}}
+      eval: {enabled: false, tasks: 24, split: test}
+
+  - name: opd-privileged-context
+    description: >-
+      The same on-policy distillation, but the teacher additionally sees an
+      oracle block naming the verified answer, which the student never sees.
+      Student and teacher prediction positions no longer coincide, so an explicit
+      per-segment alignment map is built and target-token identity is verified.
+      Follows arXiv:2602.12275.
+    overrides:
+      run: {mode: opd}
+      environment: {difficulty: hard, test_tasks: 24}
+      train: {cycles: 12, sft_warmup_cycles: 0, learning_rate: 5.0e-5, lr_schedule: constant}
+      loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 64}
+      models: {teacher: {mode: privileged_context}}
       eval: {enabled: false, tasks: 24, split: test}
