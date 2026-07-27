@@ -16,6 +16,9 @@ carried around explicitly -- never assumed equal.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, model_validator
 
 __all__ = ["AlignmentMap"]
@@ -45,7 +48,7 @@ class AlignmentMap(BaseModel):
     @model_validator(mode="after")
     def _validate(self) -> AlignmentMap:
         n = len(self.student_prediction_positions)
-        fields = {
+        fields: dict[str, Sequence[Any]] = {
             "teacher_prediction_positions": self.teacher_prediction_positions,
             "target_token_ids": self.target_token_ids,
             "model_token_mask": self.model_token_mask,
@@ -54,9 +57,7 @@ class AlignmentMap(BaseModel):
         }
         for name, seq in fields.items():
             if len(seq) != n:
-                raise ValueError(
-                    f"alignment field '{name}' has length {len(seq)}, expected {n}"
-                )
+                raise ValueError(f"alignment field '{name}' has length {len(seq)}, expected {n}")
         if n == 0:
             return self
         if any(p < 0 for p in self.student_prediction_positions):
@@ -68,6 +69,7 @@ class AlignmentMap(BaseModel):
             for a, b in zip(
                 self.student_prediction_positions,
                 self.student_prediction_positions[1:],
+                strict=False,
             )
         )
         if not strictly_increasing:

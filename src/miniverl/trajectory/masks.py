@@ -66,7 +66,7 @@ def critical_target_positions(
     """Target positions inside tool-call or final-answer spans."""
     return [
         j
-        for j, (m, c) in enumerate(zip(model_generated_mask, critical_mask))
+        for j, (m, c) in enumerate(zip(model_generated_mask, critical_mask, strict=False))
         if m and c and j > 0
     ]
 
@@ -114,9 +114,7 @@ def validate_target_positions(
         previous = j
 
 
-def positions_by_span_type(
-    positions: Sequence[int], spans: Sequence[Span]
-) -> dict[str, int]:
+def positions_by_span_type(positions: Sequence[int], spans: Sequence[Span]) -> dict[str, int]:
     """Count selected positions per span type."""
     counts: dict[str, int] = {}
     span_iter = list(spans)

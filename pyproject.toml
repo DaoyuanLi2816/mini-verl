@@ -111,12 +111,18 @@ ignore = [
   "RUF001", # ambiguous unicode is intentional in the zh-CN docs / box drawing
   "RUF002",
   "RUF003",
+  "RUF022", # __all__ is grouped by concern on purpose; alphabetical hurts reading
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B018", "ARG001", "ARG002", "ARG005", "PTH"]
-"scripts/*" = ["PTH"]
-"src/miniverl/cli.py" = ["ARG001"]
+"scripts/*" = ["PTH", "SIM105"]
+# sqlite3.set_authorizer dictates the callback signature; unused parameters are
+# part of the contract, not dead code.
+"src/miniverl/environments/sqlite_env.py" = ["ARG002"]
+# Typer resolves annotations at runtime; Optional[X] is required for options
+# with a None default, so UP045 (prefer `X | None`) must not apply here.
+"src/miniverl/cli.py" = ["ARG001", "UP045"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["miniverl"]
@@ -147,7 +153,9 @@ exclude_lines = [
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
-python_version = "3.10"
+# No python_version pin: mypy runs on the dev/CI interpreter. Third-party stubs
+# (numpy) already use 3.12+ syntax, so pinning 3.10 breaks stub parsing. The
+# 3.10 floor is enforced by ruff's target-version plus the CI test matrix.
 files = ["src/miniverl"]
 strict = false
 disallow_untyped_defs = true

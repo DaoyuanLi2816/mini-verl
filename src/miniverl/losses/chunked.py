@@ -28,8 +28,9 @@ gradient.  ``tests/unit/test_chunked_equivalence.py`` asserts both.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Protocol
+from typing import Protocol
 
 import torch
 
@@ -54,9 +55,7 @@ class ChunkTargetProvider(Protocol):
 
     kind: str
 
-    def divergence(
-        self, start: int, end: int, student_logits: torch.Tensor
-    ) -> torch.Tensor:
+    def divergence(self, start: int, end: int, student_logits: torch.Tensor) -> torch.Tensor:
         """Per-position divergence ``[end - start]`` for this chunk."""
         ...
 

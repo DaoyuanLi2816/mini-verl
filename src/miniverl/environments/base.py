@@ -184,7 +184,7 @@ class ToolEnvironment(ABC):
         """Reference solution as a sequence of actions."""
         ...
 
-    def privileged_context(self, task: Task) -> str | None:
+    def privileged_context(self, task: Task) -> str | None:  # noqa: ARG002  (hook)
         """Extra information given only to the teacher, never to the student.
 
         Returning ``None`` means the environment has no privileged view, and

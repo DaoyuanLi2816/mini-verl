@@ -40,12 +40,31 @@ __all__ = ["ChatFormat", "Segment", "TranscriptBuilder", "TokenizerLike", "token
 
 
 class TokenizerLike(Protocol):
-    """The tiny slice of tokenizer behaviour miniVERL depends on."""
+    """The tiny slice of tokenizer behaviour miniVERL depends on.
 
-    vocab_size: int
-    eos_token_id: int
-    pad_token_id: int
-    fingerprint: str
+    The four scalars are declared read-only so an implementation may expose them
+    either as plain attributes or as properties.
+    """
+
+    @property
+    def vocab_size(self) -> int:
+        """Size of the output vocabulary."""
+        ...
+
+    @property
+    def eos_token_id(self) -> int:
+        """Token id that ends a sequence."""
+        ...
+
+    @property
+    def pad_token_id(self) -> int:
+        """Token id used for padding."""
+        ...
+
+    @property
+    def fingerprint(self) -> str:
+        """Behavioural hash: equal iff two tokenizers tokenize identically."""
+        ...
 
     def encode(self, text: str) -> list[int]:
         """Tokenize without adding any implicit special tokens."""
@@ -97,9 +116,7 @@ class Segment:
         return bool(self.token_ids)
 
 
-def token_index_at_char(
-    tokenizer: TokenizerLike, token_ids: Sequence[int], char_index: int
-) -> int:
+def token_index_at_char(tokenizer: TokenizerLike, token_ids: Sequence[int], char_index: int) -> int:
     """Token index whose decoded prefix first reaches ``char_index`` characters.
 
     Used to split a *sampled* token sequence at a text landmark without ever

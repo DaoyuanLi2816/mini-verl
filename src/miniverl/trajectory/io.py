@@ -61,9 +61,7 @@ def iter_trajectories(path: str | Path) -> Iterator[Trajectory]:
             try:
                 payload = json.loads(line)
             except json.JSONDecodeError as exc:
-                raise SchemaValidationError(
-                    f"{p}:{lineno} is not valid JSON: {exc}"
-                ) from exc
+                raise SchemaValidationError(f"{p}:{lineno} is not valid JSON: {exc}") from exc
             version = payload.get("schema_version")
             if version != TRAJECTORY_SCHEMA_VERSION:
                 raise SchemaValidationError(

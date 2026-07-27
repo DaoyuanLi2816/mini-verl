@@ -124,8 +124,7 @@ class FileSummary:
                 "trainable_span_types": sorted(s.value for s in MODEL_GENERATED_SPAN_TYPES),
                 "critical_span_types": sorted(s.value for s in CRITICAL_SPAN_TYPES),
                 "context_span_types_excluded_from_loss": sorted(
-                    set(self.tokens_by_span_type)
-                    - {s.value for s in MODEL_GENERATED_SPAN_TYPES}
+                    set(self.tokens_by_span_type) - {s.value for s in MODEL_GENERATED_SPAN_TYPES}
                 ),
             },
             "samples": [s.to_dict() for s in self.samples],
@@ -204,9 +203,7 @@ def summarize_file(
     return summary
 
 
-def iter_spans_for_display(
-    path: str | Path, trajectory_id: str
-) -> Iterator[dict[str, Any]]:
+def iter_spans_for_display(path: str | Path, trajectory_id: str) -> Iterator[dict[str, Any]]:
     """Yield display rows for one trajectory's spans."""
     for traj in iter_trajectories(path):
         if traj.trajectory_id != trajectory_id:

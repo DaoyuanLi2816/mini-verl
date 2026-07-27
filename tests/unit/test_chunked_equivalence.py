@@ -89,9 +89,7 @@ def test_chunked_gradients_match_unchunked(chunk_size, divergence):
     ref_hidden = ref_backbone(inputs)
     from miniverl.losses.exact import exact_divergence
 
-    per_token = exact_divergence(
-        teacher_logits, ref_head(ref_hidden), divergence=divergence
-    )
+    per_token = exact_divergence(teacher_logits, ref_head(ref_hidden), divergence=divergence)
     ((per_token * weights).sum() / weights.sum()).backward()
 
     # Chunked path.
@@ -109,9 +107,7 @@ def test_chunked_gradients_match_unchunked(chunk_size, divergence):
     )
 
     assert backbone.linear.weight.grad is not None
-    assert torch.allclose(
-        backbone.linear.weight.grad, ref_backbone.linear.weight.grad, atol=1e-5
-    )
+    assert torch.allclose(backbone.linear.weight.grad, ref_backbone.linear.weight.grad, atol=1e-5)
     assert torch.allclose(backbone.linear.bias.grad, ref_backbone.linear.bias.grad, atol=1e-5)
     assert torch.allclose(lm_head.weight.grad, ref_head.weight.grad, atol=1e-5)
 
@@ -252,14 +248,14 @@ def test_ce_mixing_is_a_convex_combination():
     inputs, backbone, lm_head, teacher_logits, weights, targets = _setup(n=11, vocab=32)
     hidden = backbone(inputs)
     provider = ExactTargetProvider(teacher_logits_fn=lambda a, b: teacher_logits[a:b])
-    kwargs = dict(
-        hidden_states=hidden,
-        lm_head=lm_head,
-        weights=weights,
-        target_token_ids=targets,
-        chunk_size=5,
-        backward=False,
-    )
+    kwargs = {
+        "hidden_states": hidden,
+        "lm_head": lm_head,
+        "weights": weights,
+        "target_token_ids": targets,
+        "chunk_size": 5,
+        "backward": False,
+    }
     kd_only = chunked_selected_position_loss(provider=provider, ce_weight=0.0, **kwargs)
     ce_only = chunked_selected_position_loss(provider=None, ce_weight=1.0, **kwargs)
     mixed = chunked_selected_position_loss(provider=provider, ce_weight=0.25, **kwargs)

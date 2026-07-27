@@ -1,0 +1,82 @@
+# miniVERL matched-budget benchmark on the calculator environment (CPU, toy models).
+#
+# Every arm:
+#   * resumes from the SAME shared SFT cold-start checkpoint (weights only, so no
+#     Adam momentum leaks from the cold start into any single arm),
+#   * receives the SAME number of optimizer steps and the same effective batch,
+#   * sees the SAME task splits and the SAME held-out greedy evaluation.
+#
+# Arms differ only in the keys under `overrides`. Quantities that cannot be
+# matched by construction -- generated tokens, selected training tokens, teacher
+# query ratio, wall clock -- are measured and reported per arm.
+#
+#   miniverl benchmark recipes/benchmark_calc.yaml --output runs/benchmarks
+
+schema_version: 1
+name: calc-matched-budget
+description: >-
+  Cold start, then equal-step continuation under SFT, offline KD, bucketed OPD
+  and exact-full-vocabulary OPD on the deterministic calculator environment.
+
+base: toy_cpu.yaml
+cold_start_cycles: 200
+eval_split: test
+seeds: [1234, 20260727]
+output_dir: runs/benchmarks
+
+arms:
+  - name: cold-start-only
+    description: >-
+      The shared cold start, evaluated with zero further optimizer steps. This is
+      the common starting point every other arm resumes from.
+    overrides:
+      run: {mode: sft}
+      train: {cycles: 0, sft_warmup_cycles: 0}
+
+  - name: sft-continued
+    description: Off-policy baseline. More supervised steps on oracle traces.
+    overrides:
+      run: {mode: sft}
+      train: {cycles: 60, sft_warmup_cycles: 0}
+
+  - name: offline-kd
+    description: >-
+      Fixed trajectory set, one frozen teacher cache reused for every update.
+      Explicitly NOT on-policy; this is the label the mode carries.
+    overrides:
+      run: {mode: offline_kd}
+      train: {cycles: 60, sft_warmup_cycles: 0}
+      cache: {reuse_across_policy_versions: true, strict_policy_version: false}
+
+  - name: opd-bucketed-k16
+    description: Genuine OPD with compressed top-16 + tail reverse KL.
+    overrides:
+      run: {mode: opd}
+      train: {cycles: 60, sft_warmup_cycles: 0}
+      loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 16}
+
+  - name: opd-exact
+    description: >-
+      Genuine OPD with exact full-vocabulary reverse KL. Affordable only because
+      the toy vocabulary has ~190 entries.
+    overrides:
+      run: {mode: opd}
+      train: {cycles: 60, sft_warmup_cycles: 0}
+      loss: {mode: exact_full_vocab, divergence: reverse_kl, top_k: 1}
+
+  - name: opd-bucketed-forward-kl
+    description: Same budget, mass-covering orientation instead of mode-seeking.
+    overrides:
+      run: {mode: opd}
+      train: {cycles: 60, sft_warmup_cycles: 0}
+      loss: {mode: bucketed_topk_tail, divergence: forward_kl, top_k: 16}
+
+  - name: opd-tool-and-final
+    description: >-
+      Same budget, but the teacher is only queried on tool-call and final-answer
+      tokens. Tests whether a smaller teacher-query budget costs accuracy.
+    overrides:
+      run: {mode: opd}
+      train: {cycles: 60, sft_warmup_cycles: 0}
+      selection: {selector: tool_and_final}
+      loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 16}

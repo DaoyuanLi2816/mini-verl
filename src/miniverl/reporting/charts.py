@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import html
 from collections.abc import Sequence
+from typing import Any
 
 __all__ = ["line_chart", "bar_chart", "token_strip", "sparkline", "PALETTE"]
 
@@ -35,7 +36,9 @@ def line_chart(
     title: str = "",
 ) -> str:
     """Multi-series line chart. Each series is ``(name, xs, ys)``."""
-    usable = [(n, list(xs), list(ys)) for n, xs, ys in series if len(xs) >= 1 and len(xs) == len(ys)]
+    usable = [
+        (n, list(xs), list(ys)) for n, xs, ys in series if len(xs) >= 1 and len(xs) == len(ys)
+    ]
     if not usable:
         return '<p class="muted">no data</p>'
     pad_l, pad_r, pad_t, pad_b = 56, 110, 24, 36
@@ -75,7 +78,7 @@ def line_chart(
     )
     for i, (name, xs, ys) in enumerate(usable):
         colour = PALETTE[i % len(PALETTE)]
-        points = " ".join(f"{px(x):.1f},{py(y):.1f}" for x, y in zip(xs, ys))
+        points = " ".join(f"{px(x):.1f},{py(y):.1f}" for x, y in zip(xs, ys, strict=False))
         if len(xs) == 1:
             parts.append(
                 f'<circle cx="{px(xs[0]):.1f}" cy="{py(ys[0]):.1f}" r="3.5" fill="{colour}"/>'
@@ -170,7 +173,7 @@ _SPAN_CLASS = {
 }
 
 
-def token_strip(records: Sequence[dict[str, object]], *, max_tokens: int = 400) -> str:
+def token_strip(records: Sequence[dict[str, Any]], *, max_tokens: int = 400) -> str:
     """Per-token divergence view.
 
     Each cell is one **stored, model-generated** token: colour intensity is the
@@ -183,7 +186,7 @@ def token_strip(records: Sequence[dict[str, object]], *, max_tokens: int = 400) 
     losses = [float(r.get("token_loss") or 0.0) for r in rows]
     peak = max(losses) or 1.0
     cells = []
-    for record, loss in zip(rows, losses):
+    for record, loss in zip(rows, losses, strict=False):
         span = str(record.get("span_type", ""))
         css = _SPAN_CLASS.get(span, "tok-text")
         intensity = min(1.0, loss / peak)
@@ -197,10 +200,9 @@ def token_strip(records: Sequence[dict[str, object]], *, max_tokens: int = 400) 
             + f" | teacher top {record.get('teacher_top_token')}"
             + f" | student top {record.get('student_top_token')}"
         )
-        mismatch = (
-            record.get("teacher_top_token") is not None
-            and record.get("teacher_top_token") != record.get("student_top_token")
-        )
+        mismatch = record.get("teacher_top_token") is not None and record.get(
+            "teacher_top_token"
+        ) != record.get("student_top_token")
         classes = f"tok {css}" + (" tok-mismatch" if mismatch else "")
         cells.append(
             f'<span class="{classes}" style="--i:{intensity:.3f}" '

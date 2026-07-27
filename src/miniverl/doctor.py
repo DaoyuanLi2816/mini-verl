@@ -193,7 +193,9 @@ def run_doctor(output_dir: str | Path = "runs") -> DoctorReport:
                 Check(
                     "bf16",
                     "ok" if torch.cuda.is_bf16_supported() else "warn",
-                    "supported" if torch.cuda.is_bf16_supported() else "not supported; fp16 will be used",
+                    "supported"
+                    if torch.cuda.is_bf16_supported()
+                    else "not supported; fp16 will be used",
                 )
             )
             fits_16gb = total_gib >= 15.0

@@ -220,7 +220,10 @@ class TeacherCache:
             "positions": batch.positions.to(torch.int64).cpu().contiguous(),
             "topk_indices": batch.topk_indices.to(torch.int32).cpu().contiguous(),
             "topk_log_probs": batch.topk_log_probs.to(float_dtype).cpu().contiguous(),
-            "tail_log_prob": _finite_tail(batch.tail_log_prob, torch).to(float_dtype).cpu().contiguous(),
+            "tail_log_prob": _finite_tail(batch.tail_log_prob, torch)
+            .to(float_dtype)
+            .cpu()
+            .contiguous(),
             "target_token_ids": batch.target_token_ids.to(torch.int64).cpu().contiguous(),
             "weights": batch.weights.to(torch.float32).cpu().contiguous(),
         }

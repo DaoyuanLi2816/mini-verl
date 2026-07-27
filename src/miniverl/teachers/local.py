@@ -15,7 +15,7 @@ from miniverl.models.base import CausalLMBackend
 from miniverl.schemas.alignment import AlignmentMap
 from miniverl.schemas.cache import TeacherTargetBatch
 from miniverl.schemas.trajectory import Trajectory
-from miniverl.teachers.base import TeacherScoreResult, TeacherScorer
+from miniverl.teachers.base import TeacherScorer, TeacherScoreResult
 
 __all__ = ["LocalTeacherScorer"]
 
@@ -114,26 +114,26 @@ class LocalTeacherScorer(TeacherScorer):
                 metrics={"selected_positions": 0.0},
             )
 
-        exact_resident = (
-            self.loss.mode is LossMode.EXACT_FULL_VOCAB and self.keep_exact_resident
-        )
+        exact_resident = self.loss.mode is LossMode.EXACT_FULL_VOCAB and self.keep_exact_resident
 
         with torch.no_grad():
             hidden = self.backend.hidden_states_at(source.token_ids, positions, with_grad=False)
 
             if exact_resident:
                 # Keep only [N, H]; the [chunk, V] distribution is rebuilt on demand.
-                hidden = hidden.detach()
+                # Bound to its own name because the bucketed branch below `del`s
+                # `hidden`, and this closure outlives this function.
+                teacher_hidden = hidden.detach()
                 project = self.backend.project
                 entropy_parts = []
                 for start in range(0, n, self.loss.chunk_size):
-                    chunk = project(hidden[start : start + self.loss.chunk_size])
+                    chunk = project(teacher_hidden[start : start + self.loss.chunk_size])
                     entropy_parts.append(
                         exact_teacher_entropy(chunk, temperature=self.loss.temperature)
                     )
                     del chunk
                 provider: Any = ExactTargetProvider(
-                    teacher_logits_fn=lambda a, b: project(hidden[a:b]),
+                    teacher_logits_fn=lambda a, b: project(teacher_hidden[a:b]),
                     divergence_name=self.loss.divergence.value,
                     temperature=self.loss.temperature,
                     scale_by_temperature_squared=self.loss.scale_by_temperature_squared,
@@ -152,7 +152,9 @@ class LocalTeacherScorer(TeacherScorer):
                     cacheable=None,
                     metrics={
                         "selected_positions": float(n),
-                        "teacher_hidden_bytes": float(hidden.numel() * hidden.element_size()),
+                        "teacher_hidden_bytes": float(
+                            teacher_hidden.numel() * teacher_hidden.element_size()
+                        ),
                     },
                 )
 
@@ -162,9 +164,9 @@ class LocalTeacherScorer(TeacherScorer):
             top_k = self._effective_top_k()
             index_parts, logprob_parts, tail_parts = [], [], []
             for start in range(0, n, self.loss.chunk_size):
-                logits = self.backend.project(
-                    hidden[start : start + self.loss.chunk_size]
-                ).to(torch.float32)
+                logits = self.backend.project(hidden[start : start + self.loss.chunk_size]).to(
+                    torch.float32
+                )
                 idx, lp, tail = teacher_topk_targets(
                     logits, top_k=top_k, temperature=self.loss.temperature
                 )

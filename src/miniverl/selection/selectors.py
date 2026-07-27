@@ -26,7 +26,6 @@ in every process, on every OS, on every rerun.
 
 from __future__ import annotations
 
-import hashlib
 import math
 import random
 from collections.abc import Sequence
@@ -40,6 +39,7 @@ from miniverl.trajectory.masks import (
     model_target_positions,
     positions_by_span_type,
 )
+from miniverl.utils.seeding import derive_seed
 
 __all__ = [
     "SelectionStats",
@@ -48,12 +48,6 @@ __all__ = [
     "aggregate_selection_stats",
     "derive_seed",
 ]
-
-
-def derive_seed(run_seed: int, trajectory_id: str) -> int:
-    """Deterministic per-trajectory seed, stable across processes and platforms."""
-    digest = hashlib.sha256(f"{run_seed}:{trajectory_id}".encode()).digest()
-    return int.from_bytes(digest[:8], "big", signed=False)
 
 
 @dataclass(frozen=True)
@@ -106,9 +100,7 @@ def _apply_cap(positions: list[int], cap: int | None) -> list[int]:
     return positions[:cap]
 
 
-def _deterministic_sample(
-    candidates: Sequence[int], count: int, rng: random.Random
-) -> list[int]:
+def _deterministic_sample(candidates: Sequence[int], count: int, rng: random.Random) -> list[int]:
     """Sample ``count`` distinct entries and return them in ascending order."""
     if count <= 0:
         return []
@@ -157,9 +149,7 @@ def select_positions(
         raise ConfigError(f"unknown selector {selector!r}")
 
     chosen = _apply_cap(sorted(chosen), config.max_positions_per_trajectory)
-    weights = [
-        config.critical_weight if p in critical_set else config.other_weight for p in chosen
-    ]
+    weights = [config.critical_weight if p in critical_set else config.other_weight for p in chosen]
 
     stats = SelectionStats(
         total_model_tokens=len(model_positions),

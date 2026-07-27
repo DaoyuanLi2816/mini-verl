@@ -35,6 +35,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from miniverl.errors import ToolCallParseError
+
 __all__ = [
     "TOOL_CALL_OPEN",
     "TOOL_CALL_CLOSE",
@@ -126,9 +128,7 @@ def parse_assistant_text(text: str) -> ParsedAction:
         body_start = call_at + len(TOOL_CALL_OPEN)
         close_at = text.find(TOOL_CALL_CLOSE, body_start)
         if close_at < 0:
-            return _parse_error(
-                text, f"{TOOL_CALL_OPEN} was never closed with {TOOL_CALL_CLOSE}."
-            )
+            return _parse_error(text, f"{TOOL_CALL_OPEN} was never closed with {TOOL_CALL_CLOSE}.")
         payload = text[body_start:close_at].strip()
         if len(payload) > MAX_TOOL_CALL_JSON_CHARS:
             return _parse_error(
@@ -175,14 +175,37 @@ def parse_assistant_text(text: str) -> ParsedAction:
     )
 
 
+def _escape_closing_tags(payload: str) -> str:
+    """Make a JSON payload safe to embed between literal closing tags.
+
+    ``"</"`` becomes ``"<\\/"``.  That is valid JSON which decodes to exactly
+    the same string, so the round trip is lossless, but the literal
+    ``</tool_call>`` / ``</tool_result>`` byte sequence no longer appears and the
+    parser cannot be tricked into closing the block early.
+    """
+    return payload.replace("</", "<\\/")
+
+
 def render_tool_call(name: str, arguments: dict[str, Any]) -> str:
     """Render a canonical tool-call block (used by oracle traces)."""
     payload = json.dumps({"name": name, "arguments": arguments}, ensure_ascii=False, sort_keys=True)
-    return f"{TOOL_CALL_OPEN}\n{payload}\n{TOOL_CALL_CLOSE}"
+    return f"{TOOL_CALL_OPEN}\n{_escape_closing_tags(payload)}\n{TOOL_CALL_CLOSE}"
 
 
 def render_final(answer: str) -> str:
-    """Render a canonical final-answer block."""
+    """Render a canonical final-answer block.
+
+    A final answer is raw text, not JSON, so the protocol has no way to escape a
+    literal ``</final>`` inside it.  Rather than emit a block that would parse
+    back to a truncated answer, this raises: a silent truncation would corrupt
+    an SFT target.
+    """
+    if FINAL_CLOSE in answer or FINAL_OPEN in answer:
+        raise ToolCallParseError(
+            f"a final answer cannot contain the literal {FINAL_OPEN!r} or {FINAL_CLOSE!r} marker",
+            hint="the plain-text final block has no escape mechanism; return the "
+            "answer through a tool result instead",
+        )
     return f"{FINAL_OPEN}\n{answer}\n{FINAL_CLOSE}"
 
 
@@ -194,4 +217,4 @@ def render_tool_result(ok: bool, result: str = "", error: str | None = None) -> 
     else:
         payload["error"] = error or "unknown error"
     body = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-    return f"{TOOL_RESULT_OPEN}\n{body}\n{TOOL_RESULT_CLOSE}"
+    return f"{TOOL_RESULT_OPEN}\n{_escape_closing_tags(body)}\n{TOOL_RESULT_CLOSE}"

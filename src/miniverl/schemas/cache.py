@@ -76,18 +76,14 @@ class CacheIndex(BaseModel):
     @model_validator(mode="after")
     def _validate(self) -> CacheIndex:
         if self.top_k > self.vocab_size:
-            raise ValueError(
-                f"top_k={self.top_k} exceeds vocab_size={self.vocab_size}"
-            )
+            raise ValueError(f"top_k={self.top_k} exceeds vocab_size={self.vocab_size}")
         for traj_id, entry in self.entries.items():
             if entry.trajectory_id != traj_id:
                 raise ValueError(
                     f"cache index key {traj_id!r} does not match entry id {entry.trajectory_id!r}"
                 )
             if entry.shard not in self.shards:
-                raise ValueError(
-                    f"entry {traj_id!r} references unknown shard {entry.shard!r}"
-                )
+                raise ValueError(f"entry {traj_id!r} references unknown shard {entry.shard!r}")
         return self
 
     def policy_versions(self) -> set[int]:

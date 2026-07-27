@@ -31,17 +31,25 @@ def _softmax_rows(logits: list[list[float]], temperature: float = 1.0) -> list[l
 
 def _brute_kl(p: list[list[float]], q: list[list[float]]) -> list[float]:
     return [
-        sum(pi * (math.log(pi) - math.log(qi)) for pi, qi in zip(prow, qrow) if pi > 0.0)
-        for prow, qrow in zip(p, q)
+        sum(
+            pi * (math.log(pi) - math.log(qi))
+            for pi, qi in zip(prow, qrow, strict=False)
+            if pi > 0.0
+        )
+        for prow, qrow in zip(p, q, strict=False)
     ]
 
 
 def _brute_jsd(p: list[list[float]], q: list[list[float]], beta: float) -> list[float]:
     out = []
-    for prow, qrow in zip(p, q):
-        m = [beta * pi + (1.0 - beta) * qi for pi, qi in zip(prow, qrow)]
-        kl_pm = sum(pi * (math.log(pi) - math.log(mi)) for pi, mi in zip(prow, m) if pi > 0.0)
-        kl_qm = sum(qi * (math.log(qi) - math.log(mi)) for qi, mi in zip(qrow, m) if qi > 0.0)
+    for prow, qrow in zip(p, q, strict=False):
+        m = [beta * pi + (1.0 - beta) * qi for pi, qi in zip(prow, qrow, strict=False)]
+        kl_pm = sum(
+            pi * (math.log(pi) - math.log(mi)) for pi, mi in zip(prow, m, strict=False) if pi > 0.0
+        )
+        kl_qm = sum(
+            qi * (math.log(qi) - math.log(mi)) for qi, mi in zip(qrow, m, strict=False) if qi > 0.0
+        )
         out.append(beta * kl_pm + (1.0 - beta) * kl_qm)
     return out
 
@@ -61,7 +69,7 @@ def test_forward_kl_matches_brute_force(logit_pair):
     expected = _brute_kl(_softmax_rows(teacher), _softmax_rows(student))
     got = exact_forward_kl(torch.tensor(teacher), torch.tensor(student))
     assert got.shape == (7,)
-    for a, b in zip(got.tolist(), expected):
+    for a, b in zip(got.tolist(), expected, strict=False):
         assert a == pytest.approx(b, abs=1e-5)
 
 
@@ -71,7 +79,7 @@ def test_reverse_kl_matches_brute_force(logit_pair):
     teacher, student = logit_pair
     expected = _brute_kl(_softmax_rows(student), _softmax_rows(teacher))
     got = exact_reverse_kl(torch.tensor(teacher), torch.tensor(student))
-    for a, b in zip(got.tolist(), expected):
+    for a, b in zip(got.tolist(), expected, strict=False):
         assert a == pytest.approx(b, abs=1e-5)
 
 
@@ -82,7 +90,7 @@ def test_jsd_matches_brute_force(logit_pair, beta):
     teacher, student = logit_pair
     expected = _brute_jsd(_softmax_rows(teacher), _softmax_rows(student), beta)
     got = exact_jsd(torch.tensor(teacher), torch.tensor(student), beta=beta)
-    for a, b in zip(got.tolist(), expected):
+    for a, b in zip(got.tolist(), expected, strict=False):
         assert a == pytest.approx(b, abs=1e-5)
 
 
@@ -216,5 +224,5 @@ def test_teacher_entropy_matches_brute_force(logit_pair):
     probs = _softmax_rows(teacher)
     expected = [-sum(p * math.log(p) for p in row if p > 0) for row in probs]
     got = exact_teacher_entropy(torch.tensor(teacher))
-    for a, b in zip(got.tolist(), expected):
+    for a, b in zip(got.tolist(), expected, strict=False):
         assert a == pytest.approx(b, abs=1e-5)

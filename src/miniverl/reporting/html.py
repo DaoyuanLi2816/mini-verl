@@ -201,8 +201,7 @@ def render_html(data: ReportData) -> str:
     )
     template = env.get_template("report.html.j2")
     token_views = {
-        traj_id: token_strip(records)
-        for traj_id, records in data.token_analysis.items()
+        traj_id: token_strip(records) for traj_id, records in data.token_analysis.items()
     }
     return template.render(
         data=data,
@@ -249,9 +248,7 @@ def write_report(
     max_tokens: int = 400,
 ) -> Path:
     """Build a report for ``run_dir`` and write it to ``out``."""
-    data = ReportData.from_run(
-        run_dir, max_trajectories=max_trajectories, max_tokens=max_tokens
-    )
+    data = ReportData.from_run(run_dir, max_trajectories=max_trajectories, max_tokens=max_tokens)
     target = Path(out) if out is not None else Path(run_dir) / "report.html"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(render_html(data), encoding="utf-8")

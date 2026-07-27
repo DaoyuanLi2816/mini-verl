@@ -8,6 +8,7 @@ are captured together and restored together.
 from __future__ import annotations
 
 import base64
+import contextlib
 import os
 import random
 from dataclasses import dataclass, field
@@ -49,10 +50,8 @@ def seed_everything(seed: int, *, deterministic: bool = True) -> None:
         os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-        try:
+        with contextlib.suppress(RuntimeError, AttributeError):
             torch.use_deterministic_algorithms(True, warn_only=True)
-        except (RuntimeError, AttributeError):  # pragma: no cover - old torch
-            pass
 
 
 @dataclass
@@ -110,10 +109,13 @@ def capture_rng() -> RngSnapshot:
     if have_module("numpy"):
         import numpy as np
 
-        state = np.random.get_state()
-        snapshot.numpy_state = json.dumps(
-            [state[0], state[1].tolist(), int(state[2]), int(state[3]), float(state[4])]
-        )
+        # legacy=True guarantees the 5-tuple form; the dict form has a different
+        # shape and would silently change the snapshot layout.
+        state = np.random.get_state(legacy=True)
+        if isinstance(state, tuple):
+            snapshot.numpy_state = json.dumps(
+                [state[0], state[1].tolist(), int(state[2]), int(state[3]), float(state[4])]
+            )
     return snapshot
 
 

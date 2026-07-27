@@ -302,7 +302,9 @@ class EnvironmentConfig(_Base):
 class TrainConfig(_Base):
     """Optimization schedule."""
 
-    cycles: int = Field(default=4, ge=1, le=100000)
+    #: ``0`` is legal and means "train nothing": load, evaluate, checkpoint.
+    #: The benchmark harness uses it for a pure cold-start arm.
+    cycles: int = Field(default=4, ge=0, le=100000)
     rollouts_per_cycle: int = Field(default=8, ge=1, le=8192)
     #: Trajectories per optimizer step.  v0.1 runs one trajectory per forward
     #: pass (no padded batching), so this *is* the effective batch size and the
@@ -438,26 +440,30 @@ class RunConfig(_Base):
                 "input and the divergence is identically zero."
             )
 
-        if self.loss.mode is LossMode.EXACT_FULL_VOCAB and self.loss.top_k != 1:
-            # top_k is meaningless in exact mode; require the default so a
-            # recipe cannot imply a truncation that does not happen.
-            if self.loss.top_k not in (1, 0):
+        if self.loss.mode is LossMode.EXACT_FULL_VOCAB:
+            # top_k is meaningless in exact mode. Reject it only when the recipe
+            # *explicitly* set it to something other than 1, so that omitting the
+            # key entirely -- the remedy the message suggests -- actually works.
+            explicit = "top_k" in self.loss.model_fields_set
+            if explicit and self.loss.top_k != 1:
                 raise ValueError(
                     "loss.mode=exact_full_vocab ignores loss.top_k. Remove top_k from "
                     "the recipe (or set it to 1) to avoid implying a truncation that "
                     "does not happen."
                 )
+            # Normalize so that `to_yaml()` -- which writes every field, including
+            # defaults -- produces a config.resolved.yaml that loads again. The
+            # standalone evaluator re-reads exactly that file. `model_copy` rather
+            # than in-place assignment: pydantic reuses a caller-supplied
+            # LossConfig by reference, and rewriting it would be a surprising
+            # side effect of merely constructing a RunConfig.
+            self.loss = self.loss.model_copy(update={"top_k": 1})
 
-        if mode is TrainingMode.SFT:
-            if self.loss.ce_weight not in (0.0, 1.0):
-                raise ValueError(
-                    "run.mode=sft trains with cross-entropy only; loss.ce_weight must "
-                    "be 0.0 (implicit) or 1.0 (explicit)"
-                )
-
-        if self.selection.selector in (SelectorName.ALL_MODEL_TOKENS, SelectorName.TOOL_AND_FINAL):
-            # ratio is unused; keep recipes honest by rejecting a stale value.
-            pass
+        if mode is TrainingMode.SFT and self.loss.ce_weight not in (0.0, 1.0):
+            raise ValueError(
+                "run.mode=sft trains with cross-entropy only; loss.ce_weight must "
+                "be 0.0 (implicit) or 1.0 (explicit)"
+            )
 
         if self.train.sft_warmup_cycles > 0 and mode is TrainingMode.SFT:
             raise ValueError(
@@ -478,9 +484,7 @@ class RunConfig(_Base):
                 )
 
         if self.rollout.max_total_tokens <= self.rollout.max_new_tokens_per_turn:
-            raise ValueError(
-                "rollout.max_total_tokens must exceed rollout.max_new_tokens_per_turn"
-            )
+            raise ValueError("rollout.max_total_tokens must exceed rollout.max_new_tokens_per_turn")
 
         if self.eval.max_turns is not None and self.eval.max_turns > self.rollout.max_turns * 4:
             raise ValueError("eval.max_turns is implausibly larger than rollout.max_turns")

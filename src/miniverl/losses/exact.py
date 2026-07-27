@@ -155,9 +155,7 @@ def exact_divergence(
             temperature=temperature,
             scale_by_temperature_squared=scale_by_temperature_squared,
         )
-    raise ValueError(
-        f"unknown divergence {divergence!r}; expected forward_kl, reverse_kl or jsd"
-    )
+    raise ValueError(f"unknown divergence {divergence!r}; expected forward_kl, reverse_kl or jsd")
 
 
 def exact_teacher_entropy(

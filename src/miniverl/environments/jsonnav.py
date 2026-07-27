@@ -221,9 +221,7 @@ class JsonNavEnvironment(ToolEnvironment):
                     raise ToolEnvironmentError("'path' must be a string")
                 node = resolve_path(self._document, path)
                 if isinstance(node, dict):
-                    return StepResult(
-                        ok=True, result=_render(sorted(node)), state_id=state_id
-                    )
+                    return StepResult(ok=True, result=_render(sorted(node)), state_id=state_id)
                 if isinstance(node, list):
                     return StepResult(
                         ok=True,
@@ -238,13 +236,9 @@ class JsonNavEnvironment(ToolEnvironment):
                 if not isinstance(key, str) or not key:
                     raise ToolEnvironmentError("'key' must be a non-empty string")
                 matches = [
-                    path
-                    for path, _ in _walk(self._document)
-                    if path.rsplit(".", 1)[-1] == key
+                    path for path, _ in _walk(self._document) if path.rsplit(".", 1)[-1] == key
                 ]
-                return StepResult(
-                    ok=True, result=_render(matches[:MAX_RESULTS]), state_id=state_id
-                )
+                return StepResult(ok=True, result=_render(matches[:MAX_RESULTS]), state_id=state_id)
         except ToolEnvironmentError as exc:
             return StepResult(
                 ok=False,
@@ -336,7 +330,9 @@ class JsonNavEnvironment(ToolEnvironment):
         kind = task.metadata.get("kind")
         path = str(task.metadata["path"])
         if kind == "direct":
-            calls = [OracleAction(OracleActionKind.TOOL_CALL, tool_name="get", arguments={"path": path})]
+            calls = [
+                OracleAction(OracleActionKind.TOOL_CALL, tool_name="get", arguments={"path": path})
+            ]
         elif kind == "find":
             calls = [
                 OracleAction(

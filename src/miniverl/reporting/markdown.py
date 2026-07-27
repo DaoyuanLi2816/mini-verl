@@ -50,7 +50,7 @@ def render_markdown(data: ReportData) -> str:
         f"- selector: `{objective.get('selector')}`",
         f"- seed: {manifest.get('seed')} | deterministic: {manifest.get('deterministic')}",
         f"- miniVERL {manifest.get('miniverl_version')} | git `{manifest.get('git_commit') or 'n/a'}`",
-        f"- device: "
+        "- device: "
         + (
             f"{gpu.get('name')} ({gpu.get('total_memory_gib')} GiB)"
             if gpu.get("available")
@@ -80,13 +80,13 @@ def render_markdown(data: ReportData) -> str:
         f"- rollout tokens/s (mean): {_num(throughput['rollout_tokens_per_second_mean'], 1)}",
         f"- training selected tokens/s (mean): "
         f"{_num(throughput['train_selected_tokens_per_second_mean'], 1)}",
-        f"- peak CUDA allocated: "
+        "- peak CUDA allocated: "
         + (
             f"{_num(throughput['peak_allocated_gib'], 3)} GiB"
             if throughput["peak_allocated_gib"] is not None
             else "not measured (no CUDA)"
         ),
-        f"- peak CUDA reserved: "
+        "- peak CUDA reserved: "
         + (
             f"{_num(throughput['peak_reserved_gib'], 3)} GiB"
             if throughput["peak_reserved_gib"] is not None

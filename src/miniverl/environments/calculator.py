@@ -163,7 +163,7 @@ def safe_eval(expression: str) -> float:
 
 def _format_number(value: float) -> str:
     if abs(value - round(value)) < 1e-9 and abs(value) < 1e12:
-        return str(int(round(value)))
+        return str(round(value))
     return f"{value:.4f}".rstrip("0").rstrip(".")
 
 
@@ -285,7 +285,8 @@ class CalculatorEnvironment(ToolEnvironment):
         if factor is None:
             raise ToolEnvironmentError(
                 f"cannot convert {from_unit!r} to {to_unit!r}; supported pairs: "
-                + ", ".join(f"{a}->{b}" for a, b in sorted(UNIT_CONVERSIONS)) + ", c->f, f->c"
+                + ", ".join(f"{a}->{b}" for a, b in sorted(UNIT_CONVERSIONS))
+                + ", c->f, f->c"
             )
         return value * factor
 
@@ -351,10 +352,8 @@ class CalculatorEnvironment(ToolEnvironment):
             metadata={"kind": "arithmetic", "expression": expression},
         )
 
-    def _conversion_task(
-        self, rng: random.Random, index: int, split: str, difficulty: str
-    ) -> Task:
-        pairs = sorted(UNIT_CONVERSIONS) + [("c", "f"), ("f", "c")]
+    def _conversion_task(self, rng: random.Random, index: int, split: str, difficulty: str) -> Task:
+        pairs = [*sorted(UNIT_CONVERSIONS), ("c", "f"), ("f", "c")]
         from_unit, to_unit = pairs[rng.randrange(len(pairs))]
         value = rng.randrange(2, 500)
         result = self._convert(float(value), from_unit, to_unit)

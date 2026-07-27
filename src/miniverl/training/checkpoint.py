@@ -87,7 +87,9 @@ class CheckpointState:
         return cls(**payload)
 
 
-def _split_optimizer_state(optimizer: Any) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any], list[str]]:
+def _split_optimizer_state(
+    optimizer: Any,
+) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any], list[str]]:
     """Separate an optimizer state dict into tensors, groups and scalars."""
     import torch
 

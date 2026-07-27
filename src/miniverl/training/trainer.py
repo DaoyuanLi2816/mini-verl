@@ -35,6 +35,7 @@ from miniverl.config.models import (
     LossMode,
     MemoryStrategy,
     ModelBackend,
+    Quantization,
     RunConfig,
     TeacherContextMode,
     TrainingMode,
@@ -45,10 +46,11 @@ from miniverl.errors import ConfigError, MiniVerlError
 from miniverl.models.factory import build_student, build_teacher, build_tokenizer, resolve_device
 from miniverl.schemas.alignment import AlignmentMap
 from miniverl.schemas.trajectory import Trajectory
-from miniverl.selection.selectors import SelectionResult, aggregate_selection_stats, select_positions
-from miniverl.teachers.local import LocalTeacherScorer
-from miniverl.trajectory.alignment import build_alignment_map
-from miniverl.trajectory.io import append_trajectories
+from miniverl.selection.selectors import (
+    SelectionResult,
+    aggregate_selection_stats,
+    select_positions,
+)
 from miniverl.training.checkpoint import CheckpointState, load_checkpoint, save_checkpoint
 from miniverl.training.memory import (
     MemoryPlan,
@@ -57,6 +59,8 @@ from miniverl.training.memory import (
     run_with_oom_retry,
 )
 from miniverl.training.optim import LearningRateSchedule, build_optimizer
+from miniverl.trajectory.alignment import build_alignment_map
+from miniverl.trajectory.io import append_trajectories
 from miniverl.utils import gpu
 from miniverl.utils.env import collect_environment
 from miniverl.utils.logging import EventLog, get_logger
@@ -140,19 +144,21 @@ class OPDTrainer:
 
         self.metrics_log = JsonlWriter(paths.metrics)
         self.events = EventLog(JsonlWriter(paths.events))
-        self.runner = RolloutRunner(
-            backend=student, environment=environment, config=config.rollout
-        )
-        self.scorer = (
-            LocalTeacherScorer(
+        self.runner = RolloutRunner(backend=student, environment=environment, config=config.rollout)
+        # Imported here rather than at module scope: the scorer pulls in torch, and
+        # `import miniverl.trainer` must stay readable on a bare install so the CLI
+        # can raise MissingDependencyError instead of ModuleNotFoundError.
+        if teacher is not None:
+            from miniverl.teachers.local import LocalTeacherScorer
+
+            self.scorer: Any = LocalTeacherScorer(
                 teacher,
                 config.loss,
                 keep_exact_resident=plan.strategy is MemoryStrategy.RESIDENT,
                 device=plan.device,
             )
-            if teacher is not None
-            else None
-        )
+        else:
+            self.scorer = None
         self.optimizer = build_optimizer(student.trainable_parameters(), config.train)
         steps_per_cycle = self.optimizer_steps_per_cycle
         total_steps = max(
@@ -231,12 +237,35 @@ class OPDTrainer:
         tokenizer = build_tokenizer(config, local_files_only=local_files_only)
         student = build_student(config, tokenizer, device=device, local_files_only=local_files_only)
 
-        teacher = None
-        plan = resolve_strategy(
-            config.memory, device=device, chunk_size=config.loss.chunk_size
+        # bitsandbytes 4-bit parameters are pinned to the device they were
+        # quantized on, so a quantized model cannot be moved off the GPU and
+        # back. `swap` is therefore only available for unquantized pairs.
+        quantized = (
+            config.models.student.quantization is not Quantization.NONE
+            or config.models.teacher.quantization is not Quantization.NONE
         )
+        memory_config = config.memory
+        if quantized and memory_config.strategy is MemoryStrategy.SWAP:
+            raise ConfigError(
+                "memory.strategy=swap cannot be used with a quantized model: "
+                "bitsandbytes 4-bit/8-bit parameters are pinned to the device they "
+                "were quantized on and cannot be moved to host memory and back.",
+                hint="use memory.strategy: resident (a 0.6B QLoRA student plus a bf16 "
+                "1.7B teacher fits in 16 GB), or set both quantization fields to "
+                "'none' if you really need swap",
+            )
+        if quantized and memory_config.strategy is MemoryStrategy.AUTO:
+            memory_config = memory_config.model_copy(update={"strategy": MemoryStrategy.RESIDENT})
+
+        teacher = None
+        plan = resolve_strategy(memory_config, device=device, chunk_size=config.loss.chunk_size)
+        if quantized and config.memory.strategy is MemoryStrategy.AUTO:
+            plan.reason = (
+                "auto -> resident: a quantized model cannot be moved off the "
+                "accelerator, so swap is unavailable"
+            )
         if config.run.mode is not TrainingMode.SFT:
-            if config.memory.strategy is MemoryStrategy.AUTO and device.startswith("cuda"):
+            if memory_config.strategy is MemoryStrategy.AUTO and device.startswith("cuda"):
                 loaded: list[Any] = []
 
                 def teacher_fits() -> bool:
@@ -257,16 +286,14 @@ class OPDTrainer:
                         return False
 
                 plan = resolve_strategy(
-                    config.memory,
+                    memory_config,
                     device=device,
                     chunk_size=config.loss.chunk_size,
                     teacher_fits=teacher_fits,
                 )
                 teacher = loaded[0] if loaded else None
             if teacher is None:
-                teacher_device = (
-                    device if plan.strategy is MemoryStrategy.RESIDENT else "cpu"
-                )
+                teacher_device = device if plan.strategy is MemoryStrategy.RESIDENT else "cpu"
                 teacher = build_teacher(
                     config,
                     tokenizer,
@@ -508,9 +535,7 @@ class OPDTrainer:
             alignment = build_alignment_map(
                 traj, selection.positions, selection.weights, teacher=teacher_view
             )
-            samples.append(
-                TrainSample(trajectory=traj, alignment=alignment, selection=selection)
-            )
+            samples.append(TrainSample(trajectory=traj, alignment=alignment, selection=selection))
 
         if self.scorer is None or config.run.mode is TrainingMode.SFT:
             return samples
@@ -543,7 +568,7 @@ class OPDTrainer:
         totals: dict[str, list[float]] = {}
         weights = sample.alignment.token_weights
         for value, weight, span in zip(
-            per_token.tolist(), weights, sample.alignment.span_types
+            per_token.tolist(), weights, sample.alignment.span_types, strict=False
         ):
             entry = totals.setdefault(span, [0.0, 0.0])
             entry[0] += value * weight
@@ -551,9 +576,9 @@ class OPDTrainer:
         return {k: (v[0] / v[1] if v[1] else 0.0) for k, v in totals.items()}
 
     def _run_group(self, group: list[TrainSample], chunk_size: int) -> dict[str, Any]:
-        from miniverl.losses.chunked import chunked_selected_position_loss
-
         import torch
+
+        from miniverl.losses.chunked import chunked_selected_position_loss
 
         config = self.config
         self.optimizer.zero_grad(set_to_none=True)
@@ -615,9 +640,7 @@ class OPDTrainer:
             "selected_positions": positions_total,
             "trajectories_in_step": len(group),
             "teacher_entropy_mean": (entropy_sum / entropy_count) if entropy_count else None,
-            "loss_by_span_type": {
-                k: sum(v) / len(v) for k, v in sorted(span_losses.items()) if v
-            },
+            "loss_by_span_type": {k: sum(v) / len(v) for k, v in sorted(span_losses.items()) if v},
         }
 
     def _optimize(self, samples: list[TrainSample], *, phase: str) -> list[dict[str, Any]]:
@@ -630,14 +653,27 @@ class OPDTrainer:
             if self.config.memory.reset_peak_stats_each_cycle:
                 gpu.reset_peak_stats()
             started = time.perf_counter()
+
+            def run(chunk: int, batch: list[TrainSample] = group) -> dict[str, Any]:
+                return self._run_group(batch, chunk)
+
+            def note_retry(old_chunk: int, new_chunk: int) -> None:
+                self.events.emit(
+                    "oom_chunk_retry",
+                    old_chunk=old_chunk,
+                    new_chunk=new_chunk,
+                    note="objective unchanged; only the projection chunk size shrank",
+                )
+
+            def clear_grads() -> None:
+                self.optimizer.zero_grad(set_to_none=True)
+
             record = run_with_oom_retry(
-                lambda chunk, g=group: self._run_group(g, chunk),
+                run,
                 plan=self.plan,
                 memory=self.config.memory,
-                on_retry=lambda old, new: self.events.emit(
-                    "oom_chunk_retry", old_chunk=old, new_chunk=new, note="objective unchanged"
-                ),
-                cleanup=lambda: self.optimizer.zero_grad(set_to_none=True),
+                on_retry=note_retry,
+                cleanup=clear_grads,
             )
             elapsed = max(time.perf_counter() - started, 1e-9)
             record.update(
@@ -741,10 +777,7 @@ class OPDTrainer:
                 and cycle + 1 < config.train.cycles
             ):
                 self.evaluate(tag=f"cycle{cycle + 1}")
-            if (
-                config.train.save_every_cycles
-                and (cycle + 1) % config.train.save_every_cycles == 0
-            ):
+            if config.train.save_every_cycles and (cycle + 1) % config.train.save_every_cycles == 0:
                 self.save_checkpoint()
 
         final_eval = self.evaluate(tag="final") if config.eval.enabled else None
@@ -785,18 +818,14 @@ class OPDTrainer:
             trajectories, stats = self._collect(tasks, oracle=True)
             samples = self._build_samples_ce_only(trajectories)
             self._optimize(samples, phase="sft_warmup")
-            self.events.emit(
-                "sft_warmup_cycle", cycle=index, trajectories=stats.rollouts
-            )
+            self.events.emit("sft_warmup_cycle", cycle=index, trajectories=stats.rollouts)
         self.policy_version += 1
         self.cycle = 0
 
     def _build_samples_ce_only(self, trajectories: list[Trajectory]) -> list[TrainSample]:
         samples: list[TrainSample] = []
         for traj in trajectories:
-            selection = select_positions(
-                traj, self.config.selection, run_seed=self.config.run.seed
-            )
+            selection = select_positions(traj, self.config.selection, run_seed=self.config.run.seed)
             if not selection.positions:
                 continue
             alignment = build_alignment_map(traj, selection.positions, selection.weights)
@@ -879,9 +908,7 @@ class OPDTrainer:
         if mode is TrainingMode.OPD:
             self.policy_version += 1
             if self._cache is not None and config.cache.keep_cycles:
-                removed = self._cache.prune_before(
-                    self.policy_version - config.cache.keep_cycles
-                )
+                removed = self._cache.prune_before(self.policy_version - config.cache.keep_cycles)
                 if removed:
                     self.events.emit("cache_pruned", removed=removed)
         elif mode is TrainingMode.SFT:
@@ -982,9 +1009,7 @@ class OPDTrainer:
             batch = cache.read(
                 sample.trajectory.trajectory_id,
                 expect_policy_version=(
-                    sample.trajectory.policy_version
-                    if config.cache.strict_policy_version
-                    else None
+                    sample.trajectory.policy_version if config.cache.strict_policy_version else None
                 ),
                 device=self.plan.device,
             )
@@ -1049,9 +1074,7 @@ class OPDTrainer:
             "temperature": config.eval.temperature,
             "seconds": round(elapsed, 3),
             "rollout_tokens_per_second": round(stats.generated_tokens / elapsed, 2),
-            "success_by_difficulty": {
-                k: sum(v) / len(v) for k, v in sorted(by_difficulty.items())
-            },
+            "success_by_difficulty": {k: sum(v) / len(v) for k, v in sorted(by_difficulty.items())},
             "memory": gpu.snapshot().to_dict(),
             **stats.to_dict(),
         }

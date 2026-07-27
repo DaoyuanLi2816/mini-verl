@@ -103,7 +103,9 @@ class Span(BaseModel):
     @model_validator(mode="after")
     def _check_range(self) -> Span:
         if self.end <= self.start:
-            raise ValueError(f"span {self.span_type.value} has empty range [{self.start},{self.end})")
+            raise ValueError(
+                f"span {self.span_type.value} has empty range [{self.start},{self.end})"
+            )
         return self
 
     @property
@@ -213,9 +215,7 @@ class Trajectory(BaseModel):
             ("critical_mask", self.critical_mask),
         ):
             if len(seq) != n:
-                raise ValueError(
-                    f"{field_name} has length {len(seq)} but token_ids has length {n}"
-                )
+                raise ValueError(f"{field_name} has length {len(seq)} but token_ids has length {n}")
         if any(v not in (0, 1) for v in self.attention_mask):
             raise ValueError("attention_mask must contain only 0/1")
 

@@ -20,6 +20,7 @@ file on the user's disk is ever opened.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import random
 import sqlite3
@@ -152,8 +153,7 @@ class SqliteEnvironment(ToolEnvironment):
             ToolSpec(
                 name="query",
                 description=(
-                    "Run one read-only SELECT statement and return up to "
-                    f"{MAX_ROWS} rows as JSON."
+                    f"Run one read-only SELECT statement and return up to {MAX_ROWS} rows as JSON."
                 ),
                 parameters={"sql": "a single SELECT statement"},
                 required=("sql",),
@@ -179,17 +179,19 @@ class SqliteEnvironment(ToolEnvironment):
             self._conn = None
 
     def __del__(self) -> None:  # pragma: no cover - best-effort cleanup
-        try:
+        with contextlib.suppress(Exception):
             self.close()
-        except Exception:
-            pass
 
     @staticmethod
     def _rows(seed: int) -> tuple[list[tuple[int, str, str]], list[tuple[int, int, int, str]]]:
         rng = random.Random(f"sqlite:{seed}")
         n_customers = rng.randrange(4, 8)
         customers = [
-            (i + 1, _NAMES[(seed + i * 5) % len(_NAMES)] + str(i + 1), _CITIES[rng.randrange(len(_CITIES))])
+            (
+                i + 1,
+                _NAMES[(seed + i * 5) % len(_NAMES)] + str(i + 1),
+                _CITIES[rng.randrange(len(_CITIES))],
+            )
             for i in range(n_customers)
         ]
         orders: list[tuple[int, int, int, str]] = []
@@ -284,7 +286,7 @@ class SqliteEnvironment(ToolEnvironment):
                 raise ToolEnvironmentError(self._guard.denied) from exc
             raise ToolEnvironmentError(f"SQL error: {exc}") from exc
         truncated = len(rows) > MAX_ROWS
-        out = [dict(zip(columns, row)) for row in rows[:MAX_ROWS]]
+        out = [dict(zip(columns, row, strict=False)) for row in rows[:MAX_ROWS]]
         if truncated:
             out.append({"_note": f"result truncated to {MAX_ROWS} rows"})
         return out
@@ -403,5 +405,5 @@ def _normalize(text: str) -> str:
     except ValueError:
         return cleaned
     if abs(value - round(value)) < 1e-9:
-        return str(int(round(value)))
+        return str(round(value))
     return f"{value:.4f}"

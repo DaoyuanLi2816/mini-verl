@@ -18,6 +18,7 @@ from typing import Any, Optional
 import typer
 from pydantic import ValidationError
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from miniverl import __version__
@@ -47,14 +48,43 @@ def _emit_json(payload: Any) -> None:
     console.print_json(json.dumps(payload, default=str))
 
 
+def _esc(value: object) -> str:
+    """Escape dynamic text before it reaches Rich.
+
+    Rich treats square brackets as markup, so unescaped values silently lose
+    content: the hint ``pip install "miniverl[train]"`` would print as
+    ``pip install "miniverl"`` -- the wrong command. Every dynamic string this
+    module prints goes through here.
+    """
+    return escape(str(value))
+
+
+def _require_training_stack(purpose: str) -> None:
+    """Fail with an install command if the training extra is not present.
+
+    Called before any heavy import so a bare ``pip install miniverl`` produces
+    the exact command to run rather than a bare ``ModuleNotFoundError``.
+    """
+    from miniverl.errors import MissingDependencyError
+    from miniverl.utils.lazy import have_module
+
+    for module in ("torch", "transformers", "peft"):
+        if not have_module(module):
+            raise MissingDependencyError(module, "train", purpose)
+
+
 def _fail(exc: Exception, *, code: int = 1) -> None:
     """Print an actionable error and exit non-zero."""
+    if isinstance(exc, ModuleNotFoundError):
+        from miniverl.errors import MissingDependencyError
+
+        exc = MissingDependencyError(exc.name or "a dependency", "train", "This command")
     if isinstance(exc, MiniVerlError):
-        err_console.print(f"[red]error[/red] {exc.message}")
+        err_console.print(f"[red]error[/red] {_esc(exc.message)}")
         if exc.hint:
-            err_console.print(f"[yellow]hint[/yellow]  {exc.hint}")
+            err_console.print(f"[yellow]hint[/yellow]  {_esc(exc.hint)}")
     else:
-        err_console.print(f"[red]error[/red] {exc}")
+        err_console.print(f"[red]error[/red] {_esc(exc)}")
     raise typer.Exit(code)
 
 
@@ -102,7 +132,7 @@ def doctor(
 
     try:
         report = run_doctor(output_dir)
-    except Exception as exc:  # noqa: BLE001 - surfaced verbatim below
+    except Exception as exc:
         _fail(exc)
         return
     if as_json:
@@ -115,9 +145,9 @@ def doctor(
     table.add_column("detail")
     for check in report.checks:
         table.add_row(
-            check.name,
+            _esc(check.name),
             f"[{_STATUS_STYLE.get(check.status, 'white')}]{check.status}[/]",
-            check.detail,
+            _esc(check.detail),
         )
     console.print(table)
 
@@ -125,21 +155,25 @@ def doctor(
     console.print()
     for label, key, command in (
         ("core commands (doctor/validate/inspect/report/cache)", "core_commands", None),
-        ("CPU + toy training (demo, recipes/toy_cpu.yaml)", "cpu_training", 'pip install "miniverl[train]"'),
+        (
+            "CPU + toy training (demo, recipes/toy_cpu.yaml)",
+            "cpu_training",
+            'pip install "miniverl[train]"',
+        ),
         ("GPU training", "gpu_training", "install a CUDA build of torch"),
         ("4-bit QLoRA", "qlora_4bit", 'pip install "miniverl[train,cuda]"'),
     ):
         ready = verdict[key]
         mark = "[green]yes[/green]" if ready else "[yellow]no[/yellow]"
         suffix = "" if ready or not command else f"  ->  {command}"
-        console.print(f"  {mark}  {label}{suffix}")
+        console.print(f"  {mark}  {_esc(label)}{_esc(suffix)}")
 
     hints = [c for c in report.checks if c.hint and c.status in {"fail", "missing", "warn"}]
     if hints:
         console.print()
         console.print("[bold]suggestions[/bold]")
         for check in hints:
-            console.print(f"  - {check.name}: {check.hint}")
+            console.print(f"  - {_esc(check.name)}: {_esc(check.hint)}")
 
 
 # -------------------------------------------------------------- validate
@@ -160,10 +194,10 @@ def validate(
         if as_json:
             _emit_json({"valid": False, "path": str(recipe), "errors": exc.errors()})
             raise typer.Exit(1) from None
-        err_console.print(f"[red]invalid recipe[/red] {recipe}")
+        err_console.print(f"[red]invalid recipe[/red] {_esc(recipe)}")
         for error in exc.errors():
             location = ".".join(str(p) for p in error["loc"])
-            err_console.print(f"  [red]{location or '<root>'}[/red]: {error['msg']}")
+            err_console.print(f"  [red]{_esc(location or '<root>')}[/red]: {_esc(error['msg'])}")
         err_console.print(
             "\n[yellow]hint[/yellow]  compare against recipes/toy_cpu.yaml, which is "
             "validated in CI"
@@ -192,11 +226,7 @@ def validate(
 
     steps_per_cycle = max(
         1,
-        (
-            config.train.rollouts_per_cycle
-            + config.train.gradient_accumulation_steps
-            - 1
-        )
+        (config.train.rollouts_per_cycle + config.train.gradient_accumulation_steps - 1)
         // config.train.gradient_accumulation_steps,
     )
     if config.run.mode.value == "opd" and steps_per_cycle > 1:
@@ -206,9 +236,7 @@ def validate(
             "rollouts_per_cycle for strict on-policy updates)"
         )
     if config.models.backend.value == "hf" and not config.models.student.revision:
-        warnings.append(
-            "models.student.revision is unpinned; the manifest will record 'unpinned'"
-        )
+        warnings.append("models.student.revision is unpinned; the manifest will record 'unpinned'")
     if config.models.backend.value == "hf" and not config.models.teacher.revision:
         warnings.append("models.teacher.revision is unpinned")
 
@@ -240,15 +268,15 @@ def validate(
     if as_json:
         _emit_json(payload)
         return
-    console.print(f"[green]valid[/green] {recipe}")
+    console.print(f"[green]valid[/green] {_esc(recipe)}")
     table = Table(show_header=False, box=None, pad_edge=False)
     for key, value in payload.items():
         if key in {"valid", "path", "warnings"}:
             continue
-        table.add_row(f"[dim]{key}[/dim]", str(value))
+        table.add_row(f"[dim]{key}[/dim]", _esc(value))
     console.print(table)
     for warning in warnings:
-        console.print(f"[yellow]warning[/yellow] {warning}")
+        console.print(f"[yellow]warning[/yellow] {_esc(warning)}")
 
 
 # ------------------------------------------------------------------ demo
@@ -259,15 +287,14 @@ def demo(
     output: Path = typer.Option(Path("runs/demo"), "--output", help="Run directory to create."),
     fast: bool = typer.Option(False, "--fast", help="Shrink every budget (CI smoke test)."),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
-    report_html: bool = typer.Option(
-        True, "--report/--no-report", help="Also render report.html."
-    ),
+    report_html: bool = typer.Option(True, "--report/--no-report", help="Also render report.html."),
 ) -> None:
     """Run the embedded no-network toy pipeline end to end."""
     try:
+        _require_training_stack("miniverl demo")
         from miniverl.demo import demo_config
         from miniverl.trainer import OPDTrainer
-    except MiniVerlError as exc:
+    except (MiniVerlError, ModuleNotFoundError) as exc:
         _fail(exc)
         return
 
@@ -299,7 +326,7 @@ def demo(
         _emit_json(payload)
         return
     console.print()
-    console.print(f"[bold green]demo complete[/bold green]  {trainer.paths.root}")
+    console.print(f"[bold green]demo complete[/bold green]  {_esc(trainer.paths.root)}")
     table = Table(show_header=False, box=None)
     baseline = (result.baseline_eval or {}).get("success_rate")
     final = (result.eval or {}).get("success_rate")
@@ -315,12 +342,14 @@ def demo(
     console.print()
     console.print("[bold]artifacts[/bold]")
     for name, size in artifacts.items():
-        console.print(f"  {name}  [dim]{size}[/dim]")
+        console.print(f"  {_esc(name)}  [dim]{_esc(size)}[/dim]")
     console.print()
     console.print("[bold]next[/bold]")
-    console.print(f"  miniverl inspect {trainer.paths.trajectories}")
-    console.print(f"  miniverl cache stats {trainer.paths.teacher_cache}")
-    console.print(f"  miniverl report {trainer.paths.root} --out {trainer.paths.report_html}")
+    console.print(f"  miniverl inspect {_esc(trainer.paths.trajectories)}")
+    console.print(f"  miniverl cache stats {_esc(trainer.paths.teacher_cache)}")
+    console.print(
+        f"  miniverl report {_esc(trainer.paths.root)} --out {_esc(trainer.paths.report_html)}"
+    )
 
 
 def _fmt_pct(value: Any) -> str:
@@ -370,7 +399,7 @@ def train(
     except (ValidationError, MiniVerlError) as exc:
         if isinstance(exc, MiniVerlError):
             _fail(exc)
-        err_console.print(f"[red]invalid recipe[/red] {recipe}\n{exc}")
+        err_console.print(f"[red]invalid recipe[/red] {_esc(recipe)}\n{_esc(exc)}")
         raise typer.Exit(1) from None
 
     if dry_run:
@@ -394,14 +423,12 @@ def train(
             * (config.train.cycles + config.train.sft_warmup_cycles),
             "planned_rollouts": config.train.rollouts_per_cycle * config.train.cycles,
             "output_dir": str(output or config.run.output_dir),
-            "resolved_config": json.loads(
-                json.dumps(config.model_dump(mode="json"), default=str)
-            ),
+            "resolved_config": json.loads(json.dumps(config.model_dump(mode="json"), default=str)),
         }
         if as_json:
             _emit_json(plan)
         else:
-            console.print(f"[green]dry run ok[/green] {recipe}")
+            console.print(f"[green]dry run ok[/green] {_esc(recipe)}")
             for key in (
                 "mode",
                 "backend",
@@ -412,11 +439,12 @@ def train(
                 "planned_rollouts",
                 "output_dir",
             ):
-                console.print(f"  [dim]{key}[/dim] {plan[key]}")
+                console.print(f"  [dim]{key}[/dim] {_esc(plan[key])}")
             console.print("\nNo models were loaded and nothing was downloaded.")
         return
 
     try:
+        _require_training_stack("miniverl train")
         from miniverl.trainer import OPDTrainer
 
         trainer = OPDTrainer.from_config(
@@ -437,7 +465,7 @@ def train(
                 max_tokens=config.report.max_tokens_per_trajectory,
             )
             write_markdown(ReportData.from_run(trainer.paths.root), trainer.paths.summary_md)
-    except MiniVerlError as exc:
+    except (MiniVerlError, ModuleNotFoundError) as exc:
         _fail(exc)
         return
 
@@ -446,15 +474,15 @@ def train(
         _emit_json(payload)
         return
     console.print()
-    console.print(f"[bold green]run complete[/bold green] {trainer.paths.root}")
+    console.print(f"[bold green]run complete[/bold green] {_esc(trainer.paths.root)}")
     baseline = (result.baseline_eval or {}).get("success_rate")
     final = (result.eval or {}).get("success_rate")
     console.print(
         f"  task success {_fmt_pct(baseline)} -> {_fmt_pct(final)} "
         f"in {result.global_step} optimizer steps ({result.duration_seconds:.1f} s)"
     )
-    console.print(f"  eval  miniverl eval --run {trainer.paths.root}")
-    console.print(f"  report {report_path or trainer.paths.report_html}")
+    console.print(f"  eval  miniverl eval --run {_esc(trainer.paths.root)}")
+    console.print(f"  report {_esc(report_path or trainer.paths.report_html)}")
 
 
 # ------------------------------------------------------------------- eval
@@ -476,18 +504,19 @@ def eval_command(
 ) -> None:
     """Re-evaluate a finished run deterministically."""
     try:
+        _require_training_stack("miniverl eval")
         from miniverl.evaluation.evaluator import evaluate_run
 
         payload = evaluate_run(
             run, split=split, tasks=tasks, checkpoint=checkpoint, out=out, tag=tag
         )
-    except MiniVerlError as exc:
+    except (MiniVerlError, ModuleNotFoundError) as exc:
         _fail(exc)
         return
     if as_json:
         _emit_json(payload)
         return
-    console.print(f"[bold]eval[/bold] {payload['run_dir']} split={payload['split']}")
+    console.print(f"[bold]eval[/bold] {_esc(payload['run_dir'])} split={_esc(payload['split'])}")
     table = Table(show_header=False, box=None)
     for key in (
         "tasks",
@@ -499,10 +528,10 @@ def eval_command(
         "rollout_tokens_per_second",
         "seconds",
     ):
-        table.add_row(f"[dim]{key}[/dim]", str(payload.get(key)))
+        table.add_row(f"[dim]{key}[/dim]", _esc(payload.get(key)))
     console.print(table)
-    console.print(f"  failures {payload.get('failure_categories')}")
-    console.print(f"  written  {payload.get('written_to')}")
+    console.print(f"  failures {_esc(payload.get('failure_categories'))}")
+    console.print(f"  written  {_esc(payload.get('written_to'))}")
 
 
 # -------------------------------------------------------------- benchmark
@@ -517,6 +546,7 @@ def benchmark(
 ) -> None:
     """Run a matched-budget comparison across training modes."""
     try:
+        _require_training_stack("miniverl benchmark")
         from miniverl.evaluation.benchmark import run_benchmark
         from miniverl.evaluation.schema import BenchmarkConfig
 
@@ -525,7 +555,7 @@ def benchmark(
     except (ValidationError, MiniVerlError) as exc:
         if isinstance(exc, MiniVerlError):
             _fail(exc)
-        err_console.print(f"[red]invalid benchmark config[/red] {config_path}\n{exc}")
+        err_console.print(f"[red]invalid benchmark config[/red] {_esc(config_path)}\n{_esc(exc)}")
         raise typer.Exit(1) from None
     if as_json:
         _emit_json(result.model_dump(mode="json"))
@@ -535,9 +565,9 @@ def benchmark(
         table.add_column(column, justify="right" if column != "arm" else "left")
     for arm in result.arms:
         table.add_row(
-            arm.name,
-            arm.mode,
-            arm.loss_mode,
+            _esc(arm.name),
+            _esc(arm.mode),
+            _esc(arm.loss_mode),
             str(arm.optimizer_steps),
             f"{arm.success_rate * 100:.1f}%",
             f"{arm.generated_tokens_per_task:.1f}",
@@ -561,9 +591,7 @@ def inspect_command(
     trajectory: Optional[str] = typer.Option(
         None, "--trajectory", help="Inspect one trajectory id."
     ),
-    show_spans: bool = typer.Option(
-        False, "--spans", help="Print the span table of --trajectory."
-    ),
+    show_spans: bool = typer.Option(False, "--spans", help="Print the span table of --trajectory."),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Validate and summarize trajectories, including token provenance."""
@@ -586,7 +614,7 @@ def inspect_command(
         _emit_json(summary.to_dict())
         return
 
-    console.print(f"[bold]{path}[/bold]")
+    console.print(f"[bold]{_esc(path)}[/bold]")
     console.print(
         f"  {summary.trajectories} trajectories | {summary.tokens} tokens | "
         f"{summary.model_tokens} model tokens ({summary.model_token_fraction * 100:.1f}%) | "
@@ -597,10 +625,11 @@ def inspect_command(
             f"  graded {summary.graded} | solved {summary.solved} "
             f"({(summary.success_rate or 0) * 100:.1f}%)"
         )
-    console.print(f"  policy versions {summary.policy_versions}")
-    console.print(f"  termination {summary.termination_reasons}")
-    console.print(f"  tools {summary.tools_used or '{}'}")
-    console.print(f"  tokenizer {[f[:12] + '...' for f in summary.tokenizer_fingerprints]}")
+    console.print(f"  policy versions {_esc(summary.policy_versions)}")
+    console.print(f"  termination {_esc(summary.termination_reasons)}")
+    console.print(f"  tools {_esc(summary.tools_used or {})}")
+    fingerprints = [f[:12] + "..." for f in summary.tokenizer_fingerprints]
+    console.print(f"  tokenizer {_esc(fingerprints)}")
 
     provenance = Table(title="tokens by span type (only assistant_* can enter the loss)")
     provenance.add_column("span type")
@@ -611,7 +640,7 @@ def inspect_command(
     trainable = {s.value for s in MODEL_GENERATED_SPAN_TYPES}
     for name, count in sorted(summary.tokens_by_span_type.items(), key=lambda kv: -kv[1]):
         provenance.add_row(
-            name,
+            _esc(name),
             str(count),
             "[green]yes[/green]" if name in trainable else "[dim]no (context)[/dim]",
         )
@@ -627,9 +656,9 @@ def inspect_command(
         )
     for record in summary.samples:
         table.add_row(
-            record.trajectory_id,
-            record.task_id,
-            record.termination_reason,
+            _esc(record.trajectory_id),
+            _esc(record.task_id),
+            _esc(record.termination_reason),
             "-" if record.solved is None else ("yes" if record.solved else "no"),
             str(record.turns),
             str(record.tokens),
@@ -644,11 +673,11 @@ def inspect_command(
             span_table.add_column(column, overflow="fold")
         for row in iter_spans_for_display(path, trajectory):
             span_table.add_row(
-                row["span_type"],
-                f"[{row['start']}, {row['end']})",
+                _esc(row["span_type"]),
+                _esc(f"[{row['start']}, {row['end']})"),
                 str(row["tokens"]),
                 "yes" if row["in_loss"] else "no",
-                row["text"][:400],
+                _esc(row["text"][:400]),
             )
         console.print(span_table)
 
@@ -676,9 +705,7 @@ def report(
         )
 
         data = ReportData.from_run(run, max_trajectories=max_trajectories, max_tokens=max_tokens)
-        html_path = write_report(
-            run, out, max_trajectories=max_trajectories, max_tokens=max_tokens
-        )
+        html_path = write_report(run, out, max_trajectories=max_trajectories, max_tokens=max_tokens)
         markdown_path = write_markdown(data, markdown or Path(run) / "summary.md")
         summary = render_summary_json(data)
         json_path = None
@@ -699,10 +726,10 @@ def report(
             }
         )
         return
-    console.print(f"[green]report written[/green] {html_path}")
-    console.print(f"[green]summary written[/green] {markdown_path}")
+    console.print(f"[green]report written[/green] {_esc(html_path)}")
+    console.print(f"[green]summary written[/green] {_esc(markdown_path)}")
     if json_path:
-        console.print(f"[green]json written[/green] {json_path}")
+        console.print(f"[green]json written[/green] {_esc(json_path)}")
     console.print("  the HTML file is self-contained and works offline")
 
 
@@ -760,12 +787,12 @@ def cache_validate(
         _emit_json(payload)
     else:
         if problems:
-            err_console.print(f"[red]invalid[/red] {path}")
+            err_console.print(f"[red]invalid[/red] {_esc(path)}")
             for problem in problems:
-                err_console.print(f"  - {problem}")
+                err_console.print(f"  - {_esc(problem)}")
         else:
             console.print(
-                f"[green]valid[/green] {path}: {len(cache)} entries in "
+                f"[green]valid[/green] {_esc(path)}: {len(cache)} entries in "
                 f"{len(cache.index.shards)} shard(s), all checksums match"
             )
     if problems:
@@ -793,7 +820,7 @@ def export_benchmark(
     if as_json:
         _emit_json({"written": str(destination), "result": payload})
         return
-    console.print(f"[green]exported[/green] {destination}")
+    console.print(f"[green]exported[/green] {_esc(destination)}")
     console.print(
         "  open a pull request adding this file under benchmarks/results/ "
         "(see benchmarks/README.md)"
@@ -802,7 +829,7 @@ def export_benchmark(
 
 @app.command("schema")
 def schema_command(
-    out: Optional[Path] = typer.Option(None, "--out", help="Write the JSON Schema to a file.")
+    out: Optional[Path] = typer.Option(None, "--out", help="Write the JSON Schema to a file."),
 ) -> None:
     """Print the benchmark-result JSON Schema."""
     from miniverl.evaluation.schema import json_schema
@@ -812,7 +839,7 @@ def schema_command(
         from miniverl.utils.runs import write_json
 
         write_json(out, payload)
-        console.print(f"[green]schema written[/green] {out}")
+        console.print(f"[green]schema written[/green] {_esc(out)}")
         return
     _emit_json(payload)
 

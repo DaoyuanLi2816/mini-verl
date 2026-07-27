@@ -111,8 +111,12 @@ def demo_config(*, fast: bool = False, output_dir: str | Path = "runs") -> RunCo
     payload = copy.deepcopy(DEMO_CONFIG)
     payload["run"]["output_dir"] = str(output_dir)
     if fast:
-        payload["models"]["student"]["toy"].update(hidden_size=48, num_layers=2, intermediate_size=96)
-        payload["models"]["teacher"]["toy"].update(hidden_size=64, num_layers=2, intermediate_size=128)
+        payload["models"]["student"]["toy"].update(
+            hidden_size=48, num_layers=2, intermediate_size=96
+        )
+        payload["models"]["teacher"]["toy"].update(
+            hidden_size=64, num_layers=2, intermediate_size=128
+        )
         payload["models"]["teacher"]["toy_pretrain_steps"] = 4
         payload["environment"].update(train_tasks=8, eval_tasks=2, test_tasks=2)
         payload["rollout"].update(max_new_tokens_per_turn=12, max_turns=2, max_total_tokens=400)

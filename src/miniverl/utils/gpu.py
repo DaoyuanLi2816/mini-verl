@@ -77,7 +77,7 @@ def snapshot() -> MemorySnapshot:
     import torch
 
     torch.cuda.synchronize()
-    free_bytes, total_bytes = torch.cuda.mem_get_info()
+    total_bytes = torch.cuda.mem_get_info()[1]
     return MemorySnapshot(
         available=True,
         allocated_bytes=int(torch.cuda.memory_allocated()),
@@ -94,8 +94,7 @@ def free_vram_gib() -> float:
         return 0.0
     import torch
 
-    free_bytes, _ = torch.cuda.mem_get_info()
-    return float(free_bytes) / (1024**3)
+    return float(torch.cuda.mem_get_info()[0]) / (1024**3)
 
 
 def empty_cache() -> None:

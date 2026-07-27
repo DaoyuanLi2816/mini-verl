@@ -28,12 +28,18 @@ def get_console(*, stderr: bool = False) -> Console:
 
 
 def configure_logging(level: str | None = None) -> None:
-    """Install a Rich log handler once, honouring ``MINIVERL_LOG_LEVEL``."""
-    resolved = (level or os.environ.get("MINIVERL_LOG_LEVEL") or "INFO").upper()
+    """Install a Rich log handler once, honouring ``MINIVERL_LOG_LEVEL``.
+
+    An explicit ``level`` always wins.  Passing ``None`` after logging is already
+    configured leaves the level alone, so an earlier ``--log-level DEBUG`` is not
+    silently downgraded by the first ``get_logger()`` call a module makes.
+    """
     root = logging.getLogger("miniverl")
     if root.handlers:
-        root.setLevel(resolved)
+        if level is not None:
+            root.setLevel(level.upper())
         return
+    resolved = (level or os.environ.get("MINIVERL_LOG_LEVEL") or "INFO").upper()
     handler = RichHandler(
         console=get_console(stderr=True),
         show_path=False,

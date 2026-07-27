@@ -43,9 +43,7 @@ def evaluate_run(
         )
     config = RunConfig.from_yaml(paths.config_resolved)
     if tasks is not None:
-        config = config.model_copy(
-            update={"eval": config.eval.model_copy(update={"tasks": tasks})}
-        )
+        config = config.model_copy(update={"eval": config.eval.model_copy(update={"tasks": tasks})})
 
     target_checkpoint = Path(checkpoint) if checkpoint else latest_checkpoint(paths.checkpoints)
     trainer = OPDTrainer.from_config(

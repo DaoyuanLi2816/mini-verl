@@ -45,7 +45,6 @@ from miniverl.agent.transcript import (
 )
 from miniverl.config.models import RolloutConfig
 from miniverl.environments.base import (
-    FailureCategory,
     OracleActionKind,
     Task,
     ToolCall,
@@ -118,7 +117,8 @@ class RolloutStats:
             "success_rate": self.solved / n,
             "avg_turns": self.turns / n,
             "avg_tool_calls": self.tool_calls / n,
-            "invalid_tool_call_rate": self.invalid_tool_calls / max(self.tool_calls + self.invalid_tool_calls, 1),
+            "invalid_tool_call_rate": self.invalid_tool_calls
+            / max(self.tool_calls + self.invalid_tool_calls, 1),
             "generated_tokens": self.generated_tokens,
             "generated_tokens_per_task": self.generated_tokens / n,
             "tokens_per_solved_task": (
@@ -587,7 +587,9 @@ class RolloutRunner:
         for span in student.spans:
             builder.add(
                 Segment(
-                    key=str(span.metadata.get("segment_key", f"{span.span_type.value}:{span.start}")),
+                    key=str(
+                        span.metadata.get("segment_key", f"{span.span_type.value}:{span.start}")
+                    ),
                     span_type=span.span_type,
                     turn_id=span.turn_id,
                     token_ids=list(student.token_ids[span.start : span.end]),

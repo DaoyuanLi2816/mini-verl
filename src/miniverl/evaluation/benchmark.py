@@ -237,9 +237,7 @@ def run_benchmark(
         seeds=list(config.seeds),
     )
     write_json(target / f"{config.name}.json", result.model_dump(mode="json"))
-    (target / f"{config.name}.md").write_text(
-        render_benchmark_markdown(result), encoding="utf-8"
-    )
+    (target / f"{config.name}.md").write_text(render_benchmark_markdown(result), encoding="utf-8")
     return result
 
 

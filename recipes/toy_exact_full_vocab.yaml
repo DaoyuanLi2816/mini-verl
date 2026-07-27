@@ -1,0 +1,120 @@
+# miniVERL toy recipe: EXACT full-vocabulary reverse KL, no compression.
+#
+# This is the recipe that makes the exact objective checkable end to end. The
+# toy tokenizer has ~190 entries, so materializing the complete
+# [chunk, vocab] teacher and student distributions is cheap -- which is exactly
+# the regime `exact_full_vocab` is for.
+#
+# With memory.strategy: resident the teacher keeps its hidden states and LM head
+# available and the full distribution is rebuilt one chunk at a time, so peak
+# memory is [positions, hidden] + [chunk, vocab] and nothing is stored. Nothing
+# is written to the teacher cache in this mode, and `miniverl cache stats` will
+# say so rather than reporting an empty cache as a compression win.
+#
+# For a real 151936-entry vocabulary this mode is guarded by
+# loss.exact_max_vocab; use recipes/qwen_consumer_gpu_calc.yaml instead.
+#
+#   miniverl validate recipes/toy_exact_full_vocab.yaml
+#   miniverl train    recipes/toy_exact_full_vocab.yaml
+
+schema_version: 1
+
+run:
+  name: toy-exact-full-vocab
+  mode: opd
+  seed: 4242
+  output_dir: runs
+  deterministic: true
+  notes: Exact full-vocabulary KL on a tiny vocabulary. No top-k truncation.
+
+models:
+  backend: toy
+  device: cpu
+  student:
+    model_id: toy-student
+    dtype: float32
+    lora:
+      enabled: false
+    toy:
+      hidden_size: 96
+      num_layers: 3
+      num_heads: 4
+      intermediate_size: 192
+      max_position_embeddings: 768
+  teacher:
+    model_id: toy-teacher
+    dtype: float32
+    mode: standard
+    toy_pretrain_steps: 400
+    toy_pretrain_lr: 0.003
+    toy:
+      hidden_size: 160
+      num_layers: 4
+      num_heads: 4
+      intermediate_size: 320
+      max_position_embeddings: 768
+
+environment:
+  name: calculator
+  difficulty: easy
+  params:
+    prompt_style: compact
+  train_tasks: 192
+  eval_tasks: 16
+  test_tasks: 16
+  split_seed: 11
+
+rollout:
+  max_turns: 3
+  max_new_tokens_per_turn: 40
+  max_total_tokens: 512
+  temperature: 1.0
+  max_parse_errors: 2
+  max_repeated_calls: 2
+
+selection:
+  selector: all_model_tokens
+
+loss:
+  mode: exact_full_vocab
+  divergence: reverse_kl
+  temperature: 1.0
+  scale_by_temperature_squared: true
+  # top_k is meaningless in exact mode and the config rejects any other value,
+  # so a recipe can never imply a truncation that does not happen.
+  top_k: 1
+  chunk_size: 96
+  exact_max_vocab: 8192
+
+train:
+  cycles: 20
+  rollouts_per_cycle: 8
+  gradient_accumulation_steps: 8
+  learning_rate: 0.003
+  max_grad_norm: 1.0
+  lr_schedule: cosine
+  optimizer: adamw
+  sft_warmup_cycles: 150
+  eval_every_cycles: 10
+
+memory:
+  strategy: resident        # exact + swap would have to persist [N, vocab]
+  oom_retries: 2
+  min_chunk_size: 8
+
+cache:
+  entries_per_shard: 8
+  strict_policy_version: true
+  reuse_across_policy_versions: false
+  dtype: float32
+
+eval:
+  enabled: true
+  split: eval
+  temperature: 0.0
+  seed: 0
+
+report:
+  enabled: true
+  max_trajectories: 3
+  max_tokens_per_trajectory: 240

@@ -73,7 +73,7 @@ def build_optimizer(parameters: list[Any], train: TrainConfig) -> Any:
             "the student has no trainable parameters; check models.student.lora.enabled "
             "and models.student.lora.target_modules"
         )
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "lr": train.learning_rate,
         "betas": (train.adam_beta1, train.adam_beta2),
         "eps": train.adam_eps,

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from miniverl.errors import ReportError
+from miniverl.schemas.trajectory import Trajectory
 from miniverl.trajectory.io import iter_trajectories
 from miniverl.utils.runs import RunPaths, read_json, read_jsonl
 
@@ -72,7 +73,9 @@ class ReportData:
         metrics = read_jsonl(paths.metrics)
         events = read_jsonl(paths.events)
 
-        step_metrics = [m for m in metrics if m.get("phase") in {"sft", "offline_kd", "opd", "sft_warmup"}]
+        step_metrics = [
+            m for m in metrics if m.get("phase") in {"sft", "offline_kd", "opd", "sft_warmup"}
+        ]
         cycle_metrics = [m for m in metrics if str(m.get("phase", "")).endswith("_cycle")]
         eval_metrics = [m for m in metrics if m.get("phase") == "eval"]
 
@@ -87,7 +90,7 @@ class ReportData:
 
             try:
                 cache_stats = compute_stats(paths.teacher_cache, verify_checksums=True)
-            except Exception as exc:  # noqa: BLE001 - reported, never swallowed
+            except Exception as exc:
                 cache_stats = {"error": str(exc)}
 
         benchmark = None
@@ -134,22 +137,35 @@ class ReportData:
         if limit <= 0:
             return []
         wanted = prefer_ids or set()
-        sources = [p for p in (paths.trajectories, paths.eval_trajectories) if p.is_file()]
-        if not sources:
-            return []
-        views: list[TrajectoryView] = []
         preferred: list[TrajectoryView] = []
-        for source in sources:
+        evaluation: list[TrajectoryView] = []
+        training: list[TrajectoryView] = []
+        for source, bucket in (
+            (paths.trajectories, training),
+            (paths.eval_trajectories, evaluation),
+        ):
+            if not source.is_file():
+                continue
             for traj in iter_trajectories(source):
                 view = ReportData._view_of(traj)
                 if traj.trajectory_id in wanted:
                     preferred.append(view)
-                elif source is paths.eval_trajectories:
-                    views.append(view)
+                else:
+                    bucket.append(view)
         chosen = preferred[:limit]
-        remaining = limit - len(chosen)
-        if remaining > 0:
-            chosen.extend(views[-remaining:])
+        seen = {view.trajectory_id for view in chosen}
+        # Evaluation rollouts reflect the trained policy, so they fill the budget
+        # first; training rollouts are the fallback when there are no eval ones.
+        # Within a bucket the *most recent* rollouts are taken, but they are then
+        # presented in their original order so the report reads chronologically.
+        for bucket in (evaluation, training):
+            room = limit - len(chosen)
+            if room <= 0:
+                break
+            fresh = [v for v in bucket if v.trajectory_id not in seen]
+            for view in fresh[-room:]:
+                seen.add(view.trajectory_id)
+                chosen.append(view)
         return chosen
 
     @staticmethod
@@ -183,9 +199,7 @@ class ReportData:
             tokens_by_span_type=traj.token_counts_by_span_type(),
             expected=(traj.verification.expected if traj.verification else None),
             predicted=(traj.verification.predicted if traj.verification else None),
-            failure_category=(
-                traj.verification.failure_category if traj.verification else None
-            ),
+            failure_category=(traj.verification.failure_category if traj.verification else None),
         )
 
     @staticmethod
@@ -309,7 +323,9 @@ class ReportData:
                 sum(rollout_rates) / len(rollout_rates) if rollout_rates else None
             ),
             "peak_allocated_gib": (max(peaks_alloc) / 1024**3) if cuda and peaks_alloc else None,
-            "peak_reserved_gib": (max(peaks_reserved) / 1024**3) if cuda and peaks_reserved else None,
+            "peak_reserved_gib": (max(peaks_reserved) / 1024**3)
+            if cuda and peaks_reserved
+            else None,
             "optimizer_steps": len(self.step_metrics),
             "wall_clock_seconds": self.summary.get("duration_seconds"),
         }
