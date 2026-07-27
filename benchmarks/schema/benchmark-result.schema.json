@@ -4,15 +4,80 @@
       "additionalProperties": false,
       "description": "Measured outcome for one arm at one seed.",
       "properties": {
-        "avg_tool_calls": {
-          "title": "Avg Tool Calls",
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "mode": {
+          "title": "Mode",
+          "type": "string"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "run_dir": {
+          "title": "Run Dir",
+          "type": "string"
+        },
+        "loss_mode": {
+          "title": "Loss Mode",
+          "type": "string"
+        },
+        "divergence": {
+          "title": "Divergence",
+          "type": "string"
+        },
+        "selector": {
+          "title": "Selector",
+          "type": "string"
+        },
+        "top_k": {
+          "title": "Top K",
+          "type": "integer"
+        },
+        "optimizer_steps": {
+          "title": "Optimizer Steps",
+          "type": "integer"
+        },
+        "policy_version": {
+          "title": "Policy Version",
+          "type": "integer"
+        },
+        "tasks": {
+          "title": "Tasks",
+          "type": "integer"
+        },
+        "success_rate": {
+          "title": "Success Rate",
           "type": "number"
         },
         "avg_turns": {
           "title": "Avg Turns",
           "type": "number"
         },
-        "baseline_success_rate": {
+        "avg_tool_calls": {
+          "title": "Avg Tool Calls",
+          "type": "number"
+        },
+        "invalid_tool_call_rate": {
+          "title": "Invalid Tool Call Rate",
+          "type": "number"
+        },
+        "generated_tokens_per_task": {
+          "title": "Generated Tokens Per Task",
+          "type": "number"
+        },
+        "tokens_per_solved_task": {
           "anyOf": [
             {
               "type": "number"
@@ -22,7 +87,23 @@
             }
           ],
           "default": null,
-          "title": "Baseline Success Rate"
+          "title": "Tokens Per Solved Task"
+        },
+        "selected_training_tokens": {
+          "title": "Selected Training Tokens",
+          "type": "integer"
+        },
+        "teacher_queried_position_ratio": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Teacher Queried Position Ratio"
         },
         "cache_bytes": {
           "anyOf": [
@@ -48,44 +129,6 @@
           "default": null,
           "title": "Cache Compression Ratio"
         },
-        "description": {
-          "default": "",
-          "title": "Description",
-          "type": "string"
-        },
-        "divergence": {
-          "title": "Divergence",
-          "type": "string"
-        },
-        "generated_tokens_per_task": {
-          "title": "Generated Tokens Per Task",
-          "type": "number"
-        },
-        "invalid_tool_call_rate": {
-          "title": "Invalid Tool Call Rate",
-          "type": "number"
-        },
-        "loss_mode": {
-          "title": "Loss Mode",
-          "type": "string"
-        },
-        "measurement_status": {
-          "default": "measured",
-          "title": "Measurement Status",
-          "type": "string"
-        },
-        "mode": {
-          "title": "Mode",
-          "type": "string"
-        },
-        "name": {
-          "title": "Name",
-          "type": "string"
-        },
-        "optimizer_steps": {
-          "title": "Optimizer Steps",
-          "type": "integer"
-        },
         "peak_allocated_bytes": {
           "anyOf": [
             {
@@ -110,69 +153,26 @@
           "default": null,
           "title": "Peak Reserved Bytes"
         },
-        "policy_version": {
-          "title": "Policy Version",
-          "type": "integer"
-        },
-        "run_dir": {
-          "title": "Run Dir",
-          "type": "string"
-        },
-        "run_id": {
-          "title": "Run Id",
-          "type": "string"
-        },
         "seconds": {
           "title": "Seconds",
           "type": "number"
         },
-        "seed": {
-          "title": "Seed",
-          "type": "integer"
+        "baseline_success_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Success Rate"
         },
-        "selected_training_tokens": {
-          "title": "Selected Training Tokens",
-          "type": "integer"
-        },
-        "selector": {
-          "title": "Selector",
+        "measurement_status": {
+          "default": "measured",
+          "title": "Measurement Status",
           "type": "string"
-        },
-        "success_rate": {
-          "title": "Success Rate",
-          "type": "number"
-        },
-        "tasks": {
-          "title": "Tasks",
-          "type": "integer"
-        },
-        "teacher_queried_position_ratio": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Teacher Queried Position Ratio"
-        },
-        "tokens_per_solved_task": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Tokens Per Solved Task"
-        },
-        "top_k": {
-          "title": "Top K",
-          "type": "integer"
         }
       },
       "required": [
@@ -200,30 +200,29 @@
       "type": "object"
     }
   },
-  "$id": "https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/benchmarks/schema/benchmark-result.schema.json",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Full benchmark output, including everything that was held constant.",
   "properties": {
-    "arms": {
-      "items": {
-        "$ref": "#/$defs/ArmResult"
-      },
-      "title": "Arms",
-      "type": "array"
+    "schema_version": {
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
     },
-    "controlled": {
-      "additionalProperties": true,
-      "title": "Controlled",
-      "type": "object"
+    "miniverl_version": {
+      "title": "Miniverl Version",
+      "type": "string"
     },
-    "created_at": {
-      "title": "Created At",
+    "name": {
+      "title": "Name",
       "type": "string"
     },
     "description": {
       "default": "",
       "title": "Description",
+      "type": "string"
+    },
+    "created_at": {
+      "title": "Created At",
       "type": "string"
     },
     "git_commit": {
@@ -243,23 +242,27 @@
       "title": "Hardware",
       "type": "object"
     },
-    "miniverl_version": {
-      "title": "Miniverl Version",
-      "type": "string"
+    "software": {
+      "additionalProperties": true,
+      "title": "Software",
+      "type": "object"
     },
-    "name": {
-      "title": "Name",
-      "type": "string"
+    "controlled": {
+      "additionalProperties": true,
+      "title": "Controlled",
+      "type": "object"
+    },
+    "arms": {
+      "items": {
+        "$ref": "#/$defs/ArmResult"
+      },
+      "title": "Arms",
+      "type": "array"
     },
     "notes": {
       "default": "",
       "title": "Notes",
       "type": "string"
-    },
-    "schema_version": {
-      "default": 1,
-      "title": "Schema Version",
-      "type": "integer"
     },
     "seeds": {
       "items": {
@@ -267,11 +270,6 @@
       },
       "title": "Seeds",
       "type": "array"
-    },
-    "software": {
-      "additionalProperties": true,
-      "title": "Software",
-      "type": "object"
     }
   },
   "required": [
@@ -280,5 +278,7 @@
     "created_at"
   ],
   "title": "miniVERL benchmark result",
-  "type": "object"
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/benchmarks/schema/benchmark-result.schema.json"
 }

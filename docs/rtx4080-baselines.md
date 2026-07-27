@@ -183,8 +183,121 @@ discarded.
 ### Full results
 
 <!-- BENCHMARK_TABLE_START -->
-See `benchmarks/results/rtx4080-calc-hard-matched.md` for the generated table.
+
+| arm | steps | held-out success | avg turns | invalid calls | gen tok/task | seconds |
+| --- | --- | --- | --- | --- | --- | --- |
+| cold-start-only | 0 | 62.5% | 2.00 | 0.0% | 42.0 | 89.4 |
+| sft-continued | 12 | **100.0%** | 2.38 | 0.0% | 50.2 | 450.4 |
+| opd-bucketed-k64 | 12 | **0.0%** | 2.00 | 83.3% | 38.5 | 684.8 |
+| opd-privileged-context | 12 | **0.0%** | 1.00 | 0.0% | 20.8 | 546.4 |
+
+Generated table and machine-readable result:
+`benchmarks/results/rtx4080-calc-hard-matched.md` and `.json`.
+
 <!-- BENCHMARK_TABLE_END -->
+
+**The prediction was wrong.** Privileged context did not rescue on-policy
+distillation. It scored 0.0%, exactly like the standard teacher. Publishing that
+is the point of the arm: the hypothesis in the previous section was testable, it
+was tested, and it failed.
+
+But the two arms did not fail the *same way*, and the difference is the actual
+result of this benchmark.
+
+### Reading the transcripts
+
+Decoding the final evaluation of each arm — 24 held-out `hard` tasks, greedy —
+shows three distinct behaviours:
+
+```text
+sft-continued            <tool_call>{"arguments": {"expression": "(4 * 2)"}, "name": "calculator"}</tool_call>
+                         <tool_call>{"arguments": {"value": 8.0, "from_unit": "km", "to_unit": "mi"},
+                                     "name": "convert"}</tool_call>
+                         <final>4.971</final>                                    <- solved
+
+opd-bucketed-k64         {"name": "calculator", "arguments": {"expression": "4*2"}}
+                         </tool_call><final><answer>8</answer></final>            <- no opening tag,
+                                                                                     tool never ran
+
+opd-privileged-context   <final><answer>4</answer></final>                        <- no tool call at all
+```
+
+Two separate defects, both inherited from the teacher:
+
+1. **`Qwen/Qwen3-1.7B` writes answers as `<answer>…</answer>`.** That is its
+   own convention, not the environment's. The verifier wants a bare number in
+   `<final>`, so it records `malformed_answer: answer is not a number`.
+2. **The standard teacher drops the opening `<tool_call>` tag**, which is why
+   that arm reports an 83.3% invalid-tool-call rate — the emitted JSON is never
+   parsed as a call, so the calculator never runs and the model "answers" with
+   the unevaluated expression.
+
+### Separating presentation from capability
+
+A single success rate cannot tell "cannot do the task" apart from "did the task
+and wrote it down wrong". Re-scoring the *same, already-collected* trajectories
+with a lenient parser that unwraps `<answer>` separates them:
+
+```bash
+python scripts/attribute_failures.py runs/benchmarks/gpu-calc-hard-matched-*-s1234 --last 24
+```
+
+| arm | strict (reported) | lenient | presentational failures | substantive failures |
+| --- | --- | --- | --- | --- |
+| cold-start-only | 62.5% | 62.5% | 0 | 9 |
+| sft-continued | 100.0% | 100.0% | 0 | 0 |
+| opd-bucketed-k64 | 0.0% | 16.7% | 4 | 20 |
+| opd-privileged-context | 0.0% | 0.0% | 0 | 24 |
+
+**The strict column is the reported metric.** The lenient column is diagnostic
+and must never be quoted alone. What it establishes:
+
+* For `opd-bucketed-k64`, formatting explains **4 of 24** failures. The other 20
+  are real. Even scored generously it reaches 16.7%, far below the 62.5% it
+  started from, so this arm genuinely damaged the policy.
+* For `opd-privileged-context`, formatting explains **none** of it. Every one of
+  the 24 failures is substantive.
+
+### Why privileged context made it worse, not better
+
+`avg turns` fell to **1.00** and the invalid-call rate fell to **0.0%**. The
+policy is no longer malformed — it is *confidently answering without using the
+tool*.
+
+That is the expected failure of a privileged teacher, and it is the useful
+finding here. The oracle block tells the teacher the verified answer. A model
+that already knows the answer has no reason to emit a tool call, so the
+distribution it puts on the next token is "state the answer". The student
+matches that distribution faithfully — and then cannot execute it, because at
+evaluation time the student has no oracle block and does not know the answer.
+
+Privileged-context distillation only works when the privileged information
+changes *how well* the teacher does the task, not *whether it needs to do the
+task at all*. Here the answer is exactly the thing the tool exists to compute,
+so leaking it removes the behaviour being taught. arXiv:2602.12275 is explicit
+that the oracle must not be sufficient on its own; this run is a concrete
+demonstration of what happens when it is.
+
+### What this benchmark does and does not show
+
+It shows, on one seed, one task family, one model pair and a 12-step budget:
+
+* supervised continuation on verified oracle traces took 62.5% -> 100.0%;
+* on-policy distillation from a protocol-naive teacher took 62.5% -> 0.0%, and
+  the objective fell monotonically the whole time, so this is imitation of a bad
+  target rather than optimizer divergence;
+* handing that teacher the answer removed tool use entirely.
+
+It does **not** show that on-policy distillation is worse than supervised
+fine-tuning in general. Every arm here shares one confound: **the teacher was
+never trained on the tool protocol.** The measurement that would separate "OPD
+does not help here" from "this teacher does not help here" is listed under
+*Not run* below, with the command to run it. Until someone runs it, the honest
+summary of miniVERL's own headline method on its own headline benchmark is:
+**it did not work, and the most likely reason is the teacher.**
+
+Both executions of this benchmark are reported. Neither was discarded, and no
+arm was re-run and re-reported after seeing its result.
 
 ## Configurations that were tried and did not work
 
@@ -205,7 +318,8 @@ page.
 | Anything on Linux | No Linux machine with a CUDA GPU was available. The dispatch-bound finding above is therefore Windows-specific. | `python scripts/gpu_probe_throughput.py` |
 | More than one seed on GPU | Each GPU benchmark arm costs roughly ten minutes of generation. | edit `seeds:` in `benchmarks/configs/gpu_calc_hard.yaml` |
 | The JSON-navigation and SQLite recipes on real models | Only the calculator environment was run end to end on GPU. | `miniverl train recipes/qwen_consumer_gpu_jsonnav.yaml` |
-| A teacher that was itself fine-tuned on the tool protocol | Would separate "on-policy distillation does not help here" from "this teacher does not help here". | run `recipes/qwen_consumer_gpu_calc.yaml` with `run.mode: sft` on the teacher, then use the checkpoint as the teacher |
+| **A teacher that was itself fine-tuned on the tool protocol** | The single most important missing measurement on this page. Every negative result above shares this confound. It would separate "on-policy distillation does not help here" from "this teacher does not help here". | `miniverl train recipes/qwen_consumer_gpu_calc.yaml --set models.student.name=Qwen/Qwen3-1.7B --set run.mode=sft --run-id teacher-sft`, then rerun the benchmark with `models.teacher.name` pointing at `runs/teacher-sft/checkpoints/final`. Expected output: a fourth column in the table above; the arm is informative whichever way it lands. |
+| A second seed for the two OPD arms | Both landed on exactly 0.0%, which is a floor rather than a distribution, so a second seed would confirm the failure is systematic rather than an unlucky draw. | add `20260727` to `seeds:` in `benchmarks/configs/gpu_calc_hard.yaml` (roughly +20 min/arm) |
 | Any GPU other than an RTX 4080 | Only one card was available. | `miniverl export-benchmark runs/<run-id>` and open a pull request; see `benchmarks/README.md` |
 
 ## Regression fixtures

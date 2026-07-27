@@ -1,0 +1,291 @@
+{
+  "schema_version": 1,
+  "miniverl_version": "0.1.0",
+  "name": "gpu-calc-hard-matched",
+  "description": "Cold start, then equal-step continuation under supervised fine-tuning and on-policy distillation, on the chained calculator split with Qwen3-0.6B distilled from Qwen3-1.7B on one 16 GB consumer GPU.",
+  "created_at": "2026-07-27T10:55:53+00:00",
+  "git_commit": "d40942eb41c67929db52c1a037fd28890f12b281",
+  "hardware": {
+    "cpu_count": 24,
+    "gpu": {
+      "available": true,
+      "capability": "8.9",
+      "device_count": 1,
+      "device_index": 0,
+      "driver_version": null,
+      "multi_processor_count": 76,
+      "name": "NVIDIA GeForce RTX 4080",
+      "torch_cuda_version": "13.0",
+      "torch_version": "2.13.0+cu130",
+      "total_memory_bytes": 17170956288,
+      "total_memory_gib": 15.992
+    },
+    "os": "Windows"
+  },
+  "software": {
+    "packages": {
+      "accelerate": "1.14.0",
+      "bitsandbytes": "0.50.0",
+      "miniverl": "0.1.0",
+      "numpy": "2.5.1",
+      "peft": "0.19.1",
+      "pydantic": "2.13.4",
+      "rich": "15.0.0",
+      "safetensors": "0.8.0",
+      "torch": "2.13.0+cu130",
+      "transformers": "5.14.1",
+      "typer": "0.27.0"
+    },
+    "python": "3.12.13"
+  },
+  "controlled": {
+    "arms_differ_only_in": {
+      "cold-start-only": {
+        "environment": {
+          "difficulty": "hard",
+          "test_tasks": 24
+        },
+        "eval": {
+          "enabled": false,
+          "split": "test",
+          "tasks": 24
+        },
+        "run": {
+          "mode": "sft"
+        },
+        "train": {
+          "cycles": 0,
+          "sft_warmup_cycles": 0
+        }
+      },
+      "opd-bucketed-k64": {
+        "environment": {
+          "difficulty": "hard",
+          "test_tasks": 24
+        },
+        "eval": {
+          "enabled": false,
+          "split": "test",
+          "tasks": 24
+        },
+        "loss": {
+          "divergence": "reverse_kl",
+          "mode": "bucketed_topk_tail",
+          "top_k": 64
+        },
+        "models": {
+          "teacher": {
+            "mode": "standard"
+          }
+        },
+        "run": {
+          "mode": "opd"
+        },
+        "train": {
+          "cycles": 12,
+          "learning_rate": 5e-05,
+          "lr_schedule": "constant",
+          "sft_warmup_cycles": 0
+        }
+      },
+      "opd-privileged-context": {
+        "environment": {
+          "difficulty": "hard",
+          "test_tasks": 24
+        },
+        "eval": {
+          "enabled": false,
+          "split": "test",
+          "tasks": 24
+        },
+        "loss": {
+          "divergence": "reverse_kl",
+          "mode": "bucketed_topk_tail",
+          "top_k": 64
+        },
+        "models": {
+          "teacher": {
+            "mode": "privileged_context"
+          }
+        },
+        "run": {
+          "mode": "opd"
+        },
+        "train": {
+          "cycles": 12,
+          "learning_rate": 5e-05,
+          "lr_schedule": "constant",
+          "sft_warmup_cycles": 0
+        }
+      },
+      "sft-continued": {
+        "environment": {
+          "difficulty": "hard",
+          "test_tasks": 24
+        },
+        "eval": {
+          "enabled": false,
+          "split": "test",
+          "tasks": 24
+        },
+        "run": {
+          "mode": "sft"
+        },
+        "train": {
+          "cycles": 12,
+          "learning_rate": 5e-05,
+          "lr_schedule": "constant",
+          "sft_warmup_cycles": 0
+        }
+      }
+    },
+    "cold_start_cycles": 12,
+    "cold_start_mode": "sft",
+    "difficulty": "medium",
+    "effective_batch_trajectories": 6,
+    "environment": "calculator",
+    "eval_seed": 0,
+    "eval_split": "test",
+    "eval_tasks": 48,
+    "eval_temperature": 0.0,
+    "learning_rate": 0.0001,
+    "lr_schedule": "cosine",
+    "max_trajectory_tokens": 704,
+    "max_turns": 3,
+    "optimizer": "adamw8bit",
+    "rollouts_per_cycle": 6,
+    "seeds": [
+      1234
+    ],
+    "shared_initial_checkpoint": true,
+    "split_seed": 7,
+    "test_tasks": 48,
+    "train_tasks": 256
+  },
+  "arms": [
+    {
+      "name": "cold-start-only",
+      "description": "The shared cold start, evaluated with zero further optimizer steps.",
+      "mode": "sft",
+      "seed": 1234,
+      "run_id": "gpu-calc-hard-matched-cold-start-only-s1234",
+      "run_dir": "gpu-calc-hard-matched-cold-start-only-s1234",
+      "loss_mode": "bucketed_topk_tail",
+      "divergence": "reverse_kl",
+      "selector": "hybrid",
+      "top_k": 64,
+      "optimizer_steps": 0,
+      "policy_version": 0,
+      "tasks": 24,
+      "success_rate": 0.625,
+      "avg_turns": 2.0,
+      "avg_tool_calls": 1.0,
+      "invalid_tool_call_rate": 0.0,
+      "generated_tokens_per_task": 42.0,
+      "tokens_per_solved_task": 67.2,
+      "selected_training_tokens": 0,
+      "teacher_queried_position_ratio": null,
+      "cache_bytes": null,
+      "cache_compression_ratio": null,
+      "peak_allocated_bytes": 1063286784,
+      "peak_reserved_bytes": 1851785216,
+      "seconds": 89.38159669999732,
+      "baseline_success_rate": null,
+      "measurement_status": "measured"
+    },
+    {
+      "name": "sft-continued",
+      "description": "Off-policy baseline -- the same number of extra steps on oracle traces.",
+      "mode": "sft",
+      "seed": 1234,
+      "run_id": "gpu-calc-hard-matched-sft-continued-s1234",
+      "run_dir": "gpu-calc-hard-matched-sft-continued-s1234",
+      "loss_mode": "bucketed_topk_tail",
+      "divergence": "reverse_kl",
+      "selector": "hybrid",
+      "top_k": 64,
+      "optimizer_steps": 12,
+      "policy_version": 12,
+      "tasks": 24,
+      "success_rate": 1.0,
+      "avg_turns": 2.375,
+      "avg_tool_calls": 1.375,
+      "invalid_tool_call_rate": 0.0,
+      "generated_tokens_per_task": 50.166666666666664,
+      "tokens_per_solved_task": 50.166666666666664,
+      "selected_training_tokens": 355,
+      "teacher_queried_position_ratio": 1.0,
+      "cache_bytes": null,
+      "cache_compression_ratio": null,
+      "peak_allocated_bytes": 1466485248,
+      "peak_reserved_bytes": 2703228928,
+      "seconds": 450.42356490000384,
+      "baseline_success_rate": null,
+      "measurement_status": "measured"
+    },
+    {
+      "name": "opd-bucketed-k64",
+      "description": "Genuine on-policy distillation -- the student's own rollouts, scored by the teacher on exactly those states, with compressed top-64 + tail reverse KL. The teacher here is the raw instruct checkpoint: it has never seen the tool protocol, which is the point of comparing it with the arm below.",
+      "mode": "opd",
+      "seed": 1234,
+      "run_id": "gpu-calc-hard-matched-opd-bucketed-k64-s1234",
+      "run_dir": "gpu-calc-hard-matched-opd-bucketed-k64-s1234",
+      "loss_mode": "bucketed_topk_tail",
+      "divergence": "reverse_kl",
+      "selector": "hybrid",
+      "top_k": 64,
+      "optimizer_steps": 12,
+      "policy_version": 12,
+      "tasks": 24,
+      "success_rate": 0.0,
+      "avg_turns": 2.0,
+      "avg_tool_calls": 0.16666666666666666,
+      "invalid_tool_call_rate": 0.8333333333333334,
+      "generated_tokens_per_task": 38.541666666666664,
+      "tokens_per_solved_task": null,
+      "selected_training_tokens": 204,
+      "teacher_queried_position_ratio": 0.9400921658986175,
+      "cache_bytes": 201343,
+      "cache_compression_ratio": 683.6791743442782,
+      "peak_allocated_bytes": 4872588800,
+      "peak_reserved_bytes": 5383389184,
+      "seconds": 684.7763170999824,
+      "baseline_success_rate": null,
+      "measurement_status": "measured"
+    },
+    {
+      "name": "opd-privileged-context",
+      "description": "The same on-policy distillation, but the teacher additionally sees an oracle block naming the verified answer, which the student never sees. Student and teacher prediction positions no longer coincide, so an explicit per-segment alignment map is built and target-token identity is verified. Follows arXiv:2602.12275.",
+      "mode": "opd",
+      "seed": 1234,
+      "run_id": "gpu-calc-hard-matched-opd-privileged-context-s1234",
+      "run_dir": "gpu-calc-hard-matched-opd-privileged-context-s1234",
+      "loss_mode": "bucketed_topk_tail",
+      "divergence": "reverse_kl",
+      "selector": "hybrid",
+      "top_k": 64,
+      "optimizer_steps": 12,
+      "policy_version": 12,
+      "tasks": 24,
+      "success_rate": 0.0,
+      "avg_turns": 1.0,
+      "avg_tool_calls": 0.0,
+      "invalid_tool_call_rate": 0.0,
+      "generated_tokens_per_task": 20.833333333333332,
+      "tokens_per_solved_task": null,
+      "selected_training_tokens": 106,
+      "teacher_queried_position_ratio": 1.0,
+      "cache_bytes": 156030,
+      "cache_compression_ratio": 666.0528359930782,
+      "peak_allocated_bytes": 4873620992,
+      "peak_reserved_bytes": 8826912768,
+      "seconds": 546.3948785000248,
+      "baseline_success_rate": null,
+      "measurement_status": "measured"
+    }
+  ],
+  "notes": "Single seed on one RTX 4080 (16 GB). No statistical significance is claimed. opd-bucketed-k64 distils toward the raw instruct teacher, which has never seen the tool protocol; opd-privileged-context gives that same teacher the verified answer.",
+  "seeds": [
+    1234
+  ]
+}

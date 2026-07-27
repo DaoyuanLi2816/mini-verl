@@ -8,11 +8,11 @@ Pydantic model so the two can never drift.
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from miniverl.errors import ConfigError
 
@@ -99,6 +99,10 @@ class ArmResult(BaseModel):
     mode: str
     seed: int
     run_id: str
+    #: Directory *name* only. A benchmark result is meant to be published, and
+    #: an absolute path would carry the author's username and home directory
+    #: into a file that ends up in a pull request. The validator below reduces
+    #: any path it is given, so a caller cannot leak one by accident.
     run_dir: str
     loss_mode: str
     divergence: str
@@ -122,6 +126,12 @@ class ArmResult(BaseModel):
     seconds: float
     baseline_success_rate: float | None = None
     measurement_status: str = "measured"
+
+    @field_validator("run_dir")
+    @classmethod
+    def _strip_to_directory_name(cls, value: str) -> str:
+        """Reduce any path to its final component before it can be published."""
+        return PurePath(value.replace("\\", "/")).name or value
 
 
 class BenchmarkResult(BaseModel):

@@ -208,6 +208,34 @@ divergence and the optimizer step all function together on a consumer card. It
 does not show that on-policy distillation beat SFT, and no arm of it was
 designed to test that.
 
+### On the one task where OPD *was* tested fairly, it lost
+
+The matched-budget comparison on the non-saturating `hard` split is the only
+experiment in this repository designed to answer "does on-policy distillation
+help?", and its answer was no:
+
+| arm | steps | held-out success |
+| --- | --- | --- |
+| cold-start-only | 0 | 62.5% |
+| sft-continued | 12 | 100.0% |
+| opd-bucketed-k64 | 12 | 0.0% |
+| opd-privileged-context | 12 | 0.0% |
+
+This is a single seed on a single task family with a single model pair, so it is
+not a general claim about the method -- but it is the strongest evidence this
+repository contains about its own headline feature, and it is negative. The
+transcript-level diagnosis is in
+[`rtx4080-baselines.md`](rtx4080-baselines.md#matched-budget-comparison). In
+short: the teacher was never trained on the tool protocol, so imitating it
+overwrites the protocol; and giving that teacher the answer teaches the student
+to skip the tool instead of using it.
+
+**What a reader should take from this.** Use miniVERL to run the experiment, not
+as evidence of a result. If your teacher is not already competent at your task's
+output format, expect on-policy distillation to degrade a cold-started policy,
+and measure it against a supervised arm at a matched budget before believing
+otherwise. `miniverl benchmark` exists to make that arm cheap to add.
+
 The task family is also close to saturated. At `difficulty: medium` the
 calculator environment emits either a three-term arithmetic expression or a
 single unit conversion (`CalculatorEnvironment.generate_task`), each solvable

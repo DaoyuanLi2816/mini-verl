@@ -17,9 +17,14 @@ name: calc-matched-budget
 description: >-
   Cold start, then equal-step continuation under SFT, offline KD, bucketed OPD
   and exact-full-vocabulary OPD on the deterministic calculator environment.
+  This is a PARITY check, not a ranking: the toy models can only solve the easy
+  split, where supervised fine-tuning saturates, so the accuracy differences
+  between arms are within noise. Its job is to show that all seven arms run to
+  completion under identical budgets. Capability numbers come from
+  benchmarks/configs/gpu_calc_hard.yaml.
 
 base: toy_cpu.yaml
-cold_start_cycles: 200
+cold_start_cycles: 450
 eval_split: test
 seeds: [1234, 20260727]
 output_dir: runs/benchmarks
@@ -37,7 +42,7 @@ arms:
     description: Off-policy baseline. More supervised steps on oracle traces.
     overrides:
       run: {mode: sft}
-      train: {cycles: 60, sft_warmup_cycles: 0}
+      train: {cycles: 60, sft_warmup_cycles: 0, learning_rate: 5.0e-4, lr_schedule: constant}
 
   - name: offline-kd
     description: >-
@@ -45,14 +50,14 @@ arms:
       Explicitly NOT on-policy; this is the label the mode carries.
     overrides:
       run: {mode: offline_kd}
-      train: {cycles: 60, sft_warmup_cycles: 0}
+      train: {cycles: 60, sft_warmup_cycles: 0, learning_rate: 5.0e-4, lr_schedule: constant}
       cache: {reuse_across_policy_versions: true, strict_policy_version: false}
 
   - name: opd-bucketed-k16
     description: Genuine OPD with compressed top-16 + tail reverse KL.
     overrides:
       run: {mode: opd}
-      train: {cycles: 60, sft_warmup_cycles: 0}
+      train: {cycles: 60, sft_warmup_cycles: 0, learning_rate: 5.0e-4, lr_schedule: constant}
       loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 16}
 
   - name: opd-exact
@@ -61,14 +66,14 @@ arms:
       the toy vocabulary has ~190 entries.
     overrides:
       run: {mode: opd}
-      train: {cycles: 60, sft_warmup_cycles: 0}
+      train: {cycles: 60, sft_warmup_cycles: 0, learning_rate: 5.0e-4, lr_schedule: constant}
       loss: {mode: exact_full_vocab, divergence: reverse_kl, top_k: 1}
 
   - name: opd-bucketed-forward-kl
     description: Same budget, mass-covering orientation instead of mode-seeking.
     overrides:
       run: {mode: opd}
-      train: {cycles: 60, sft_warmup_cycles: 0}
+      train: {cycles: 60, sft_warmup_cycles: 0, learning_rate: 5.0e-4, lr_schedule: constant}
       loss: {mode: bucketed_topk_tail, divergence: forward_kl, top_k: 16}
 
   - name: opd-tool-and-final
@@ -77,6 +82,6 @@ arms:
       tokens. Tests whether a smaller teacher-query budget costs accuracy.
     overrides:
       run: {mode: opd}
-      train: {cycles: 60, sft_warmup_cycles: 0}
+      train: {cycles: 60, sft_warmup_cycles: 0, learning_rate: 5.0e-4, lr_schedule: constant}
       selection: {selector: tool_and_final}
       loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 16}

@@ -31,9 +31,21 @@ task success from **0.0% to 100.0%** on 12 tasks.
 > work — the very first on-policy rollout batch already scored 83.3%. That run
 > demonstrates the pipeline end to end on real hardware; it does **not**
 > demonstrate that on-policy distillation beats supervised fine-tuning, because
-> the task saturates. The matched-budget comparison that tests that question is
-> in [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md), and every number
-> in this README is reproducible from the artifacts recorded there.
+> the task saturates. Every number in this README is reproducible from the
+> artifacts recorded in [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md).
+
+> [!IMPORTANT]
+> **The matched-budget comparison that does test that question came out
+> negative.** On the non-saturating `hard` split, at an identical 12-step budget
+> from an identical cold start, supervised continuation reached **100.0%** while
+> on-policy distillation reached **0.0%** — with a protocol-naive teacher and
+> again with a privileged-context teacher. The failure is diagnosed down to the
+> decoded transcripts in
+> [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md#matched-budget-comparison);
+> the leading explanation is the teacher, which was never trained on the tool
+> protocol, and the experiment that would confirm it is specified but **not
+> run**. miniVERL is a correct and instrumented implementation of on-policy
+> distillation; it is not evidence that the method wins here.
 
 ---
 

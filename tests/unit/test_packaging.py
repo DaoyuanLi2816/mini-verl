@@ -9,13 +9,18 @@ impossible to reintroduce without a red test.
 
 from __future__ import annotations
 
+import getpass
 import importlib
+import json
 import pkgutil
 from pathlib import Path
 
 import pytest
 
 import miniverl
+
+#: The repository root, for the files that are shipped but not importable.
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 #: Every subpackage that must exist in an installed distribution.
 REQUIRED_SUBPACKAGES = (
@@ -124,3 +129,61 @@ def test_version_is_a_release_string() -> None:
     import re
 
     assert re.fullmatch(r"\d+\.\d+\.\d+([.-]\w+)?", miniverl.__version__), miniverl.__version__
+
+
+def test_every_published_benchmark_result_validates_against_the_schema():
+    """A schema nobody runs is a schema that drifts.
+
+    ``benchmarks/README.md`` asks contributors to submit results that conform to
+    ``benchmarks/schema/benchmark-result.schema.json``. That request is only
+    honest if the results already in the repository conform too, so this test
+    validates each of them and fails if the schema and the files disagree.
+    """
+    jsonschema = pytest.importorskip("jsonschema")
+
+    root = REPO_ROOT
+    schema = json.loads(
+        (root / "benchmarks" / "schema" / "benchmark-result.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    jsonschema.Draft202012Validator.check_schema(schema)
+    validator = jsonschema.Draft202012Validator(schema)
+
+    results = sorted((root / "benchmarks" / "results").glob("*.json"))
+    assert results, "benchmarks/results/ has no published result to validate"
+    for path in results:
+        document = json.loads(path.read_text(encoding="utf-8"))
+        errors = sorted(validator.iter_errors(document), key=lambda e: list(e.absolute_path))
+        assert not errors, f"{path.name}: " + "; ".join(
+            f"{'/'.join(str(p) for p in e.absolute_path) or '<root>'}: {e.message}" for e in errors
+        )
+
+
+def test_published_benchmark_results_carry_no_personal_information():
+    """A result file is published verbatim, so it must not leak the machine."""
+    root = REPO_ROOT
+    forbidden = (getpass.getuser().lower(), str(Path.home()).lower().replace("\\", "/"), "onedrive")
+    for path in sorted((root / "benchmarks" / "results").glob("*.*")):
+        blob = path.read_text(encoding="utf-8").lower().replace("\\\\", "/").replace("\\", "/")
+        for needle in forbidden:
+            assert needle not in blob, f"{path.name} leaks {needle!r}"
+
+
+def test_the_committed_json_schema_matches_the_pydantic_model():
+    """``schema.py`` claims the two cannot drift; this is what makes that true.
+
+    The file under ``benchmarks/schema/`` is what contributors validate against,
+    so if it falls behind the model, a submission can be rejected for the wrong
+    reason or accepted with a field the code no longer reads.
+    """
+    from miniverl.evaluation.schema import json_schema
+
+    committed = json.loads(
+        (REPO_ROOT / "benchmarks" / "schema" / "benchmark-result.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert committed == json_schema(), (
+        "run `miniverl schema > benchmarks/schema/benchmark-result.schema.json`"
+    )
