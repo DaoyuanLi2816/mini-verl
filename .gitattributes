@@ -1,0 +1,34 @@
+# Normalize every text file to LF in the repository and in the working tree.
+#
+# This is not cosmetic. `.github/workflows/ci.yml` regenerates
+# benchmarks/schema/benchmark-result.schema.json with `miniverl schema` and
+# byte-diffs it against the committed copy to prove the two cannot drift. That
+# check compares bytes, so a file authored on Windows with CRLF can never match
+# output generated on a Linux runner with LF, and the job fails for a reason
+# that has nothing to do with the schema. Pinning LF everywhere makes generated
+# files reproducible across platforms.
+* text=auto eol=lf
+
+# Keep the checked-in artifacts explicit rather than relying on detection.
+*.py    text eol=lf
+*.pyi   text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.json  text eol=lf
+*.jsonl text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.toml  text eol=lf
+*.cfg   text eol=lf
+*.j2    text eol=lf
+*.svg   text eol=lf
+*.cff   text eol=lf
+
+# Anything genuinely binary must never be touched.
+*.png   binary
+*.jpg   binary
+*.gif   binary
+*.ico   binary
+*.whl   binary
+*.gz    binary
+*.safetensors binary
