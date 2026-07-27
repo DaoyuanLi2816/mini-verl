@@ -49,7 +49,7 @@ answer. `Span.is_model_generated` and `Span.is_critical` expose these two
 predicates per span.
 
 The distinction matters in two places. `model_generated_mask` gates what may
-ever be supervised. `critical_mask` is what the `critical_only` and `hybrid`
+ever be supervised. `critical_mask` is what the `tool_and_final` and `hybrid`
 selectors in `src/miniverl/selection/selectors.py` keep unconditionally, and it
 is the target of `SelectionConfig.critical_weight`.
 
@@ -193,8 +193,8 @@ that precedes it. Symmetrically, `close_previous=True` prepends the
 context segment.
 
 The effect is visible in the real record below. The `user` span is
-`[97, 138)` and its text ends with `<|im_start|>assistant\n`; the
-`assistant_tool_call` span starts at `138`. The `tool_result` span `[177, 211)`
+`[97, 134)` and its text ends with `<|im_start|>assistant\n`; the
+`assistant_tool_call` span starts at `134`. The `tool_result` span `[169, 201)`
 begins with `<|im_end|>\n` — the marker that closes the assistant's tool-call
 turn — and again ends with `<|im_start|>assistant\n`.
 
@@ -202,7 +202,7 @@ Why the framing is arranged this way:
 
 - **Generation begins exactly at the first token of a model span.** The prefix
   handed to `backend.generate` is the full context including the header, so
-  index `138` is genuinely the first token the policy chose.
+  index `134` is genuinely the first token the policy chose.
 - **No forced scaffolding token is ever marked model-generated.** The header and
   the closing `<|im_end|>` are template text that the sampler never had a choice
   about. Supervising them would train the policy on tokens it did not select,
@@ -230,35 +230,35 @@ marked model-generated.
 ### Worked example
 
 Indices below are from the real record in the next section
-(`calc-train-1:oracle:c-2`, 218 tokens, toy tokenizer). Its trainable target
-positions are exactly `{138 … 176} ∪ {211 … 217}`, which is 39 + 7 = 46
-positions — matching `model_generated_mask` summing to 46.
+(`calc-train-0:oracle:c-2`, 206 tokens, toy tokenizer). Its trainable target
+positions are exactly `{134 … 168} ∪ {201 … 205}`, which is 35 + 5 = 40
+positions — matching `model_generated_mask` summing to 40.
 
 | index | token id | decoded | span at this index | a target? | prediction position |
 | ---: | ---: | --- | --- | --- | --- |
-| 136 | 11 | `assistant` | `user` (context) | no | — |
-| 137 | 89 | `\n` | `user` (context) | no | — |
-| 138 | 3 | `<tool_call>` | `assistant_tool_call` | yes | 137, inside `user` (**context**) |
-| 139 | 89 | `\n` | `assistant_tool_call` | yes | 138, inside `assistant_tool_call` |
-| 140 | 182 | `{` | `assistant_tool_call` | yes | 139, inside `assistant_tool_call` |
-| 176 | 4 | `</tool_call>` | `assistant_tool_call` | yes | 175, inside `assistant_tool_call` |
-| 177 | 2 | `<\|im_end\|>` | `tool_result` (context) | no | — |
-| 211 | 7 | `<final>` | `assistant_final` | yes | 210, inside `tool_result` (**context**) |
-| 212 | 89 | `\n` | `assistant_final` | yes | 211, inside `assistant_final` |
-| 217 | 8 | `</final>` | `assistant_final` | yes | 216, inside `assistant_final` |
+| 132 | 11 | `assistant` | `user` (context) | no | — |
+| 133 | 89 | `\n` | `user` (context) | no | — |
+| 134 | 3 | `<tool_call>` | `assistant_tool_call` | yes | 133, inside `user` (**context**) |
+| 135 | 89 | `\n` | `assistant_tool_call` | yes | 134, inside `assistant_tool_call` |
+| 136 | 182 | `{` | `assistant_tool_call` | yes | 135, inside `assistant_tool_call` |
+| 168 | 4 | `</tool_call>` | `assistant_tool_call` | yes | 167, inside `assistant_tool_call` |
+| 169 | 2 | `<\|im_end\|>` | `tool_result` (context) | no | — |
+| 201 | 7 | `<final>` | `assistant_final` | yes | 200, inside `tool_result` (**context**) |
+| 202 | 89 | `\n` | `assistant_final` | yes | 201, inside `assistant_final` |
+| 205 | 8 | `</final>` | `assistant_final` | yes | 204, inside `assistant_final` |
 
-Two rows carry the whole point. At `j = 138` and `j = 211` the *prediction*
+Two rows carry the whole point. At `j = 134` and `j = 201` the *prediction*
 position lands inside a **context** span. That is correct and necessary: the
 distribution that predicts the first token of an assistant turn is the one
 produced after reading the assistant header. This is precisely why the header
 must live in the context segment — if it were part of the model span, index
-`138` would no longer be the first sampled token and the mask would claim the
+`134` would no longer be the first sampled token and the mask would claim the
 policy authored template text.
 
-Rows 136, 137 and 177 show the other half of the rule. Index 177 is **not**
-supervised even though it directly follows 39 model tokens, because the
+Rows 132, 133 and 169 show the other half of the rule. Index 169 is **not**
+supervised even though it directly follows 35 model tokens, because the
 `<|im_end|>` that closes the assistant's turn belongs to the following
-`tool_result` context span. Indices 136 and 137 are the assistant header, which
+`tool_result` context span. Indices 132 and 133 are the assistant header, which
 for the same reason belongs to the preceding `user` span.
 
 Reproduce the table with:
@@ -339,15 +339,16 @@ but its absolute positions shift. The offset is **not** assumed constant: spans
 are matched by `segment_key` and the offset is recomputed per span as
 `tspan.start + (j - span.start)`.
 
-Measured on the record below, with the privileged block occupying 55 tokens:
+Measured on the record below, whose teacher render is 282 tokens against the
+student's 206 because the privileged `system` block occupies `[0, 76)`:
 
 | entry | student prediction | teacher prediction | target id | span type |
 | ---: | ---: | ---: | ---: | --- |
-| 0 | 137 | 192 | 3 | `assistant_tool_call` |
-| 1 | 138 | 193 | 89 | `assistant_tool_call` |
-| 45 | 216 | 271 | 8 | `assistant_final` |
+| 0 | 133 | 209 | 3 | `assistant_tool_call` |
+| 1 | 134 | 210 | 89 | `assistant_tool_call` |
+| 39 | 204 | 280 | 8 | `assistant_final` |
 
-`is_identity()` is `False`, `num_positions` is 46, `total_weight` is 46.0.
+`is_identity()` is `False`, `num_positions` is 40, `total_weight` is 40.0.
 
 In both modes the alignment is accepted only if the **target token ids are
 identical on both sides**. That is what makes the same-tokenizer contract
@@ -393,13 +394,13 @@ messages are prefixed with `<path>:<lineno>`.
 | line is not JSON | `<file>:1 is not valid JSON: <json decoder message>` |
 | unknown `schema_version` | `<file>:1 has trajectory schema_version 2, this build reads version 1` |
 | empty sequence | `Value error, trajectory has no tokens` |
-| mask length mismatch | `Value error, attention_mask has length 217 but token_ids has length 218` |
+| mask length mismatch | `Value error, attention_mask has length 205 but token_ids has length 206` |
 | attention mask not 0/1 | `Value error, attention_mask must contain only 0/1` |
 | no spans | `Value error, trajectory has no spans` |
 | spans out of order | `Value error, spans must be stored in ascending start order` |
 | gap or overlap | `Value error, spans must tile the sequence without gaps or overlaps: expected next span to start at 97, got 98` |
-| spans do not cover the sequence | `Value error, spans cover 211 tokens but the sequence has 218` |
-| empty span | `Value error, span assistant_tool_call has empty range [138,138)` (reported under `spans.2`) |
+| spans do not cover the sequence | `Value error, spans cover 201 tokens but the sequence has 206` |
+| empty span | `Value error, span assistant_tool_call has empty range [134,134)` (reported under `spans.2`) |
 | `model_generated_mask` disagrees with the spans | `Value error, model_generated_mask disagrees with the span partition; tool/user/system tokens must never be marked model-generated` |
 | `critical_mask` disagrees with the spans | `Value error, critical_mask disagrees with the span partition` |
 | span references an unknown turn | `Value error, span system references unknown turn_id 9` |
@@ -423,17 +424,17 @@ miniverl demo --fast --no-report          # writes runs/demo
 head -1 runs/demo/trajectories.jsonl
 ```
 
-The file stores each record as a **single line** (this one is 7,249 bytes).
+The file stores each record as a **single line** (this one is 6,973 bytes).
 Pretty-printed and trimmed below: `token_ids`, `attention_mask`,
-`model_generated_mask` and `critical_mask` are 218 entries long in the file and
+`model_generated_mask` and `critical_mask` are 206 entries long in the file and
 are shown truncated to their first 8, and long `span.text` values are cut with
 `...`. Everything else is verbatim.
 
 ```json
 {
   "schema_version": 1,
-  "trajectory_id": "calc-train-1:oracle:c-2",
-  "task_id": "calc-train-1",
+  "trajectory_id": "calc-train-0:oracle:c-2",
+  "task_id": "calc-train-0",
   "environment": "calculator",
   "token_ids": [1, 69, 89, 144, 174, 160, 91, 76, "..."],
   "attention_mask": [1, 1, 1, 1, 1, 1, 1, 1, "..."],
@@ -454,9 +455,9 @@ are shown truncated to their first 8, and long `span.text` values are cut with
     {
       "span_type": "user",
       "start": 97,
-      "end": 138,
+      "end": 134,
       "turn_id": 0,
-      "text": "<|im_start|>user\nCompute (17 * 10) and report the value.<|im_end|>...",
+      "text": "<|im_start|>user\nCompute 7 - 3 and report the value.<|im_end|>\n<|i...",
       "tool_name": null,
       "tool_call_id": null,
       "env_state_id": null,
@@ -464,10 +465,10 @@ are shown truncated to their first 8, and long `span.text` values are cut with
     },
     {
       "span_type": "assistant_tool_call",
-      "start": 138,
-      "end": 177,
+      "start": 134,
+      "end": 169,
       "turn_id": 0,
-      "text": "<tool_call>\n{\"arguments\": {\"expression\": \"(17 * 10)\"}, \"name\": \"ca...",
+      "text": "<tool_call>\n{\"arguments\": {\"expression\": \"7 - 3\"}, \"name\": \"calcul...",
       "tool_name": "calculator",
       "tool_call_id": "c0",
       "env_state_id": null,
@@ -475,8 +476,8 @@ are shown truncated to their first 8, and long `span.text` values are cut with
     },
     {
       "span_type": "tool_result",
-      "start": 177,
-      "end": 211,
+      "start": 169,
+      "end": 201,
       "turn_id": 0,
       "text": "<|im_end|>\n<|im_start|>user\n<tool_result>\n{\"ok\": true, \"result\": \"...",
       "tool_name": null,
@@ -486,10 +487,10 @@ are shown truncated to their first 8, and long `span.text` values are cut with
     },
     {
       "span_type": "assistant_final",
-      "start": 211,
-      "end": 218,
+      "start": 201,
+      "end": 206,
       "turn_id": 1,
-      "text": "<final>\n170\n</final>",
+      "text": "<final>\n4\n</final>",
       "tool_name": null,
       "tool_call_id": null,
       "env_state_id": null,
@@ -502,15 +503,15 @@ are shown truncated to their first 8, and long `span.text` values are cut with
       "tool_call": {
         "call_id": "c0",
         "name": "calculator",
-        "arguments": {"expression": "(17 * 10)"},
-        "raw_text": "<tool_call>\n{\"arguments\": {\"expression\": \"(17 * 10)\"}, \"name\": \"calculator\"}\n</tool_call>",
+        "arguments": {"expression": "7 - 3"},
+        "raw_text": "<tool_call>\n{\"arguments\": {\"expression\": \"7 - 3\"}, \"name\": \"calculator\"}\n</tool_call>",
         "valid": true,
         "parse_error": null
       },
       "tool_result": {
         "call_id": "c0",
         "ok": true,
-        "result": "170",
+        "result": "4",
         "error": null,
         "env_state_id": "calc:1",
         "duration_ms": null
@@ -526,22 +527,22 @@ are shown truncated to their first 8, and long `span.text` values are cut with
   "verification": {
     "solved": true,
     "reward": 1.0,
-    "predicted": "170",
-    "expected": "170",
+    "predicted": "4",
+    "expected": "4",
     "failure_category": "solved",
     "detail": null
   },
   "termination_reason": "final_answer",
-  "generated_token_count": 46,
+  "generated_token_count": 40,
   "invalid_tool_calls": 0,
   "metadata": {"source": "oracle", "difficulty": "easy", "split": "train"}
 }
 ```
 
-Reading this record against the rules above: 218 tokens, five spans tiling
-`[0, 218)` with no gap, 46 tokens marked model-generated (the 39-token tool call
-plus the 7-token final answer), all 46 also critical, and the remaining 172
-`system` / `user` / `tool_result` tokens (97 + 41 + 34) excluded from the loss.
+Reading this record against the rules above: 206 tokens, five spans tiling
+`[0, 206)` with no gap, 40 tokens marked model-generated (the 35-token tool call
+plus the 5-token final answer), all 40 also critical, and the remaining 166
+`system` / `user` / `tool_result` tokens (97 + 37 + 32) excluded from the loss.
 
 Note the `<tool_call>` / `<tool_result>` / `<final>` text protocol from
 `src/miniverl/agent/protocol.py`. It is deliberately not a vendor
@@ -561,10 +562,10 @@ miniverl inspect runs/demo/trajectories.jsonl --limit 2
 ```
 
 ```
-  8 trajectories | 2042 tokens | 263 model tokens (12.9%) | 178 critical
+  8 trajectories | 1880 tokens | 251 model tokens (13.4%) | 174 critical
   graded 4 | solved 4 (100.0%)
   policy versions [0, 1, 2]
-  termination {'final_answer': 4, 'max_turns': 4}
+  termination {'final_answer': 4, 'max_turns': 3, 'eos_without_final': 1}
   tools {'calculator': 4}
   tokenizer ['d8b8c2b5a24f...']
 tokens by span type (only assistant_* can enter
@@ -573,13 +574,17 @@ tokens by span type (only assistant_* can enter
 | span type           | tokens | in loss      |
 |---------------------+--------+--------------|
 | system              |    776 | no (context) |
-| tool_result         |    685 | no (context) |
+| tool_result         |    535 | no (context) |
 | user                |    318 | no (context) |
-| assistant_tool_call |    153 | yes          |
-| assistant_text      |     85 | yes          |
-| assistant_final     |     25 | yes          |
+| assistant_tool_call |    150 | yes          |
+| assistant_text      |     77 | yes          |
+| assistant_final     |     24 | yes          |
 +---------------------------------------------+
 ```
+
+Only the four oracle warm-up rollouts are graded here; the four sampled ones
+never emit a parseable `<final>` block at this budget, which is why `graded` is
+4 out of 8 and why three of them terminate on `max_turns`.
 
 Options:
 
@@ -594,16 +599,16 @@ The span table for the record above:
 
 ```bash
 miniverl inspect runs/demo/trajectories.jsonl \
-  --trajectory calc-train-1:oracle:c-2 --spans
+  --trajectory calc-train-0:oracle:c-2 --spans
 ```
 
 ```
 | span                | range      | tokens | in loss | text
 | system              | [0, 97)    | 97     | no      | <|im_start|>system ...
-| user                | [97, 138)  | 41     | no      | <|im_start|>user ...
-| assistant_tool_call | [138, 177) | 39     | yes     | <tool_call> ...
-| tool_result         | [177, 211) | 34     | no      | <|im_end|> ...
-| assistant_final     | [211, 218) | 7      | yes     | <final> 170 </final>
+| user                | [97, 134)  | 37     | no      | <|im_start|>user ...
+| assistant_tool_call | [134, 169) | 35     | yes     | <tool_call> ...
+| tool_result         | [169, 201) | 32     | no      | <|im_end|> ...
+| assistant_final     | [201, 206) | 5      | yes     | <final> 4 </final>
 ```
 
 The `--json` output adds a `provenance_check` block that names the rule set the

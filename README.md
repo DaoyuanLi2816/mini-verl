@@ -19,7 +19,7 @@ cluster, or a 40 GB accelerator.
 
 ```bash
 pip install "miniverl[train]"
-miniverl demo --output runs/demo        # no network, no GPU, under a minute on a laptop CPU
+miniverl demo --output runs/demo        # no network, no GPU, ~50 s on a laptop CPU
 ```
 
 On a single RTX 4080 (16 GB), the published recipe trains **Qwen3-0.6B** from
@@ -94,16 +94,30 @@ artifact landed and what to run next:
 
 ```text
 demo complete  runs/demo
- mode             opd
- optimizer steps  12
- policy versions  13
- task success     0.0% before -> ...% after (greedy, held-out eval split)
+ mode              opd (genuine on-policy distillation)
+ optimizer steps   132
+ policy versions   13
+ wall clock        52.9 s
+ token provenance  45597 of 226383 tokens trainable (20%); 180786 are context
+                   and can never be a target
+ teacher cache     735 scored positions, 131.6 KiB on disk, 2.0x smaller than
+                   a dense fp16 dump
+ task success      0.0% -> 0.0% (greedy, held-out eval split)
 
-next
-  miniverl inspect runs/demo/trajectories.jsonl
-  miniverl cache stats runs/demo/teacher-cache
-  miniverl report runs/demo --out runs/demo/report.html
+This demo proves the machinery, not capability.
+At this size the toy student learns the tool-call format and not the
+arithmetic, so 0% here is the expected outcome, not a failure.
+For a CPU run that does learn (measured 0.0% -> 91.7% in 192 s):
+  miniverl train recipes/toy_cpu.yaml
 ```
+
+That last line is not a promise, it is a measurement:
+`recipes/toy_cpu.yaml` takes **192 s on a CPU** and moves held-out greedy task
+success from **0.0% to 91.7%** on 24 tasks, over 600 supervised cold-start steps
+plus 40 on-policy distillation cycles. It is also **seed-sensitive** at this
+model size: the same 600-step budget gives 81.2% with `run.seed: 1234` and 0.0%
+with `run.seed: 20260727`. That variance is exactly why the toy backend is a
+machinery harness and capability numbers come from the GPU recipe.
 
 `miniverl inspect` is the one worth running first. It prints the provenance
 table, which is the whole point of the project:
@@ -237,9 +251,12 @@ result file. Nothing is estimated or extrapolated.
   has measured peak VRAM, decode throughput, the full-recipe run, and the
   matched-budget comparison, plus the configurations that were tried and the ones
   that were not run.
-* **CPU, toy models** — `benchmarks/results/` holds the matched-budget parity run.
-  Its accuracy differences are **within noise**; it exists to show that all seven
-  arms run to completion under identical budgets, not to rank them.
+* **CPU, toy models** — `recipes/toy_cpu.yaml` moves task success from 0.0% to
+  91.7% in 192 s, and `benchmarks/results/` holds the matched-budget parity run.
+  The parity run's accuracy differences are **within noise**; it exists to show
+  that all seven arms run to completion under identical budgets, not to rank
+  them. See [`benchmarks/README.md`](benchmarks/README.md) for why the toy
+  backend cannot rank methods.
 
 ## Installation
 

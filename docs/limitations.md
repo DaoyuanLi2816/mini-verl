@@ -7,8 +7,10 @@ Everything below is traceable to a file in this repository or to a command that
 was run against it. Measurements come from one machine: Windows 11 Pro
 10.0.22631, RTX 4080 (16376 MiB, driver 596.49), CPython 3.12.13, torch
 2.13.0+cu130, transformers 5.14.1, peft 0.19.1, bitsandbytes 0.50.0. The GPU
-figures are recorded in `docs/rtx4080-baselines.md` and were produced by
-`scripts/gpu_smoke.py` and `scripts/gpu_probe_throughput.py`.
+figures were produced by `scripts/gpu_smoke.py` and
+`scripts/gpu_probe_throughput.py`; the memory numbers are reproduced in
+[memory.md](memory.md#measured-one-opd-cycle-on-an-rtx-4080) and the throughput
+numbers below.
 
 ## Modelling and objective
 
@@ -105,7 +107,11 @@ by the flooring and renormalization, so the minimized quantity is not exactly
 the bucketed divergence either. More importantly, the reverse-KL penalty for
 student mass outside the teacher's top-k is capped at `log(1 / tail_epsilon)`
 nats, which at the default is about 20.7 nats rather than infinity
-(`test_reverse_kl_tail_penalty_is_bounded_by_log_one_over_epsilon`). Raising
+(`test_reverse_kl_tail_penalty_is_bounded_by_log_one_over_epsilon`). At the
+default that bound is not the binding one: `NEG_CLAMP` inside `log1mexp`
+already floors the teacher tail at `1e-7`, so the effective cap is the tighter
+`log(1e7)`, about 16.1 nats. [math.md](math.md#54-the-bound-the-floor-buys)
+derives and measures both. Raising
 `tail_epsilon` weakens that penalty further; lowering it makes the gradient
 sharper and the loss noisier. Treat it as a hyperparameter of the objective, not
 as a numerical detail.
@@ -294,34 +300,41 @@ payload at a cost of roughly 1e-3 relative precision on the stored teacher
 log-probabilities. `float32` round-trips exactly. If you are comparing
 divergence magnitudes across runs, keep this fixed.
 
-## Known open defect
+## A defect this page used to describe, now fixed
 
+An earlier draft of this page documented an open defect that Hypothesis found in
+`miniverl.losses.reduction.weighted_mean`: the denominator was clamped at
+`MIN_TOTAL_WEIGHT = 1e-12`, so a weight sum that was non-zero but far below that
+floor produced an inflated result rather than the true weighted mean. The
+counterexample was `values = [0, 0, 0, 0, 1]` with
+`weights = [0, 0, 0, 0, 2.22e-16]`, where `2.22e-16 / 1e-12` gives `2.22e-4`
+instead of `1.0`.
+
+It is fixed. The floor now applies only when the weights sum to **exactly**
+zero, in which case the numerator is exactly zero too and the loss is a clean
+`0.0`. For any positive weight sum the true mean is computed and is bounded by
+the range of the values, so no rescaling can occur. The same change was applied
+to the chunked path in `miniverl.losses.chunked`.
 `tests/property/test_property_losses.py::test_weighted_mean_is_a_weighted_mean`
-fails. Hypothesis found the counterexample during the documentation pass on
-2026-07-27, and it now reproduces from the example database:
+now asserts both branches of that contract.
 
-```
-values  = [0.0, 0.0, 0.0, 0.0, 1.0]
-weights = [0.0, 0.0, 0.0, 0.0, 2.220446049250313e-16]
-```
+The record is kept here rather than deleted, because "a property test found a
+real numerical defect and it was fixed" is more informative than silence.
 
-`miniverl.losses.reduction.weighted_mean` clamps the denominator at
-`MIN_TOTAL_WEIGHT = 1e-12`. When the total weight is non-zero but far below that
-floor, the numerator is *not* zero, so the clamp inflates the result: here
-`2.22e-16 / 1e-12` gives `2.22e-4`, and the test asserts the result is within
-`1e-6` of zero. The comment on `MIN_TOTAL_WEIGHT` states the floor is "only
-reachable when every selected token has zero weight, in which case the numerator
-is exactly zero too", and that assumption is what the counterexample breaks.
+## Gate results
 
-Reachability in a real run is remote but not impossible:
-`selection.critical_weight` and `selection.other_weight` are validated only as
-`> 0.0`, so a recipe could set a weight of `1e-16`.
+All run on 2026-07-27, on the machine described at the top of this page:
 
-For completeness, the gate results behind this page, all run on 2026-07-27:
-`ruff check` clean, `ruff format --check` clean (92 files), `mypy` clean over 71
-source files, and `pytest -m "not gpu" --cov=miniverl` gives 858 passed, 1
-failed, 4 deselected in 39.32 s with 85% total branch coverage over 5847
-statements. The 4 GPU-marked tests are not included in that figure.
+| gate | result |
+| --- | --- |
+| `ruff check .` | clean |
+| `ruff format --check .` | clean, 134 files |
+| `mypy src/miniverl` | clean, 71 source files |
+| `pytest -q -m "not gpu and not network" --cov=miniverl` | **929 passed**, 4 deselected, **85%** total branch coverage over 5854 statements |
+
+The 4 GPU-marked tests are deselected by that command and are not included in
+the coverage figure; they require CUDA and a network download of the pinned
+Qwen3 pair.
 
 ## Roadmap (not implemented)
 

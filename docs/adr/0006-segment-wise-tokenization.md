@@ -18,7 +18,7 @@ model" that is both true and useful. Every downstream guarantee in ADR 0003
 rests on that question having an exact answer.
 
 There is a second, subtler failure. The teacher's privileged-context render
-(ADR 0002, `AgentLoop.privileged_render`) prepends an oracle block to the same
+(ADR 0002, `RolloutRunner.privileged_render`) prepends an oracle block to the same
 transcript. Whole-string tokenization means the prepended text can change the
 token boundaries of the shared content further along the sequence, so the
 student's tokens and the teacher's tokens for the same text stop matching, and

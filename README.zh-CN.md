@@ -19,7 +19,7 @@ miniVERL 让一个小型的、会调用工具的语言模型在**它自己生成
 
 ```bash
 pip install "miniverl[train]"
-miniverl demo --output runs/demo        # 无需联网、无需 GPU，笔记本 CPU 上一分钟内跑完
+miniverl demo --output runs/demo        # 无需联网、无需 GPU，笔记本 CPU 上约 50 秒
 ```
 
 在一块 RTX 4080（16 GB）上，仓库内的正式配方用 **Qwen3-1.7B** 蒸馏 **Qwen3-0.6B**，在一个两轮计算器任务上耗时 **481 秒 / 16 个优化步**，显存峰值 **4.25 GiB 已分配 / 4.76 GiB 已保留**，留出集上贪心解码的任务成功率从 **0.0% 提升到 100.0%**（12 个任务）。
@@ -67,7 +67,28 @@ miniverl doctor                        # 这台机器能跑什么？
 miniverl demo --output runs/demo
 ```
 
-它跑的是**真实**流水线——学生 rollout、工具执行、教师对这些状态打分、写入带来源校验的压缩 top-k 缓存、只在 assistant token 上做掩码 reverse-KL 更新——然后打印产物位置和下一步命令。
+它跑的是**真实**流水线——学生 rollout、工具执行、教师对这些状态打分、写入带来源校验的压缩 top-k 缓存、只在 assistant token 上做掩码 reverse-KL 更新——然后打印它到底证明了什么：
+
+```text
+demo complete  runs/demo
+ mode              opd (genuine on-policy distillation)
+ optimizer steps   132
+ policy versions   13
+ wall clock        52.9 s
+ token provenance  45597 of 226383 tokens trainable (20%); 180786 are context
+                   and can never be a target
+ teacher cache     735 scored positions, 131.6 KiB on disk, 2.0x smaller than
+                   a dense fp16 dump
+ task success      0.0% -> 0.0% (greedy, held-out eval split)
+```
+
+demo 证明的是**机制**，不是能力：在这个规模下玩具学生只学会了工具调用**格式**，学不会算术复制，所以这里的 0% 是预期结果而非失败。想看真正学起来的 CPU 运行（实测 0.0% → 91.7%，192 秒）：
+
+```bash
+miniverl train recipes/toy_cpu.yaml
+```
+
+这不是承诺而是实测：`recipes/toy_cpu.yaml` 在 CPU 上耗时 **192 秒**，在 24 个留出任务上把贪心成功率从 **0.0% 提升到 91.7%**（600 步监督冷启动 + 40 个在线策略蒸馏 cycle）。它在这个模型规模下**对随机种子敏感**：同样 600 步预算，`run.seed: 1234` 得到 81.2%，`run.seed: 20260727` 得到 0.0%。这个方差正是"玩具后端只是机制验证台、能力数字必须来自 GPU 配方"的原因。
 
 最值得先跑的是 `miniverl inspect`，它打印的来源表就是这个项目的核心：
 
@@ -132,7 +153,7 @@ top-k + tail 目标本身并不新颖：TRL 的 `ServerDistillationTrainer` 就�
 下面所有数字都由 [`docs/benchmarking.md`](docs/benchmarking.md) 中的命令、在对应结果文件记录的硬件上跑出来。没有估算，没有外推。
 
 * **RTX 4080，真实模型** —— [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md) 记录了实测显存峰值、解码吞吐、完整配方运行以及等预算对照，同时也记录了尝试过的配置和**未运行**的配置。
-* **CPU，玩具模型** —— `benchmarks/results/` 中的等预算运行。它的准确率差异**在噪声范围内**；它的作用是证明所有分支在同一预算下都能跑完，而不是给它们排名。
+* **CPU，玩具模型** —— `recipes/toy_cpu.yaml` 在 192 秒内把成功率从 0.0% 提到 91.7%；`benchmarks/results/` 中还有等预算对照运行。后者的准确率差异**在噪声范围内**，作用是证明所有分支在同一预算下都能跑完，而不是给它们排名。原因见 [`benchmarks/README.md`](benchmarks/README.md)。
 
 ## 安装分层
 

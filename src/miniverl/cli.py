@@ -330,15 +330,30 @@ def demo(
     table = Table(show_header=False, box=None)
     baseline = (result.baseline_eval or {}).get("success_rate")
     final = (result.eval or {}).get("success_rate")
-    table.add_row("mode", result.mode)
+    table.add_row("mode", f"{result.mode} (genuine on-policy distillation)")
     table.add_row("optimizer steps", str(result.global_step))
     table.add_row("policy versions", str(result.policy_version))
     table.add_row("wall clock", f"{result.duration_seconds:.1f} s")
+    provenance = _provenance_summary(trainer.paths.trajectories)
+    if provenance:
+        table.add_row("token provenance", provenance)
+    compression = _cache_summary(trainer.paths.teacher_cache)
+    if compression:
+        table.add_row("teacher cache", compression)
     table.add_row(
         "task success",
-        f"{_fmt_pct(baseline)} before -> {_fmt_pct(final)} after (greedy, held-out eval split)",
+        f"{_fmt_pct(baseline)} -> {_fmt_pct(final)} (greedy, held-out eval split)",
     )
     console.print(table)
+    console.print()
+    for line in (
+        "This demo proves the [bold]machinery[/bold], not capability.",
+        "At this size the toy student learns the tool-call format and not the",
+        "arithmetic, so 0% here is the expected outcome, not a failure.",
+        "For a CPU run that does learn (measured 0.0% -> 91.7% in 192 s):",
+        "  [bold]miniverl train recipes/toy_cpu.yaml[/bold]",
+    ):
+        console.print(line)
     console.print()
     console.print("[bold]artifacts[/bold]")
     for name, size in artifacts.items():
@@ -349,6 +364,41 @@ def demo(
     console.print(f"  miniverl cache stats {_esc(trainer.paths.teacher_cache)}")
     console.print(
         f"  miniverl report {_esc(trainer.paths.root)} --out {_esc(trainer.paths.report_html)}"
+    )
+
+
+def _provenance_summary(path: Path) -> str:
+    """One line summarizing which tokens could enter the loss."""
+    try:
+        from miniverl.inspection import summarize_file
+
+        summary = summarize_file(path, limit=0)
+    except (MiniVerlError, OSError):
+        # A cosmetic summary line must never turn a completed run into a failure.
+        return ""
+    if not summary.tokens:
+        return ""
+    return (
+        f"{summary.model_tokens} of {summary.tokens} tokens trainable "
+        f"({summary.model_token_fraction * 100:.0f}%); "
+        f"{summary.context_tokens} are context and can never be a target"
+    )
+
+
+def _cache_summary(path: Path) -> str:
+    """One line summarizing the teacher-target cache."""
+    try:
+        from miniverl.cache.stats import compute_stats
+
+        stats = compute_stats(path, verify_checksums=False)
+    except (MiniVerlError, OSError):
+        return ""
+    if not stats.get("selected_positions"):
+        return ""
+    return (
+        f"{stats['selected_positions']} scored positions, "
+        f"{stats['actual_bytes'] / 1024:.1f} KiB on disk, "
+        f"{stats['compression_ratio']:.1f}x smaller than a dense fp16 dump"
     )
 
 

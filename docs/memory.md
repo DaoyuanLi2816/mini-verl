@@ -415,8 +415,10 @@ Single-sequence decode of 64 new tokens from a 36-token prefix:
 | bf16 LoRA, non-deterministic | 14.12 | not recorded |
 
 A 14-token prefill costs 37.0 ms against 30.9 ms for a cached 1-token step, so
-decoding here is kernel-launch bound rather than compute bound. See
-`docs/rtx4080-baselines.md`.
+decoding here is kernel-launch bound rather than compute bound. Reproduce the
+probe with `python scripts/gpu_probe_throughput.py`; the same table and its
+caveats are in
+[limitations.md](limitations.md#throughput-numbers-are-platform-specific-and-mostly-measure-kernel-launches).
 
 ## Knobs to turn when you run out of memory
 

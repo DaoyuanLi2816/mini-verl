@@ -132,7 +132,7 @@ report `cuda_available: true`, and reports `None` for both when no record does.
 | `cache_bytes`, `cache_compression_ratio` | teacher-cache stats, `null` when no cache was opened |
 | `peak_allocated_bytes`, `peak_reserved_bytes` | maxima described above, `null` on CPU |
 | `seconds` | wall clock around this arm's `train()` plus `evaluate()` |
-| `baseline_success_rate` | the shared cold start's own evaluation, identical for every arm at that seed |
+| `baseline_success_rate` | reserved for a shared starting score. The harness currently always writes `null`: `_cold_start` runs with `eval.enabled: false` and returns no score, because the cold start is measured by the `cold-start-only` arm on the benchmark's own split instead |
 | `measurement_status` | `measured`; `miniverl export-benchmark` writes `measured_cpu_only` when the run did not use CUDA |
 
 `BenchmarkResult.aggregate()` groups arms by name and reports
@@ -231,13 +231,18 @@ before any arm. `_cold_start` deep-merges these settings over the base recipe:
 
 ```yaml
 run:   {mode: sft, seed: <seed>, name: "<benchmark>-coldstart"}
-train: {cycles: <cold_start_cycles>, sft_warmup_cycles: 0}
+train: {cycles: <cold_start_cycles>, sft_warmup_cycles: 0,
+        eval_every_cycles: 0, save_every_cycles: 0}
 cache: {reuse_across_policy_versions: false, strict_policy_version: true}
 report: {enabled: false}
+eval:  {enabled: false}
 ```
 
 The resulting `checkpoints/final` directory is loaded into every arm at that
-seed. Its own evaluation becomes `baseline_success_rate` on every arm.
+seed. The cold start does not evaluate itself — `eval.enabled: false` above —
+because on a real model each evaluation pass costs minutes of generation. The
+shared starting score is instead the `cold-start-only` arm, which is evaluated
+on the benchmark's own `eval_split` like every other arm.
 
 The load is deliberately weights-only:
 
@@ -261,8 +266,8 @@ a `benchmark_cold_start_loaded` event into the arm's `events.jsonl` with the
 note `weights only; optimizer state and RNG intentionally not restored`.
 
 Set `cold_start_cycles: 0` to skip the cold start entirely; every arm then
-starts from freshly initialized weights, `shared_initial_checkpoint` is
-recorded as `false`, and `baseline_success_rate` is `null`.
+starts from freshly initialized weights and `shared_initial_checkpoint` is
+recorded as `false`.
 
 ## Running a benchmark
 
@@ -276,8 +281,10 @@ miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmark
 
 `benchmarks/configs/gpu_calc_hard.yaml` is the GPU counterpart: it uses
 `recipes/qwen_consumer_gpu_calc.yaml` as its base, 12 cold-start cycles, one
-seed, the `test` split, and three arms (`cold-start-only`, `sft-continued`,
-`opd-bucketed-k64`). One seed means no significance claim; see
+seed, the `test` split, `difficulty: hard`, and four arms
+(`cold-start-only`, `sft-continued`, `opd-bucketed-k64` and
+`opd-privileged-context`, the last differing only in
+`models.teacher.mode`). One seed means no significance claim; see
 [Single-seed significance](#single-seed-significance).
 
 Options, all from `src/miniverl/cli.py`:
@@ -407,13 +414,13 @@ that writes it, so the two cannot drift:
 miniverl schema --out benchmarks/schema/benchmark-result.schema.json
 ```
 
-At the time of writing the repository contains `benchmarks/README.md` and
-`benchmarks/configs/`, but not the `benchmarks/results/` and
-`benchmarks/schema/` directories that `benchmarks/README.md`, the CLI hint
-after `export-benchmark`, and `miniverl schema --out` all refer to. Create
-them in your pull request. `.gitignore` already carries an explicit
-`!benchmarks/results/*.json` line, commented `Allow committed benchmark result
-JSON (small, schema-validated)`.
+The repository ships `benchmarks/README.md`, `benchmarks/configs/` (with
+`cpu_toy_calc.yaml` and `gpu_calc_hard.yaml`) and
+`benchmarks/schema/benchmark-result.schema.json`, which is byte-identical to
+the output of `miniverl schema`. `benchmarks/results/` exists but is empty: no
+hardware result has been submitted yet, including from the development machine.
+`.gitignore` carries an explicit `!benchmarks/results/*.json` line, commented
+`Committed benchmark results are small, schema-validated JSON and are wanted.`
 
 A submission should state, at minimum: the recipe used, the exact GPU and
 driver, the miniVERL version and git commit (all already in the file), and
@@ -495,10 +502,10 @@ demonstrates that the pipeline works end to end on a consumer GPU. It is not
 evidence that OPD beats SFT, and the medium-difficulty calculator task
 saturates.
 
-**The mitigation.** `baseline_success_rate` on every arm is the shared cold
-start's own score, and the `cold-start-only` arm exists so the cold start
-appears as a row in the table rather than as an unstated prior. Quote the
-delta over the cold start, not the delta over zero.
+**The mitigation.** The `cold-start-only` arm exists so the shared starting
+point appears as a row in the table, evaluated on the same split as every other
+arm, rather than as an unstated prior. Quote the delta over that row, not the
+delta over zero.
 
 ### Comparing across machines or commits
 

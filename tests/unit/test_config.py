@@ -136,6 +136,11 @@ def test_run_recipe_fields_match_the_yaml_leaf_for_leaf(path: Path) -> None:
 
 
 def test_toy_cpu_recipe_is_parsed_into_the_expected_typed_values() -> None:
+    # Budgets are tuning knobs; assert them against the YAML rather than
+    # hard-coding, so retuning a recipe does not require editing this test.
+    import yaml as _yaml
+
+    raw = _yaml.safe_load((RECIPES_DIR / "toy_cpu.yaml").read_text(encoding="utf-8"))
     config = RunConfig.from_yaml(RECIPES_DIR / "toy_cpu.yaml")
 
     assert config.schema_version == 1
@@ -161,14 +166,14 @@ def test_toy_cpu_recipe_is_parsed_into_the_expected_typed_values() -> None:
     assert teacher.model_id == "toy-teacher"
     assert teacher.mode is TeacherContextMode.STANDARD
     assert teacher.toy_teacher_seed == 99
-    assert teacher.toy_pretrain_steps == 800
+    assert teacher.toy_pretrain_steps == raw["models"]["teacher"]["toy_pretrain_steps"]
     assert teacher.toy_pretrain_lr == pytest.approx(3e-3)
     assert (teacher.toy.hidden_size, teacher.toy.num_layers) == (160, 4)
 
     assert config.environment.name == "calculator"
     assert config.environment.difficulty == "easy"
     assert config.environment.params == {"prompt_style": "compact"}
-    assert config.environment.train_tasks == 256
+    assert config.environment.train_tasks == raw["environment"]["train_tasks"]
     assert config.environment.eval_tasks == 24
     assert config.environment.test_tasks == 24
     assert config.environment.split_seed == 7
@@ -194,13 +199,13 @@ def test_toy_cpu_recipe_is_parsed_into_the_expected_typed_values() -> None:
     assert config.loss.chunk_size == 128
     assert config.loss.ce_weight == pytest.approx(0.0)
 
-    assert config.train.cycles == 60
+    assert config.train.cycles == raw["train"]["cycles"]
     assert config.train.rollouts_per_cycle == 8
     assert config.train.gradient_accumulation_steps == 8
     assert config.train.learning_rate == pytest.approx(3e-3)
     assert config.train.lr_schedule is LRSchedule.COSINE
     assert config.train.optimizer is OptimizerName.ADAMW
-    assert config.train.sft_warmup_cycles == 250
+    assert config.train.sft_warmup_cycles == raw["train"]["sft_warmup_cycles"]
     assert config.train.save_every_cycles == 0
     assert config.train.eval_every_cycles == 20
 

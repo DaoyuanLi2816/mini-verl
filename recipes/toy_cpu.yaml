@@ -18,6 +18,10 @@ schema_version: 1
 run:
   name: toy-cpu-opd
   mode: opd                 # sft | offline_kd | opd
+  # This seed is reported, not chosen silently: at this model size the outcome is
+  # strongly seed-dependent (81.2% with 1234, 0.0% with 20260727 under an
+  # otherwise identical 600-step supervised budget). That variance is the reason
+  # the toy backend is a machinery harness and not a capability claim.
   seed: 1234
   output_dir: runs
   deterministic: true
@@ -92,7 +96,7 @@ loss:
   ce_weight: 0.0
 
 train:
-  cycles: 60
+  cycles: 40
   rollouts_per_cycle: 8
   # One optimizer step per rollout batch keeps every update strictly on-policy.
   gradient_accumulation_steps: 8
@@ -101,7 +105,10 @@ train:
   max_grad_norm: 1.0
   lr_schedule: cosine
   optimizer: adamw
-  sft_warmup_cycles: 250       # oracle cold start, then on-policy distillation
+  # Measured on this environment: the toy student needs roughly 600 supervised
+  # steps before it can copy operands out of the prompt. At 300 steps it has
+  # the tool-call format and none of the arithmetic. See docs/limitations.md.
+  sft_warmup_cycles: 600       # oracle cold start, then on-policy distillation
   save_every_cycles: 0
   eval_every_cycles: 20
 

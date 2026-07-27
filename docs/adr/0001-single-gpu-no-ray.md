@@ -50,8 +50,12 @@ Positive:
   (`src/miniverl/training/memory.py`) with a recorded reason string, instead of
   an emergent property of a scheduler.
 - Reproducibility is tractable: one RNG lineage, captured and restored by
-  `src/miniverl/utils/seeding.py`, and `tests/integration/test_resume_and_swap.py`
-  asserts that an interrupted and an uninterrupted run agree exactly.
+  `src/miniverl/utils/seeding.py`, and
+  `tests/integration/test_resume_and_swap.py::test_uninterrupted_and_resumed_training_agree_exactly`
+  asserts that an interrupted and an uninterrupted run reach the same step,
+  policy version and task cursor, with every trainable parameter agreeing to
+  `atol=1e-6`. That is a numerical tolerance, not bitwise equality; see
+  `docs/reproducibility.md`.
 - Report and cache inspection work from a bare `pip install miniverl` on a
   laptop, because nothing in those paths imports torch.
 - The failure modes a reader has to hold in their head are OOM and a bad

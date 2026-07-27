@@ -594,9 +594,17 @@ position count.
 
 $$
 \mathcal{L} \;=\;
-\frac{\sum_{i=1}^{N} w_i \, \ell_i}{\max\!\left(\sum_{i=1}^{N} w_i,\; \varepsilon_W\right)},
+\frac{\sum_{i=1}^{N} w_i \, \ell_i}{W'},
+\qquad
+W' = \begin{cases}
+\sum_{i=1}^{N} w_i & \sum_i w_i > 0 \\[2pt]
+\varepsilon_W & \sum_i w_i = 0
+\end{cases},
 \qquad \varepsilon_W = \texttt{MIN\_TOTAL\_WEIGHT} = 10^{-12}
 $$
+
+Note the substitution is a `torch.where` on "exactly zero", **not** a clamp: a
+weight sum that is positive but tiny still divides by its true value.
 
 where $\ell_i$ is the per-position value at selected position $i$ and $w_i$ is
 `alignment.token_weights[i]`, which the selector sets to
@@ -621,24 +629,30 @@ Three consequences:
 `reduction.weighted_mean` is the reference implementation and takes an optional
 externally supplied `denominator`. The training path does not call it: for the
 reason given in [section 7](#7-chunking), `chunked_selected_position_loss`
-computes `denom = torch.clamp(w.sum(), min=MIN_TOTAL_WEIGHT)` once, from the
-global weight vector, and divides every chunk by it.
+computes
+`denom = torch.where(total > 0, total, torch.full_like(total, MIN_TOTAL_WEIGHT))`
+once, from the global weight vector, and divides every chunk by it.
 
 ### 6.1 An exact statement about the floor
 
 When every weight is exactly zero the numerator is exactly zero too, so the loss
-is exactly `0.0` and every gradient is zero.
+is exactly `0.0` and every gradient is zero. That is the only case in which
+$\varepsilon_W$ is ever used.
 
-The clamp is not a no-op in general, though. When the weight sum is strictly
-between $0$ and $10^{-12}$ the denominator is raised to $10^{-12}$ and the
-result exceeds the true weighted mean. No miniVERL configuration can reach that
-state — `selection.critical_weight` and `selection.other_weight` are both
-constrained to $(0, 100]$ and nothing scales them down — but the Hypothesis
-search in `tests/property/test_property_losses.py::test_weighted_mean_is_a_weighted_mean`
-does reach it directly, with `values=[0,0,0,0,1.0]` and
-`weights=[0,0,0,0,2.22e-16]`, where the function returns `2.22e-4` rather than
-`0`. That branch of the test asserts a stronger property than the
-implementation provides.
+The substitution is deliberately a `torch.where` on `total > 0` rather than a
+clamp. A clamp would rescale the result for any tiny-but-positive weight sum:
+with weights summing to $2.22 \times 10^{-16}$ and one unit value, clamping the
+denominator to $10^{-12}$ returns $2.22 \times 10^{-4}$ instead of the true mean
+of $1.0$. Dividing by the real total is both correct and safe, because the true
+weighted mean is always bounded by the range of the values however small the
+weights are.
+
+An earlier draft clamped, and
+`tests/property/test_property_losses.py::test_weighted_mean_is_a_weighted_mean`
+found exactly that counterexample (`values=[0,0,0,0,1.0]`,
+`weights=[0,0,0,0,2.22e-16]`). The test now asserts both branches — an exactly
+zero weight sum gives exactly `0.0`, and any positive weight sum gives the true
+weighted mean, within the value range — and it passes.
 
 ---
 
@@ -666,7 +680,9 @@ backbone once per chunk. Instead, excerpted from
 
 ```python
 # src/miniverl/losses/chunked.py, inside chunked_selected_position_loss
-denom = torch.clamp(w.sum(), min=MIN_TOTAL_WEIGHT)
+total = w.sum()
+# Only an exactly-zero weight sum uses the floor; see losses/reduction.py.
+denom = torch.where(total > 0, total, torch.full_like(total, MIN_TOTAL_WEIGHT))
 
 use_two_stage = backward and hidden_states.requires_grad
 work = hidden_states.detach().requires_grad_(True) if use_two_stage else hidden_states

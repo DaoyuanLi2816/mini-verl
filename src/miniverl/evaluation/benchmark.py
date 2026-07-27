@@ -69,9 +69,18 @@ def _cold_start(
                 "seed": seed,
                 "name": f"{config.name}-coldstart",
             },
-            "train": {"cycles": config.cold_start_cycles, "sft_warmup_cycles": 0},
+            "train": {
+                "cycles": config.cold_start_cycles,
+                "sft_warmup_cycles": 0,
+                "eval_every_cycles": 0,
+                "save_every_cycles": 0,
+            },
             "cache": {"reuse_across_policy_versions": False, "strict_policy_version": True},
             "report": {"enabled": False},
+            # The cold start exists only to produce one shared checkpoint. Its own
+            # evaluations are never read, and on a real model each one costs
+            # minutes of generation, so they are switched off here.
+            "eval": {"enabled": False},
         },
     )
     run_config = RunConfig.model_validate(payload)
@@ -81,14 +90,10 @@ def _cold_start(
     try:
         result = trainer.train()
         checkpoint = trainer.paths.checkpoints / "final"
-        baseline = (result.eval or {}).get("success_rate")
-        logger.info(
-            "cold start seed %d: %d steps, eval success %.3f",
-            seed,
-            result.global_step,
-            float(baseline or 0.0),
-        )
-        return checkpoint, baseline
+        # The shared starting point is measured by the `cold-start-only` arm on
+        # the benchmark's own split, not here.
+        logger.info("cold start seed %d: %d optimizer steps", seed, result.global_step)
+        return checkpoint, None
     finally:
         trainer.close()
 

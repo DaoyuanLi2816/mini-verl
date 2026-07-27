@@ -19,8 +19,9 @@ Checked by: `.github/workflows/release.yml`, job `validate`.
 - [x] `ruff format --check .`
 - [x] `mypy src/miniverl`
 - [x] `pytest -q -m "not gpu and not network"` with the coverage gate
-- [x] `pytest -q -m gpu` on a machine with CUDA (results in
-      `docs/rtx4080-baselines.md`)
+      (929 passed, 4 deselected, 85% branch coverage on 2026-07-27; the gate
+      table is in `docs/limitations.md`)
+- [x] `pytest -q -m gpu` on a machine with CUDA
 - [x] `rg -n "TODO|FIXME|XXX|HACK|NotImplementedError" src tests examples scripts`
       returns nothing
 
