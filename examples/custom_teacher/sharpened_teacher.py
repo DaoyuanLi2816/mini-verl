@@ -256,6 +256,14 @@ def main() -> int:
     print(f"\nrun directory : {result.run_dir}")
     print(f"optimizer steps: {result.global_step}")
     print("sharpened targets stayed normalized and trained without error")
+    # A reader who runs this file directly never sees examples/README.md, and a
+    # bare 0% in the log above reads as a broken example rather than as the
+    # expected outcome of a 200k-parameter smoke test.
+    print(
+        "\nThe run logs 0% task success. That is expected: this example shows how to\n"
+        "plug in a teacher, not that the toy model can solve the task at this budget.\n"
+        "The measured claim here is the entropy drop, which is what sharpening does."
+    )
     return 0
 
 

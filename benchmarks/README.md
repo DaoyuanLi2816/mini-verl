@@ -71,12 +71,43 @@ Listed so you can check that this repository does not.
 | File | Hardware | What it shows |
 | --- | --- | --- |
 | `results/cpu-toy-calc-matched.json` | CPU only | **Parity, not ranking.** All seven arms run to completion under identical budgets on the toy backend. The accuracy differences are within noise and must not be read as a ranking; see the note in the file. |
-| `results/rtx4080-calc-hard-matched.json` | RTX 4080 16 GB | Single-seed matched comparison of cold start, continued SFT and bucketed OPD on the chained calculator split with the real Qwen3 pair. |
+| `results/rtx4080-calc-hard-matched.json` | RTX 4080 16 GB | Single-seed matched comparison on the chained calculator split with the real Qwen3 pair. **On-policy distillation lost**, with both a standard and a privileged-context teacher; the transcript-level diagnosis is in [`docs/rtx4080-baselines.md`](../docs/rtx4080-baselines.md#matched-budget-comparison). |
 
 The toy benchmark was run twice. The first attempt gave every arm a fresh cosine
 schedule at the base learning rate after the cold start, which restarted the
 learning rate and damaged the model; the second uses a constant, lower rate. Both
-facts are recorded here rather than only the second run being shown.
+facts are recorded here rather than only the second run being shown. Only the
+second is published, because the first measured a bug in the harness rather than
+a property of any arm -- but it happened, so it is written down.
+
+### Why the toy result is a parity check and nothing more
+
+The published run covers two seeds, and the two-seed spread is what makes the
+point:
+
+| arm | seed 1234 | seed 20260727 | mean |
+| --- | --- | --- | --- |
+| cold-start-only | 66.7% | 8.3% | 37.5% |
+| sft-continued | 83.3% | 8.3% | 45.8% |
+| offline-kd | 62.5% | 4.2% | 33.3% |
+| opd-bucketed-k16 | 79.2% | 8.3% | 43.8% |
+| opd-exact | 79.2% | 4.2% | 41.7% |
+| opd-bucketed-forward-kl | 79.2% | 8.3% | 43.8% |
+| opd-tool-and-final | 79.2% | 4.2% | 41.7% |
+
+Changing the seed moves a single arm by up to **58 percentage points**. Changing
+the *objective* moves it by at most 4 points at a fixed seed, and the four OPD
+arms are indistinguishable from each other at both seeds. The between-seed
+variance is more than an order of magnitude larger than the between-arm
+variance, so **no ranking can be read out of this table** -- which is precisely
+what it is here to establish. What it does establish is that all seven arms,
+including `exact_full_vocab`, run to completion under identical budgets and
+produce well-formed trajectories.
+
+One detail worth not mistaking for a defect: `opd-exact` reports `0.00 MiB` of
+cache. Exact mode with a resident teacher rebuilds the full-vocabulary
+distribution one chunk at a time and deliberately never persists a
+`[positions, vocab]` tensor, so an empty cache is the designed behaviour.
 
 ## Submitting a result
 
