@@ -11,7 +11,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from miniverl import __version__
 from miniverl.reporting.charts import bar_chart, line_chart, token_strip
 from miniverl.reporting.data import ReportData
-from miniverl.utils.runs import utc_now
+from miniverl.utils.runs import utc_now, write_text
 
 __all__ = ["render_html", "write_report"]
 
@@ -251,5 +251,5 @@ def write_report(
     data = ReportData.from_run(run_dir, max_trajectories=max_trajectories, max_tokens=max_tokens)
     target = Path(out) if out is not None else Path(run_dir) / "report.html"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(render_html(data), encoding="utf-8")
+    write_text(target, render_html(data))
     return target

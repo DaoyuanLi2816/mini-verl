@@ -42,6 +42,7 @@ from miniverl.schemas.cache import (
     CacheShardMeta,
     TeacherTargetBatch,
 )
+from miniverl.utils.runs import canonical_json, write_text
 
 __all__ = ["TeacherCache", "read_safetensors_header", "sha256_file"]
 
@@ -313,10 +314,7 @@ class TeacherCache:
 
     def _write_index(self) -> None:
         self.path.mkdir(parents=True, exist_ok=True)
-        (self.path / _INDEX_NAME).write_text(
-            json.dumps(self.index.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        write_text(self.path / _INDEX_NAME, canonical_json(self.index.model_dump(mode="json")))
 
     # -- reading -----------------------------------------------------------
 

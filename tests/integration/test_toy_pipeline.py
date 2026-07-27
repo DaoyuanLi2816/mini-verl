@@ -485,3 +485,78 @@ def test_every_json_artifact_of_a_run_is_strictly_valid_json(tmp_path: Path):
     assert any(b["tokens_per_solved_task"] is None for b in blocks), (
         "expected a cycle that solved nothing, which is the null path this test guards"
     )
+
+
+def test_a_run_writes_lf_line_endings_on_every_platform(tmp_path: Path):
+    """A run directory must be a function of the computation, not the OS.
+
+    ``Path.write_text`` translates ``\n`` to the platform separator, so the same
+    run produced CRLF artifacts on Windows and LF ones on Linux. That is not
+    cosmetic: the teacher-cache index and the checkpoint state carry checksums,
+    and CI regenerates the benchmark JSON Schema and byte-diffs it against the
+    committed copy -- a check that can never pass if the two platforms disagree
+    about newlines. Every artifact now goes through
+    :func:`miniverl.utils.runs.write_text`.
+
+    This assertion only has teeth on Windows, where the translation happens.
+    """
+    from miniverl.training.trainer import OPDTrainer
+
+    config = _config(
+        tmp_path,
+        train={"cycles": 1, "sft_warmup_cycles": 1, "rollouts_per_cycle": 2},
+        eval={"enabled": True, "tasks": 4},
+    )
+    result = OPDTrainer.from_config(config, run_id="lf-endings").train()
+
+    checked, offenders = 0, []
+    for path in sorted(Path(result.run_dir).rglob("*")):
+        if not path.is_file() or path.suffix == ".safetensors":
+            continue
+        blob = path.read_bytes()
+        if b"\x00" in blob[:1024]:
+            continue
+        checked += 1
+        if b"\r\n" in blob:
+            offenders.append(
+                f"{path.relative_to(result.run_dir)} ({blob.count(bytes([13, 10]))} CRLF)"
+            )
+    assert checked >= 6, f"expected several text artifacts, found {checked}"
+    assert not offenders, f"artifacts written with CRLF: {offenders}"
+
+
+def test_both_schema_output_paths_produce_identical_bytes(tmp_path: Path):
+    """``miniverl schema`` and ``miniverl schema --out`` must agree exactly.
+
+    They did not: ``--out`` went through the canonical writer (sorted keys, LF,
+    trailing newline) while stdout went through Rich, which preserves insertion
+    order, and on Windows text-mode stdout re-expanded newlines to CRLF. CI
+    regenerates the schema and byte-diffs it against the committed copy, so a
+    contributor who used the other path could not reproduce the committed file.
+    """
+    import subprocess
+    import sys
+
+    out_path = tmp_path / "via-out.json"
+    subprocess.run(
+        [sys.executable, "-m", "miniverl.cli", "schema", "--out", str(out_path)],
+        check=True,
+        capture_output=True,
+    )
+    piped = subprocess.run(
+        [sys.executable, "-m", "miniverl.cli", "schema"],
+        check=True,
+        capture_output=True,
+    )
+    assert out_path.read_bytes() == piped.stdout, (
+        "the two schema output paths disagree; CI byte-diffs this file"
+    )
+    assert b"\r\n" not in piped.stdout, "stdout re-expanded newlines to CRLF"
+
+    committed = (
+        Path(__file__).resolve().parents[2] / "benchmarks/schema/benchmark-result.schema.json"
+    )
+    assert committed.read_bytes() == out_path.read_bytes(), (
+        "the committed schema is stale: run `miniverl schema --out benchmarks/schema/"
+        "benchmark-result.schema.json`"
+    )

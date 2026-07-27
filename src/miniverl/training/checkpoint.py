@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 from miniverl.errors import CheckpointError
+from miniverl.utils.runs import write_text
 from miniverl.utils.seeding import RngSnapshot
 
 __all__ = ["CheckpointState", "save_checkpoint", "load_checkpoint", "list_checkpoints"]
@@ -156,9 +157,9 @@ def save_checkpoint(
     state.optimizer_scalars = {k: _jsonable(v) for k, v in scalars.items()}
     state.optimizer_state_keys = keys
     state.rng = rng.to_dict()
-    (target / _STATE).write_text(
+    write_text(
+        target / _STATE,
         json.dumps(state.to_dict(), indent=2, sort_keys=True, default=_jsonable) + "\n",
-        encoding="utf-8",
     )
     return target
 

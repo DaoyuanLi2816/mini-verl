@@ -20,6 +20,7 @@ import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from miniverl.errors import ConfigError
+from miniverl.utils.runs import write_text
 
 __all__ = [
     "TrainingMode",
@@ -561,5 +562,5 @@ class RunConfig(_Base):
         """Write :meth:`to_yaml` to ``path`` and return it."""
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(self.to_yaml(), encoding="utf-8")
+        write_text(p, self.to_yaml())
         return p

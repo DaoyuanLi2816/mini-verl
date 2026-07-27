@@ -882,17 +882,34 @@ def export_benchmark(
 def schema_command(
     out: Optional[Path] = typer.Option(None, "--out", help="Write the JSON Schema to a file."),
 ) -> None:
-    """Print the benchmark-result JSON Schema."""
+    """Print the benchmark-result JSON Schema.
+
+    Both output paths emit byte-identical text. They did not always: ``--out``
+    went through :func:`~miniverl.utils.runs.write_json`, which sorts keys and
+    appends a trailing newline, while stdout went through Rich, which preserves
+    insertion order. CI regenerates this schema and byte-diffs it against the
+    committed copy, so whichever path a contributor happens to use has to give
+    the same bytes or the check fails on formatting rather than on drift.
+    """
     from miniverl.evaluation.schema import json_schema
+    from miniverl.utils.runs import canonical_json, write_text
 
-    payload = json_schema()
+    text = canonical_json(json_schema())
     if out is not None:
-        from miniverl.utils.runs import write_json
-
-        write_json(out, payload)
+        write_text(out, text)
         console.print(f"[green]schema written[/green] {_esc(out)}")
         return
-    _emit_json(payload)
+    # Written to the underlying binary buffer rather than through Rich or text
+    # mode, so that redirecting the output produces exactly the bytes `--out`
+    # would have written. Text-mode stdout on Windows would re-expand every
+    # newline to CRLF and reintroduce the platform difference this avoids.
+    data = text.encode("utf-8")
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is None:  # captured stdout in tests has no binary buffer
+        sys.stdout.write(text)
+    else:
+        buffer.write(data)
+        buffer.flush()
 
 
 def run() -> None:  # pragma: no cover - console-script shim

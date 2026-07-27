@@ -17,6 +17,8 @@ __all__ = [
     "utc_now",
     "JsonlWriter",
     "read_jsonl",
+    "canonical_json",
+    "write_text",
     "write_json",
     "read_json",
 ]
@@ -191,15 +193,38 @@ def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
     return out
 
 
-def write_json(path: str | Path, payload: Any) -> Path:
-    """Write pretty-printed JSON."""
+def canonical_json(payload: Any) -> str:
+    """Serialize ``payload`` to the one JSON form this project writes to disk.
+
+    Sorted keys and a trailing newline make the output a function of the data
+    alone, so a file regenerated on another machine -- or through another code
+    path -- is byte-identical. Anything that is diffed or checksummed must go
+    through here rather than calling :func:`json.dumps` with its own options.
+    """
+    return (
+        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False, default=_fallback) + "\n"
+    )
+
+
+def write_text(path: str | Path, text: str) -> Path:
+    """Write ``text`` as UTF-8 with LF line endings on every platform.
+
+    ``Path.write_text`` translates ``\\n`` to the platform separator, so the same
+    run on Windows and Linux produces byte-different artifacts -- including the
+    cache index and the checkpoint state, which carry checksums. Every artifact
+    this project writes goes through here so that a run directory is a function
+    of the computation and not of the operating system.
+    """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False, default=_fallback) + "\n",
-        encoding="utf-8",
-    )
+    with p.open("w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
     return p
+
+
+def write_json(path: str | Path, payload: Any) -> Path:
+    """Write pretty-printed JSON in the canonical form."""
+    return write_text(path, canonical_json(payload))
 
 
 def read_json(path: str | Path) -> Any:

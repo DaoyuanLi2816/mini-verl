@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from miniverl.reporting.data import ReportData
+from miniverl.utils.runs import write_text
 
 __all__ = ["render_markdown", "write_markdown", "render_summary_json"]
 
@@ -147,7 +148,7 @@ def write_markdown(data: ReportData, out: str | Path) -> Path:
     """Write :func:`render_markdown` to ``out``."""
     target = Path(out)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(render_markdown(data), encoding="utf-8")
+    write_text(target, render_markdown(data))
     return target
 
 

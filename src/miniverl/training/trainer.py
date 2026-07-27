@@ -64,7 +64,7 @@ from miniverl.trajectory.io import append_trajectories
 from miniverl.utils import gpu
 from miniverl.utils.env import collect_environment
 from miniverl.utils.logging import EventLog, get_logger
-from miniverl.utils.runs import JsonlWriter, RunPaths, make_run_id, utc_now, write_json
+from miniverl.utils.runs import JsonlWriter, RunPaths, make_run_id, utc_now, write_json, write_text
 from miniverl.utils.seeding import capture_rng, seed_everything
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -234,7 +234,7 @@ class OPDTrainer:
         resolved_id = make_run_id(config.run.name, explicit=run_id or config.run.run_id)
         paths = RunPaths.create(output_dir or config.run.output_dir, resolved_id)
         if write_artifacts:
-            paths.config_original.write_text(config.to_yaml(), encoding="utf-8")
+            write_text(paths.config_original, config.to_yaml())
 
         environment = make_environment(config.environment.name, **config.environment.params)
         splits = make_splits(
@@ -329,7 +329,7 @@ class OPDTrainer:
         resolved.models.device = self.plan.device
         if config.models.backend is ModelBackend.HF:
             resolved.loss.top_k = min(config.loss.top_k, self.student.vocab_size)
-        self.paths.config_resolved.write_text(resolved.to_yaml(), encoding="utf-8")
+        write_text(self.paths.config_resolved, resolved.to_yaml())
         write_json(self.paths.environment, collect_environment())
         write_json(self.paths.manifest, self.build_manifest())
 

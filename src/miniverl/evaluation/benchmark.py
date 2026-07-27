@@ -29,7 +29,7 @@ from miniverl.config.models import RunConfig, TrainingMode
 from miniverl.evaluation.schema import ArmResult, BenchmarkConfig, BenchmarkResult, finite_or_none
 from miniverl.utils.env import collect_environment
 from miniverl.utils.logging import get_logger
-from miniverl.utils.runs import utc_now, write_json
+from miniverl.utils.runs import utc_now, write_json, write_text
 
 __all__ = ["deep_merge", "run_benchmark", "render_benchmark_markdown"]
 
@@ -237,7 +237,7 @@ def run_benchmark(
         seeds=list(config.seeds),
     )
     write_json(target / f"{config.name}.json", result.model_dump(mode="json"))
-    (target / f"{config.name}.md").write_text(render_benchmark_markdown(result), encoding="utf-8")
+    write_text(target / f"{config.name}.md", render_benchmark_markdown(result))
     return result
 
 
