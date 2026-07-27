@@ -1,0 +1,539 @@
+"""Pydantic v2 models describing a miniVERL run.
+
+A :class:`RunConfig` is the single source of truth for a run.  It is validated
+before anything is downloaded or allocated, written verbatim to
+``config.original.yaml``, and written again -- with every ``auto`` resolved --
+to ``config.resolved.yaml``.
+
+Cross-field validation lives here on purpose: it is cheaper and far friendlier
+to reject ``exact_full_vocab`` + ``top_k: 64`` at parse time than to discover
+the contradiction three minutes into a GPU run.
+"""
+
+from __future__ import annotations
+
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from miniverl.errors import ConfigError
+
+__all__ = [
+    "TrainingMode",
+    "ModelBackend",
+    "Precision",
+    "Quantization",
+    "TeacherContextMode",
+    "LossMode",
+    "Divergence",
+    "SelectorName",
+    "MemoryStrategy",
+    "OptimizerName",
+    "LRSchedule",
+    "ToyModelConfig",
+    "LoRAConfig",
+    "StudentModelConfig",
+    "TeacherModelConfig",
+    "ModelsConfig",
+    "LossConfig",
+    "SelectionConfig",
+    "RolloutConfig",
+    "EnvironmentConfig",
+    "TrainConfig",
+    "MemoryConfig",
+    "CacheConfig",
+    "EvalConfig",
+    "ReportConfig",
+    "RunMeta",
+    "RunConfig",
+    "CONFIG_SCHEMA_VERSION",
+]
+
+CONFIG_SCHEMA_VERSION = 1
+
+
+class TrainingMode(str, Enum):
+    """Which training loop to run."""
+
+    SFT = "sft"
+    OFFLINE_KD = "offline_kd"
+    OPD = "opd"
+
+
+class ModelBackend(str, Enum):
+    """Where student/teacher weights come from."""
+
+    TOY = "toy"
+    HF = "hf"
+
+
+class Precision(str, Enum):
+    """Compute dtype for model weights and activations."""
+
+    AUTO = "auto"
+    FLOAT32 = "float32"
+    BFLOAT16 = "bfloat16"
+    FLOAT16 = "float16"
+
+
+class Quantization(str, Enum):
+    """Weight quantization scheme."""
+
+    NONE = "none"
+    NF4 = "nf4"
+    INT8 = "int8"
+
+
+class TeacherContextMode(str, Enum):
+    """What the teacher is allowed to see."""
+
+    STANDARD = "standard"
+    PRIVILEGED_CONTEXT = "privileged_context"
+
+
+class LossMode(str, Enum):
+    """Vocabulary treatment of the divergence."""
+
+    EXACT_FULL_VOCAB = "exact_full_vocab"
+    BUCKETED_TOPK_TAIL = "bucketed_topk_tail"
+
+
+class Divergence(str, Enum):
+    """Which divergence to minimize between teacher and student."""
+
+    FORWARD_KL = "forward_kl"
+    REVERSE_KL = "reverse_kl"
+    JSD = "jsd"
+
+
+class SelectorName(str, Enum):
+    """Teacher-position budget policy."""
+
+    ALL_MODEL_TOKENS = "all_model_tokens"
+    TOOL_AND_FINAL = "tool_and_final"
+    UNIFORM_RATIO = "uniform_ratio"
+    HYBRID = "hybrid"
+
+
+class MemoryStrategy(str, Enum):
+    """How teacher and student share the accelerator."""
+
+    RESIDENT = "resident"
+    SWAP = "swap"
+    AUTO = "auto"
+
+
+class OptimizerName(str, Enum):
+    """Supported optimizers."""
+
+    ADAMW = "adamw"
+    ADAMW_8BIT = "adamw8bit"
+
+
+class LRSchedule(str, Enum):
+    """Learning-rate schedules."""
+
+    CONSTANT = "constant"
+    LINEAR = "linear"
+    COSINE = "cosine"
+
+
+class _Base(BaseModel):
+    model_config = ConfigDict(extra="forbid", validate_default=True)
+
+
+class ToyModelConfig(_Base):
+    """Shape of the built-in tiny transformer used by the ``toy`` backend."""
+
+    hidden_size: int = Field(default=64, ge=8, le=512)
+    num_layers: int = Field(default=2, ge=1, le=8)
+    num_heads: int = Field(default=4, ge=1, le=16)
+    intermediate_size: int = Field(default=128, ge=8, le=2048)
+    max_position_embeddings: int = Field(default=1024, ge=64, le=8192)
+
+    @model_validator(mode="after")
+    def _check_heads(self) -> ToyModelConfig:
+        if self.hidden_size % self.num_heads != 0:
+            raise ValueError(
+                f"hidden_size={self.hidden_size} must be divisible by num_heads={self.num_heads}"
+            )
+        return self
+
+
+class LoRAConfig(_Base):
+    """QLoRA / LoRA adapter configuration for the student."""
+
+    enabled: bool = True
+    r: int = Field(default=16, ge=1, le=512)
+    alpha: int = Field(default=32, ge=1, le=1024)
+    dropout: float = Field(default=0.0, ge=0.0, lt=1.0)
+    target_modules: list[str] = Field(
+        default_factory=lambda: [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ]
+    )
+    bias: str = Field(default="none", pattern="^(none|all|lora_only)$")
+
+
+class StudentModelConfig(_Base):
+    """The policy being trained."""
+
+    model_id: str
+    revision: str | None = None
+    tokenizer_id: str | None = None
+    tokenizer_revision: str | None = None
+    dtype: Precision = Precision.AUTO
+    quantization: Quantization = Quantization.NONE
+    attn_implementation: str = Field(default="sdpa", pattern="^(sdpa|eager)$")
+    gradient_checkpointing: bool = False
+    lora: LoRAConfig = Field(default_factory=LoRAConfig)
+    toy: ToyModelConfig = Field(default_factory=ToyModelConfig)
+    trust_remote_code: bool = False
+
+    @model_validator(mode="after")
+    def _check_quant(self) -> StudentModelConfig:
+        if self.quantization is not Quantization.NONE and not self.lora.enabled:
+            raise ValueError(
+                "a quantized student must be trained with LoRA adapters "
+                "(set models.student.lora.enabled: true)"
+            )
+        return self
+
+
+class TeacherModelConfig(_Base):
+    """The frozen scoring model."""
+
+    model_id: str
+    revision: str | None = None
+    tokenizer_id: str | None = None
+    tokenizer_revision: str | None = None
+    dtype: Precision = Precision.AUTO
+    quantization: Quantization = Quantization.NONE
+    attn_implementation: str = Field(default="sdpa", pattern="^(sdpa|eager)$")
+    mode: TeacherContextMode = TeacherContextMode.STANDARD
+    toy: ToyModelConfig = Field(default_factory=ToyModelConfig)
+    trust_remote_code: bool = False
+    #: Deterministic perturbation used only by the ``toy`` backend so the toy
+    #: teacher is a *different* distribution from the toy student.
+    toy_teacher_seed: int = Field(default=99, ge=0)
+    #: ``toy`` backend only: cross-entropy steps fitting the teacher to oracle
+    #: traces before it supervises anything.  A randomly initialized teacher is
+    #: a uniform-noise oracle, so distilling from it would demonstrate nothing.
+    #: The fit is an explicit, logged phase written into the run directory.
+    toy_pretrain_steps: int = Field(default=120, ge=0, le=100000)
+    toy_pretrain_lr: float = Field(default=3e-3, gt=0.0, le=1.0)
+
+
+class ModelsConfig(_Base):
+    """Student/teacher pair.  v0.1 requires an identical tokenizer for both."""
+
+    backend: ModelBackend = ModelBackend.TOY
+    device: str = Field(default="auto", pattern="^(auto|cpu|cuda)$")
+    student: StudentModelConfig
+    teacher: TeacherModelConfig
+
+
+class LossConfig(_Base):
+    """Divergence objective and its vocabulary treatment."""
+
+    mode: LossMode = LossMode.BUCKETED_TOPK_TAIL
+    divergence: Divergence = Divergence.REVERSE_KL
+    temperature: float = Field(default=1.0, gt=0.0, le=20.0)
+    scale_by_temperature_squared: bool = True
+    top_k: int = Field(default=64, ge=1, le=262144)
+    jsd_beta: float = Field(default=0.5, ge=0.0, le=1.0)
+    tail_epsilon: float = Field(default=1e-9, gt=0.0, lt=1e-2)
+    #: Number of selected prediction positions projected through the LM head at
+    #: once.  Purely a memory/throughput knob -- it does not change the loss.
+    chunk_size: int = Field(default=256, ge=1, le=65536)
+    #: Guard rail: refuse `exact_full_vocab` above this vocabulary size unless
+    #: explicitly overridden, because it materializes ``[chunk, vocab]`` fp32.
+    exact_max_vocab: int = Field(default=8192, ge=1)
+    allow_large_exact: bool = False
+    #: Cross-entropy weight for SFT-style next-token loss mixed into KD modes.
+    ce_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+
+
+class SelectionConfig(_Base):
+    """Which model-generated positions the teacher is asked to score."""
+
+    selector: SelectorName = SelectorName.ALL_MODEL_TOKENS
+    ratio: float = Field(default=0.35, gt=0.0, le=1.0)
+    max_positions_per_trajectory: int | None = Field(default=None, ge=1)
+    #: Relative weight applied to critical (tool-call / final) tokens.
+    critical_weight: float = Field(default=1.0, gt=0.0, le=100.0)
+    other_weight: float = Field(default=1.0, gt=0.0, le=100.0)
+
+
+class RolloutConfig(_Base):
+    """Bounds and sampling parameters for student rollouts."""
+
+    max_turns: int = Field(default=4, ge=1, le=64)
+    max_new_tokens_per_turn: int = Field(default=64, ge=1, le=8192)
+    max_total_tokens: int = Field(default=768, ge=16, le=131072)
+    temperature: float = Field(default=1.0, ge=0.0, le=5.0)
+    top_p: float = Field(default=1.0, gt=0.0, le=1.0)
+    top_k: int = Field(default=0, ge=0)
+    max_parse_errors: int = Field(default=2, ge=0, le=32)
+    max_repeated_calls: int = Field(default=2, ge=1, le=32)
+
+
+class EnvironmentConfig(_Base):
+    """Which deterministic local environment to train and evaluate on."""
+
+    name: str = Field(pattern="^(calculator|jsonnav|sqlite)$")
+    params: dict[str, Any] = Field(default_factory=dict)
+    train_tasks: int = Field(default=64, ge=1, le=100000)
+    eval_tasks: int = Field(default=32, ge=1, le=100000)
+    test_tasks: int = Field(default=32, ge=0, le=100000)
+    split_seed: int = Field(default=7, ge=0)
+    difficulty: str = Field(default="easy", pattern="^(easy|medium|hard)$")
+
+
+class TrainConfig(_Base):
+    """Optimization schedule."""
+
+    cycles: int = Field(default=4, ge=1, le=100000)
+    rollouts_per_cycle: int = Field(default=8, ge=1, le=8192)
+    #: Trajectories per optimizer step.  v0.1 runs one trajectory per forward
+    #: pass (no padded batching), so this *is* the effective batch size and the
+    #: number of steps per cycle is ``ceil(rollouts_per_cycle / this)``.
+    gradient_accumulation_steps: int = Field(default=1, ge=1, le=1024)
+    learning_rate: float = Field(default=1e-4, gt=0.0, le=1.0)
+    weight_decay: float = Field(default=0.0, ge=0.0, le=1.0)
+    max_grad_norm: float = Field(default=1.0, gt=0.0, le=1e4)
+    warmup_steps: int = Field(default=0, ge=0, le=100000)
+    lr_schedule: LRSchedule = LRSchedule.CONSTANT
+    optimizer: OptimizerName = OptimizerName.ADAMW
+    adam_beta1: float = Field(default=0.9, gt=0.0, lt=1.0)
+    adam_beta2: float = Field(default=0.95, gt=0.0, lt=1.0)
+    adam_eps: float = Field(default=1e-8, gt=0.0, lt=1.0)
+    save_every_cycles: int = Field(default=0, ge=0, le=100000)
+    eval_every_cycles: int = Field(default=0, ge=0, le=100000)
+    #: Optional SFT cold start executed before the KD/OPD loop.
+    sft_warmup_cycles: int = Field(default=0, ge=0, le=100000)
+    log_every_steps: int = Field(default=1, ge=1, le=10000)
+
+
+class MemoryConfig(_Base):
+    """Consumer-GPU memory controls."""
+
+    strategy: MemoryStrategy = MemoryStrategy.AUTO
+    #: Bounded retries on CUDA OOM.  Retries only halve the projection chunk
+    #: size, which is mathematically neutral.
+    oom_retries: int = Field(default=3, ge=0, le=10)
+    min_chunk_size: int = Field(default=8, ge=1, le=4096)
+    empty_cache_between_phases: bool = True
+    reset_peak_stats_each_cycle: bool = True
+    #: Fraction of total VRAM below which ``auto`` prefers ``swap``.
+    auto_swap_vram_headroom_gb: float = Field(default=2.0, ge=0.0, le=1024.0)
+
+
+class CacheConfig(_Base):
+    """Teacher-target cache policy."""
+
+    dir: str | None = None
+    entries_per_shard: int = Field(default=32, ge=1, le=4096)
+    #: ``float32`` round-trips the targets exactly; ``float16`` halves the
+    #: log-probability payload at the cost of ~1e-3 relative precision.
+    dtype: str = Field(default="float32", pattern="^(float32|float16)$")
+    #: Reject entries whose ``policy_version`` differs from the consuming
+    #: update.  Must stay ``True`` for genuine on-policy distillation.
+    strict_policy_version: bool = True
+    #: ``offline_kd`` only: allow the same fixed cache across every update.
+    reuse_across_policy_versions: bool = False
+    keep_cycles: int = Field(default=1, ge=1, le=100000)
+    verify_checksums_on_load: bool = True
+
+
+class EvalConfig(_Base):
+    """Deterministic evaluation settings."""
+
+    enabled: bool = True
+    tasks: int | None = Field(default=None, ge=1)
+    split: str = Field(default="eval", pattern="^(train|eval|test)$")
+    temperature: float = Field(default=0.0, ge=0.0, le=5.0)
+    max_turns: int | None = Field(default=None, ge=1)
+    seed: int = Field(default=0, ge=0)
+
+
+class ReportConfig(_Base):
+    """Report generation knobs."""
+
+    enabled: bool = True
+    max_trajectories: int = Field(default=5, ge=0, le=200)
+    max_tokens_per_trajectory: int = Field(default=400, ge=0, le=8192)
+
+
+class RunMeta(_Base):
+    """Identity and reproducibility settings for the run."""
+
+    name: str = Field(default="miniverl-run", min_length=1, max_length=120)
+    mode: TrainingMode = TrainingMode.OPD
+    seed: int = Field(default=1234, ge=0)
+    output_dir: str = "runs"
+    run_id: str | None = None
+    deterministic: bool = True
+    notes: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+
+class RunConfig(_Base):
+    """Top-level miniVERL run configuration."""
+
+    schema_version: int = CONFIG_SCHEMA_VERSION
+    run: RunMeta = Field(default_factory=RunMeta)
+    models: ModelsConfig
+    environment: EnvironmentConfig
+    rollout: RolloutConfig = Field(default_factory=RolloutConfig)
+    selection: SelectionConfig = Field(default_factory=SelectionConfig)
+    loss: LossConfig = Field(default_factory=LossConfig)
+    train: TrainConfig = Field(default_factory=TrainConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
+    cache: CacheConfig = Field(default_factory=CacheConfig)
+    eval: EvalConfig = Field(default_factory=EvalConfig)
+    report: ReportConfig = Field(default_factory=ReportConfig)
+
+    # -- cross-field validation ----------------------------------------
+
+    @model_validator(mode="after")
+    def _validate_combination(self) -> RunConfig:
+        if self.schema_version != CONFIG_SCHEMA_VERSION:
+            raise ValueError(
+                f"config schema_version {self.schema_version} is not supported by this "
+                f"miniVERL build (expected {CONFIG_SCHEMA_VERSION})"
+            )
+
+        mode = self.run.mode
+        if mode is TrainingMode.OPD and self.cache.reuse_across_policy_versions:
+            raise ValueError(
+                "cache.reuse_across_policy_versions=true contradicts run.mode=opd: "
+                "reusing one teacher cache across policy versions is offline KD. "
+                "Set run.mode: offline_kd, or keep the cache strictly per-cycle."
+            )
+        if mode is TrainingMode.OPD and not self.cache.strict_policy_version:
+            raise ValueError(
+                "run.mode=opd requires cache.strict_policy_version=true so teacher "
+                "targets can never be consumed by a different policy version"
+            )
+        if mode is TrainingMode.OFFLINE_KD and not self.cache.reuse_across_policy_versions:
+            raise ValueError(
+                "run.mode=offline_kd needs cache.reuse_across_policy_versions=true; "
+                "that flag is what makes the offline (fixed-target) semantics explicit"
+            )
+
+        if self.loss.divergence is Divergence.JSD and not 0.0 < self.loss.jsd_beta < 1.0:
+            raise ValueError(
+                f"loss.jsd_beta must be strictly inside (0, 1) for divergence=jsd, got "
+                f"{self.loss.jsd_beta}. At either endpoint the mixture collapses onto one "
+                "input and the divergence is identically zero."
+            )
+
+        if self.loss.mode is LossMode.EXACT_FULL_VOCAB and self.loss.top_k != 1:
+            # top_k is meaningless in exact mode; require the default so a
+            # recipe cannot imply a truncation that does not happen.
+            if self.loss.top_k not in (1, 0):
+                raise ValueError(
+                    "loss.mode=exact_full_vocab ignores loss.top_k. Remove top_k from "
+                    "the recipe (or set it to 1) to avoid implying a truncation that "
+                    "does not happen."
+                )
+
+        if mode is TrainingMode.SFT:
+            if self.loss.ce_weight not in (0.0, 1.0):
+                raise ValueError(
+                    "run.mode=sft trains with cross-entropy only; loss.ce_weight must "
+                    "be 0.0 (implicit) or 1.0 (explicit)"
+                )
+
+        if self.selection.selector in (SelectorName.ALL_MODEL_TOKENS, SelectorName.TOOL_AND_FINAL):
+            # ratio is unused; keep recipes honest by rejecting a stale value.
+            pass
+
+        if self.train.sft_warmup_cycles > 0 and mode is TrainingMode.SFT:
+            raise ValueError(
+                "train.sft_warmup_cycles applies to offline_kd/opd runs; it is "
+                "redundant when run.mode=sft"
+            )
+
+        if self.models.backend is ModelBackend.TOY:
+            if self.models.student.quantization is not Quantization.NONE:
+                raise ValueError(
+                    "the toy backend does not support quantization "
+                    "(models.student.quantization must be 'none')"
+                )
+            if self.models.teacher.quantization is not Quantization.NONE:
+                raise ValueError(
+                    "the toy backend does not support quantization "
+                    "(models.teacher.quantization must be 'none')"
+                )
+
+        if self.rollout.max_total_tokens <= self.rollout.max_new_tokens_per_turn:
+            raise ValueError(
+                "rollout.max_total_tokens must exceed rollout.max_new_tokens_per_turn"
+            )
+
+        if self.eval.max_turns is not None and self.eval.max_turns > self.rollout.max_turns * 4:
+            raise ValueError("eval.max_turns is implausibly larger than rollout.max_turns")
+
+        return self
+
+    # -- convenience ----------------------------------------------------
+
+    @property
+    def is_on_policy(self) -> bool:
+        """``True`` only for genuine OPD (student-sampled, freshly scored)."""
+        return self.run.mode is TrainingMode.OPD
+
+    @property
+    def effective_eval_tasks(self) -> int:
+        """Number of evaluation tasks after applying the eval override."""
+        if self.eval.tasks is not None:
+            return self.eval.tasks
+        return self.environment.eval_tasks
+
+    @classmethod
+    def from_yaml(cls, path: str | Path) -> RunConfig:
+        """Load and validate a recipe from a YAML file."""
+        p = Path(path)
+        if not p.is_file():
+            raise ConfigError(
+                f"recipe not found: {p}",
+                hint="run `miniverl validate <path>` with an existing YAML recipe, "
+                "or copy one from the recipes/ directory",
+            )
+        try:
+            raw = yaml.safe_load(p.read_text(encoding="utf-8"))
+        except yaml.YAMLError as exc:
+            raise ConfigError(f"{p} is not valid YAML: {exc}") from exc
+        if raw is None:
+            raise ConfigError(f"{p} is empty")
+        if not isinstance(raw, dict):
+            raise ConfigError(f"{p} must contain a YAML mapping at the top level")
+        return cls.model_validate(raw)
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any]) -> RunConfig:
+        """Validate a already-parsed mapping."""
+        return cls.model_validate(data)
+
+    def to_yaml(self) -> str:
+        """Serialize to canonical YAML (enums as their string values)."""
+        payload = self.model_dump(mode="json")
+        return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, width=100)
+
+    def write_yaml(self, path: str | Path) -> Path:
+        """Write :meth:`to_yaml` to ``path`` and return it."""
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(self.to_yaml(), encoding="utf-8")
+        return p

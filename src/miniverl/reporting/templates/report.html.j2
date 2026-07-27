@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en" data-run="{{ data.run_id }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>miniVERL run {{ data.run_id }}</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #ffffff; --fg: #17191c; --muted: #5d6570; --line: #e2e6ea;
+  --card: #f7f9fb; --accent: #2f7ed8; --warn: #a8551b; --ok: #2f7a4f;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#14161a; --fg:#e6e9ec; --muted:#9aa4b0; --line:#2a2f36;
+          --card:#1b1f25; --accent:#5aa9f0; --warn:#e0a35d; --ok:#63c48d; }
+}
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+main { max-width: 1080px; margin: 0 auto; padding: 32px 20px 72px; }
+h1 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 1.15rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 0.98rem; margin: 22px 0 8px; }
+p { margin: 8px 0; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+.sub { color: var(--muted); margin: 0 0 18px; font-size: 0.92rem; }
+code, pre, .mono { font-family: var(--mono); font-size: 0.86rem; }
+pre { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.tile { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.tile .k { color: var(--muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.tile .v { font-size: 1.32rem; font-variant-numeric: tabular-nums; margin-top: 3px; }
+.tile .n { color: var(--muted); font-size: 0.78rem; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.badge { display:inline-block; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; border: 1px solid var(--line); background: var(--card); }
+.badge.ok { color: var(--ok); border-color: currentColor; }
+.badge.warn { color: var(--warn); border-color: currentColor; }
+.chart { width: 100%; height: auto; display: block; }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .axis { stroke: var(--muted); stroke-width: 1; }
+.chart .tick, .chart .legend { fill: var(--muted); font: 11px var(--mono); }
+.spark { width: 120px; height: 24px; }
+.token-strip { display: flex; flex-wrap: wrap; gap: 2px; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+.tok { font-family: var(--mono); font-size: 0.76rem; padding: 1px 3px; border-radius: 3px; white-space: pre; border: 1px solid transparent; }
+.tok-call  { background: color-mix(in srgb, #2f7ed8 calc(var(--i) * 78%), transparent); }
+.tok-final { background: color-mix(in srgb, #3f9c66 calc(var(--i) * 78%), transparent); }
+.tok-text  { background: color-mix(in srgb, #8c6bb1 calc(var(--i) * 78%), transparent); }
+.tok-mismatch { border-color: var(--warn); }
+details { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 10px 0; background: var(--card); }
+summary { cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+.legend-key { display:flex; gap:14px; flex-wrap:wrap; font-size:0.8rem; color:var(--muted); margin:8px 0; }
+.note { border-left: 3px solid var(--accent); padding: 8px 12px; background: var(--card); border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 0.9rem; }
+footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.82rem; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>miniVERL run <span class="mono">{{ data.run_id }}</span></h1>
+<p class="sub">
+  {{ data.mode }} &middot; {{ manifest.environment.name if manifest.environment else "?" }}
+  &middot; {{ manifest.objective.divergence if manifest.objective else "?" }}
+  ({{ manifest.objective.loss_mode if manifest.objective else "?" }})
+  &middot; generated {{ generated_at }}
+  {% if data.is_on_policy %}<span class="badge ok">on-policy</span>
+  {% else %}<span class="badge warn">not on-policy ({{ data.mode }})</span>{% endif %}
+</p>
+
+<div class="grid">
+  {% for tile in tiles %}
+  <div class="tile">
+    <div class="k">{{ tile.label }}</div>
+    <div class="v">{{ tile.value }}</div>
+    <div class="n">{{ tile.note }}</div>
+  </div>
+  {% endfor %}
+</div>
+
+<h2>Baseline comparison</h2>
+{% if comparison %}
+<div class="tablewrap">
+<table>
+  <thead><tr>
+    <th>checkpoint</th><th class="num">step</th><th class="num">policy v</th><th class="num">tasks</th>
+    <th class="num">success</th><th class="num">avg turns</th><th class="num">invalid calls</th>
+    <th class="num">gen tokens/task</th><th class="num">rollout tok/s</th>
+  </tr></thead>
+  <tbody>
+  {% for row in comparison %}
+    <tr>
+      <td>{{ row.label }}</td>
+      <td class="num">{{ row.global_step }}</td>
+      <td class="num">{{ row.policy_version }}</td>
+      <td class="num">{{ row.tasks }}</td>
+      <td class="num">{{ pct(row.success_rate) }}</td>
+      <td class="num">{{ num(row.avg_turns, 2) }}</td>
+      <td class="num">{{ pct(row.invalid_tool_call_rate) }}</td>
+      <td class="num">{{ num(row.generated_tokens_per_task, 1) }}</td>
+      <td class="num">{{ num(row.rollout_tokens_per_second, 1) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="muted">Both rows use greedy decoding (temperature 0) on the same held-out
+<code>{{ manifest.environment.split_sizes.eval if manifest.environment else "?" }}</code>-task
+eval split with the same seed, so the difference is the policy and nothing else.</p>
+{% else %}
+<p class="muted">No evaluation was recorded for this run.</p>
+{% endif %}
+
+{% if benchmark %}
+<h2>Matched-budget benchmark</h2>
+<p class="muted">Every arm starts from the same cold-start checkpoint and receives the
+same number of optimizer steps. Controlled quantities are listed under the table.</p>
+<div class="tablewrap">
+<table>
+  <thead><tr>
+    <th>arm</th><th>mode</th><th class="num">steps</th><th class="num">success</th>
+    <th class="num">avg turns</th><th class="num">gen tokens/task</th>
+    <th class="num">selected tokens</th><th class="num">cache MiB</th><th class="num">seconds</th>
+  </tr></thead>
+  <tbody>
+  {% for arm in benchmark.arms %}
+    <tr>
+      <td>{{ arm.name }}</td>
+      <td>{{ arm.mode }}</td>
+      <td class="num">{{ arm.optimizer_steps }}</td>
+      <td class="num">{{ pct(arm.success_rate) }}</td>
+      <td class="num">{{ num(arm.avg_turns, 2) }}</td>
+      <td class="num">{{ num(arm.generated_tokens_per_task, 1) }}</td>
+      <td class="num">{{ arm.selected_training_tokens }}</td>
+      <td class="num">{{ num(arm.cache_bytes / 1048576.0, 2) if arm.cache_bytes else "-" }}</td>
+      <td class="num">{{ num(arm.seconds, 1) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<pre>{{ benchmark_controls }}</pre>
+{% endif %}
+
+<h2>Training curves</h2>
+<h3>Objective</h3>
+{{ loss_chart | safe }}
+{% if eval_chart %}
+<h3>Task success rate</h3>
+{{ eval_chart | safe }}
+{% endif %}
+
+<h2>Throughput and memory</h2>
+<div class="tablewrap">
+<table>
+  <tbody>
+    <tr><th>optimizer steps</th><td class="num">{{ throughput.optimizer_steps }}</td></tr>
+    <tr><th>wall clock</th><td class="num">{{ num(throughput.wall_clock_seconds, 2) }} s</td></tr>
+    <tr><th>rollout tokens/s (mean)</th><td class="num">{{ num(throughput.rollout_tokens_per_second_mean, 1) }}</td></tr>
+    <tr><th>training selected tokens/s (mean)</th><td class="num">{{ num(throughput.train_selected_tokens_per_second_mean, 1) }}</td></tr>
+    <tr><th>peak CUDA allocated</th><td class="num">{{ mem(throughput.peak_allocated_gib) }}</td></tr>
+    <tr><th>peak CUDA reserved</th><td class="num">{{ mem(throughput.peak_reserved_gib) }}</td></tr>
+  </tbody>
+</table>
+</div>
+{% if not throughput.cuda_available %}
+<div class="note">No CUDA device was visible during this run, so the two memory rows are
+<strong>not measured</strong> rather than zero. They are reported as
+<code>n/a (no CUDA)</code>.</div>
+{% endif %}
+
+<h2>Teacher-target cache</h2>
+{% if cache %}
+{% if cache.error %}
+<p class="badge warn">cache could not be read: {{ cache.error }}</p>
+{% else %}
+<div class="tablewrap">
+<table>
+  <tbody>
+    <tr><th>trajectories</th><td class="num">{{ cache.trajectories }}</td></tr>
+    <tr><th>selected positions</th><td class="num">{{ cache.selected_positions }}</td></tr>
+    <tr><th>top-k</th><td class="num">{{ cache.top_k }} of {{ cache.vocab_size }}</td></tr>
+    <tr><th>on disk</th><td class="num">{{ bytes_h(cache.actual_bytes) }}</td></tr>
+    <tr><th>dense fp16 reference</th><td class="num">{{ bytes_h(cache.theoretical_full_logit_bytes) }}</td></tr>
+    <tr><th>compression</th><td class="num">{{ num(cache.compression_ratio, 1) }}&times;</td></tr>
+    <tr><th>bytes per selected position</th><td class="num">{{ num(cache.bytes_per_selected_position, 1) }}</td></tr>
+    <tr><th>policy versions present</th><td class="num">{{ cache.policy_versions }}</td></tr>
+    <tr><th>checksum problems</th><td class="num">{{ cache.problems | length }}</td></tr>
+  </tbody>
+</table>
+</div>
+<p class="muted">The reference is a dense <code>[selected positions &times; vocab]</code> fp16 logit
+dump &mdash; the honest baseline for a top-k cache. It is <em>not</em> the size of a full
+<code>[batch &times; seq_len &times; vocab]</code> dump, which would be larger.</p>
+{% endif %}
+{% else %}
+<p class="muted">This run wrote no teacher cache (SFT, or an exact resident teacher whose
+full-vocabulary targets are rebuilt per chunk instead of stored).</p>
+{% endif %}
+
+<h2>Selected-token distribution</h2>
+{{ selection_chart | safe }}
+<p class="muted">Only <code>assistant_*</code> spans can ever appear here. System, user and
+<code>tool_result</code> tokens are context and are excluded from the loss by construction.</p>
+
+<h2>Failure taxonomy</h2>
+{{ failure_chart | safe }}
+<h3>Termination reasons</h3>
+{{ termination_chart | safe }}
+
+<h2>Trajectories</h2>
+<div class="legend-key">
+  <span>colour intensity = per-token divergence</span>
+  <span class="tok tok-call" style="--i:0.75">tool call</span>
+  <span class="tok tok-final" style="--i:0.75">final answer</span>
+  <span class="tok tok-text" style="--i:0.75">other assistant text</span>
+  <span class="tok tok-mismatch" style="--i:0">teacher/student argmax differ</span>
+</div>
+{% for view in data.trajectories %}
+<details>
+  <summary>
+    {{ view.trajectory_id }}
+    {% if view.solved is not none %}
+      {% if view.solved %}<span class="badge ok">solved</span>{% else %}<span class="badge warn">{{ view.failure_category or "unsolved" }}</span>{% endif %}
+    {% endif %}
+    <span class="muted">&middot; {{ view.termination_reason }} &middot; {{ view.turns }} turns &middot;
+    {{ view.tokens }} tokens ({{ view.model_tokens }} model, {{ view.critical_tokens }} critical)</span>
+  </summary>
+  {% if view.expected is not none %}
+  <p class="mono">expected <code>{{ view.expected }}</code> &middot; predicted <code>{{ view.predicted }}</code></p>
+  {% endif %}
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>span</th><th class="num">range</th><th class="num">tokens</th><th>in loss</th><th>text</th></tr></thead>
+    <tbody>
+    {% for span in view.spans %}
+      <tr>
+        <td>{{ span.span_type }}</td>
+        <td class="num">[{{ span.start }}, {{ span.end }})</td>
+        <td class="num">{{ span.tokens }}</td>
+        <td>{% if span.model_generated %}<span class="badge ok">yes</span>{% else %}<span class="badge">no (context)</span>{% endif %}</td>
+        <td><pre style="margin:0; max-height: 160px">{{ span.text }}</pre></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if token_views.get(view.trajectory_id) %}
+  <h3>Token-level teacher/student divergence</h3>
+  {{ token_views[view.trajectory_id] | safe }}
+  {% endif %}
+</details>
+{% endfor %}
+{% if not data.trajectories %}<p class="muted">No trajectories were stored.</p>{% endif %}
+
+<h2>Hardware and software</h2>
+<div class="tablewrap">
+<table>
+  <tbody>
+    {% for key, value in manifest_rows %}
+    <tr><th>{{ key }}</th><td class="mono">{{ value }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<h2>Resolved configuration</h2>
+<details><summary>config.resolved.yaml</summary><pre>{{ data.resolved_config }}</pre></details>
+<details><summary>config.original.yaml</summary><pre>{{ data.original_config }}</pre></details>
+
+<h2>Events</h2>
+<div class="tablewrap">
+<table>
+  <thead><tr><th>time</th><th>event</th><th>detail</th></tr></thead>
+  <tbody>
+  {% for event in data.events %}
+    <tr><td class="mono">{{ event.ts }}</td><td>{{ event.event }}</td>
+        <td class="mono">{{ event_detail(event) }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+<footer>
+Generated by miniVERL {{ version }} from <code>{{ data.run_dir }}</code>.
+This report is self-contained: no scripts, no external requests, no fonts to fetch.
+Every number above was read from the run's own artifacts; nothing is simulated.
+</footer>
+
+</main>
+</body>
+</html>

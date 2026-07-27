@@ -1,0 +1,130 @@
+# miniVERL toy recipe: genuine on-policy distillation on a CPU, no network.
+#
+# Everything here is local:
+#   * the tokenizer is miniVERL's ~190-entry reversible toy tokenizer,
+#   * both models are ~170k-parameter transformers built from this file,
+#   * the calculator environment generates and verifies its own tasks.
+#
+# The pipeline is the real one -- student rollouts with tool execution, teacher
+# scoring of exactly those states, compressed top-k targets written to a
+# provenance-checked cache, and a masked reverse-KL update on assistant tokens
+# only. It just runs in seconds instead of hours.
+#
+#   miniverl validate recipes/toy_cpu.yaml
+#   miniverl train    recipes/toy_cpu.yaml
+
+schema_version: 1
+
+run:
+  name: toy-cpu-opd
+  mode: opd                 # sft | offline_kd | opd
+  seed: 1234
+  output_dir: runs
+  deterministic: true
+  notes: CPU-only smoke recipe. No downloads, no CUDA, no network.
+
+models:
+  backend: toy
+  device: cpu
+  student:
+    model_id: toy-student
+    dtype: float32
+    quantization: none
+    lora:
+      enabled: false        # the toy model is trained in full; it is tiny
+    toy:
+      hidden_size: 96
+      num_layers: 3
+      num_heads: 4
+      intermediate_size: 192
+      max_position_embeddings: 1024
+  teacher:
+    model_id: toy-teacher
+    dtype: float32
+    mode: standard          # standard | privileged_context
+    toy_teacher_seed: 99
+    # The toy teacher is fitted on oracle traces before it supervises anything.
+    # A randomly initialized teacher would be a uniform-noise oracle.
+    # Measured on this environment: 48 oracle traces memorize (train loss 6e-4)
+    # and generalize at 25%; 256 traces reach 87.5%. Copying operands out of the
+    # prompt only emerges with task diversity.
+    toy_pretrain_steps: 800
+    toy_pretrain_lr: 0.003
+    toy:
+      hidden_size: 160
+      num_layers: 4
+      num_heads: 4
+      intermediate_size: 320
+      max_position_embeddings: 1024
+
+environment:
+  name: calculator
+  difficulty: easy
+  params:
+    prompt_style: compact   # the toy tokenizer is near-character-level
+  train_tasks: 256
+  eval_tasks: 24
+  test_tasks: 24
+  split_seed: 7
+
+rollout:
+  max_turns: 3
+  max_new_tokens_per_turn: 40
+  max_total_tokens: 512
+  temperature: 1.0
+  top_p: 1.0
+  max_parse_errors: 2
+  max_repeated_calls: 2
+
+selection:
+  selector: all_model_tokens   # all_model_tokens | tool_and_final | uniform_ratio | hybrid
+  critical_weight: 1.0
+  other_weight: 1.0
+
+loss:
+  mode: bucketed_topk_tail     # bucketed_topk_tail | exact_full_vocab
+  divergence: reverse_kl       # forward_kl | reverse_kl | jsd
+  temperature: 1.0
+  scale_by_temperature_squared: true
+  top_k: 16
+  tail_epsilon: 1.0e-9
+  chunk_size: 128
+  ce_weight: 0.0
+
+train:
+  cycles: 60
+  rollouts_per_cycle: 8
+  # One optimizer step per rollout batch keeps every update strictly on-policy.
+  gradient_accumulation_steps: 8
+  learning_rate: 0.003
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  lr_schedule: cosine
+  optimizer: adamw
+  sft_warmup_cycles: 250       # oracle cold start, then on-policy distillation
+  save_every_cycles: 0
+  eval_every_cycles: 20
+
+memory:
+  strategy: resident           # resident | swap | auto
+  oom_retries: 2
+  min_chunk_size: 8
+
+cache:
+  entries_per_shard: 16
+  strict_policy_version: true
+  reuse_across_policy_versions: false
+  dtype: float32
+  keep_cycles: 2
+
+eval:
+  enabled: true
+  split: eval
+  tasks: null                  # null -> environment.eval_tasks
+  temperature: 0.0             # greedy: evaluation is reproducible token for token
+  seed: 0
+
+report:
+  enabled: true
+  max_trajectories: 4
+  max_tokens_per_trajectory: 240

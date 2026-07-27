@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.python-version
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# miniVERL run artifacts (never commit weights, caches or checkpoints)
+runs/
+!runs/.gitkeep
+*.safetensors
+*.bin
+*.pt
+*.ckpt
+*.sqlite
+*.db
+teacher-cache/
+checkpoints/
+
+# Local model / dataset caches
+.hf-cache/
+hf_cache/
+models/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Allow committed benchmark result JSON (small, schema-validated)
+!benchmarks/results/*.json

@@ -1,0 +1,164 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "miniverl"
+dynamic = ["version"]
+description = "On-policy distillation for tool-using agents on one GPU."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Daoyuan Li", email = "lidaoyuan2816@gmail.com" }]
+keywords = [
+  "llm",
+  "on-policy-distillation",
+  "knowledge-distillation",
+  "agentic-rl",
+  "tool-use",
+  "qlora",
+  "consumer-gpu",
+  "post-training",
+  "qwen",
+  "llm-agents",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+  "typer>=0.12",
+  "rich>=13.7",
+  "pydantic>=2.7",
+  "pyyaml>=6.0",
+  "jinja2>=3.1",
+  "platformdirs>=4.2",
+  "safetensors>=0.4.3",
+]
+
+[project.optional-dependencies]
+train = [
+  "torch>=2.3",
+  "transformers>=4.44",
+  "peft>=0.12",
+  "accelerate>=0.33",
+  "numpy>=1.24",
+]
+cuda = ["bitsandbytes>=0.43; platform_system != 'Darwin'"]
+dev = [
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+  "hypothesis>=6.100",
+  "ruff>=0.6",
+  "mypy>=1.11",
+  "types-PyYAML>=6.0",
+  "build>=1.2",
+  "twine>=5.1",
+]
+
+[project.scripts]
+miniverl = "miniverl.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/DaoyuanLi2816/mini-verl"
+Issues = "https://github.com/DaoyuanLi2816/mini-verl/issues"
+Repository = "https://github.com/DaoyuanLi2816/mini-verl"
+Changelog = "https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/miniverl/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/miniverl"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/src/miniverl",
+  "/tests",
+  "/recipes",
+  "/examples",
+  "/benchmarks",
+  "/docs",
+  "/README.md",
+  "/README.zh-CN.md",
+  "/CHANGELOG.md",
+  "/LICENSE",
+  "/THIRD_PARTY_NOTICES.md",
+  "/CITATION.cff",
+  "/pyproject.toml",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".venv", "runs", "dist", "build"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "B", "UP", "C4", "SIM", "RUF", "ARG", "PTH"]
+ignore = [
+  "E501",   # long lines are handled by the formatter where reasonable
+  "B008",   # typer Option(...) defaults in signatures are intentional
+  "RUF001", # ambiguous unicode is intentional in the zh-CN docs / box drawing
+  "RUF002",
+  "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B018", "ARG001", "ARG002", "ARG005", "PTH"]
+"scripts/*" = ["PTH"]
+"src/miniverl/cli.py" = ["ARG001"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["miniverl"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:pkg_resources.*"]
+markers = [
+  "gpu: requires a CUDA GPU (deselected in CPU CI)",
+  "torch: requires the [train] extra (torch/transformers/peft)",
+  "network: requires network access (deselected in CI)",
+  "slow: takes more than a few seconds",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["miniverl"]
+omit = ["*/miniverl/reporting/templates/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "@overload",
+  "raise AssertionError",
+]
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+python_version = "3.10"
+files = ["src/miniverl"]
+strict = false
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unused_ignores = false
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["miniverl.reporting.*"]
+disallow_untyped_defs = true
