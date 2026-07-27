@@ -179,6 +179,10 @@ class OPDTrainer:
         self._cache: TeacherCache | None = None
         self._offline_samples: list[TrainSample] | None = None
         self._teacher_on_device = teacher is not None and plan.strategy is MemoryStrategy.RESIDENT
+        #: First cycle `train()` will execute. Set by `load_from_checkpoint` so a
+        #: resumed run continues instead of redoing completed cycles.
+        self._start_cycle = 0
+        self._resumed = False
 
     # -- construction --------------------------------------------------------
 
@@ -206,6 +210,26 @@ class OPDTrainer:
         evaluator uses it so re-evaluating a run cannot destroy the provenance of
         the run being evaluated.
         """
+        # bitsandbytes 4-bit parameters are pinned to the device they were
+        # quantized on, so a quantized model cannot be moved off the GPU and
+        # back. `swap` is therefore only available for unquantized pairs.
+        quantized = (
+            config.models.student.quantization is not Quantization.NONE
+            or config.models.teacher.quantization is not Quantization.NONE
+        )
+        memory_config = config.memory
+        if quantized and memory_config.strategy is MemoryStrategy.SWAP:
+            raise ConfigError(
+                "memory.strategy=swap cannot be used with a quantized model: "
+                "bitsandbytes 4-bit/8-bit parameters are pinned to the device they "
+                "were quantized on and cannot be moved to host memory and back.",
+                hint="use memory.strategy: resident (a 0.6B QLoRA student plus a bf16 "
+                "1.7B teacher fits in 16 GB), or set both quantization fields to "
+                "'none' if you really need swap",
+            )
+        if quantized and memory_config.strategy is MemoryStrategy.AUTO:
+            memory_config = memory_config.model_copy(update={"strategy": MemoryStrategy.RESIDENT})
+
         seed_everything(config.run.seed, deterministic=config.run.deterministic)
         resolved_id = make_run_id(config.run.name, explicit=run_id or config.run.run_id)
         paths = RunPaths.create(output_dir or config.run.output_dir, resolved_id)
@@ -236,26 +260,6 @@ class OPDTrainer:
         device = resolve_device(config.models)
         tokenizer = build_tokenizer(config, local_files_only=local_files_only)
         student = build_student(config, tokenizer, device=device, local_files_only=local_files_only)
-
-        # bitsandbytes 4-bit parameters are pinned to the device they were
-        # quantized on, so a quantized model cannot be moved off the GPU and
-        # back. `swap` is therefore only available for unquantized pairs.
-        quantized = (
-            config.models.student.quantization is not Quantization.NONE
-            or config.models.teacher.quantization is not Quantization.NONE
-        )
-        memory_config = config.memory
-        if quantized and memory_config.strategy is MemoryStrategy.SWAP:
-            raise ConfigError(
-                "memory.strategy=swap cannot be used with a quantized model: "
-                "bitsandbytes 4-bit/8-bit parameters are pinned to the device they "
-                "were quantized on and cannot be moved to host memory and back.",
-                hint="use memory.strategy: resident (a 0.6B QLoRA student plus a bf16 "
-                "1.7B teacher fits in 16 GB), or set both quantization fields to "
-                "'none' if you really need swap",
-            )
-        if quantized and memory_config.strategy is MemoryStrategy.AUTO:
-            memory_config = memory_config.model_copy(update={"strategy": MemoryStrategy.RESIDENT})
 
         teacher = None
         plan = resolve_strategy(memory_config, device=device, chunk_size=config.loss.chunk_size)
@@ -449,15 +453,20 @@ class OPDTrainer:
             if targets:
                 batches.append((traj.token_ids, targets))
         started = time.perf_counter()
-        losses = fit_toy_model(
-            self.teacher,
-            batches,
-            steps=config.models.teacher.toy_pretrain_steps,
-            lr=config.models.teacher.toy_pretrain_lr,
-            seed=config.models.teacher.toy_teacher_seed,
-            chunk_size=self.plan.chunk_size,
-            batch_size=config.train.gradient_accumulation_steps,
-        )
+        # fork_rng: fit_toy_model calls torch.manual_seed, which would otherwise
+        # clobber the RNG stream the rollouts (and a restored checkpoint) depend on.
+        import torch
+
+        with torch.random.fork_rng(devices=[]):
+            losses = fit_toy_model(
+                self.teacher,
+                batches,
+                steps=config.models.teacher.toy_pretrain_steps,
+                lr=config.models.teacher.toy_pretrain_lr,
+                seed=config.models.teacher.toy_teacher_seed,
+                chunk_size=self.plan.chunk_size,
+                batch_size=config.train.gradient_accumulation_steps,
+            )
         for param in self.teacher.model.parameters():
             param.requires_grad_(False)
         self.teacher.set_train(False)
@@ -761,14 +770,24 @@ class OPDTrainer:
         self._prepare_toy_teacher()
 
         baseline = None
-        if config.eval.enabled:
-            baseline = self.evaluate(tag="baseline")
-
-        if config.train.sft_warmup_cycles > 0 and config.run.mode is not TrainingMode.SFT:
-            self._run_sft_warmup(config.train.sft_warmup_cycles)
+        if self._resumed:
+            # A resumed run must not repeat the cold start or re-measure a
+            # "baseline" that no longer describes an untrained policy.
+            self.events.emit(
+                "resumed",
+                start_cycle=self._start_cycle,
+                global_step=self.global_step,
+                policy_version=self.policy_version,
+                note="skipping the baseline evaluation and the SFT cold start",
+            )
+        else:
+            if config.eval.enabled:
+                baseline = self.evaluate(tag="baseline")
+            if config.train.sft_warmup_cycles > 0 and config.run.mode is not TrainingMode.SFT:
+                self._run_sft_warmup(config.train.sft_warmup_cycles)
 
         last_records: list[dict[str, Any]] = []
-        for cycle in range(config.train.cycles):
+        for cycle in range(self._start_cycle, config.train.cycles):
             self.cycle = cycle
             last_records = self._run_cycle()
             if (
@@ -883,6 +902,22 @@ class OPDTrainer:
             )
             if mode is TrainingMode.OFFLINE_KD:
                 self._offline_samples = samples
+
+        if not samples:
+            # A selector can legitimately find nothing -- `tool_and_final` on a
+            # policy that has not yet learned to emit a tool call, for instance.
+            # Say so instead of reporting a cycle that quietly did no work.
+            self.events.emit(
+                "cycle_skipped_no_selected_positions",
+                cycle=self.cycle,
+                policy_version=self.policy_version,
+                selector=config.selection.selector.value,
+                trajectories=stats.rollouts,
+                note=(
+                    "no trajectory contained a token this selector would supervise, so "
+                    "the cycle performed zero optimizer steps"
+                ),
+            )
 
         records = self._optimize(samples, phase=config.run.mode.value)
         if config.report.enabled and self.cycle == config.train.cycles - 1:
@@ -1135,6 +1170,9 @@ class OPDTrainer:
         self.policy_version = state.policy_version
         self.cycle = state.cycle
         self.task_cursor = state.task_cursor
+        # `state.cycle` is the last cycle that ran, so resume at the next one.
+        self._start_cycle = max(state.cycle + 1, 0)
+        self._resumed = True
         if state.scheduler:
             self.schedule = LearningRateSchedule.from_state_dict(state.scheduler)
         self.events.emit("checkpoint_loaded", path=str(directory), step=self.global_step)
