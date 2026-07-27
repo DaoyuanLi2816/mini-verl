@@ -24,7 +24,7 @@ jobs:
     runs-on: [self-hosted, cuda]
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Environment
         run: |
