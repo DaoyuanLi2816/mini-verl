@@ -70,17 +70,16 @@ Exact-resident teacher targets are also **not cacheable**: the scorer returns
 `cacheable=None` for that shape, so no teacher cache is written and
 `miniverl cache stats` has nothing to report.
 
-### The bucketed divergence is a lower bound, not the KL you want
+### The unfloored bucketed divergence is a lower bound, not the KL you want
 
 `bucketed_topk_tail` coarse-grains both distributions into `K + 1` categories:
 one per teacher top-k token, plus a single bucket holding all remaining mass. By
-the data-processing inequality, the divergence between the coarse-grained
-distributions is **less than or equal to** the full-vocabulary divergence.
-Coarse-graining can only destroy information. `tests/unit/test_losses_bucketed.py`
-asserts this direction explicitly
-(`test_bucketed_lower_bounds_exact`, for `k` in `{1, 2, 8, 32}` and all three
-divergences) and asserts that equality is reached only when `k == V`
-(`test_full_k_converges_to_the_exact_loss`).
+the data-processing inequality, the divergence between the unsmoothed
+coarse-grained distributions is **less than or equal to** the full-vocabulary
+divergence. The implementation floors non-empty tails and renormalizes them;
+that epsilon-smoothed objective is close but not covered by the theorem.
+Property tests exercise the shipped objective over generated inputs, while the
+`k == V` identity path bypasses smoothing and reproduces the exact objective.
 
 Consequences you should not paper over:
 
@@ -108,10 +107,10 @@ the bucketed divergence either. More importantly, the reverse-KL penalty for
 student mass outside the teacher's top-k is capped at `log(1 / tail_epsilon)`
 nats, which at the default is about 20.7 nats rather than infinity
 (`test_reverse_kl_tail_penalty_is_bounded_by_log_one_over_epsilon`). At the
-default that bound is not the binding one: `NEG_CLAMP` inside `log1mexp`
-already floors the teacher tail at `1e-7`, so the effective cap is the tighter
-`log(1e7)`, about 16.1 nats. [math.md](math.md#54-the-bound-the-floor-buys)
-derives and measures both. Raising
+default that bound is not the binding one: the dtype-aware clamp inside
+`log1mexp` floors a float32 teacher tail near
+`torch.finfo(torch.float32).eps`, so the effective cap is about 15.94 nats.
+[math.md](math.md#54-the-bound-the-floor-buys) derives and measures both. Raising
 `tail_epsilon` weakens that penalty further; lowering it makes the gradient
 sharper and the loss noisier. Treat it as a hyperparameter of the objective, not
 as a numerical detail.
@@ -134,11 +133,12 @@ Two things follow:
   trajectories are as expensive per token as long ones.
 
 If you set `gradient_accumulation_steps < rollouts_per_cycle` in `opd` mode,
-`miniverl validate` warns that only the first optimizer step of each rollout
-batch is strictly on-policy; the later steps consume trajectories sampled from a
-policy that has already been updated. The shipped 16 GB recipe sets
-`gradient_accumulation_steps: 6` equal to `rollouts_per_cycle: 6` for that
-reason.
+the default `train.opd_freshness: strict` rejects the config: later optimizer
+steps would consume trajectories sampled from a policy that has already been
+updated. Explicit `opd_freshness: replay` allows the schedule but labels it
+`online_distillation_with_replay` and records the rollout policy version. The
+shipped 16 GB recipe sets `gradient_accumulation_steps: 6` equal to
+`rollouts_per_cycle: 6` for strict freshness.
 
 ### `swap` is unavailable whenever anything is quantized
 
@@ -208,33 +208,38 @@ divergence and the optimizer step all function together on a consumer card. It
 does not show that on-policy distillation beat SFT, and no arm of it was
 designed to test that.
 
-### On the one task where OPD *was* tested fairly, it lost
+### Protocol alignment prevents collapse but does not beat SFT
 
-The matched-budget comparison on the non-saturating `hard` split is the only
-experiment in this repository designed to answer "does on-policy distillation
-help?", and its answer was no:
+The primary schema-v2 comparison uses an explicit equal-optimizer-update axis,
+two prespecified seeds and the `hard` split:
 
-| arm | steps | held-out success |
-| --- | --- | --- |
-| cold-start-only | 0 | 62.5% |
-| sft-continued | 12 | 100.0% |
-| opd-bucketed-k64 | 12 | 0.0% |
-| opd-privileged-context | 12 | 0.0% |
+| arm | seed 1234 | seed 20260727 |
+| --- | ---: | ---: |
+| cold-start-only | 75.0% | 75.0% |
+| sft-continued | 100.0% | 100.0% |
+| opd-raw-teacher | 0.0% | 0.0% |
+| opd-privileged-context | 0.0% | 0.0% |
+| opd-protocol-sft-teacher | 100.0% | 100.0% |
 
-This is a single seed on a single task family with a single model pair, so it is
-not a general claim about the method -- but it is the strongest evidence this
-repository contains about its own headline feature, and it is negative. The
-transcript-level diagnosis is in
-[`rtx4080-baselines.md`](rtx4080-baselines.md#matched-budget-comparison). In
-short: the teacher was never trained on the tool protocol, so imitating it
-overwrites the protocol; and giving that teacher the answer teaches the student
-to skip the tool instead of using it.
+The protocol-trained teacher passed an independently prespecified competence
+gate before the OPD benchmark was inspected. Its arm eliminates the collapse
+seen with both protocol-naive teachers, supporting the legacy transcript
+diagnosis. It still only ties SFT. This repository therefore has evidence that
+teacher protocol competence matters for this setup, but no evidence that OPD
+outperforms verified supervised continuation.
+
+The [schema-v2 result](../benchmarks/results/gpu-calc-hard-equal-update-v2.json)
+contains both seeds and every arm's complete resolved-config diff. The preserved
+[legacy result and transcript diagnosis](rtx4080-baselines.md#legacy-equal-update-comparison-schema-v1)
+show how the raw teacher corrupted formatting while the privileged teacher
+learned to skip the tool.
 
 **What a reader should take from this.** Use miniVERL to run the experiment, not
 as evidence of a result. If your teacher is not already competent at your task's
 output format, expect on-policy distillation to degrade a cold-started policy,
-and measure it against a supervised arm at a matched budget before believing
-otherwise. `miniverl benchmark` exists to make that arm cheap to add.
+and measure it against a supervised arm on an explicitly declared comparison
+axis before believing otherwise. `miniverl benchmark` exists to make that arm
+cheap to add and to record quantities that cannot be matched by construction.
 
 The task family is also close to saturated. At `difficulty: medium` the
 calculator environment emits either a three-term arithmetic expression or a
@@ -244,13 +249,13 @@ cold start and the ceiling. Any comparison of objectives on this task will be
 measuring the wrong thing; use `difficulty: hard`, which adds four-term
 expressions and chained compute-then-convert tasks, or a different environment.
 
-### Single seed, single machine, single task family
+### Two seeds, one machine, one task family
 
-Every GPU number in this repository comes from one seed on one RTX 4080. The
-benchmark harness accepts a list of seeds and both `miniverl benchmark` and the
-generated Markdown print a `single seed -- no significance claimed` warning when
-only one is given, but the shipped results have not been repeated. No confidence
-interval, variance estimate or significance claim in this project is supported.
+The primary v0.2 GPU comparison repeats all five arms at two prespecified seeds;
+older GPU artifacts remain single-seed measurements. Every run used the same RTX
+4080 and calculator task family. Two identical outcomes are useful replication,
+not a confidence interval or significance test, and no claim in this project
+generalizes them to another task, model pair, budget or hardware platform.
 
 ### Throughput numbers are platform-specific and mostly measure kernel launches
 

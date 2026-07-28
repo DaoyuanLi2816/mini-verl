@@ -36,6 +36,7 @@ from miniverl.config.models import (
     LRSchedule,
     MemoryStrategy,
     ModelBackend,
+    OPDFreshness,
     OptimizerName,
     Precision,
     Quantization,
@@ -197,7 +198,7 @@ def test_toy_cpu_recipe_is_parsed_into_the_expected_typed_values() -> None:
     assert config.loss.top_k == 16
     assert config.loss.tail_epsilon == pytest.approx(1e-9)
     assert config.loss.chunk_size == 128
-    assert config.loss.ce_weight == pytest.approx(0.0)
+    assert config.loss.sampled_token_nll_weight == pytest.approx(0.0)
 
     assert config.train.cycles == raw["train"]["cycles"]
     assert config.train.rollouts_per_cycle == 8
@@ -464,7 +465,7 @@ def test_exact_full_vocab_accepts_a_recipe_that_omits_top_k() -> None:
 def test_sft_rejects_a_partial_ce_weight() -> None:
     _rejects(
         _payload(run={"mode": "sft"}, loss={"ce_weight": 0.5}),
-        "run.mode=sft trains with cross-entropy only; loss.ce_weight must be 0.0",
+        "run.mode=sft trains with oracle cross-entropy only",
     )
 
 
@@ -476,8 +477,39 @@ def test_sft_accepts_implicit_and_explicit_cross_entropy(ce_weight: float) -> No
 
 
 def test_a_partial_ce_weight_is_allowed_outside_sft() -> None:
-    config = RunConfig.from_mapping(_payload(loss={"ce_weight": 0.5}))
-    assert config.loss.ce_weight == pytest.approx(0.5)
+    _rejects(
+        _payload(loss={"ce_weight": 0.5}),
+        "loss.ce_weight is ambiguous in distillation modes",
+    )
+    config = RunConfig.from_mapping(_payload(loss={"sampled_token_nll_weight": 0.5}))
+    assert config.loss.sampled_token_nll_weight == pytest.approx(0.5)
+
+
+def test_strict_opd_rejects_two_updates_from_one_rollout_batch() -> None:
+    _rejects(
+        _payload(
+            train={
+                "rollouts_per_cycle": 8,
+                "gradient_accumulation_steps": 4,
+                "opd_freshness": "strict",
+            }
+        ),
+        "opd_freshness=strict requires exactly one optimizer step",
+    )
+
+
+def test_replay_is_explicit_and_never_on_policy() -> None:
+    config = RunConfig.from_mapping(
+        _payload(
+            train={
+                "rollouts_per_cycle": 8,
+                "gradient_accumulation_steps": 4,
+                "opd_freshness": "replay",
+            }
+        )
+    )
+    assert config.train.opd_freshness is OPDFreshness.REPLAY
+    assert config.is_on_policy is False
 
 
 def test_sft_rejects_an_sft_warmup() -> None:

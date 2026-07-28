@@ -45,6 +45,7 @@ EXPECTED_COMMANDS = {
     "benchmark",
     "inspect",
     "report",
+    "export-adapter",
     "export-benchmark",
     "schema",
     "cache stats",

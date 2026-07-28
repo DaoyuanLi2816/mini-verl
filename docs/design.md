@@ -358,7 +358,7 @@ chunked_selected_position_loss(
     weights=...,  # [N]
     provider=sample.teacher.provider,
     target_token_ids=...,  # [N]
-    ce_weight=config.loss.ce_weight,
+    ce_weight=config.loss.sampled_token_nll_weight,
     chunk_size=chunk,
     backward=True,
     loss_scale=1 / len(group),
@@ -438,13 +438,14 @@ The distinction is enforced by config validation, not documentation:
 `cache.reuse_across_policy_versions`, and `opd` is required to set
 `cache.strict_policy_version`.
 
-`train.gradient_accumulation_steps` deserves a warning that the trainer emits
-itself. miniVERL runs one trajectory per forward pass, so that value *is* the
-effective batch size and `ceil(rollouts_per_cycle / it)` is the number of
-optimizer steps per cycle. If OPD would run more than one optimizer step per
-rollout batch, `train()` emits an `opd_multi_update_warning` event saying that
-steps after the first are only approximately on-policy, and `miniverl validate`
-prints the same warning before the run starts.
+miniVERL runs one trajectory per forward pass, so
+`train.gradient_accumulation_steps` *is* the effective batch size and
+`ceil(rollouts_per_cycle / it)` is the number of optimizer steps per cycle.
+With the default `train.opd_freshness: strict`, validation rejects any OPD
+configuration that would take more than one optimizer step from one freshly
+sampled rollout batch. Setting `opd_freshness: replay` permits that schedule,
+records the rollout policy version on each step and labels the objective
+`online_distillation_with_replay`, never genuine on-policy distillation.
 
 ### 4.1 The cold start does more than the OPD phase, and the run says so
 
@@ -547,9 +548,8 @@ Measured from `events.jsonl` of the run above and from the emit sites in
 `training/trainer.py`: `run_start`, `toy_teacher_fitted`, `resumed`,
 `sft_warmup_start`, `sft_warmup_cycle`, `rollouts_collected`,
 `offline_kd_reuse`, `cycle_skipped_no_selected_positions`, `oom_chunk_retry`,
-`opd_multi_update_warning`, `cache_pruned`, `token_analysis_written`, `eval`,
-`checkpoint_saved`, `checkpoint_loaded`, `benchmark_cold_start_loaded`,
-`run_end`.
+`cache_pruned`, `token_analysis_written`, `eval`, `checkpoint_saved`,
+`checkpoint_loaded`, `benchmark_cold_start_loaded`, `run_end`.
 
 `cycle_skipped_no_selected_positions` exists because a selector can legitimately
 find nothing — `tool_and_final` on a policy that has not yet learned to emit a

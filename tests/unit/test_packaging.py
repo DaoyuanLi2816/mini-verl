@@ -10,12 +10,14 @@ impossible to reintroduce without a red test.
 from __future__ import annotations
 
 import getpass
+import hashlib
 import importlib
 import json
 import pkgutil
 import subprocess
 import sys
 import textwrap
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -178,6 +180,19 @@ def test_version_is_a_release_string() -> None:
     assert re.fullmatch(r"\d+\.\d+\.\d+([.-]\w+)?", miniverl.__version__), miniverl.__version__
 
 
+def test_github_actions_use_full_commit_shas() -> None:
+    """A 39-character near-SHA looks pinned but GitHub refuses the workflow."""
+    import re
+
+    for path in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            match = re.search(r"\buses:\s+[^@\s]+@([^\s#]+)", line)
+            if match:
+                assert re.fullmatch(r"[0-9a-f]{40}", match.group(1)), (
+                    f"{path.name}:{number} action ref is not a full commit SHA: {match.group(1)}"
+                )
+
+
 def test_every_published_benchmark_result_validates_against_the_schema():
     """A schema nobody runs is a schema that drifts.
 
@@ -215,6 +230,38 @@ def test_published_benchmark_results_carry_no_personal_information():
         blob = path.read_text(encoding="utf-8").lower().replace("\\\\", "/").replace("\\", "/")
         for needle in forbidden:
             assert needle not in blob, f"{path.name} leaks {needle!r}"
+
+
+def test_published_gpu_visualization_matches_its_source_result():
+    """The checked-in SVG must remain parseable and tied to the JSON it summarizes."""
+    json_path = REPO_ROOT / "benchmarks" / "results" / "gpu-calc-hard-equal-update-v2.json"
+    svg_path = REPO_ROOT / "docs" / "gpu-calc-hard-equal-update-v2.svg"
+    document = json.loads(json_path.read_text(encoding="utf-8"))
+    root = ET.parse(svg_path).getroot()
+    namespace = {"svg": "http://www.w3.org/2000/svg"}
+    groups = {
+        group.attrib["data-arm"]: group
+        for group in root.findall("svg:g", namespace)
+        if "data-arm" in group.attrib
+    }
+
+    expected_names = {arm["name"] for arm in document["arms"]}
+    assert set(groups) == expected_names
+    for name in expected_names:
+        arms = [arm for arm in document["arms"] if arm["name"] == name]
+        success_mean = sum(arm["strict_task_success_rate"] for arm in arms) / len(arms)
+        train_mean = sum(arm["train_seconds"] for arm in arms) / len(arms)
+        assert float(groups[name].attrib["data-success-mean"]) == pytest.approx(
+            success_mean, abs=1e-6
+        )
+        assert float(groups[name].attrib["data-train-seconds-mean"]) == pytest.approx(
+            train_mean, abs=1e-6
+        )
+
+    digest = hashlib.sha256(json_path.read_bytes()).hexdigest()
+    visible_text = " ".join(text for text in root.itertext() if text)
+    assert f"Source JSON SHA-256 {digest[:16]}" in visible_text
+    assert "\ufffd" not in visible_text
 
 
 def test_the_committed_json_schema_matches_the_pydantic_model():

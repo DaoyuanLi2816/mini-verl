@@ -14,11 +14,13 @@
 **On-policy distillation for tool-using agents on one GPU.**
 
 miniVERL trains a small tool-using language model on its own multi-turn
-trajectories using dense teacher distributions, without requiring Ray, a GPU
+trajectories using teacher distributional targets, without requiring Ray, a GPU
 cluster, or a 40 GB accelerator.
 
 ```bash
-pip install "miniverl[train]"
+git clone https://github.com/DaoyuanLi2816/mini-verl.git
+cd mini-verl
+python -m pip install ".[train]"
 miniverl demo --output runs/demo        # no network, no GPU, ~50 s on a laptop CPU
 ```
 
@@ -35,17 +37,16 @@ task success from **0.0% to 100.0%** on 12 tasks.
 > artifacts recorded in [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md).
 
 > [!IMPORTANT]
-> **The matched-budget comparison that does test that question came out
-> negative.** On the non-saturating `hard` split, at an identical 12-step budget
-> from an identical cold start, supervised continuation reached **100.0%** while
-> on-policy distillation reached **0.0%** — with a protocol-naive teacher and
-> again with a privileged-context teacher. The failure is diagnosed down to the
-> decoded transcripts in
-> [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md#matched-budget-comparison);
-> the leading explanation is the teacher, which was never trained on the tool
-> protocol, and the experiment that would confirm it is specified but **not
-> run**. miniVERL is a correct and instrumented implementation of on-policy
-> distillation; it is not evidence that the method wins here.
+> **Protocol alignment prevents the observed OPD collapse, but does not beat
+> supervised fine-tuning here.** In the schema-v2 equal-update comparison on the
+> `hard` split, both prespecified seeds scored **75.0%** at the
+> shared cold start, **100.0%** after 12 SFT updates, **0.0%** after OPD from
+> either the raw or privileged teacher, and **100.0%** after OPD from the
+> protocol-trained teacher. The protocol teacher therefore resolves the main
+> confound in the legacy result and ties SFT; it does not establish an OPD
+> advantage. See the [full result and legacy transcript diagnosis](docs/rtx4080-baselines.md).
+
+![Two-seed protocol-teacher benchmark](docs/gpu-calc-hard-equal-update-v2.svg)
 
 ---
 
@@ -76,12 +77,13 @@ keeps the whole thing on one 16 GB card.
 | Student-sampled multi-turn rollouts with real tool execution | yes |
 | Strict per-token provenance (`system` / `user` / `assistant_*` / `tool_result`) | yes, validated on every read and write |
 | Exact full-vocabulary forward KL, reverse KL, beta-JSD | yes, checked against brute-force references |
-| Compressed `top-k + tail` KL and JSD | yes, with a proven lower-bound relationship to the exact loss |
+| Compressed `top-k + tail` KL and JSD | yes; the unsmoothed coarse-graining has a proven lower-bound relationship to the exact loss |
 | Privileged-context teacher with an explicit alignment map | yes |
+| Frozen standard PEFT teacher adapters with provenance and competence gates | yes |
 | QLoRA (NF4) student, bf16 or quantized teacher | yes, measured on an RTX 4080 |
 | `resident` and `swap` memory strategies, `auto` resolution | yes, with an equivalence test |
 | Versioned, checksummed, pickle-free teacher-target cache | yes |
-| SFT / offline KD / genuine OPD behind one trainer | yes |
+| SFT / offline KD / strict OPD / explicitly labeled replay behind one trainer | yes |
 | Calculator, JSON-navigation and SQLite environments | yes, deterministic with exact verifiers |
 | Exact checkpoint/resume | yes, asserted parameter-for-parameter |
 | Self-contained offline HTML report with token-level divergence | yes |
@@ -94,7 +96,7 @@ the config, the tokenizer is a reversible ~190-entry toy tokenizer, and the
 calculator environment generates and grades its own tasks.
 
 ```bash
-pip install "miniverl[train]"          # CPU torch is enough
+python -m pip install ".[train]"       # from the cloned repository; CPU torch is enough
 miniverl doctor                        # what can this machine run?
 miniverl demo --output runs/demo
 ```
@@ -155,8 +157,10 @@ numbers come from the GPU recipe.
 ## Consumer-GPU quickstart
 
 ```bash
-pip install "miniverl[train,cuda]"
-pip install torch --index-url https://download.pytorch.org/whl/cu130   # match your driver
+git clone https://github.com/DaoyuanLi2816/mini-verl.git
+cd mini-verl
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
+python -m pip install ".[train,cuda]"
 
 miniverl doctor                                                   # confirms CUDA + bitsandbytes
 miniverl validate recipes/qwen_consumer_gpu_calc.yaml
@@ -219,10 +223,13 @@ never silently try to persist a `[positions, 152k]` tensor.
 
 **`bucketed_topk_tail`** coarse-grains the vocabulary into the teacher's top-k
 tokens plus one aggregate tail bucket, then computes the divergence between the
-two `K+1` category distributions. This is **not** full-vocabulary KL. By the
-data-processing inequality it is a **lower bound** on the exact divergence, with
-equality when `k == V`; both facts are asserted by tests, the second to `1e-9` in
-float64. The functions are named `bucketed_forward_kl`, `bucketed_reverse_kl` and
+two `K+1` category distributions. This is **not** full-vocabulary KL. The
+data-processing lower-bound theorem applies to the unsmoothed coarse-graining;
+the finite implementation floors and renormalizes non-empty tails, so it is
+described as an epsilon-smoothed objective rather than claiming the theorem
+literally for every input. When `k == V`, the empty tail bypasses smoothing and
+the implementation reproduces the exact objective to `1e-9` in float64 tests.
+The functions are named `bucketed_forward_kl`, `bucketed_reverse_kl` and
 `bucketed_jsd` so that no call site can pretend otherwise.
 
 What the compression actually buys is teacher-side storage and the ability to
@@ -260,11 +267,11 @@ Every number below was produced by the commands in
 result file. Nothing is estimated or extrapolated.
 
 * **RTX 4080, real models** — [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)
-  has measured peak VRAM, decode throughput, the full-recipe run, and the
-  matched-budget comparison, plus the configurations that were tried and the ones
-  that were not run.
+  has measured peak VRAM, decode throughput, the full-recipe run, the two-seed
+  schema-v2 protocol-teacher comparison, and the preserved legacy comparison.
 * **CPU, toy models** — `recipes/toy_cpu.yaml` moves task success from 0.0% to
-  91.7% in 192 s, and `benchmarks/results/` holds the matched-budget parity run.
+  91.7% in 192 s, and `benchmarks/results/` holds the legacy equal-update parity
+  run.
   The parity run's accuracy differences are **within noise**; it exists to show
   that all seven arms run to completion under identical budgets, not to rank
   them. See [`benchmarks/README.md`](benchmarks/README.md) for why the toy
@@ -274,10 +281,10 @@ result file. Nothing is estimated or extrapolated.
 
 | Layer | Install | What you get |
 | --- | --- | --- |
-| Core | `pip install miniverl` | `doctor`, `validate`, `inspect`, `report`, `cache`, the schemas and the Python API. No torch. |
-| Training | `pip install "miniverl[train]"` | `demo`, `train`, `eval`, `benchmark`. Adds torch, transformers, peft, accelerate. |
-| 4-bit | `pip install "miniverl[cuda]"` | bitsandbytes, for NF4 QLoRA and the 8-bit optimizer. |
-| Development | `pip install "miniverl[dev]"` | pytest, hypothesis, ruff, mypy, build, twine. |
+| Core | `python -m pip install .` | `doctor`, `validate`, `inspect`, `report`, `cache`, the schemas and the Python API. No torch. |
+| Training | `python -m pip install ".[train]"` | `demo`, `train`, `eval`, `benchmark`. Adds torch, transformers, peft, accelerate. |
+| 4-bit | `python -m pip install ".[cuda]"` | bitsandbytes, for NF4 QLoRA and the 8-bit optimizer. |
+| Development | `python -m pip install ".[dev]"` | pytest, hypothesis, ruff, mypy, build, twine. |
 
 Install the CUDA build of torch that matches your driver separately; the PyPI
 wheel is CPU-only on some platforms:
@@ -343,18 +350,23 @@ Implement `TeacherScorer.score` and return supervision for the aligned positions
 `examples/custom_teacher/` shows a scorer that sharpens a local model's
 distribution before handing it over, and asserts that the result still trains.
 
+For a standard frozen PEFT teacher adapter, including the Qwen3 protocol-SFT
+recipe, export command, compatibility checks and policy-competence gate, see
+[`docs/teacher-adapters.md`](docs/teacher-adapters.md).
+
 ## Limitations
 
 The short version; the full list is in [`docs/limitations.md`](docs/limitations.md).
 
 * Same tokenizer only. Cross-tokenizer distillation is rejected with an error.
 * One trajectory per forward pass — `gradient_accumulation_steps` *is* the batch
-  size. No padded batching in v0.1.
+  size. The current release has no padded batching.
 * `swap` is unavailable for quantized models, because bitsandbytes parameters are
   pinned to the device they were quantized on.
 * Only Qwen3 and Qwen2 architectures are tested. Others may work through the
   architecture adapter; nothing here claims they do.
-* GPU results are single-seed. No statistical significance is claimed.
+* The primary GPU comparison has two prespecified seeds; legacy GPU artifacts
+  are single-seed. No statistical significance is claimed.
 * On the measured machine, decoding is kernel-launch bound rather than compute
   bound, so throughput figures are platform-specific.
 

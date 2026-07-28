@@ -114,6 +114,7 @@ class HFBackend(CausalLMBackend):
         gradient_checkpointing: bool,
         attn_implementation: str,
         lora: bool,
+        adapter_provenance: dict[str, Any] | None = None,
     ) -> None:
         self.model = model
         self.tokenizer = tokenizer
@@ -121,6 +122,7 @@ class HFBackend(CausalLMBackend):
         self.model_revision = model_revision
         self._device = device
         self._dtype = dtype
+        self.adapter_provenance = adapter_provenance
         self.adapter = ArchitectureAdapter.resolve(model)
         num_params = sum(p.numel() for p in model.parameters())
         num_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -155,6 +157,15 @@ class HFBackend(CausalLMBackend):
         transformers = require_transformers("Loading a Hugging Face causal LM")
         dtype = resolve_dtype(spec.dtype, device)
         quantization = spec.quantization
+        adapter_provenance = None
+        if isinstance(spec, TeacherModelConfig) and spec.adapter is not None:
+            from miniverl.models.adapter_io import validate_teacher_adapter
+
+            adapter_provenance = validate_teacher_adapter(
+                spec.adapter,
+                spec,
+                tokenizer_fingerprint=tokenizer.fingerprint,
+            )
         kwargs: dict[str, Any] = {
             "revision": spec.revision,
             "trust_remote_code": spec.trust_remote_code,
@@ -199,9 +210,26 @@ class HFBackend(CausalLMBackend):
                     enable_grads()
             model.train()
         else:
+            if isinstance(spec, TeacherModelConfig) and spec.adapter is not None:
+                peft = require_peft("Loading a frozen teacher adapter")
+                try:
+                    model = peft.PeftModel.from_pretrained(
+                        model,
+                        spec.adapter.path,
+                        revision=spec.adapter.revision,
+                        is_trainable=False,
+                    )
+                except (OSError, ValueError) as exc:
+                    raise BackendError(
+                        f"could not attach teacher adapter {spec.adapter.path!r}: {exc}",
+                        hint="verify the adapter/base pair and its PEFT target modules",
+                    ) from exc
+                lora_enabled = True
             for param in model.parameters():
                 param.requires_grad_(False)
             model.eval()
+            if any(param.requires_grad for param in model.parameters()):
+                raise BackendError("teacher adapter load left trainable teacher parameters")
 
         if getattr(model, "config", None) is not None:
             model.config.use_cache = not (trainable and gradient_checkpointing)
@@ -217,6 +245,7 @@ class HFBackend(CausalLMBackend):
             gradient_checkpointing=bool(gradient_checkpointing),
             attn_implementation=spec.attn_implementation,
             lora=lora_enabled,
+            adapter_provenance=adapter_provenance,
         )
 
     @staticmethod

@@ -109,6 +109,15 @@ class TeacherCache:
         self._pending: dict[str, dict[str, Any]] = {}
         self._pending_order: list[str] = []
         self._shard_counter = len(index.shards)
+        # Cumulative I/O accounting is intentionally independent of the current
+        # footprint: pruning may shrink ``total_bytes()`` but cannot un-write the
+        # shards that consumed bandwidth earlier in the run.
+        self._bytes_written_total = 0
+
+    @property
+    def bytes_written_total(self) -> int:
+        """Bytes written by this cache instance, including rewritten indexes."""
+        return self._bytes_written_total
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -283,6 +292,7 @@ class TeacherCache:
                 payload[f"{traj_id}|{key}"] = tensor
         save_file(payload, str(shard_path), metadata={"miniverl_cache_shard": shard_name})
         digest, size = sha256_file(shard_path)
+        self._bytes_written_total += size
         self.index.shards[shard_name] = CacheShardMeta(
             filename=shard_name,
             sha256=digest,
@@ -314,7 +324,11 @@ class TeacherCache:
 
     def _write_index(self) -> None:
         self.path.mkdir(parents=True, exist_ok=True)
-        write_text(self.path / _INDEX_NAME, canonical_json(self.index.model_dump(mode="json")))
+        index_path = write_text(
+            self.path / _INDEX_NAME,
+            canonical_json(self.index.model_dump(mode="json")),
+        )
+        self._bytes_written_total += index_path.stat().st_size
 
     # -- reading -----------------------------------------------------------
 

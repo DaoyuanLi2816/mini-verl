@@ -17,13 +17,15 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from miniverl.errors import ConfigError
 from miniverl.utils.runs import write_text
 
 __all__ = [
     "TrainingMode",
+    "OPDFreshness",
+    "AdapterSource",
     "ModelBackend",
     "Precision",
     "Quantization",
@@ -38,6 +40,7 @@ __all__ = [
     "LoRAConfig",
     "StudentModelConfig",
     "TeacherModelConfig",
+    "TeacherAdapterConfig",
     "ModelsConfig",
     "LossConfig",
     "SelectionConfig",
@@ -62,6 +65,20 @@ class TrainingMode(str, Enum):
     SFT = "sft"
     OFFLINE_KD = "offline_kd"
     OPD = "opd"
+
+
+class OPDFreshness(str, Enum):
+    """Whether each OPD update consumes a newly sampled rollout batch."""
+
+    STRICT = "strict"
+    REPLAY = "replay"
+
+
+class AdapterSource(str, Enum):
+    """Where a frozen PEFT teacher adapter is loaded from."""
+
+    LOCAL = "local"
+    HUB = "hub"
 
 
 class ModelBackend(str, Enum):
@@ -210,6 +227,32 @@ class StudentModelConfig(_Base):
         return self
 
 
+class TeacherAdapterConfig(_Base):
+    """Standard PEFT adapter applied to the frozen teacher base model."""
+
+    path: str = Field(min_length=1)
+    source: AdapterSource = AdapterSource.LOCAL
+    revision: str | None = None
+    base_model_revision: str | None = None
+    tokenizer_fingerprint: str | None = None
+    require_policy_evaluation: bool = False
+    minimum_strict_success_rate: float | None = Field(default=None, ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def _pin_hub_adapter(self) -> TeacherAdapterConfig:
+        if self.source is AdapterSource.HUB and not self.revision:
+            raise ValueError(
+                "a Hub teacher adapter must pin adapter.revision; moving adapter "
+                "branches are not reproducible"
+            )
+        if self.minimum_strict_success_rate is not None and not self.require_policy_evaluation:
+            raise ValueError(
+                "adapter.minimum_strict_success_rate requires "
+                "adapter.require_policy_evaluation=true"
+            )
+        return self
+
+
 class TeacherModelConfig(_Base):
     """The frozen scoring model."""
 
@@ -223,6 +266,7 @@ class TeacherModelConfig(_Base):
     mode: TeacherContextMode = TeacherContextMode.STANDARD
     toy: ToyModelConfig = Field(default_factory=ToyModelConfig)
     trust_remote_code: bool = False
+    adapter: TeacherAdapterConfig | None = None
     #: Deterministic perturbation used only by the ``toy`` backend so the toy
     #: teacher is a *different* distribution from the toy student.
     toy_teacher_seed: int = Field(default=99, ge=0)
@@ -235,7 +279,7 @@ class TeacherModelConfig(_Base):
 
 
 class ModelsConfig(_Base):
-    """Student/teacher pair.  v0.1 requires an identical tokenizer for both."""
+    """Student/teacher pair. The current implementation requires one tokenizer."""
 
     backend: ModelBackend = ModelBackend.TOY
     device: str = Field(default="auto", pattern="^(auto|cpu|cuda)$")
@@ -260,8 +304,19 @@ class LossConfig(_Base):
     #: explicitly overridden, because it materializes ``[chunk, vocab]`` fp32.
     exact_max_vocab: int = Field(default=8192, ge=1)
     allow_large_exact: bool = False
-    #: Cross-entropy weight for SFT-style next-token loss mixed into KD modes.
-    ce_weight: float = Field(default=0.0, ge=0.0, le=1.0)
+    #: NLL on the token sampled by the student in the current trajectory. This is
+    #: deliberately not called supervised CE: the target is not an oracle token.
+    sampled_token_nll_weight: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        validation_alias=AliasChoices("sampled_token_nll_weight", "ce_weight"),
+    )
+
+    @property
+    def ce_weight(self) -> float:
+        """Compatibility accessor for v0.1 callers; new configs use the explicit name."""
+        return self.sampled_token_nll_weight
 
 
 class SelectionConfig(_Base):
@@ -329,10 +384,14 @@ class TrainConfig(_Base):
     #: The benchmark harness uses it for a pure cold-start arm.
     cycles: int = Field(default=4, ge=0, le=100000)
     rollouts_per_cycle: int = Field(default=8, ge=1, le=8192)
-    #: Trajectories per optimizer step.  v0.1 runs one trajectory per forward
+    #: Trajectories per optimizer step. The trainer runs one trajectory per forward
     #: pass (no padded batching), so this *is* the effective batch size and the
     #: number of steps per cycle is ``ceil(rollouts_per_cycle / this)``.
-    gradient_accumulation_steps: int = Field(default=1, ge=1, le=1024)
+    gradient_accumulation_steps: int = Field(default=8, ge=1, le=1024)
+    #: ``strict`` permits one optimizer update per freshly sampled rollout
+    #: batch. ``replay`` explicitly permits multiple updates from that batch and
+    #: must never be reported as genuine on-policy distillation.
+    opd_freshness: OPDFreshness = OPDFreshness.STRICT
     learning_rate: float = Field(default=1e-4, gt=0.0, le=1.0)
     weight_decay: float = Field(default=0.0, ge=0.0, le=1.0)
     max_grad_norm: float = Field(default=1.0, gt=0.0, le=1e4)
@@ -430,6 +489,27 @@ class RunConfig(_Base):
 
     # -- cross-field validation ----------------------------------------
 
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_ambiguous_legacy_ce(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+        run = value.get("run") or {}
+        loss = value.get("loss") or {}
+        if (
+            isinstance(run, dict)
+            and isinstance(loss, dict)
+            and run.get("mode", TrainingMode.OPD.value) != TrainingMode.SFT.value
+            and "ce_weight" in loss
+            and float(loss.get("ce_weight") or 0.0) > 0.0
+        ):
+            raise ValueError(
+                "loss.ce_weight is ambiguous in distillation modes. Rename it to "
+                "loss.sampled_token_nll_weight to state that the targets are tokens "
+                "sampled by the student, not oracle SFT labels."
+            )
+        return value
+
     @model_validator(mode="after")
     def _validate_combination(self) -> RunConfig:
         if self.schema_version != CONFIG_SCHEMA_VERSION:
@@ -482,10 +562,28 @@ class RunConfig(_Base):
             # side effect of merely constructing a RunConfig.
             self.loss = self.loss.model_copy(update={"top_k": 1})
 
-        if mode is TrainingMode.SFT and self.loss.ce_weight not in (0.0, 1.0):
+        if mode is TrainingMode.SFT and self.loss.sampled_token_nll_weight not in (0.0, 1.0):
             raise ValueError(
-                "run.mode=sft trains with cross-entropy only; loss.ce_weight must "
-                "be 0.0 (implicit) or 1.0 (explicit)"
+                "run.mode=sft trains with oracle cross-entropy only; "
+                "loss.sampled_token_nll_weight must be 0.0 (implicit) or 1.0 "
+                "(explicit)"
+            )
+
+        steps_per_rollout_batch = max(
+            1,
+            (self.train.rollouts_per_cycle + self.train.gradient_accumulation_steps - 1)
+            // self.train.gradient_accumulation_steps,
+        )
+        if (
+            mode is TrainingMode.OPD
+            and self.train.opd_freshness is OPDFreshness.STRICT
+            and steps_per_rollout_batch != 1
+        ):
+            raise ValueError(
+                "train.opd_freshness=strict requires exactly one optimizer step per "
+                "fresh rollout batch. Set train.gradient_accumulation_steps greater "
+                "than or equal to train.rollouts_per_cycle, or explicitly select "
+                "train.opd_freshness: replay (which is not genuine OPD)."
             )
 
         if self.train.sft_warmup_cycles > 0 and mode is TrainingMode.SFT:
@@ -505,6 +603,10 @@ class RunConfig(_Base):
                     "the toy backend does not support quantization "
                     "(models.teacher.quantization must be 'none')"
                 )
+            if self.models.teacher.adapter is not None:
+                raise ValueError(
+                    "the toy backend cannot load a PEFT teacher adapter; use models.backend: hf"
+                )
 
         if self.rollout.max_total_tokens <= self.rollout.max_new_tokens_per_turn:
             raise ValueError("rollout.max_total_tokens must exceed rollout.max_new_tokens_per_turn")
@@ -518,8 +620,19 @@ class RunConfig(_Base):
 
     @property
     def is_on_policy(self) -> bool:
-        """``True`` only for genuine OPD (student-sampled, freshly scored)."""
-        return self.run.mode is TrainingMode.OPD
+        """``True`` only when the full strict OPD freshness contract holds."""
+        steps_per_batch = max(
+            1,
+            (self.train.rollouts_per_cycle + self.train.gradient_accumulation_steps - 1)
+            // self.train.gradient_accumulation_steps,
+        )
+        return (
+            self.run.mode is TrainingMode.OPD
+            and self.train.opd_freshness is OPDFreshness.STRICT
+            and steps_per_batch == 1
+            and self.cache.strict_policy_version
+            and not self.cache.reuse_across_policy_versions
+        )
 
     @property
     def effective_eval_tasks(self) -> int:
@@ -546,6 +659,15 @@ class RunConfig(_Base):
             raise ConfigError(f"{p} is empty")
         if not isinstance(raw, dict):
             raise ConfigError(f"{p} must contain a YAML mapping at the top level")
+        adapter = ((raw.get("models") or {}).get("teacher") or {}).get("adapter")
+        if (
+            isinstance(adapter, dict)
+            and adapter.get("source", AdapterSource.LOCAL.value) == AdapterSource.LOCAL.value
+            and isinstance(adapter.get("path"), str)
+        ):
+            adapter_path = Path(adapter["path"])
+            if not adapter_path.is_absolute():
+                adapter["path"] = str((p.parent / adapter_path).resolve())
         return cls.model_validate(raw)
 
     @classmethod

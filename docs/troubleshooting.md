@@ -209,9 +209,10 @@ memory:
 
 Reducing `train.gradient_accumulation_steps` below
 `train.rollouts_per_cycle` produces more than one optimizer step per rollout
-batch, which makes steps after the first only approximately on-policy.
-`miniverl validate` warns about exactly that, and the trainer emits an
-`opd_multi_update_warning` event.
+batch. With the default `train.opd_freshness: strict`, `miniverl validate`
+rejects that schedule. Set `train.opd_freshness: replay` only when replay is
+intentional; the run is then labeled `online_distillation_with_replay`, not
+genuine on-policy distillation.
 
 For strategy details and the measured peak-VRAM numbers, see `docs/memory.md`.
 A one-cycle GPU smoke test on this machine reached 4.251 GiB peak allocated and
@@ -236,7 +237,7 @@ hint  use loss.mode=bucketed_topk_tail for large vocabularies, or set
 ```
 error the student tokenizer (Qwen/Qwen3-0.6B) and the teacher tokenizer
       (meta-llama/Llama-3.2-1B) tokenize differently
-hint  miniVERL v0.1 only supports same-tokenizer distillation. Pick a teacher
+hint  miniVERL currently supports same-tokenizer distillation only. Pick a teacher
       from the same model family, e.g. Qwen/Qwen3-0.6B with Qwen/Qwen3-1.7B.
       Cross-tokenizer distillation is a roadmap item (docs/limitations.md).
 ```
@@ -245,7 +246,7 @@ hint  miniVERL v0.1 only supports same-tokenizer distillation. Pick a teacher
 
 ```
 error student and teacher tokenizers differ (<12 hex chars>... vs <12 hex chars>...);
-      miniVERL v0.1 only supports same-tokenizer distillation
+      miniVERL currently supports same-tokenizer distillation only
 ```
 
 **Cause.** `build_tokenizer` loads one tokenizer for both sides. When the
@@ -354,6 +355,12 @@ For a stale-policy-version error, decide which semantics you want:
 ```yaml
 # genuine on-policy distillation: targets are per-cycle and never reused
 run:   {mode: opd}
+train: {opd_freshness: strict}
+cache: {strict_policy_version: true, reuse_across_policy_versions: false}
+
+# online distillation with replay: explicitly not genuine on-policy
+run:   {mode: opd}
+train: {opd_freshness: replay}
 cache: {strict_policy_version: true, reuse_across_policy_versions: false}
 
 # offline KD: one fixed teacher cache reused for every update, explicitly
@@ -361,7 +368,7 @@ run:   {mode: offline_kd}
 cache: {strict_policy_version: false, reuse_across_policy_versions: true}
 ```
 
-`RunConfig` rejects any other combination at parse time.
+`RunConfig` rejects contradictory cache/freshness combinations at parse time.
 
 For a corrupt or schema-drifted cache, delete the directory and re-score. The
 cache is derived data:
@@ -521,7 +528,7 @@ into a GPU run. The checks currently enforced:
 | `run.mode: offline_kd` without `cache.reuse_across_policy_versions: true` | that flag is what makes the fixed-target semantics explicit |
 | `divergence: jsd` with `jsd_beta` at 0.0 or 1.0 | at either endpoint the mixture collapses and the divergence is identically zero |
 | `loss.mode: exact_full_vocab` with an explicit `top_k` other than 1 | `top_k` is meaningless in exact mode; remove the key |
-| `run.mode: sft` with `loss.ce_weight` outside {0.0, 1.0} | SFT trains with cross-entropy only |
+| a nonzero legacy `loss.ce_weight` in a distillation mode | the target is the sampled student token, so use the explicit `loss.sampled_token_nll_weight` name |
 | `run.mode: sft` with `train.sft_warmup_cycles > 0` | redundant; the warmup applies to offline_kd and opd |
 | toy backend with any quantization | the toy backend has no quantized path |
 | `rollout.max_total_tokens <= rollout.max_new_tokens_per_turn` | the total budget must exceed one turn |

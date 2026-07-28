@@ -13,18 +13,19 @@ jobs:
     name: validate the tag against the package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
 
       - name: Install
         run: |
           python -m pip install --upgrade pip build twine
-          pip install -e ".[dev]"
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[dev,train]"
 
       - name: The tag, __init__.py, CHANGELOG.md and CITATION.cff must agree
         run: |
@@ -77,18 +78,44 @@ jobs:
           python -m twine check dist/*
 
       - name: Full quality gate
+        env:
+          HF_HUB_OFFLINE: "1"
         run: |
           ruff check .
           ruff format --check .
           mypy src/miniverl
-          pytest -q -m "not torch and not gpu and not network"
+          pytest -q -m "not gpu and not network" \
+            --cov=miniverl --cov-report=term-missing --cov-fail-under=80
 
       - name: Working tree must be clean
         run: |
           git status --short
           test -z "$(git status --porcelain)"
 
-  # Publishing is intentionally NOT automated here. PyPI trusted publishing is
-  # documented in docs/release-checklist.md; enabling it requires a maintainer to
-  # register the publisher in the PyPI project settings first. No secrets are
-  # stored in this repository.
+  publish-pypi:
+    name: publish to PyPI with OIDC (disabled)
+    needs: validate
+    # Enabling this requires a reviewed code change after the PyPI trusted
+    # publisher is registered and explicit publication authorization is given.
+    if: ${{ false }}
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/miniverl
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Build the already-validated source
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Publish with trusted publishing
+        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1

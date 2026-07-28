@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="584" viewBox="0 0 1120 584" role="img" aria-labelledby="benchmark-title benchmark-desc">
+<title id="benchmark-title">miniVERL protocol-teacher benchmark</title>
+<desc id="benchmark-desc">Strict held-out success and training time for five equal-optimizer-update arms over two prespecified seeds.</desc>
+<style>text{font-family:ui-sans-serif,system-ui,sans-serif;fill:#111827}.title{font-size:25px;font-weight:600}.sub{font-size:14px;fill:#4b5563}.head{font-size:15px;font-weight:600}.label{font-size:15px}.value{font-size:14px;font-weight:600}.axis{font-size:12px;fill:#6b7280}.grid{stroke:#d1d5db;stroke-width:1}.dot{fill:#fff;stroke-width:2}</style>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text class="title" x="28" y="40">Protocol alignment prevents collapse</text>
+<text class="sub" x="28" y="66">schema v2 | 2 prespecified seeds | budget axis: optimizer_steps</text>
+<text class="head" x="300" y="110">Strict held-out success</text>
+<text class="head" x="730" y="110">Training time (seconds)</text>
+<line class="grid" x1="300.0" y1="124" x2="300.0" y2="536"/>
+<text class="axis" x="300.0" y="144" text-anchor="middle">0%</text>
+<line class="grid" x1="450.0" y1="124" x2="450.0" y2="536"/>
+<text class="axis" x="450.0" y="144" text-anchor="middle">50%</text>
+<line class="grid" x1="600.0" y1="124" x2="600.0" y2="536"/>
+<text class="axis" x="600.0" y="144" text-anchor="middle">100%</text>
+<line class="grid" x1="730.0" y1="124" x2="730.0" y2="536"/>
+<text class="axis" x="730.0" y="144" text-anchor="middle">0</text>
+<line class="grid" x1="880.0" y1="124" x2="880.0" y2="536"/>
+<text class="axis" x="880.0" y="144" text-anchor="middle">300</text>
+<line class="grid" x1="1030.0" y1="124" x2="1030.0" y2="536"/>
+<text class="axis" x="1030.0" y="144" text-anchor="middle">600</text>
+<g data-arm="cold-start-only" data-success-mean="0.750000" data-train-seconds-mean="0.061326">
+<text class="label" x="28" y="185">cold-start-only</text>
+<rect x="300" y="167" width="225.0" height="26" rx="3" fill="#6b7280" opacity="0.78"/>
+<circle class="dot" cx="525.0" cy="174" r="4" stroke="#6b7280"/>
+<circle class="dot" cx="525.0" cy="186" r="4" stroke="#6b7280"/>
+<text class="value" x="612" y="185">75%</text>
+<rect x="730" y="167" width="0.0" height="26" rx="3" fill="#6b7280" opacity="0.78"/>
+<circle class="dot" cx="730.0" cy="174" r="4" stroke="#6b7280"/>
+<circle class="dot" cx="730.0" cy="186" r="4" stroke="#6b7280"/>
+<text class="value" x="1042" y="185">0s</text>
+</g>
+<g data-arm="sft-continued" data-success-mean="1.000000" data-train-seconds-mean="86.439230">
+<text class="label" x="28" y="267">sft-continued</text>
+<rect x="300" y="249" width="300.0" height="26" rx="3" fill="#3b82f6" opacity="0.78"/>
+<circle class="dot" cx="600.0" cy="256" r="4" stroke="#3b82f6"/>
+<circle class="dot" cx="600.0" cy="268" r="4" stroke="#3b82f6"/>
+<text class="value" x="612" y="267">100%</text>
+<rect x="730" y="249" width="43.2" height="26" rx="3" fill="#3b82f6" opacity="0.78"/>
+<circle class="dot" cx="770.3" cy="256" r="4" stroke="#3b82f6"/>
+<circle class="dot" cx="776.2" cy="268" r="4" stroke="#3b82f6"/>
+<text class="value" x="1042" y="267">86s</text>
+</g>
+<g data-arm="opd-raw-teacher" data-success-mean="0.000000" data-train-seconds-mean="443.953792">
+<text class="label" x="28" y="349">opd-raw-teacher</text>
+<rect x="300" y="331" width="0.0" height="26" rx="3" fill="#dc2626" opacity="0.78"/>
+<circle class="dot" cx="300.0" cy="338" r="4" stroke="#dc2626"/>
+<circle class="dot" cx="300.0" cy="350" r="4" stroke="#dc2626"/>
+<text class="value" x="612" y="349">0%</text>
+<rect x="730" y="331" width="222.0" height="26" rx="3" fill="#dc2626" opacity="0.78"/>
+<circle class="dot" cx="964.3" cy="338" r="4" stroke="#dc2626"/>
+<circle class="dot" cx="939.6" cy="350" r="4" stroke="#dc2626"/>
+<text class="value" x="1042" y="349">444s</text>
+</g>
+<g data-arm="opd-privileged-context" data-success-mean="0.000000" data-train-seconds-mean="531.523058">
+<text class="label" x="28" y="431">opd-privileged-context</text>
+<rect x="300" y="413" width="0.0" height="26" rx="3" fill="#f97316" opacity="0.78"/>
+<circle class="dot" cx="300.0" cy="420" r="4" stroke="#f97316"/>
+<circle class="dot" cx="300.0" cy="432" r="4" stroke="#f97316"/>
+<text class="value" x="612" y="431">0%</text>
+<rect x="730" y="413" width="265.8" height="26" rx="3" fill="#f97316" opacity="0.78"/>
+<circle class="dot" cx="1011.6" cy="420" r="4" stroke="#f97316"/>
+<circle class="dot" cx="979.9" cy="432" r="4" stroke="#f97316"/>
+<text class="value" x="1042" y="431">532s</text>
+</g>
+<g data-arm="opd-protocol-sft-teacher" data-success-mean="1.000000" data-train-seconds-mean="523.820241">
+<text class="label" x="28" y="513">opd-protocol-sft-teacher</text>
+<rect x="300" y="495" width="300.0" height="26" rx="3" fill="#16a34a" opacity="0.78"/>
+<circle class="dot" cx="600.0" cy="502" r="4" stroke="#16a34a"/>
+<circle class="dot" cx="600.0" cy="514" r="4" stroke="#16a34a"/>
+<text class="value" x="612" y="513">100%</text>
+<rect x="730" y="495" width="261.9" height="26" rx="3" fill="#16a34a" opacity="0.78"/>
+<circle class="dot" cx="991.9" cy="502" r="4" stroke="#16a34a"/>
+<circle class="dot" cx="992.0" cy="514" r="4" stroke="#16a34a"/>
+<text class="value" x="1042" y="513">524s</text>
+</g>
+<text class="axis" x="28" y="566">Bars are seed means; hollow dots are individual seeds [1234, 20260727]. Source JSON SHA-256 53fc1d4d5b7adee0</text>
+</svg>

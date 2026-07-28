@@ -104,12 +104,13 @@ loss:
   top_k: 64
   tail_epsilon: 1.0e-9
   chunk_size: 256              # peak vocabulary tensor is [256, 151936]
-  ce_weight: 0.0
+  sampled_token_nll_weight: 0.0
 
 train:
   cycles: 8
   rollouts_per_cycle: 6
   gradient_accumulation_steps: 6   # exactly one on-policy step per rollout batch
+  opd_freshness: strict
   learning_rate: 1.0e-4
   weight_decay: 0.0
   max_grad_norm: 1.0

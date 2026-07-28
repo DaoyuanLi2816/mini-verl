@@ -93,13 +93,14 @@ loss:
   top_k: 16
   tail_epsilon: 1.0e-9
   chunk_size: 128
-  ce_weight: 0.0
+  sampled_token_nll_weight: 0.0
 
 train:
   cycles: 40
   rollouts_per_cycle: 8
   # One optimizer step per rollout batch keeps every update strictly on-policy.
   gradient_accumulation_steps: 8
+  opd_freshness: strict
   learning_rate: 0.003
   weight_decay: 0.0
   max_grad_norm: 1.0

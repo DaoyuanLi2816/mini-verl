@@ -1,0 +1,129 @@
+# Qwen3-1.7B protocol-teacher preparation on deterministic calculator oracles.
+#
+# This is supervised tool-policy training, not distillation. Every target comes
+# from CalculatorEnvironment.oracle_actions() and therefore uses exactly the
+# <tool_call> / <tool_result> / <final> protocol the student must execute.
+#
+#   miniverl validate recipes/qwen3_1.7b_protocol_teacher_sft.yaml
+#   miniverl train recipes/qwen3_1.7b_protocol_teacher_sft.yaml --dry-run
+#   miniverl train recipes/qwen3_1.7b_protocol_teacher_sft.yaml
+#   miniverl export-adapter \
+#     --run runs/<protocol-teacher-run> \
+#     --checkpoint runs/<protocol-teacher-run>/checkpoints/final \
+#     --out artifacts/qwen3-1.7b-protocol-teacher
+#
+# The final greedy evaluation is the competence gate. A low SFT loss alone does
+# not establish that this model can call tools under the environment protocol.
+
+schema_version: 1
+
+run:
+  name: qwen3-1.7b-protocol-teacher-sft
+  mode: sft
+  seed: 1234
+  output_dir: runs
+  deterministic: true
+  tags: [protocol-teacher, qwen3, calculator, qlora]
+
+models:
+  backend: hf
+  device: auto
+  student:
+    model_id: Qwen/Qwen3-1.7B
+    revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+    tokenizer_revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+    dtype: bfloat16
+    quantization: nf4
+    attn_implementation: sdpa
+    gradient_checkpointing: true
+    lora:
+      enabled: true
+      r: 16
+      alpha: 32
+      dropout: 0.0
+      target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  # SFT never loads a teacher. This identity is retained because RunConfig keeps
+  # one stable student/teacher schema across modes.
+  teacher:
+    model_id: Qwen/Qwen3-1.7B
+    revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+    tokenizer_revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+    dtype: bfloat16
+    quantization: none
+    mode: standard
+
+environment:
+  name: calculator
+  difficulty: hard
+  params:
+    prompt_style: full
+  train_tasks: 256
+  eval_tasks: 24
+  test_tasks: 24
+  split_seed: 7
+
+rollout:
+  max_turns: 3
+  max_new_tokens_per_turn: 48
+  max_total_tokens: 704
+  temperature: 1.0
+  top_p: 1.0
+  max_parse_errors: 2
+  max_repeated_calls: 2
+
+selection:
+  selector: all_model_tokens
+  ratio: 1.0
+  critical_weight: 1.0
+  other_weight: 1.0
+
+loss:
+  mode: bucketed_topk_tail
+  divergence: forward_kl
+  temperature: 1.0
+  scale_by_temperature_squared: false
+  top_k: 64
+  chunk_size: 256
+  sampled_token_nll_weight: 1.0
+
+train:
+  cycles: 24
+  rollouts_per_cycle: 8
+  gradient_accumulation_steps: 8
+  opd_freshness: strict
+  learning_rate: 1.0e-4
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  warmup_steps: 2
+  lr_schedule: cosine
+  optimizer: adamw8bit
+  sft_warmup_cycles: 0
+  save_every_cycles: 8
+  eval_every_cycles: 8
+
+memory:
+  strategy: resident
+  oom_retries: 3
+  min_chunk_size: 16
+  empty_cache_between_phases: true
+  reset_peak_stats_each_cycle: true
+
+cache:
+  entries_per_shard: 8
+  strict_policy_version: true
+  reuse_across_policy_versions: false
+  dtype: float16
+  keep_cycles: 1
+  verify_checksums_on_load: true
+
+eval:
+  enabled: true
+  split: test
+  tasks: 24
+  temperature: 0.0
+  seed: 0
+
+report:
+  enabled: true
+  max_trajectories: 8
+  max_tokens_per_trajectory: 512

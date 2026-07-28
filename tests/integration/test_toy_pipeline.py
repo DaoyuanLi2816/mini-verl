@@ -157,6 +157,24 @@ def test_sft_completes_without_loading_a_teacher(tmp_path: Path):
     assert not index.is_file() or json.loads(index.read_text(encoding="utf-8"))["entries"] == {}
 
 
+def test_eval_disabled_suppresses_periodic_evaluations(tmp_path: Path):
+    trainer, result = _train(
+        _config(
+            tmp_path,
+            run={"mode": "sft"},
+            train={"cycles": 2, "eval_every_cycles": 1},
+            eval={"enabled": False},
+        ),
+        "no-periodic-eval",
+    )
+    metrics = [
+        json.loads(line) for line in trainer.paths.metrics.read_text(encoding="utf-8").splitlines()
+    ]
+    assert result.baseline_eval is None
+    assert result.eval is None
+    assert not [record for record in metrics if record.get("phase") == "eval"]
+
+
 def test_offline_kd_reuses_one_frozen_cache_and_labels_itself(tmp_path: Path):
     config = _config(
         tmp_path,

@@ -22,37 +22,11 @@ from __future__ import annotations
 import argparse
 import collections
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any
 
-#: Relative tolerance used when comparing two numeric answers.
-TOLERANCE = 1.0e-3
-
-_ANSWER_BLOCK = re.compile(r"<answer>\s*(.*?)\s*</answer>", re.DOTALL)
-
-
-def unwrap(predicted: str) -> str:
-    """Strip a teacher-style ``<answer>`` wrapper, if one is present."""
-    match = _ANSWER_BLOCK.search(predicted)
-    return (match.group(1) if match else predicted).strip()
-
-
-def as_number(text: str) -> float | None:
-    """Parse ``text`` as a float, or return ``None`` if it is not numeric."""
-    try:
-        return float(text)
-    except (TypeError, ValueError):
-        return None
-
-
-def matches(predicted: str, expected: str) -> bool:
-    """Whether ``predicted`` equals ``expected`` once the wrapper is removed."""
-    got, want = as_number(unwrap(predicted)), as_number(expected)
-    if got is None or want is None:
-        return unwrap(predicted) == (expected or "").strip()
-    return abs(got - want) <= TOLERANCE * max(1.0, abs(want))
+from miniverl.evaluation.diagnostics import lenient_answer_matches
 
 
 def attribute(run_dir: Path, last_n: int | None) -> dict[str, Any]:
@@ -78,7 +52,10 @@ def attribute(run_dir: Path, last_n: int | None) -> dict[str, Any]:
         categories[verification.get("failure_category") or "unknown"] += 1
         if verification["solved"]:
             continue
-        if matches(verification.get("predicted") or "", verification.get("expected") or ""):
+        if lenient_answer_matches(
+            verification.get("predicted") or "",
+            verification.get("expected") or "",
+        ):
             presentational += 1
 
     total = len(rows)

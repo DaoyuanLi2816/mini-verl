@@ -4,6 +4,61 @@ All notable changes to miniVERL are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-07-27
+
+Protocol-aligned teacher support and scientifically explicit benchmark
+accounting.
+
+### Added
+
+- Standard frozen PEFT teacher-adapter validation, loading and
+  `miniverl export-adapter`, with base/tokenizer compatibility checks,
+  checksums, run/checkpoint provenance and an optional tool-policy competence
+  gate.
+- An executable Qwen3-1.7B QLoRA protocol-teacher recipe using deterministic
+  oracle traces in the same tool protocol as the student.
+- Benchmark schema/config v2 with explicit common versus cold-start overrides,
+  pre-allocation structured config diffs, resolved-config/checkpoint digests,
+  mode-aware objectives, cumulative accounting and separate train/eval/wall
+  timings. Existing schema-v1 measurements remain readable and unchanged.
+- Policy competence metrics: strict success, diagnostic lenient success, valid
+  tool-call rate/count, final-answer format validity and average turns.
+- A deterministic temperature-gradient sweep across forward KL, reverse KL and
+  JSD in near-uniform and sharply peaked regimes.
+- CI compatibility rows for Transformers 4.51.x and 5.x, plus a disabled OIDC
+  PyPI publishing job.
+- A measured five-arm, two-seed RTX 4080 comparison and data-bound SVG: the
+  protocol-trained teacher prevents the 0% raw/privileged-teacher collapse and
+  reaches 100% on both seeds, tying rather than beating SFT.
+
+### Changed
+
+- Strict OPD freshness is the default and permits exactly one optimizer update
+  per newly sampled rollout batch. Explicit replay is labeled
+  `online_distillation_with_replay` and is never reported as genuine OPD.
+- `loss.sampled_token_nll_weight` replaces ambiguous distillation uses of
+  `loss.ce_weight`; its labels are explicitly the student's sampled tokens.
+- `k == V` now bypasses epsilon tail smoothing and reduces to the exact
+  full-vocabulary objective.
+- Lower-bound and `T^2` documentation now distinguishes mathematical theorems
+  from the epsilon-smoothed implementation and reverse-KL/JSD heuristics.
+- Qwen3's verified minimum dependency is `transformers>=4.51,<6`.
+- GitHub Actions are pinned to full v7 commit SHAs, and release validation runs
+  the complete CPU scientific test suite.
+- Source installation is the primary README path until a real PyPI publication
+  exists.
+- Published schema-v2 provenance replaces machine-local absolute paths before
+  hashing or rendering artifacts.
+
+### Corrected
+
+- The legacy RTX 4080 result now has an explicit erratum: its shared cold start
+  used `medium`, continuations/evaluation used `hard`, the old `controlled`
+  block came from the base recipe, selected-token fields held only the final
+  cycle and SFT's teacher-query ratio was not meaningful.
+- Periodic evaluation now honors `eval.enabled: false`; the incomplete GPU
+  attempt that exposed the defect was preserved and the full benchmark rerun.
+
 ## [0.1.0] - 2026-07-27
 
 First public release. Multi-turn, tool-aware on-policy distillation that runs on
@@ -103,4 +158,5 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
+[0.2.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.1.0

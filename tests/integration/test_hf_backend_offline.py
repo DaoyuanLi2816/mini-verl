@@ -11,6 +11,8 @@ This is what makes the GPU path testable in CPU CI.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from tests.conftest import requires_peft, requires_transformers
@@ -238,3 +240,339 @@ def test_dtype_resolution_matches_the_device():
     assert resolve_dtype(Precision.FLOAT32, "cpu") is torch.float32
     assert resolve_dtype(Precision.BFLOAT16, "cpu") is torch.bfloat16
     assert resolve_dtype(Precision.AUTO, "cpu") is torch.float32
+
+
+@pytest.fixture
+def local_teacher_adapter(tmp_path: Path, tiny_model, tiny_tokenizer):
+    """A standard local PEFT LoRA adapter plus miniVERL provenance."""
+    import peft
+
+    from miniverl.cache.store import sha256_file
+    from miniverl.models.adapter_io import ADAPTER_MANIFEST
+    from miniverl.utils.runs import write_json
+
+    base = tmp_path / "base"
+    tiny_model.save_pretrained(base, safe_serialization=True)
+    wrapped = peft.get_peft_model(
+        tiny_model,
+        peft.LoraConfig(
+            r=4,
+            lora_alpha=8,
+            target_modules=["q_proj", "v_proj"],
+            task_type="CAUSAL_LM",
+        ),
+    )
+    wrapped.peft_config["default"].base_model_name_or_path = str(base)
+    with torch.no_grad():
+        for name, parameter in wrapped.named_parameters():
+            if "lora_B" in name:
+                parameter.fill_(0.01)
+    adapter = tmp_path / "adapter"
+    wrapped.save_pretrained(adapter, safe_serialization=True)
+    checksums = {
+        name: sha256_file(adapter / name)[0]
+        for name in ("adapter_config.json", "adapter_model.safetensors")
+    }
+    write_json(
+        adapter / ADAPTER_MANIFEST,
+        {
+            "schema_version": 1,
+            "base_model_id": str(base),
+            "base_model_revision": None,
+            "tokenizer_fingerprint": tiny_tokenizer.fingerprint,
+            "checksums": checksums,
+        },
+    )
+    return base, adapter, wrapped
+
+
+@requires_peft
+def test_frozen_teacher_adapter_round_trip_preserves_logits(local_teacher_adapter, tiny_tokenizer):
+    from miniverl.config.models import TeacherAdapterConfig, TeacherModelConfig
+    from miniverl.models.hf import HFBackend
+
+    base, adapter, reference = local_teacher_adapter
+    spec = TeacherModelConfig(
+        model_id=str(base),
+        adapter=TeacherAdapterConfig(path=str(adapter)),
+    )
+    backend = HFBackend.load(
+        spec,
+        device="cpu",
+        tokenizer=tiny_tokenizer,
+        trainable=False,
+        local_files_only=True,
+    )
+    ids = tiny_tokenizer.encode("<|im_start|>assistant\n<final>\n4\n</final>")
+    with torch.no_grad():
+        expected = reference(torch.tensor([ids])).logits
+        actual = backend.model(torch.tensor([ids])).logits
+    assert torch.allclose(actual, expected, atol=1e-6)
+    assert not any(parameter.requires_grad for parameter in backend.model.parameters())
+    assert backend.adapter_provenance["weights_sha256"]
+    assert backend.capabilities.lora is True
+
+
+@requires_peft
+def test_teacher_adapter_rejects_wrong_base_and_tokenizer(
+    tmp_path: Path,
+    local_teacher_adapter,
+    tiny_tokenizer,
+):
+    from miniverl.config.models import TeacherAdapterConfig, TeacherModelConfig
+    from miniverl.errors import BackendError
+    from miniverl.models.hf import HFBackend
+
+    base, adapter, _ = local_teacher_adapter
+    wrong_base = tmp_path / "wrong-base"
+    wrong_base.mkdir()
+    with pytest.raises(BackendError, match="does not match"):
+        HFBackend.load(
+            TeacherModelConfig(
+                model_id=str(wrong_base),
+                adapter=TeacherAdapterConfig(path=str(adapter)),
+            ),
+            device="cpu",
+            tokenizer=tiny_tokenizer,
+            trainable=False,
+            local_files_only=True,
+        )
+    with pytest.raises(BackendError, match="tokenizer fingerprint"):
+        HFBackend.load(
+            TeacherModelConfig(
+                model_id=str(base),
+                adapter=TeacherAdapterConfig(
+                    path=str(adapter),
+                    tokenizer_fingerprint="wrong-fingerprint",
+                ),
+            ),
+            device="cpu",
+            tokenizer=tiny_tokenizer,
+            trainable=False,
+            local_files_only=True,
+        )
+
+
+@requires_peft
+def test_missing_teacher_adapter_files_are_actionable(tmp_path: Path, tiny_tokenizer):
+    from miniverl.config.models import TeacherAdapterConfig, TeacherModelConfig
+    from miniverl.errors import BackendError
+    from miniverl.models.hf import HFBackend
+
+    incomplete = tmp_path / "incomplete"
+    incomplete.mkdir()
+    (incomplete / "adapter_config.json").write_text("{}", encoding="utf-8")
+    with pytest.raises(BackendError, match=r"missing adapter_model\.safetensors") as excinfo:
+        HFBackend.load(
+            TeacherModelConfig(
+                model_id="unused",
+                adapter=TeacherAdapterConfig(path=str(incomplete)),
+            ),
+            device="cpu",
+            tokenizer=tiny_tokenizer,
+            trainable=False,
+            local_files_only=True,
+        )
+    assert "standard PEFT adapter" in (excinfo.value.hint or "")
+
+
+@requires_peft
+def test_headline_teacher_gate_requires_recorded_policy_competence(
+    local_teacher_adapter,
+    tiny_tokenizer,
+):
+    from miniverl.config.models import TeacherAdapterConfig, TeacherModelConfig
+    from miniverl.errors import BackendError
+    from miniverl.models.adapter_io import ADAPTER_MANIFEST
+    from miniverl.models.hf import HFBackend
+    from miniverl.utils.runs import read_json, write_json
+
+    base, adapter, _ = local_teacher_adapter
+    with pytest.raises(BackendError, match="no recorded tool-policy evaluation") as excinfo:
+        HFBackend.load(
+            TeacherModelConfig(
+                model_id=str(base),
+                adapter=TeacherAdapterConfig(
+                    path=str(adapter),
+                    require_policy_evaluation=True,
+                    minimum_strict_success_rate=0.5,
+                ),
+            ),
+            device="cpu",
+            tokenizer=tiny_tokenizer,
+            trainable=False,
+            local_files_only=True,
+        )
+    assert "SFT loss is not" in (excinfo.value.hint or "")
+
+    manifest = read_json(adapter / ADAPTER_MANIFEST)
+    manifest["policy_evaluation"] = {
+        "tag": "final",
+        "split": "test",
+        "tasks": 8,
+        "strict_task_success_rate": 0.75,
+        "lenient_diagnostic_success_rate": 0.75,
+        "valid_tool_call_rate": 1.0,
+        "tool_call_count": 16,
+        "final_answer_format_validity_rate": 1.0,
+        "avg_turns": 3.0,
+        "protocol_token_accuracy": None,
+        "policy_competence_measurement_status": {
+            "strict_task_success_rate": "measured_primary",
+            "protocol_token_accuracy": "not_applicable_free_running",
+        },
+    }
+    write_json(adapter / ADAPTER_MANIFEST, manifest)
+    backend = HFBackend.load(
+        TeacherModelConfig(
+            model_id=str(base),
+            adapter=TeacherAdapterConfig(
+                path=str(adapter),
+                require_policy_evaluation=True,
+                minimum_strict_success_rate=0.5,
+            ),
+        ),
+        device="cpu",
+        tokenizer=tiny_tokenizer,
+        trainable=False,
+        local_files_only=True,
+    )
+    assert backend.adapter_provenance["policy_evaluation"][
+        "strict_task_success_rate"
+    ] == pytest.approx(0.75)
+
+
+@requires_peft
+def test_miniverl_checkpoint_exports_and_reloads_as_standard_peft(
+    tmp_path: Path,
+    tiny_model,
+    tiny_tokenizer,
+):
+    from tokenizers import Tokenizer
+    from tokenizers.models import WordLevel
+    from tokenizers.pre_tokenizers import Whitespace
+    from transformers import PreTrainedTokenizerFast
+
+    from miniverl.config import RunConfig
+    from miniverl.config.models import TeacherAdapterConfig, TeacherModelConfig
+    from miniverl.models.adapter_io import export_adapter
+    from miniverl.models.hf import HFBackend
+    from miniverl.models.tokenizers import HFTokenizerAdapter
+    from miniverl.trainer import OPDTrainer
+
+    base = tmp_path / "export-base"
+    tiny_model.save_pretrained(base, safe_serialization=True)
+    special_ids = {0, tiny_tokenizer.eos_token_id}
+    vocab = {
+        f"token-{index}": index
+        for index in range(tiny_tokenizer.vocab_size)
+        if index not in special_ids
+    }
+    vocab["[UNK]"] = 0
+    vocab["[EOS]"] = tiny_tokenizer.eos_token_id
+    raw_tokenizer = Tokenizer(WordLevel(vocab=vocab, unk_token="[UNK]"))
+    raw_tokenizer.pre_tokenizer = Whitespace()
+    fast_tokenizer = PreTrainedTokenizerFast(
+        tokenizer_object=raw_tokenizer,
+        unk_token="[UNK]",
+        eos_token="[EOS]",
+    )
+    fast_tokenizer.save_pretrained(base)
+
+    config = RunConfig.from_mapping(
+        {
+            "run": {"name": "adapter-export", "mode": "sft", "output_dir": str(tmp_path)},
+            "models": {
+                "backend": "hf",
+                "device": "cpu",
+                "student": {
+                    "model_id": str(base),
+                    "tokenizer_id": str(base),
+                    "dtype": "float32",
+                    "lora": {
+                        "enabled": True,
+                        "r": 4,
+                        "alpha": 8,
+                        "target_modules": ["q_proj", "v_proj"],
+                    },
+                },
+                "teacher": {
+                    "model_id": str(base),
+                    "tokenizer_id": str(base),
+                    "dtype": "float32",
+                },
+            },
+            "environment": {
+                "name": "calculator",
+                "train_tasks": 1,
+                "eval_tasks": 1,
+                "test_tasks": 1,
+            },
+            "train": {"cycles": 0, "rollouts_per_cycle": 1},
+            "eval": {"enabled": False},
+            "report": {"enabled": False},
+        }
+    )
+    trainer = OPDTrainer.from_config(
+        config,
+        output_dir=tmp_path / "runs",
+        run_id="adapter-export",
+        local_files_only=True,
+    )
+    try:
+        trainer.train()
+        ids = [0, 1, 2, 3]
+        with torch.no_grad():
+            reference = trainer.student.model(torch.tensor([ids])).logits
+        manifest, exported = export_adapter(
+            trainer.paths.root,
+            trainer.paths.checkpoints / "final",
+            tmp_path / "exported-adapter",
+            local_files_only=True,
+        )
+    finally:
+        trainer.close()
+
+    tokenizer = HFTokenizerAdapter.load(str(base), local_files_only=True)
+    loaded = HFBackend.load(
+        TeacherModelConfig(
+            model_id=str(base),
+            tokenizer_id=str(base),
+            dtype="float32",
+            adapter=TeacherAdapterConfig(path=str(exported)),
+        ),
+        device="cpu",
+        tokenizer=tokenizer,
+        trainable=False,
+        local_files_only=True,
+    )
+    with torch.no_grad():
+        actual = loaded.model(torch.tensor([ids])).logits
+    assert torch.allclose(actual, reference, atol=1e-6)
+    assert set(manifest["checksums"]) == {
+        "adapter_config.json",
+        "adapter_model.safetensors",
+    }
+    assert (exported / "miniverl_adapter_manifest.json").is_file()
+    assert manifest["policy_evaluation"] is None
+
+    opd_mapping = config.model_dump(mode="json")
+    opd_mapping["run"].update({"name": "adapter-provenance", "mode": "opd"})
+    opd_mapping["models"]["teacher"]["adapter"] = {"path": str(exported)}
+    opd_mapping["loss"]["sampled_token_nll_weight"] = 0.0
+    opd_config = RunConfig.from_mapping(opd_mapping)
+    opd_trainer = OPDTrainer.from_config(
+        opd_config,
+        output_dir=tmp_path / "runs",
+        run_id="adapter-provenance",
+        local_files_only=True,
+    )
+    try:
+        run_manifest = opd_trainer.build_manifest()
+    finally:
+        opd_trainer.close()
+    adapter_provenance = run_manifest["models"]["teacher"]["adapter"]
+    assert adapter_provenance["identity"] == exported.name
+    assert (
+        adapter_provenance["weights_sha256"] == manifest["checksums"]["adapter_model.safetensors"]
+    )

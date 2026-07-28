@@ -140,7 +140,7 @@ The load-bearing sub-objects:
   `tokenizer_vocab_size`
 - `objective` - `loss_mode`, `divergence`, `temperature`,
   `scale_by_temperature_squared`, the effective `top_k`, `jsd_beta`,
-  `ce_weight`, `selector`, `selection_ratio`
+  `sampled_token_nll_weight`, `selector`, `selection_ratio`
 - `memory` - the resolved `strategy`, the `reason` string explaining why,
   `projection_chunk_size`, `oom_retries_used` and `chunk_size_history`
 - `packages` and `gpu` - see below
@@ -472,7 +472,7 @@ for which differences are expected.
 
 ## See also
 
-- `docs/benchmarking.md` - matched-budget comparisons and metric definitions
+- `docs/benchmarking.md` - controlled comparisons, explicit budget axes and metric definitions
 - `docs/troubleshooting.md` - resume refusals, cache errors, tokenizer
   mismatches
 - `docs/limitations.md` - what miniVERL does not support

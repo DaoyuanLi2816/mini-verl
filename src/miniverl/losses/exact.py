@@ -17,11 +17,12 @@ Temperature
 -----------
 Both distributions are softmaxed at ``temperature``.  When
 ``scale_by_temperature_squared`` is set the divergence is multiplied by
-``T**2``.  The reason is the classic Hinton et al. (2015) argument: softening
-by ``T`` shrinks the logit gradients by ``1/T``, so without the ``T**2`` factor
-the effective learning rate of a distillation term silently depends on ``T``.
-miniVERL applies it to every divergence, not only forward KL, so that changing
-``T`` never changes the update scale by itself.
+``T**2``.  The classic Hinton et al. (2015) high-temperature derivation applies
+to forward KL / soft-target cross-entropy near the uniform regime.  miniVERL
+offers the same factor for reverse KL and JSD as an explicit heuristic; it does
+not claim temperature-invariant gradients for those objectives or for sharply
+peaked distributions.  ``scripts/temperature_gradient_sweep.py`` measures all
+three cases instead of generalizing the forward-KL derivation.
 """
 
 from __future__ import annotations
@@ -51,7 +52,7 @@ __all__ = [
 def temperature_scale(
     value: torch.Tensor, temperature: float, scale_by_temperature_squared: bool
 ) -> torch.Tensor:
-    """Apply the optional ``T**2`` gradient-magnitude correction."""
+    """Apply the optional ``T**2`` factor (heuristic outside high-T forward KL)."""
     if scale_by_temperature_squared and temperature != 1.0:
         return value * (temperature**2)
     return value

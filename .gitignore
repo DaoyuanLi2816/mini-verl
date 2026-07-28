@@ -27,6 +27,7 @@ htmlcov/
 
 # Run artifacts. Never commit weights, teacher caches or checkpoints.
 /runs/
+/artifacts/
 *.safetensors
 *.bin
 *.pt

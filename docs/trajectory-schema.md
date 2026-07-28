@@ -356,7 +356,7 @@ enforceable rather than aspirational. `build_alignment_map` raises:
 
 | condition | error type and message |
 | --- | --- |
-| tokenizer fingerprints differ | `TokenizerMismatchError`: `student and teacher tokenizers differ (… vs …); miniVERL v0.1 only supports same-tokenizer distillation` |
+| tokenizer fingerprints differ | `TokenizerMismatchError`: `student and teacher tokenizers differ (… vs …); miniVERL currently supports same-tokenizer distillation only` |
 | a span lacks `segment_key` | `AlignmentError`: `span <type> at [a,b) has no 'segment_key' metadata; …` |
 | duplicate teacher segment key | `AlignmentError`: `teacher render contains duplicate segment key …; keys must be unique` |
 | student segment missing on the teacher side | `AlignmentError`: `student span … has no counterpart in the teacher render; …` |
