@@ -831,7 +831,8 @@ class OPDTrainer:
             self.cycle = cycle
             last_records = self._run_cycle()
             if (
-                config.train.eval_every_cycles
+                config.eval.enabled
+                and config.train.eval_every_cycles
                 and (cycle + 1) % config.train.eval_every_cycles == 0
                 and cycle + 1 < config.train.cycles
             ):
