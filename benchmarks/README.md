@@ -20,10 +20,18 @@ miniverl benchmark recipes/benchmark_calc.yaml --output runs/benchmarks
 
 # One 16 GB GPU, the real Qwen3 pair, equal optimizer updates
 miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
+
+# Offline equivalent after downloading the pinned protocol adapter
+miniverl benchmark benchmarks/configs/gpu_calc_hard_local_adapter.yaml \
+  --output runs/benchmarks
 ```
 
 Each run writes `<name>.json` and `<name>.md` into the output directory. The
 Markdown is for humans; the JSON is the artifact to submit.
+
+The primary GPU config uses the public protocol-teacher adapter at immutable
+Hub revision `23323751318135484c06c043b1f9b9e7016dd89f`. The local-adapter
+config is the explicit offline equivalent.
 
 ## What the budget axis means
 
@@ -98,6 +106,17 @@ Schema v2 makes the transfer design explicit, hashes the resolved cold/arm
 configs, sums accounting over the full run and records SFT teacher-query fields
 as null. Do not use the legacy `controlled` or token-total fields for a new
 comparison.
+
+The historical `peak_allocated_bytes` values were measured during each arm.
+Historical `peak_reserved_bytes` may include CUDA allocator state retained from
+an earlier sequential arm. The result files are not rewritten for that memory
+caveat; future comparisons use the lifecycle-isolated harness.
+
+The original schema-v1 config is readable at
+`configs/gpu_calc_hard_legacy_v1.yaml`. Current miniVERL deliberately does not
+execute it. Reproduce it only from immutable commit
+`3383f2b9a3c595e0fa143fecdc27522ab368b27f`, where its original filename was
+`configs/gpu_calc_hard.yaml`.
 
 The toy benchmark was run twice. The first attempt gave every arm a fresh cosine
 schedule at the base learning rate after the cold start, which restarted the

@@ -162,6 +162,17 @@ class ArmResult(BaseModel):
     tokenizer_fingerprint: str | None = None
     teacher_context_mode: str | None = None
 
+    # ``structured_diff`` and ``resolved_config_digest`` are retained with
+    # their schema-v2 meaning for existing readers: the fully defaulted,
+    # pre-allocation arm config compared with the common config. The additive
+    # fields below separate scientific treatments from harness bookkeeping and
+    # runtime decisions without requiring a schema-v3 migration.
+    declared_config_digest: str | None = None
+    runtime_resolved_config_digest: str | None = None
+    scientific_config_diff: list[dict[str, Any]] = Field(default_factory=list)
+    runtime_resolution_diff: list[dict[str, Any]] = Field(default_factory=list)
+    harness_config_diff: list[dict[str, Any]] = Field(default_factory=list)
+
     optimizer_steps: int
     policy_version: int
     total_trajectories: int = 0
@@ -258,6 +269,8 @@ class BenchmarkResult(BaseModel):
     cold_start: dict[str, Any] | None = None
     common_resolved_config: dict[str, Any] | None = None
     common_resolved_config_digest: str | None = None
+    common_declared_config: dict[str, Any] | None = None
+    common_declared_config_digest: str | None = None
     controlled: dict[str, Any] = Field(default_factory=dict)
     arms: list[ArmResult] = Field(default_factory=list)
     notes: str = ""

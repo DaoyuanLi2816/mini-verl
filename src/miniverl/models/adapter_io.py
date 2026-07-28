@@ -97,6 +97,46 @@ def _read_local_adapter(path: Path) -> tuple[dict[str, Any], dict[str, Any] | No
     return adapter_config, manifest
 
 
+def _read_hub_adapter(
+    repo_id: str,
+    revision: str,
+) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Path]]:
+    """Download the reproducibility metadata and weights at one immutable revision."""
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as exc:  # pragma: no cover - transformers installs it
+        raise BackendError(
+            "loading a Hub teacher adapter requires huggingface_hub",
+            hint='pip install "miniverl[train]"',
+        ) from exc
+
+    downloaded: dict[str, Path] = {}
+    for name in (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS, ADAPTER_MANIFEST):
+        try:
+            downloaded[name] = Path(
+                hf_hub_download(repo_id=repo_id, filename=name, revision=revision)
+            )
+        except Exception as exc:
+            if name == ADAPTER_MANIFEST:
+                continue
+            raise BackendError(
+                f"could not download teacher adapter file {name!r} from "
+                f"{repo_id!r} at revision {revision!r}: {exc}"
+            ) from exc
+    try:
+        adapter_config = json.loads(downloaded[_ADAPTER_CONFIG].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BackendError(f"cannot read downloaded {_ADAPTER_CONFIG}: {exc}") from exc
+    manifest = None
+    manifest_path = downloaded.get(ADAPTER_MANIFEST)
+    if manifest_path is not None:
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            raise BackendError(f"cannot read downloaded {ADAPTER_MANIFEST}: {exc}") from exc
+    return adapter_config, manifest, downloaded
+
+
 def validate_teacher_adapter(
     adapter: TeacherAdapterConfig,
     teacher: TeacherModelConfig,
@@ -107,24 +147,12 @@ def validate_teacher_adapter(
     if adapter.source is AdapterSource.LOCAL:
         path = Path(adapter.path)
         adapter_config, manifest = _read_local_adapter(path)
+        downloaded = {
+            name: path / name for name in (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS, ADAPTER_MANIFEST)
+        }
     else:
-        # PeftConfig performs the Hub download and gives the same standardized
-        # fields as adapter_config.json.
-        from miniverl.utils.lazy import require_peft
-
-        peft = require_peft("Loading a frozen teacher adapter")
-        try:
-            peft_config = peft.PeftConfig.from_pretrained(
-                adapter.path,
-                revision=adapter.revision,
-            )
-        except (OSError, ValueError) as exc:
-            raise BackendError(
-                f"could not load teacher adapter {adapter.path!r} at "
-                f"revision {adapter.revision!r}: {exc}"
-            ) from exc
-        adapter_config = dict(peft_config.to_dict())
-        manifest = None
+        assert adapter.revision is not None
+        adapter_config, manifest, downloaded = _read_hub_adapter(adapter.path, adapter.revision)
 
     peft_type = str(adapter_config.get("peft_type") or "").upper()
     if peft_type != "LORA":
@@ -195,22 +223,19 @@ def validate_teacher_adapter(
                 hint="report the failed teacher evaluation; do not run the headline OPD arm",
             )
 
-    if adapter.source is AdapterSource.LOCAL:
-        checksums = manifest.get("checksums") or {}
-        for name, expected in checksums.items():
-            file_path = Path(adapter.path) / str(name)
-            if not file_path.is_file():
-                raise BackendError(f"adapter checksum references missing file {name!r}")
-            actual, _ = sha256_file(file_path)
-            if actual != expected:
-                raise BackendError(
-                    f"teacher adapter checksum mismatch for {name}: expected "
-                    f"{str(expected)[:16]}..., got {actual[:16]}..."
-                )
+    checksums = manifest.get("checksums") or {}
+    for name, expected in checksums.items():
+        file_path = downloaded.get(str(name))
+        if file_path is None or not file_path.is_file():
+            raise BackendError(f"adapter checksum references missing file {name!r}")
+        actual, _ = sha256_file(file_path)
+        if actual != expected:
+            raise BackendError(
+                f"teacher adapter checksum mismatch for {name}: expected "
+                f"{str(expected)[:16]}..., got {actual[:16]}..."
+            )
 
-    weights_digest = None
-    if adapter.source is AdapterSource.LOCAL:
-        weights_digest, _ = sha256_file(Path(adapter.path) / _ADAPTER_WEIGHTS)
+    weights_digest, _ = sha256_file(downloaded[_ADAPTER_WEIGHTS])
     return {
         "source": adapter.source.value,
         "identity": (

@@ -21,6 +21,7 @@ at version *v+1*.  ``offline_kd`` is the only mode that may set
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import random
 import time
@@ -43,7 +44,7 @@ from miniverl.config.models import (
 )
 from miniverl.environments.base import Task, ToolEnvironment, make_splits
 from miniverl.environments.registry import make_environment
-from miniverl.errors import ConfigError, MiniVerlError
+from miniverl.errors import ConfigError, LifecycleError, MiniVerlError
 from miniverl.models.factory import build_student, build_teacher, build_tokenizer, resolve_device
 from miniverl.schemas.alignment import AlignmentMap
 from miniverl.schemas.trajectory import Trajectory
@@ -133,6 +134,7 @@ class OPDTrainer:
         teacher: Any | None,
         plan: MemoryPlan,
     ) -> None:
+        self._closed = False
         self.config = config
         self.paths = paths
         self.run_id = run_id
@@ -237,89 +239,144 @@ class OPDTrainer:
         if write_artifacts:
             write_text(paths.config_original, config.to_yaml())
 
-        environment = make_environment(config.environment.name, **config.environment.params)
-        splits = make_splits(
-            environment,
-            counts={
-                "train": config.environment.train_tasks,
-                "eval": config.environment.eval_tasks,
-                "test": config.environment.test_tasks,
-            },
-            seed=config.environment.split_seed,
-            difficulty=config.environment.difficulty,
-        )
-        if config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT:
-            probe = environment.privileged_context(splits["train"][0])
-            if not probe:
-                raise ConfigError(
-                    f"environment {environment.name!r} provides no privileged context, but "
-                    "models.teacher.mode is 'privileged_context'",
-                    hint="set models.teacher.mode: standard, or use an environment that "
-                    "implements privileged_context()",
-                )
-
-        device = resolve_device(config.models)
-        tokenizer = build_tokenizer(config, local_files_only=local_files_only)
-        student = build_student(config, tokenizer, device=device, local_files_only=local_files_only)
-
-        teacher = None
-        plan = resolve_strategy(memory_config, device=device, chunk_size=config.loss.chunk_size)
-        if quantized and config.memory.strategy is MemoryStrategy.AUTO:
-            plan.reason = (
-                "auto -> resident: a quantized model cannot be moved off the "
-                "accelerator, so swap is unavailable"
+        environment: ToolEnvironment | None = None
+        student: Any | None = None
+        teacher: Any | None = None
+        loaded_teachers: list[Any] = []
+        trainer: OPDTrainer | None = None
+        try:
+            environment = make_environment(config.environment.name, **config.environment.params)
+            splits = make_splits(
+                environment,
+                counts={
+                    "train": config.environment.train_tasks,
+                    "eval": config.environment.eval_tasks,
+                    "test": config.environment.test_tasks,
+                },
+                seed=config.environment.split_seed,
+                difficulty=config.environment.difficulty,
             )
-        if config.run.mode is not TrainingMode.SFT:
-            if memory_config.strategy is MemoryStrategy.AUTO and device.startswith("cuda"):
-                loaded: list[Any] = []
+            if config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT:
+                probe = environment.privileged_context(splits["train"][0])
+                if not probe:
+                    raise ConfigError(
+                        f"environment {environment.name!r} provides no privileged context, but "
+                        "models.teacher.mode is 'privileged_context'",
+                        hint="set models.teacher.mode: standard, or use an environment that "
+                        "implements privileged_context()",
+                    )
 
-                def teacher_fits() -> bool:
-                    try:
-                        loaded.append(
-                            build_teacher(
-                                config,
-                                tokenizer,
-                                device=device,
-                                local_files_only=local_files_only,
+            device = resolve_device(config.models)
+            tokenizer = build_tokenizer(config, local_files_only=local_files_only)
+            student = build_student(
+                config, tokenizer, device=device, local_files_only=local_files_only
+            )
+
+            plan = resolve_strategy(memory_config, device=device, chunk_size=config.loss.chunk_size)
+            if quantized and config.memory.strategy is MemoryStrategy.AUTO:
+                plan.reason = (
+                    "auto -> resident: a quantized model cannot be moved off the "
+                    "accelerator, so swap is unavailable"
+                )
+            if config.run.mode is not TrainingMode.SFT:
+                if memory_config.strategy is MemoryStrategy.AUTO and device.startswith("cuda"):
+
+                    def teacher_fits() -> bool:
+                        try:
+                            loaded_teachers.append(
+                                build_teacher(
+                                    config,
+                                    tokenizer,
+                                    device=device,
+                                    local_files_only=local_files_only,
+                                )
                             )
+                            return True
+                        except (RuntimeError, MemoryError) as exc:
+                            if not gpu.is_oom_error(exc):
+                                raise
+                            gpu.empty_cache()
+                            return False
+
+                    plan = resolve_strategy(
+                        memory_config,
+                        device=device,
+                        chunk_size=config.loss.chunk_size,
+                        teacher_fits=teacher_fits,
+                    )
+                    teacher = loaded_teachers[0] if loaded_teachers else None
+                if teacher is None:
+                    teacher_device = device if plan.strategy is MemoryStrategy.RESIDENT else "cpu"
+                    teacher = build_teacher(
+                        config,
+                        tokenizer,
+                        device=teacher_device,
+                        local_files_only=local_files_only,
+                    )
+
+            trainer = cls(
+                config=config,
+                paths=paths,
+                run_id=resolved_id,
+                environment=environment,
+                splits=splits,
+                tokenizer=tokenizer,
+                student=student,
+                teacher=teacher,
+                plan=plan,
+            )
+            if write_artifacts:
+                trainer._write_startup_artifacts()
+            return trainer
+        except BaseException:
+            # Construction owns every resource it has allocated. Teardown errors
+            # are logged because the construction failure is the actionable root
+            # cause and must retain its original traceback.
+            if trainer is not None:
+                try:
+                    trainer.close()
+                except LifecycleError as cleanup_error:
+                    logger.warning("cleanup after trainer construction failure: %s", cleanup_error)
+            else:
+                owned_teachers = [teacher, *loaded_teachers]
+                seen: set[int] = set()
+                for backend in [*owned_teachers, student]:
+                    if backend is None or id(backend) in seen:
+                        continue
+                    seen.add(id(backend))
+                    try:
+                        backend.release()
+                    except BaseException as cleanup_error:
+                        logger.warning(
+                            "backend cleanup after trainer construction failure: %s",
+                            cleanup_error,
                         )
-                        return True
-                    except (RuntimeError, MemoryError) as exc:
-                        if not gpu.is_oom_error(exc):
-                            raise
-                        gpu.empty_cache()
-                        return False
-
-                plan = resolve_strategy(
-                    memory_config,
-                    device=device,
-                    chunk_size=config.loss.chunk_size,
-                    teacher_fits=teacher_fits,
-                )
-                teacher = loaded[0] if loaded else None
-            if teacher is None:
-                teacher_device = device if plan.strategy is MemoryStrategy.RESIDENT else "cpu"
-                teacher = build_teacher(
-                    config,
-                    tokenizer,
-                    device=teacher_device,
-                    local_files_only=local_files_only,
-                )
-
-        trainer = cls(
-            config=config,
-            paths=paths,
-            run_id=resolved_id,
-            environment=environment,
-            splits=splits,
-            tokenizer=tokenizer,
-            student=student,
-            teacher=teacher,
-            plan=plan,
-        )
-        if write_artifacts:
-            trainer._write_startup_artifacts()
-        return trainer
+                backend = None
+                owned_teachers.clear()
+                loaded_teachers.clear()
+                teacher = None
+                student = None
+                if environment is not None:
+                    closer = getattr(environment, "close", None)
+                    if callable(closer):
+                        try:
+                            closer()
+                        except BaseException as cleanup_error:
+                            logger.warning(
+                                "environment cleanup after trainer construction failure: %s",
+                                cleanup_error,
+                            )
+                environment = None
+                closer = None
+                try:
+                    gc.collect()
+                    gpu.empty_cache()
+                except BaseException as cleanup_error:
+                    logger.warning(
+                        "allocator cleanup after trainer construction failure: %s",
+                        cleanup_error,
+                    )
+            raise
 
     def _write_startup_artifacts(self) -> None:
         config = self.config
@@ -779,6 +836,7 @@ class OPDTrainer:
 
     def train(self) -> TrainResult:
         """Run the configured schedule and return a summary."""
+        self._ensure_open("train")
         config = self.config
         started = time.perf_counter()
         self.events.emit(
@@ -960,11 +1018,19 @@ class OPDTrainer:
                 ),
             )
 
-        records = self._optimize(samples, phase=config.run.mode.value)
-        if config.report.enabled and self.cycle == config.train.cycles - 1:
-            tokens = self._write_token_analysis(samples)
-            if tokens:
-                self.events.emit("token_analysis_written", tokens=tokens)
+        try:
+            records = self._optimize(samples, phase=config.run.mode.value)
+            if config.report.enabled and self.cycle == config.train.cycles - 1:
+                tokens = self._write_token_analysis(samples)
+                if tokens:
+                    self.events.emit("token_analysis_written", tokens=tokens)
+        finally:
+            # Exact resident targets can close over the teacher's projection
+            # method and hidden tensors. OPD never reuses them across cycles, so
+            # sever those references immediately after their final consumer.
+            if mode is TrainingMode.OPD:
+                for sample in samples:
+                    sample.teacher = None
         selection_stats = aggregate_selection_stats([s.selection.stats for s in samples])
         cycle_metrics: dict[str, Any] = {
             "phase": f"{config.run.mode.value}_cycle",
@@ -1110,6 +1176,7 @@ class OPDTrainer:
         write: bool = True,
     ) -> dict[str, Any]:
         """Deterministic greedy evaluation on a held-out split."""
+        self._ensure_open("evaluate")
         config = self.config
         chosen_split = split or config.eval.split
         pool = tasks if tasks is not None else self.splits.get(chosen_split, [])
@@ -1189,6 +1256,7 @@ class OPDTrainer:
 
     def save_checkpoint(self, *, name: str | None = None) -> Path:
         """Write a resumable checkpoint."""
+        self._ensure_open("save_checkpoint")
         label = name or f"step-{self.global_step:06d}"
         target = self.paths.checkpoints / label
         state = CheckpointState(
@@ -1212,6 +1280,7 @@ class OPDTrainer:
 
     def load_from_checkpoint(self, directory: str | Path) -> CheckpointState:
         """Restore a checkpoint into this trainer."""
+        self._ensure_open("load_from_checkpoint")
         state = load_checkpoint(
             directory,
             backend=self.student,
@@ -1237,18 +1306,124 @@ class OPDTrainer:
         return state
 
     def close(self) -> None:
-        """Release models and connections."""
-        closer = getattr(self.environment, "close", None)
-        if callable(closer):
-            closer()
-        if self._cache is not None:
-            self._cache.flush()
+        """Destructively release every resource owned by this trainer.
+
+        The first call attempts every cleanup stage even if one fails. Later
+        calls are no-ops. Core provenance such as ``config`` and ``paths`` stays
+        readable, while runtime objects are deliberately unusable.
+        """
+        if self._closed:
+            return
+        self._closed = True
+        failures: list[tuple[str, BaseException]] = []
+
+        def cleanup(stage: str, action: Any) -> None:
+            try:
+                action()
+            except BaseException as exc:
+                failures.append((stage, exc))
+
+        cache = self._cache
+        self._cache = None
+        if cache is not None:
+            cleanup("teacher cache flush", cache.flush)
+        cache = None
+
+        samples = self._offline_samples or []
+        self._offline_samples = None
+        for index in range(len(samples)):
+            cleanup(
+                f"teacher target release {index}",
+                lambda owned_sample=samples[index]: setattr(owned_sample, "teacher", None),
+            )
+        samples.clear()
+
+        # RolloutRunner and LocalTeacherScorer own strong backend references;
+        # drop them before releasing the backends themselves.
+        self.runner = None  # type: ignore[assignment]  # destructive close
+        self.scorer = None
+
+        optimizer = self.optimizer
+        self.optimizer = None
+        if optimizer is not None:
+            cleanup(
+                "optimizer gradient clear",
+                lambda: optimizer.zero_grad(set_to_none=True),
+            )
+
+            def clear_optimizer() -> None:
+                optimizer.state.clear()
+                for group in optimizer.param_groups:
+                    group["params"] = []
+                optimizer.param_groups.clear()
+
+            cleanup("optimizer state clear", clear_optimizer)
+        optimizer = None
+
+        teacher = self.teacher
+        self.teacher = None
+        if teacher is not None:
+            cleanup("teacher release", teacher.release)
+        teacher = None
+
+        student = self.student
+        self.student = None
+        if student is not None:
+            cleanup("student release", student.release)
+        student = None
+
+        environment = self.environment
+        self.environment = None  # type: ignore[assignment]  # destructive close
+        if environment is not None:
+            closer = getattr(environment, "close", None)
+            if callable(closer):
+                cleanup("environment close", closer)
+        del environment
+        closer = None
+
+        self.metrics_log = None  # type: ignore[assignment]  # destructive close
+        self.events = None  # type: ignore[assignment]  # destructive close
+        self._teacher_on_device = False
+        cleanup("Python garbage collection", gc.collect)
+        cleanup("CUDA allocator release", gpu.empty_cache)
+
+        if failures:
+            details = "; ".join(f"{stage}: {type(exc).__name__}: {exc}" for stage, exc in failures)
+            raise LifecycleError(
+                f"trainer cleanup failed after all teardown stages were attempted: {details}",
+                hint=(
+                    "the trainer is closed and cannot be reused; inspect the first cleanup "
+                    "error and start a fresh trainer"
+                ),
+            )
+
+    def _ensure_open(self, operation: str) -> None:
+        if self._closed:
+            raise LifecycleError(
+                f"cannot {operation}: this OPDTrainer is closed",
+                hint="construct a fresh trainer with OPDTrainer.from_config(...)",
+            )
 
     def __enter__(self) -> OPDTrainer:
+        self._ensure_open("enter")
         return self
 
-    def __exit__(self, *exc: object) -> None:
-        self.close()
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: Any,
+    ) -> None:
+        try:
+            self.close()
+        except LifecycleError as cleanup_error:
+            if exc_type is None:
+                raise
+            logger.warning(
+                "trainer cleanup also failed while preserving %s: %s",
+                exc_type.__name__,
+                cleanup_error,
+            )
 
 
 def _raise_config(message: str, hint: str | None = None) -> None:  # pragma: no cover - helper

@@ -181,11 +181,28 @@ with a [generated Markdown table](../benchmarks/results/gpu-calc-hard-equal-upda
 
 ![Strict success and training time across the five arms](gpu-calc-hard-equal-update-v2.svg)
 
+### Historical benchmark memory caveat
+
+The published result's `peak_allocated_bytes` values were measured from live
+tensors during each arm. Its `peak_reserved_bytes` values may also include CUDA
+caching-allocator state retained from an earlier sequential arm because that
+harness predated destructive trainer teardown. The success measurements are
+unaffected, so the JSON remains byte-for-byte preserved. Future reserved-memory
+comparisons must use the corrected lifecycle-isolated harness, which destroys
+each trainer, collects dead references, and empties the allocator before the
+next arm is loaded.
+
 ## Legacy equal-update comparison (schema v1)
 
 ```bash
+git checkout 3383f2b9a3c595e0fa143fecdc27522ab368b27f
 miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
 ```
+
+The original configuration is also retained for inspection at
+`benchmarks/configs/gpu_calc_hard_legacy_v1.yaml`, but current miniVERL does not
+execute schema-v1 benchmark configs. The checkout above is required to
+reproduce the historical harness rather than accidentally running v2.
 
 Continuation and evaluation ran on the less-saturated **`hard`** calculator split (compute an
 expression, then convert the result — two dependent tool calls), because

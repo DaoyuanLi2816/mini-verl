@@ -4,9 +4,66 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-07-27 (pre-merge v0.2 evidence snapshot).
+Last updated: 2026-07-28.
 
-## v0.2 takeover checkpoint
+## v0.2 release-hardening status
+
+| item | current state |
+| --- | --- |
+| public repository | `https://github.com/DaoyuanLi2816/mini-verl` |
+| public `main` | `4859531e128bd23b7cbaff9ead811ec9bd71fff6`, fetched 2026-07-28 |
+| previous integration | PR [#4](https://github.com/DaoyuanLi2816/mini-verl/pull/4) merged; its main-branch CI and build runs passed |
+| working branch | `v0.2-release-hardening`, created from current public `main` |
+| current PR | draft [#5](https://github.com/DaoyuanLi2816/mini-verl/pull/5) |
+| lifecycle fix | destructive, idempotent cleanup implemented; explicit cold-start/arm context boundaries added |
+| local release gates | ruff and format clean; mypy clean over 73 source files; 981 CPU tests and all 5 GPU tests passed |
+| CI repair | initial core coverage jobs exposed a Pydantic 2.13.4 `AliasChoices` identity failure; explicit pre-validation migration preserves the legacy key, and the exact coverage command now passes 797 tests at 92.12% locally |
+| compatibility | Transformers 4.51.3 and 5.14.1 each passed the same 118-test offline Qwen3/config slice |
+| focused validation | 23 lifecycle/benchmark CPU tests passed; CUDA sequential-isolation test passed without test-side garbage collection after `close()` |
+| CUDA isolation | audited old close retained 32,330,752 allocated / 35,651,584 reserved bytes; corrected close returned allocated/reserved to 0 / 0 after both first and second trainers |
+| artifact audit | 39 Markdown files, 117 local links/anchors and 11 external links passed; 5 run recipes and 4 benchmark-v2 configs resolved; publishable privacy and unfinished-code scans were clean |
+| package gates | wheel and sdist passed `twine check`; a wheel-only core venv had no torch, and a separate wheel `[train]` venv completed demo, inspect and report |
+| version | `0.2.0`; no public `v0.2.0` tag, GitHub Release or PyPI publication is claimed |
+| PyPI | `miniverl` still returns HTTP 404, but GitHub has zero environments and PyPI cannot yet have a publisher for a nonexistent project; release remains externally blocked and `if: false` stays in place |
+| Hugging Face adapter | public at `https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher`, immutable head `23323751318135484c06c043b1f9b9e7016dd89f` |
+| scientific artifact | schema-v2 JSON remains byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
+
+Highest-risk release defect and fix:
+
+- The audited `OPDTrainer.close()` retained model-bearing trainer, scorer,
+  rollout, optimizer and exact-target references, so sequential benchmark arms
+  could begin while the prior arm still owned CUDA tensors.
+- `close()` now marks the trainer closed, flushes the cache, clears target
+  providers/runner/scorer/optimizer references, releases each backend, closes
+  the environment, collects garbage and empties CUDA after live references are
+  gone. It is idempotent, preserves an original context-manager exception and
+  raises `LifecycleError` for post-close public operations.
+- `_cold_start()` and `_run_one_arm()` now own trainers only inside `with`
+  blocks. The outer loop runs garbage collection and allocator cleanup before
+  constructing the next trainer.
+- Published success measurements remain untouched. Historical
+  `peak_reserved_bytes` are explicitly caveated because they may include
+  allocator state from earlier arms; future comparisons use the isolated
+  harness.
+
+Observed external publication constraint:
+
+- `hf repos create DaoyuanLi2816/mini-verl-qwen3-1.7b-protocol-teacher`
+  returned 403 because the authenticated Hub namespace is `DaoyuanLi`, not
+  `DaoyuanLi2816`; publication then succeeded under the authenticated namespace.
+- no test failure remains. PyPI publication is blocked by the absent GitHub
+  `pypi` environment and absent trusted-publisher bootstrap.
+
+Exact next actions:
+
+1. Push the CI compatibility repair to draft PR #5.
+2. Wait for required CI/build workflows, mark ready and merge only if green,
+   then verify public
+   `main`, Hub links, preserved benchmark SHA and clean synchronization.
+3. Do not create `v0.2.0` or a GitHub Release while the PyPI trusted publisher
+   and GitHub `pypi` environment remain absent.
+
+## Historical v0.2 pre-merge evidence (PR #4)
 
 This section records the final local evidence snapshot prepared for integration
 through PR #4. The PR link is authoritative for its later merge state.
@@ -351,6 +408,6 @@ None. Every gate in the table above passes.
 
 ## Final evidence table
 
-See the [v0.2 takeover checkpoint](#v02-takeover-checkpoint) for
+See the [v0.2 release-hardening status](#v02-release-hardening-status) for
 current evidence and the historical table for the v0.1 baseline. Known
 limitations are enumerated in `docs/limitations.md`.

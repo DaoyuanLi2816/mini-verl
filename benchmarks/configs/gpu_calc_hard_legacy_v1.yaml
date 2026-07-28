@@ -1,4 +1,16 @@
-# miniVERL equal-optimizer-update benchmark on a single RTX 4080 (16 GB).
+# Historical schema-v1 configuration, reconstructed from immutable miniVERL
+# commit 3383f2b9a3c595e0fa143fecdc27522ab368b27f.
+#
+# Current miniVERL intentionally does not execute schema-v1 benchmark configs.
+# To reproduce this historical harness, checkout that commit and run:
+#
+#   miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
+#
+# The configuration below is retained for readable auditability. Its scientific
+# fields match the immutable source; only this explanatory header and stable
+# filename are new.
+
+# miniVERL matched-budget benchmark on a single RTX 4080 (16 GB).
 #
 # Why this exists separately from recipes/benchmark_calc.yaml: the toy backend
 # can only solve the `easy` calculator split, where supervised fine-tuning
@@ -12,44 +24,19 @@
 # the per-arm baseline/final evaluations so the only evaluation is the harness's
 # own held-out pass on the `test` split.
 #
-#   miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
-#
-# The protocol-teacher adapter is pinned to an immutable public Hub commit.
-# For an already-downloaded adapter, use gpu_calc_hard_local_adapter.yaml.
-#
-# The seed set is prespecified for every arm. The first seed is diagnostic; the
-# second is retained only if the same complete arm set runs correctly.
+# This is a SINGLE-SEED benchmark. No statistical significance is claimed.
 
-schema_version: 2
-name: gpu-calc-hard-equal-update-v2
+schema_version: 1
+name: gpu-calc-hard-matched
 description: >-
-  Cold start, then equal-optimizer-update continuation under supervised
-  fine-tuning and on-policy distillation from raw, privileged-answer and
-  protocol-SFT Qwen3-1.7B teachers on the chained calculator split.
+  Cold start, then equal-step continuation under supervised fine-tuning and
+  on-policy distillation, on the chained calculator split with Qwen3-0.6B
+  distilled from Qwen3-1.7B on one 16 GB consumer GPU.
 
 base: ../../recipes/qwen_consumer_gpu_calc.yaml
-common_overrides:
-  environment: {difficulty: hard, test_tasks: 24}
-  train:
-    sft_warmup_cycles: 0
-    learning_rate: 5.0e-5
-    lr_schedule: constant
-    opd_freshness: strict
-  eval: {enabled: false, tasks: 24, split: test}
-cold_start_overrides:
-  environment: {difficulty: hard}
 cold_start_cycles: 12
-allowed_differences:
-  - run.mode
-  - train.cycles
-  - loss.mode
-  - loss.divergence
-  - loss.top_k
-  - models.teacher.mode
-  - models.teacher.adapter
-budget_axis: optimizer_steps
 eval_split: test
-seeds: [1234, 20260727]
+seeds: [1234]
 output_dir: runs/benchmarks
 
 arms:
@@ -57,15 +44,19 @@ arms:
     description: The shared cold start, evaluated with zero further optimizer steps.
     overrides:
       run: {mode: sft}
-      train: {cycles: 0}
+      environment: {difficulty: hard, test_tasks: 24}
+      train: {cycles: 0, sft_warmup_cycles: 0}
+      eval: {enabled: false, tasks: 24, split: test}
 
   - name: sft-continued
     description: Off-policy baseline -- the same number of extra steps on oracle traces.
     overrides:
       run: {mode: sft}
-      train: {cycles: 12}
+      environment: {difficulty: hard, test_tasks: 24}
+      train: {cycles: 12, sft_warmup_cycles: 0, learning_rate: 5.0e-5, lr_schedule: constant}
+      eval: {enabled: false, tasks: 24, split: test}
 
-  - name: opd-raw-teacher
+  - name: opd-bucketed-k64
     description: >-
       Genuine on-policy distillation -- the student's own rollouts, scored by the
       teacher on exactly those states, with compressed top-64 + tail reverse KL.
@@ -73,9 +64,11 @@ arms:
       protocol, which is the point of comparing it with the arm below.
     overrides:
       run: {mode: opd}
-      train: {cycles: 12}
+      environment: {difficulty: hard, test_tasks: 24}
+      train: {cycles: 12, sft_warmup_cycles: 0, learning_rate: 5.0e-5, lr_schedule: constant}
       loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 64}
       models: {teacher: {mode: standard}}
+      eval: {enabled: false, tasks: 24, split: test}
 
   - name: opd-privileged-context
     description: >-
@@ -86,26 +79,8 @@ arms:
       Follows arXiv:2602.12275.
     overrides:
       run: {mode: opd}
-      train: {cycles: 12}
+      environment: {difficulty: hard, test_tasks: 24}
+      train: {cycles: 12, sft_warmup_cycles: 0, learning_rate: 5.0e-5, lr_schedule: constant}
       loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 64}
       models: {teacher: {mode: privileged_context}}
-
-  - name: opd-protocol-sft-teacher
-    description: >-
-      The same strict on-policy objective supervised by a frozen Qwen3-1.7B
-      LoRA adapter trained on deterministic oracle traces in the exact
-      miniVERL tool protocol. This arm may run only after the teacher's own
-      held-out tool-policy evaluation is recorded.
-    overrides:
-      run: {mode: opd}
-      train: {cycles: 12}
-      loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 64}
-      models:
-        teacher:
-          mode: standard
-          adapter:
-            source: hub
-            path: DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher
-            revision: 23323751318135484c06c043b1f9b9e7016dd89f
-            require_policy_evaluation: true
-            minimum_strict_success_rate: 0.5
+      eval: {enabled: false, tasks: 24, split: test}

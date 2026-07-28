@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from miniverl.errors import ConfigError
 from miniverl.utils.runs import write_text
@@ -310,8 +310,19 @@ class LossConfig(_Base):
         default=0.0,
         ge=0.0,
         le=1.0,
-        validation_alias=AliasChoices("sampled_token_nll_weight", "ce_weight"),
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_legacy_ce_weight(cls, value: Any) -> Any:
+        """Accept the v0.1 key without relying on runtime alias-class identity."""
+        if not isinstance(value, dict) or "ce_weight" not in value:
+            return value
+        migrated = dict(value)
+        if "sampled_token_nll_weight" in migrated:
+            return migrated
+        migrated["sampled_token_nll_weight"] = migrated.pop("ce_weight")
+        return migrated
 
     @property
     def ce_weight(self) -> float:

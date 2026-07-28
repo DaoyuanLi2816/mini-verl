@@ -368,13 +368,15 @@ def test_report_renders_from_a_real_run(tmp_path: Path):
 
 
 def test_eval_is_deterministic_under_greedy_decoding(tmp_path: Path):
-    trainer, _ = _train(_config(tmp_path), "determinism-run")
-    first = trainer.evaluate(tag="repeat-a")
-    second = trainer.evaluate(tag="repeat-b")
-    assert first["success_rate"] == second["success_rate"]
-    assert first["generated_tokens"] == second["generated_tokens"]
-    assert first["termination_reasons"] == second["termination_reasons"]
-    trainer.close()
+    from miniverl.trainer import OPDTrainer
+
+    with OPDTrainer.from_config(_config(tmp_path), run_id="determinism-run") as trainer:
+        trainer.train()
+        first = trainer.evaluate(tag="repeat-a")
+        second = trainer.evaluate(tag="repeat-b")
+        assert first["success_rate"] == second["success_rate"]
+        assert first["generated_tokens"] == second["generated_tokens"]
+        assert first["termination_reasons"] == second["termination_reasons"]
 
 
 def test_a_raising_tool_ends_the_episode_with_its_own_termination_reason(tmp_path: Path):

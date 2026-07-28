@@ -3,7 +3,10 @@
 miniVERL can train a Qwen3 LoRA policy on deterministic oracle tool traces,
 export it as a standard PEFT adapter, and attach that adapter to a frozen
 teacher base model during distillation. Adapter weights are generated artifacts
-and are never committed to git.
+and are never committed to git. The verified v0.2 adapter is public at
+[`DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher`](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher),
+pinned by miniVERL at immutable revision
+`23323751318135484c06c043b1f9b9e7016dd89f`.
 
 ## Train and evaluate the teacher policy
 
@@ -30,8 +33,8 @@ strict success on all 24 held-out tasks, with 100.0% lenient diagnostic success,
 and 2.375 average turns. It passed the prespecified 50% gate, so candidates B
 and C were not run.
 
-The exported artifact is intentionally not committed. Its reviewable identity
-is:
+The exported artifact is intentionally not committed to Git. Its public Hub
+copy and reviewable identity are:
 
 | field | SHA-256 |
 | --- | --- |
@@ -66,7 +69,7 @@ miniVERL adds `miniverl_adapter_manifest.json` with:
 
 No pickle format is used.
 
-## Load a frozen teacher
+## Load a frozen teacher from the Hub
 
 ```yaml
 models:
@@ -75,17 +78,35 @@ models:
     revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
     tokenizer_revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
     adapter:
-      source: local
-      path: artifacts/qwen3-1.7b-protocol-teacher
+      source: hub
+      path: DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher
+      revision: 23323751318135484c06c043b1f9b9e7016dd89f
       require_policy_evaluation: true
       minimum_strict_success_rate: 0.5
 ```
 
-Before the base model is allocated, miniVERL validates the local files, PEFT
-type, target modules, base identity/revision, tokenizer fingerprint, checksums
-and competence record. After attachment, every teacher parameter is frozen and
-checked again. A Hub adapter is also supported when both its adapter revision
-and base revision are pinned.
+For offline use, download the same immutable revision and switch only the
+adapter source/path:
+
+```bash
+hf download DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher \
+  --revision 23323751318135484c06c043b1f9b9e7016dd89f \
+  --local-dir artifacts/qwen3-1.7b-protocol-teacher
+```
+
+```yaml
+adapter:
+  source: local
+  path: artifacts/qwen3-1.7b-protocol-teacher
+  require_policy_evaluation: true
+  minimum_strict_success_rate: 0.5
+```
+
+Before the base model is allocated, miniVERL validates the PEFT files, type,
+target modules, base identity/revision, tokenizer fingerprint, checksums and
+competence record. Hub metadata and weights are downloaded from the pinned
+adapter revision and pass the same checks as a local directory. After
+attachment, every teacher parameter is frozen and checked again.
 
 The `minimum_strict_success_rate` in the shipped GPU benchmark is an operational
 gate against supervising with a clearly broken protocol policy. Passing it does

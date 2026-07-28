@@ -287,6 +287,66 @@ def local_teacher_adapter(tmp_path: Path, tiny_model, tiny_tokenizer):
 
 
 @requires_peft
+def test_hub_teacher_adapter_downloads_and_validates_miniverl_manifest(
+    local_teacher_adapter,
+    tiny_tokenizer,
+    monkeypatch,
+):
+    import huggingface_hub
+
+    from miniverl.config.models import (
+        AdapterSource,
+        TeacherAdapterConfig,
+        TeacherModelConfig,
+    )
+    from miniverl.models.adapter_io import ADAPTER_MANIFEST, validate_teacher_adapter
+    from miniverl.utils.runs import read_json, write_json
+
+    base, adapter, _ = local_teacher_adapter
+    manifest = read_json(adapter / ADAPTER_MANIFEST)
+    manifest["policy_evaluation"] = {
+        "tag": "final",
+        "split": "test",
+        "tasks": 8,
+        "strict_task_success_rate": 0.75,
+        "lenient_diagnostic_success_rate": 0.75,
+        "valid_tool_call_rate": 1.0,
+        "tool_call_count": 16,
+        "final_answer_format_validity_rate": 1.0,
+        "avg_turns": 3.0,
+        "protocol_token_accuracy": None,
+        "policy_competence_measurement_status": {
+            "strict_task_success_rate": "measured_primary",
+            "protocol_token_accuracy": "not_applicable_free_running",
+        },
+    }
+    write_json(adapter / ADAPTER_MANIFEST, manifest)
+
+    def download(*, repo_id: str, filename: str, revision: str) -> str:
+        assert repo_id == "owner/protocol-teacher"
+        assert revision == "a" * 40
+        return str(adapter / filename)
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", download)
+    provenance = validate_teacher_adapter(
+        TeacherAdapterConfig(
+            source=AdapterSource.HUB,
+            path="owner/protocol-teacher",
+            revision="a" * 40,
+            require_policy_evaluation=True,
+            minimum_strict_success_rate=0.5,
+        ),
+        TeacherModelConfig(model_id=str(base)),
+        tokenizer_fingerprint=tiny_tokenizer.fingerprint,
+    )
+
+    assert provenance["source"] == "hub"
+    assert provenance["revision"] == "a" * 40
+    assert provenance["weights_sha256"] == manifest["checksums"]["adapter_model.safetensors"]
+    assert provenance["policy_evaluation"]["strict_task_success_rate"] == pytest.approx(0.75)
+
+
+@requires_peft
 def test_frozen_teacher_adapter_round_trip_preserves_logits(local_teacher_adapter, tiny_tokenizer):
     from miniverl.config.models import TeacherAdapterConfig, TeacherModelConfig
     from miniverl.models.hf import HFBackend
