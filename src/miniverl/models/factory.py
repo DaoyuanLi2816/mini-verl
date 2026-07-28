@@ -58,7 +58,7 @@ def _cuda_available() -> bool:
 def build_tokenizer(config: RunConfig, *, local_files_only: bool = False) -> TokenizerLike:
     """Load the single tokenizer shared by student and teacher.
 
-    v0.1 requires an identical tokenizer on both sides.  When the teacher
+    miniVERL currently requires an identical tokenizer on both sides. When the teacher
     declares its own tokenizer id, it is loaded and fingerprint-compared rather
     than trusted, and a mismatch raises instead of degrading silently.
     """
@@ -86,7 +86,7 @@ def build_tokenizer(config: RunConfig, *, local_files_only: bool = False) -> Tok
             raise TokenizerMismatchError(
                 f"the student tokenizer ({student.tokenizer_id or student.model_id}) and the "
                 f"teacher tokenizer ({teacher_id}) tokenize differently",
-                hint="miniVERL v0.1 only supports same-tokenizer distillation. Pick a "
+                hint="miniVERL currently supports same-tokenizer distillation only. Pick a "
                 "teacher from the same model family, e.g. Qwen/Qwen3-0.6B with "
                 "Qwen/Qwen3-1.7B. Cross-tokenizer distillation is a roadmap item "
                 "(docs/limitations.md).",

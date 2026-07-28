@@ -235,6 +235,20 @@ def test_prune_before_removes_old_policy_versions_and_their_shards(tmp_path: Pat
     assert removed == 1
     assert "old" not in cache
     assert "new" in cache
+
+
+def test_pruning_does_not_reduce_cumulative_bytes_written(tmp_path: Path):
+    cache = _cache(tmp_path / "tc", entries_per_shard=1)
+    cache.write(_batch("old", policy_version=1), selector="hybrid")
+    cache.write(_batch("new", policy_version=5), selector="hybrid")
+    cache.flush()
+    before = cache.bytes_written_total
+    footprint_before = cache.total_bytes()
+
+    cache.prune_before(5)
+
+    assert cache.total_bytes() < footprint_before
+    assert cache.bytes_written_total >= before
     assert len(cache.index.shards) == 1
     assert cache.validate() == []
 

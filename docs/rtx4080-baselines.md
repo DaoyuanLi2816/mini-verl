@@ -136,17 +136,28 @@ The next section is the experiment that tests that question.
 Per-cycle rollout success during the on-policy phase: 0.83, 1.00, 1.00, 1.00,
 1.00, 0.83, 1.00, 1.00.
 
-## Matched-budget comparison
+## Legacy equal-update comparison (schema v1)
 
 ```bash
 miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
 ```
 
-Run on the **`hard`** calculator split (compute an expression, then convert the
-result — two dependent tool calls), because `medium` saturates. Every arm
-resumes from the same 12-cycle supervised cold start, **weights only**, and
-receives the same 12 optimizer steps at a constant learning rate of 5e-5.
-Evaluation is greedy on 24 held-out `test` tasks with a fixed seed.
+Continuation and evaluation ran on the **`hard`** calculator split (compute an
+expression, then convert the result — two dependent tool calls), because
+`medium` saturates. Every arm resumed from the same 12-cycle supervised cold
+start, **weights only**, and received the same 12 optimizer steps at a constant
+learning rate of 5e-5. Evaluation was greedy on 24 held-out `test` tasks with a
+fixed seed.
+
+**Erratum.** The shared checkpoint itself was trained on `medium`, not `hard`.
+The old harness built its `controlled` block from the base recipe, so that block
+incorrectly reports `medium`, learning rate `1e-4`, a cosine schedule and 48
+test tasks even though continuation/evaluation used the settings above. Its
+`selected_training_tokens` fields contain only the final cycle, not full-run
+totals, and SFT's teacher-query ratio is meaningless because SFT queried no
+teacher. The identical starting checkpoint across arms is unaffected. The JSON
+is preserved as a legacy schema-v1 artifact; benchmark v2 fixes these semantics
+without rewriting the measurement.
 
 Results are in `benchmarks/results/rtx4080-calc-hard-matched.json` and the
 Markdown table beside it.
@@ -316,10 +327,9 @@ page.
 | what | why | the exact command, for whoever has the hardware |
 | --- | --- | --- |
 | Anything on Linux | No Linux machine with a CUDA GPU was available. The dispatch-bound finding above is therefore Windows-specific. | `python scripts/gpu_probe_throughput.py` |
-| More than one seed on GPU | Each GPU benchmark arm costs roughly ten minutes of generation. | edit `seeds:` in `benchmarks/configs/gpu_calc_hard.yaml` |
+| More than one seed on GPU | The preserved schema-v1 comparison used one seed. The v0.2 config prespecifies two seeds for every arm. | `miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks` |
 | The JSON-navigation and SQLite recipes on real models | Only the calculator environment was run end to end on GPU. | `miniverl train recipes/qwen_consumer_gpu_jsonnav.yaml` |
-| **A teacher that was itself fine-tuned on the tool protocol** | The single most important missing measurement on this page. Every negative result above shares this confound. It would separate "on-policy distillation does not help here" from "this teacher does not help here". | `miniverl train recipes/qwen_consumer_gpu_calc.yaml --set models.student.name=Qwen/Qwen3-1.7B --set run.mode=sft --run-id teacher-sft`, then rerun the benchmark with `models.teacher.name` pointing at `runs/teacher-sft/checkpoints/final`. Expected output: a fourth column in the table above; the arm is informative whichever way it lands. |
-| A second seed for the two OPD arms | Both landed on exactly 0.0%, which is a floor rather than a distribution, so a second seed would confirm the failure is systematic rather than an unlucky draw. | add `20260727` to `seeds:` in `benchmarks/configs/gpu_calc_hard.yaml` (roughly +20 min/arm) |
+| **A teacher that was itself fine-tuned on the tool protocol** | The single most important missing measurement on this page. Every negative result above shares this confound. It would separate "on-policy distillation does not help here" from "this teacher does not help here". | Train `recipes/qwen3_1.7b_protocol_teacher_sft.yaml`, export with `miniverl export-adapter`, then run the five-arm, two-seed `benchmarks/configs/gpu_calc_hard.yaml`. The competence gate and prespecified fallback grid are in `docs/teacher-adapters.md`. |
 | Any GPU other than an RTX 4080 | Only one card was available. | `miniverl export-benchmark runs/<run-id>` and open a pull request; see `benchmarks/README.md` |
 
 ## Regression fixtures

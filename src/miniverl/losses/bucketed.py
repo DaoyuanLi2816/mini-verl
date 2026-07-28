@@ -13,9 +13,12 @@ What this is **not**
 --------------------
 This is *not* full-vocabulary KL, and the functions are named
 ``bucketed_*`` so no call site can pretend otherwise.  By the data-processing
-inequality the bucketed divergence is a **lower bound** on the exact
-full-vocabulary divergence: coarse-graining can only destroy information.
-Equality holds when ``K == V`` (the tail bucket is then empty).
+inequality the *unfloored mathematical coarse-graining* is a lower bound on the
+exact full-vocabulary divergence: coarse-graining can only destroy information.
+The implemented epsilon-smoothed objective is finite and numerically robust,
+but the floor means the theorem is not claimed literally for every input.
+When ``K == V`` the empty tail bypasses smoothing and equality is exact up to
+the arithmetic of the shared full-vocabulary primitives.
 
 What it actually saves
 ----------------------
@@ -134,6 +137,18 @@ def build_bucket_distributions(
     """Floor the tails, concatenate and renormalize into ``[N, K+1]`` log-probs."""
     if not 0.0 < tail_epsilon < 1.0:
         raise ValueError(f"tail_epsilon must be in (0, 1), got {tail_epsilon}")
+    if bool(torch.isneginf(teacher_tail_log_prob).all()) and bool(
+        torch.isneginf(student_tail_log_prob).all()
+    ):
+        # K == V: the partition is the identity.  Do not manufacture an
+        # epsilon tail, because doing so scales the exact divergence by
+        # 1/(1+epsilon) and breaks the advertised full-vocabulary limit.
+        teacher = to_float32(teacher_topk_log_probs)
+        student = to_float32(student_topk_log_probs)
+        return (
+            teacher - torch.logsumexp(teacher, dim=-1, keepdim=True),
+            student - torch.logsumexp(student, dim=-1, keepdim=True),
+        )
     log_eps = math.log(tail_epsilon)
     teacher = torch.cat(
         [

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from miniverl.config.models import (
+    AdapterSource,
     CacheConfig,
     Divergence,
     EnvironmentConfig,
@@ -14,6 +15,7 @@ from miniverl.config.models import (
     MemoryStrategy,
     ModelBackend,
     ModelsConfig,
+    OPDFreshness,
     OptimizerName,
     Precision,
     Quantization,
@@ -24,6 +26,7 @@ from miniverl.config.models import (
     SelectionConfig,
     SelectorName,
     StudentModelConfig,
+    TeacherAdapterConfig,
     TeacherContextMode,
     TeacherModelConfig,
     ToyModelConfig,
@@ -32,6 +35,7 @@ from miniverl.config.models import (
 )
 
 __all__ = [
+    "AdapterSource",
     "CacheConfig",
     "Divergence",
     "EnvironmentConfig",
@@ -43,6 +47,7 @@ __all__ = [
     "MemoryStrategy",
     "ModelBackend",
     "ModelsConfig",
+    "OPDFreshness",
     "OptimizerName",
     "Precision",
     "Quantization",
@@ -54,6 +59,7 @@ __all__ = [
     "SelectorName",
     "StudentModelConfig",
     "TeacherContextMode",
+    "TeacherAdapterConfig",
     "TeacherModelConfig",
     "ToyModelConfig",
     "TrainConfig",

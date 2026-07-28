@@ -1,4 +1,4 @@
-# miniVERL matched-budget benchmark on the calculator environment (CPU, toy models).
+# miniVERL equal-optimizer-update benchmark (CPU, toy models).
 #
 # Every arm:
 #   * resumes from the SAME shared SFT cold-start checkpoint (weights only, so no
@@ -12,14 +12,28 @@
 #
 #   miniverl benchmark recipes/benchmark_calc.yaml --output runs/benchmarks
 
-schema_version: 1
-name: calc-matched-budget
+schema_version: 2
+name: cpu-toy-calc-equal-update-v2
 description: >-
   Cold start, then equal-step continuation under SFT, offline KD, bucketed OPD
   and exact-full-vocabulary OPD on the deterministic calculator environment.
 
-base: toy_cpu.yaml
+base: ../../recipes/toy_cpu.yaml
+common_overrides:
+  train: {sft_warmup_cycles: 0, opd_freshness: strict}
+cold_start_overrides:
+  environment: {difficulty: easy}
 cold_start_cycles: 200
+allowed_differences:
+  - run.mode
+  - train.cycles
+  - cache.reuse_across_policy_versions
+  - cache.strict_policy_version
+  - loss.mode
+  - loss.divergence
+  - loss.top_k
+  - selection.selector
+budget_axis: optimizer_steps
 eval_split: test
 seeds: [1234, 20260727]
 output_dir: runs/benchmarks

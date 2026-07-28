@@ -109,12 +109,12 @@ approach none of it is reusable.
 **Distilling the Knowledge in a Neural Network** `[primary]`
 Geoffrey Hinton, Oriol Vinyals, Jeff Dean. arXiv:1503.02531, submitted
 2015-03-09. <https://arxiv.org/abs/1503.02531>
-Source of the `T**2` correction. Softening logits by temperature `T` shrinks the
-gradients by `1/T`, so a distillation term's effective learning rate would
-otherwise depend on `T`. `miniverl.losses.exact.temperature_scale` applies the
-factor, and `loss.scale_by_temperature_squared` (default `true`) controls it.
-miniVERL applies it to all three divergences, not only forward KL, so that
-changing `T` never changes the update scale by itself.
+Source of the classic `T**2` correction for soft-target cross-entropy / forward
+KL in the near-uniform high-temperature regime.
+`miniverl.losses.exact.temperature_scale` applies the factor, and
+`loss.scale_by_temperature_squared` controls it. Its use for reverse KL and JSD
+is explicitly treated as a heuristic and measured by
+`scripts/temperature_gradient_sweep.py`, not presented as a general invariance.
 
 ## Numerics
 

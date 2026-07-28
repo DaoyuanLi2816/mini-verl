@@ -134,9 +134,10 @@ same number of optimizer steps. Controlled quantities are listed under the table
       <td class="num">{{ pct(arm.success_rate) }}</td>
       <td class="num">{{ num(arm.avg_turns, 2) }}</td>
       <td class="num">{{ num(arm.generated_tokens_per_task, 1) }}</td>
-      <td class="num">{{ arm.selected_training_tokens }}</td>
-      <td class="num">{{ num(arm.cache_bytes / 1048576.0, 2) if arm.cache_bytes else "-" }}</td>
-      <td class="num">{{ num(arm.seconds, 1) }}</td>
+      <td class="num">{{ arm.get("selected_training_tokens_total", arm.get("selected_training_tokens")) }}</td>
+      {% set cache_size = arm.get("cache_current_bytes", arm.get("cache_bytes")) %}
+      <td class="num">{{ num(cache_size / 1048576.0, 2) if cache_size else "-" }}</td>
+      <td class="num">{{ num(arm.get("wall_seconds", arm.get("seconds")), 1) }}</td>
     </tr>
   {% endfor %}
   </tbody>

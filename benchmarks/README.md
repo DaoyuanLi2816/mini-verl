@@ -18,16 +18,17 @@ benchmarks/
 # CPU, toy models, minutes
 miniverl benchmark recipes/benchmark_calc.yaml --output runs/benchmarks
 
-# One 16 GB GPU, the real Qwen3 pair, tens of minutes
+# One 16 GB GPU, the real Qwen3 pair, equal optimizer updates
 miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
 ```
 
 Each run writes `<name>.json` and `<name>.md` into the output directory. The
 Markdown is for humans; the JSON is the artifact to submit.
 
-## What "matched budget" means here
+## What the budget axis means
 
-Every arm receives, by construction:
+The v2 configuration declares `budget_axis: optimizer_steps`. Every arm
+receives, by construction:
 
 * the same environment, difficulty and `split_seed`, so the same task instances;
 * the same **initial weights** — one shared supervised cold start, loaded
@@ -38,9 +39,10 @@ Every arm receives, by construction:
 * the same maximum trajectory length, turn limit and rollout bounds;
 * the same held-out split, evaluation seed and greedy temperature.
 
-Arms differ **only** in the keys listed under `arms_differ_only_in` in the result
-file. Four quantities cannot be matched by construction, so they are measured and
-reported per arm instead of being pretended away:
+This is an **equal-optimizer-update** comparison, not a generic matched-compute
+claim. Arms differ only in paths declared under `allowed_differences`; resolved
+leaf diffs are checked before any model is loaded. Four quantities cannot be
+matched by construction, so they are measured and reported per arm:
 
 | Quantity | Why it cannot be matched |
 | --- | --- |
@@ -71,7 +73,30 @@ Listed so you can check that this repository does not.
 | File | Hardware | What it shows |
 | --- | --- | --- |
 | `results/cpu-toy-calc-matched.json` | CPU only | **Parity, not ranking.** All seven arms run to completion under identical budgets on the toy backend. The accuracy differences are within noise and must not be read as a ranking; see the note in the file. |
-| `results/rtx4080-calc-hard-matched.json` | RTX 4080 16 GB | Single-seed matched comparison on the chained calculator split with the real Qwen3 pair. **On-policy distillation lost**, with both a standard and a privileged-context teacher; the transcript-level diagnosis is in [`docs/rtx4080-baselines.md`](../docs/rtx4080-baselines.md#matched-budget-comparison). |
+| `results/rtx4080-calc-hard-matched.json` | RTX 4080 16 GB | Legacy single-seed equal-update comparison on the chained calculator split with the real Qwen3 pair. **On-policy distillation lost**, with both a standard and a privileged-context teacher; the transcript-level diagnosis and v1 erratum are in [`docs/rtx4080-baselines.md`](../docs/rtx4080-baselines.md#legacy-equal-update-comparison-schema-v1). |
+
+### Erratum for the legacy RTX 4080 result
+
+`results/rtx4080-calc-hard-matched.json` is preserved byte-for-byte as a schema
+v1 measurement and is now superseded by the v2 experiment specification. Its
+continuation comparison remains valid in one important respect: every arm
+started from the same checkpoint. Its provenance/accounting fields do not mean
+what their names implied:
+
+- the shared cold start was trained on calculator `medium`;
+- continuation and held-out evaluation were on `hard`;
+- the `controlled` block was copied from the base recipe rather than the
+  resolved arm configs, so it incorrectly reports base values such as
+  `difficulty: medium`, learning rate `1e-4`, cosine scheduling and 48 test
+  tasks instead of the continuation settings;
+- `selected_training_tokens` is only the final cycle's count, not the run total;
+- SFT's teacher-query ratio is not semantically meaningful because no teacher
+  was queried.
+
+Schema v2 makes the transfer design explicit, hashes the resolved cold/arm
+configs, sums accounting over the full run and records SFT teacher-query fields
+as null. Do not use the legacy `controlled` or token-total fields for a new
+comparison.
 
 The toy benchmark was run twice. The first attempt gave every arm a fresh cosine
 schedule at the base learning rate after the cold start, which restarted the
@@ -137,8 +162,10 @@ modified recipe is welcome as long as it says so.
 
 ## The schema
 
-`schema/benchmark-result.schema.json` is generated from the Pydantic model, so
-the two cannot drift:
+New harness runs write schema v2. The reader and generated JSON Schema continue
+to accept preserved v1 artifacts; old measurements are never rewritten during
+migration. `schema/benchmark-result.schema.json` is generated from the Pydantic
+model, so the file and implementation cannot drift:
 
 ```bash
 miniverl schema --out benchmarks/schema/benchmark-result.schema.json

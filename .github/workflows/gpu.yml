@@ -2,7 +2,8 @@ name: gpu
 
 # Manual only. There is no GPU runner configured for this repository, so this
 # workflow is never part of a required check -- it exists so that a maintainer
-# with a self-hosted CUDA runner can execute the GPU tests on demand, and so the
+# with a self-hosted CUDA runner (Actions Runner >= 2.327.1 for Node 24 actions)
+# can execute the GPU tests on demand, and so the
 # exact commands are version-controlled rather than living in someone's shell
 # history.
 #
@@ -24,7 +25,7 @@ jobs:
     runs-on: [self-hosted, cuda]
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Environment
         run: |
@@ -61,7 +62,7 @@ jobs:
           print("submission validates against the published schema")
           PY
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0 # v7.0.1
         if: always()
         with:
           name: gpu-run

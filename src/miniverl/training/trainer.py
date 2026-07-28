@@ -35,6 +35,7 @@ from miniverl.config.models import (
     LossMode,
     MemoryStrategy,
     ModelBackend,
+    OPDFreshness,
     Quantization,
     RunConfig,
     TeacherContextMode,
@@ -337,6 +338,49 @@ class OPDTrainer:
         """Full provenance record for the run."""
         env_info = collect_environment()
         config = self.config
+        if config.run.mode is TrainingMode.SFT:
+            objective: dict[str, Any] = {
+                "name": "sft_cross_entropy",
+                "loss_mode": None,
+                "divergence": None,
+                "temperature": None,
+                "scale_by_temperature_squared": None,
+                "top_k": None,
+                "jsd_beta": None,
+                "sampled_token_nll_weight": None,
+                "selector": config.selection.selector.value,
+                "selection_ratio": config.selection.ratio,
+                "opd_freshness": None,
+            }
+        else:
+            name = "offline_knowledge_distillation"
+            if config.run.mode is TrainingMode.OPD:
+                name = (
+                    "on_policy_distillation"
+                    if config.is_on_policy
+                    else "online_distillation_with_replay"
+                )
+            objective = {
+                "name": name,
+                "loss_mode": config.loss.mode.value,
+                "divergence": config.loss.divergence.value,
+                "temperature": config.loss.temperature,
+                "scale_by_temperature_squared": config.loss.scale_by_temperature_squared,
+                "top_k": (
+                    self.student.vocab_size
+                    if config.loss.mode is LossMode.EXACT_FULL_VOCAB
+                    else min(config.loss.top_k, self.student.vocab_size)
+                ),
+                "jsd_beta": config.loss.jsd_beta,
+                "sampled_token_nll_weight": config.loss.sampled_token_nll_weight,
+                "selector": config.selection.selector.value,
+                "selection_ratio": config.selection.ratio,
+                "opd_freshness": (
+                    config.train.opd_freshness.value
+                    if config.run.mode is TrainingMode.OPD
+                    else None
+                ),
+            }
         return {
             "miniverl_version": __version__,
             "run_id": self.run_id,
@@ -350,6 +394,10 @@ class OPDTrainer:
             "packages": env_info["packages"],
             "gpu": env_info["gpu"],
             "mode": config.run.mode.value,
+            "is_on_policy": config.is_on_policy,
+            "opd_freshness": (
+                config.train.opd_freshness.value if config.run.mode is TrainingMode.OPD else None
+            ),
             "seed": config.run.seed,
             "deterministic": config.run.deterministic,
             "environment": {
@@ -377,6 +425,7 @@ class OPDTrainer:
                         "quantization": config.models.teacher.quantization.value,
                         "precision": config.models.teacher.dtype.value,
                         "context_mode": config.models.teacher.mode.value,
+                        "adapter": getattr(self.teacher, "adapter_provenance", None),
                         "capabilities": self.teacher.capabilities.to_dict(),
                     }
                     if self.teacher is not None
@@ -385,21 +434,7 @@ class OPDTrainer:
                 "tokenizer_fingerprint": self.tokenizer.fingerprint,
                 "tokenizer_vocab_size": self.tokenizer.vocab_size,
             },
-            "objective": {
-                "loss_mode": config.loss.mode.value,
-                "divergence": config.loss.divergence.value,
-                "temperature": config.loss.temperature,
-                "scale_by_temperature_squared": config.loss.scale_by_temperature_squared,
-                "top_k": (
-                    self.student.vocab_size
-                    if config.loss.mode is LossMode.EXACT_FULL_VOCAB
-                    else min(config.loss.top_k, self.student.vocab_size)
-                ),
-                "jsd_beta": config.loss.jsd_beta,
-                "ce_weight": config.loss.ce_weight,
-                "selector": config.selection.selector.value,
-                "selection_ratio": config.selection.ratio,
-            },
+            "objective": objective,
             "memory": self.plan.to_dict(),
             "policy_version": self.policy_version,
             "measurement_status": {
@@ -610,7 +645,7 @@ class OPDTrainer:
             weights = torch.tensor(alignment.token_weights, dtype=torch.float32, device=device)
             targets = torch.tensor(alignment.target_token_ids, dtype=torch.long, device=device)
             provider = sample.teacher.provider if sample.teacher is not None else None
-            ce_weight = 1.0 if provider is None else config.loss.ce_weight
+            ce_weight = 1.0 if provider is None else config.loss.sampled_token_nll_weight
             output = chunked_selected_position_loss(
                 hidden_states=hidden,
                 lm_head=self.student.project,
@@ -691,6 +726,7 @@ class OPDTrainer:
                     "cycle": self.cycle,
                     "step": self.global_step,
                     "policy_version": self.policy_version,
+                    "rollout_policy_version": self.policy_version,
                     "seconds": round(elapsed, 4),
                     "train_selected_tokens_per_second": record["selected_positions"] / elapsed,
                     "projection_chunk_size": self.plan.chunk_size,
@@ -754,16 +790,20 @@ class OPDTrainer:
             loss_mode=config.loss.mode.value,
             divergence=config.loss.divergence.value,
             cycles=config.train.cycles,
+            opd_freshness=(
+                config.train.opd_freshness.value if config.run.mode is TrainingMode.OPD else None
+            ),
         )
-        if config.run.mode is TrainingMode.OPD and self.optimizer_steps_per_cycle > 1:
+        if (
+            config.run.mode is TrainingMode.OPD
+            and config.train.opd_freshness is OPDFreshness.REPLAY
+        ):
             self.events.emit(
-                "opd_multi_update_warning",
+                "online_distillation_replay",
                 steps_per_cycle=self.optimizer_steps_per_cycle,
                 note=(
-                    "more than one optimizer step per rollout batch: steps after the first "
-                    "are only approximately on-policy. Set "
-                    "train.gradient_accumulation_steps = train.rollouts_per_cycle for "
-                    "strict on-policy updates."
+                    "multiple optimizer steps may consume one rollout batch. This run "
+                    "is explicitly online distillation with replay, not genuine OPD."
                 ),
             )
 
@@ -1100,6 +1140,8 @@ class OPDTrainer:
         append_trajectories(self.paths.eval_trajectories, trajectories)
         self.student.set_train(True)
 
+        from miniverl.evaluation.diagnostics import lenient_diagnostic_success_rate
+
         payload = {
             "tag": tag,
             "split": chosen_split,
@@ -1112,6 +1154,21 @@ class OPDTrainer:
             "success_by_difficulty": {k: sum(v) / len(v) for k, v in sorted(by_difficulty.items())},
             "memory": gpu.snapshot().to_dict(),
             **stats.to_dict(),
+            "lenient_diagnostic_success_rate": lenient_diagnostic_success_rate(trajectories),
+            "protocol_token_accuracy": None,
+            "policy_competence_measurement_status": {
+                "strict_task_success_rate": "measured_primary",
+                "lenient_diagnostic_success_rate": (
+                    "measured_diagnostic_not_a_replacement_for_strict"
+                ),
+                "valid_tool_call_rate": (
+                    "measured" if stats.tool_calls + stats.invalid_tool_calls else "not_observed"
+                ),
+                "final_answer_format_validity_rate": "measured",
+                "protocol_token_accuracy": (
+                    "not_applicable_free_running_trajectories_have_no_aligned_token_target"
+                ),
+            },
         }
         if write:
             self.metrics_log.write({"phase": "eval", **payload, "ts": utc_now()})

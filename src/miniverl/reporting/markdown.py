@@ -130,7 +130,8 @@ def render_markdown(data: ReportData) -> str:
                 f"| {arm.get('name')} | {arm.get('mode')} | {arm.get('optimizer_steps')} | "
                 f"{_pct(arm.get('success_rate'))} | "
                 f"{_num(arm.get('generated_tokens_per_task'), 1)} | "
-                f"{arm.get('selected_training_tokens')} | {_num(arm.get('seconds'), 1)} |"
+                f"{arm.get('selected_training_tokens_total', arm.get('selected_training_tokens'))} | "
+                f"{_num(arm.get('wall_seconds', arm.get('seconds')), 1)} |"
             )
 
     lines += [

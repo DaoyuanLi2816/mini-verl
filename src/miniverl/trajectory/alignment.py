@@ -95,7 +95,7 @@ def build_alignment_map(
         raise TokenizerMismatchError(
             "student and teacher tokenizers differ "
             f"({student.tokenizer_fingerprint[:12]}... vs "
-            f"{teacher.tokenizer_fingerprint[:12]}...); miniVERL v0.1 only supports "
+            f"{teacher.tokenizer_fingerprint[:12]}...); miniVERL only supports "
             "same-tokenizer distillation",
             hint="pick a teacher from the same model family, or wait for "
             "cross-tokenizer support (roadmap item, see docs/limitations.md)",

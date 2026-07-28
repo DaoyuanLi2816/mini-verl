@@ -169,53 +169,28 @@ q_j - p_j \;\approx\; \frac{z^{S}_{j} - z^{T}_{j}}{V\tau},
 \frac{\partial L}{\partial z^{S}_{j}} \;\approx\; \frac{z^{S}_{j} - z^{T}_{j}}{V\tau^{2}} .
 $$
 
-This is the classic argument from Hinton, Vinyals and Dean (2015). Without the
-correction the effective learning rate of a distillation term depends on $\tau$,
-so raising the temperature to soften the targets silently also weakens the
-update. Multiplying by $\tau^{2}$ separates the two: $\tau$ then controls only
-*what* is matched.
+This is the classic argument from Hinton, Vinyals and Dean (2015). Its scope is
+forward KL (equivalently soft-target cross-entropy) in the near-uniform,
+high-temperature regime. In that regime, multiplying by $\tau^{2}$ largely
+separates target softening from gradient scale.
 
-miniVERL applies the factor to all three divergences, not only to forward KL, so
-that changing $\tau$ never changes the update scale by itself.
+miniVERL exposes the same factor for reverse KL and beta-JSD, but that is an
+explicit heuristic rather than a theorem. Even forward KL can depart strongly
+from the asymptotic argument when the logits are sharply peaked. Consequently,
+the code and reports record the flag, and the project does not claim that
+changing $\tau$ leaves update magnitudes invariant in general.
 
 ### 3.2 Measured
 
-```python
-import torch
-
-from miniverl.losses.exact import exact_forward_kl
-
-g = torch.Generator().manual_seed(3)
-teacher = torch.randn(1, 2000, generator=g) * 0.05  # near-uniform: the high-T regime
-
-for temperature in (1.0, 2.0, 4.0, 8.0):
-    row = []
-    for scale in (False, True):
-        student = (
-            torch.randn(1, 2000, generator=torch.Generator().manual_seed(4)) * 0.05
-        ).requires_grad_(True)
-        exact_forward_kl(
-            teacher,
-            student,
-            temperature=temperature,
-            scale_by_temperature_squared=scale,
-        ).sum().backward()
-        row.append(float(student.grad.abs().mean()))
-    print(f"T={temperature:<4}  without T^2: {row[0]:.3e}   with T^2: {row[1]:.3e}")
-```
-
-Output on the development machine:
-
-```
-T=1.0   without T^2: 2.857e-05   with T^2: 2.857e-05
-T=2.0   without T^2: 7.144e-06   with T^2: 2.858e-05
-T=4.0   without T^2: 1.786e-06   with T^2: 2.858e-05
-T=8.0   without T^2: 4.465e-07   with T^2: 2.858e-05
-```
-
-The uncorrected gradient falls by exactly a factor of four per doubling of
-$\tau$, which is the $1/\tau^{2}$ prediction. The corrected gradient is
-$\tau$-independent to three digits.
+Run `python scripts/temperature_gradient_sweep.py` to measure mean-absolute and
+L2 student-logit gradients for forward KL, reverse KL and JSD at
+$\tau \in \{1,2,4,8\}$ in both a near-uniform and a sharply-peaked mismatched
+regime. The deterministic test
+`tests/unit/test_temperature_gradient_sweep.py` executes the full 48-cell grid.
+It verifies the expected near-uniform forward-KL stabilization, while only
+requiring finite measured values for reverse KL, JSD and peaked logits. In the
+peaked scenario the measured scaled gradients vary substantially with
+temperature, which is direct evidence against the broader invariance claim.
 
 Note that the cross-entropy term described in [section 7.3](#73-the-cross-entropy-term)
 is **not** temperature-scaled: `_cross_entropy` in `chunked.py` takes a plain
@@ -267,15 +242,18 @@ In code:
   normalizes the student over the **full** vocabulary first, then gathers at the
   teacher's indices. Normalizing first is what makes $\tilde q_{\perp}$
   meaningful.
-- `build_bucket_distributions(...)` floors both tails, concatenates and
-  renormalizes to two exact $[N, k+1]$ log-probability vectors.
+- `build_bucket_distributions(...)` floors both non-empty tails, concatenates
+  and renormalizes to two exact $[N, k+1]$ log-probability vectors. When
+  $k=V$, both tails are exactly empty and the function bypasses smoothing.
 
 ### 4.2 This is not full-vocabulary KL
 
 The functions are named `bucketed_*` so no call site can pretend otherwise, and
 the manifest records `loss_mode` alongside `top_k`. The number reported by a
 `bucketed_topk_tail` run is a divergence between two $(k+1)$-category
-distributions. It is a **lower bound** on the full-vocabulary divergence.
+distributions. Before numerical tail flooring, it is a **lower bound** on the
+full-vocabulary divergence. The shipped epsilon-smoothed objective is a nearby,
+finite objective; section 5 states the perturbation explicitly.
 
 ```python
 import torch
@@ -313,9 +291,10 @@ k= 512  bucketed=8.0730  exact=8.0730
 
 On this deliberately adversarial pair (independent random logits at scale 3,
 $V = 512$) the default $k = 64$ recovers under half the exact reverse KL. On a
-real teacher and a partly-trained student the top-64 mass is far higher and the
-gap is far smaller, but the *direction* of the bias is fixed: bucketing can only
-under-report.
+real teacher and a partly-trained student the top-64 mass may be higher and the
+gap smaller. The under-reporting direction is guaranteed for the unfloored
+coarse-graining; it is measured, not universally claimed, after epsilon
+smoothing.
 
 ### 4.3 Proof sketch: why it is a lower bound
 
@@ -370,16 +349,11 @@ $$
 
 Three cases where that holds:
 
-1. $k = V$. The tail cell is empty. `teacher_topk_targets` detects this and sets
-   `tail_log_prob` to exactly $-\infty$ rather than relying on floating-point
-   cancellation; `student_bucket_log_probs` does the same. Both are then clamped
-   up to $\log \varepsilon$ by `build_bucket_distributions` and renormalized, so
-   both distributions carry an identical $\varepsilon/(1+\varepsilon)$ bucket
-   that contributes $\varepsilon \log 1 = 0$ to any of the three divergences.
-   Every remaining bucket is scaled by the same $1/(1+\varepsilon)$, so the
-   result equals the exact divergence times $1/(1+\varepsilon)$ — a relative
-   perturbation of about $10^{-9}$ at the default $\varepsilon$, inside the
-   tolerance the float64 property test uses.
+1. $k = V$. The tail cell is empty. `teacher_topk_targets` and
+   `student_bucket_log_probs` set it to exactly $-\infty$ rather than relying on
+   floating-point cancellation. `build_bucket_distributions` detects this
+   identity partition and bypasses the epsilon floor, so the same
+   full-vocabulary divergence is recovered (asserted to `1e-9` in float64).
 2. $k = V - 1$. The tail cell is a singleton, so the ratio is trivially constant.
 3. Teacher and student are proportional on the tail — for instance both uniform
    there.
@@ -445,25 +419,28 @@ The naive version — evaluating both branches on the raw tensor and selecting
 with `torch.where` — produces a correct forward value and a NaN gradient,
 because the discarded branch still contributes to the backward pass.
 
-### 5.2 `NEG_CLAMP`
+### 5.2 dtype-aware `neg_clamp_for`
 
 `log(1 - exp(x))` diverges to $-\infty$ as $x \to 0^{-}$. Before anything else,
-`log1mexp` clamps its input:
+`log1mexp` clamps its input at the resolution of the working dtype:
 
 ```python
-# src/miniverl/losses/numerics.py, first line of log1mexp
-x = x.clamp(max=NEG_CLAMP)  # NEG_CLAMP = -1.0e-7
+# src/miniverl/losses/numerics.py
+x = x.clamp(max=neg_clamp_for(x.dtype))
+# neg_clamp_for(dtype) == -torch.finfo(dtype).eps for supported float dtypes
 ```
 
-so the output is bounded below by
+For float32 this bounds the output near
 
 $$
-\log\!\left(1 - e^{-10^{-7}}\right) \;\approx\; \log(10^{-7}) \;\approx\; -16.118 .
+\log\!\left(1 - e^{-\epsilon_{32}}\right)
+\;\approx\; \log(\epsilon_{32}) \;\approx\; -15.94 .
 $$
 
 The consequence, which matters for reading a reported tail mass: because the
-clamp acts on the **input**, any true tail mass below $10^{-7}$ is reported as
-exactly $10^{-7}$.
+clamp acts on the **input**, any true tail mass below the dtype epsilon is
+reported at roughly that epsilon. Float64 resolves much smaller tails than
+float32; `NEG_CLAMP = -1e-7` remains only the fallback for an unknown dtype.
 
 ```python
 import math
@@ -473,7 +450,7 @@ import torch
 from miniverl.losses.numerics import log1mexp
 
 for tail in (1e-3, 1e-6, 1e-7, 1e-8, 1e-30):
-    covered = torch.tensor([math.log1p(-tail)], dtype=torch.float64)  # log(1 - tail)
+    covered = torch.tensor([math.log1p(-tail)], dtype=torch.float32)  # log(1 - tail)
     recovered = math.exp(float(log1mexp(covered)))
     print(f"true tail {tail:.0e} -> log1mexp recovers {recovered:.3e}")
 ```
@@ -483,9 +460,9 @@ Output on the development machine:
 ```
 true tail 1e-03 -> log1mexp recovers 1.000e-03
 true tail 1e-06 -> log1mexp recovers 1.000e-06
-true tail 1e-07 -> log1mexp recovers 1.000e-07
-true tail 1e-08 -> log1mexp recovers 1.000e-07
-true tail 1e-30 -> log1mexp recovers 1.000e-07
+true tail 1e-07 -> log1mexp recovers approximately 1.192e-07
+true tail 1e-08 -> log1mexp recovers approximately 1.192e-07
+true tail 1e-30 -> log1mexp recovers approximately 1.192e-07
 ```
 
 This is a deliberate trade. The alternative — an exact $-\infty$ for a
@@ -513,10 +490,11 @@ teacher = teacher - torch.logsumexp(teacher, dim=-1, keepdim=True)
 student = student - torch.logsumexp(student, dim=-1, keepdim=True)
 ```
 
-Only the tails are floored; the top-k log-probabilities are untouched. The
-final subtraction renormalizes both $[N, k+1]$ vectors,
-so they are exact probability distributions and the divergence is guaranteed
-non-negative. The normalizer is $Z \in [1, 1+\varepsilon]$.
+Only non-empty tails are floored; the top-k log-probabilities are untouched.
+The final subtraction renormalizes both $[N, k+1]$ vectors, so they are exact
+probability distributions and the divergence is guaranteed non-negative. The
+normalizer is $Z \in [1, 1+\varepsilon]$. When $k=V$, the exactly empty tails
+bypass this block and the identity partition stays exact.
 
 ### 5.4 The bound the floor buys
 
@@ -533,11 +511,11 @@ $$
 At the default $\varepsilon = 10^{-9}$ that is $20.72$ nats. Without the floor
 the same term is $+\infty$.
 
-**The two floors compose, and the tighter one wins.** For $k < V$ the teacher
-tail has already passed through `log1mexp`, so it is at least $10^{-7}$, and the
-`tail_epsilon` clamp does nothing unless $\varepsilon > 10^{-7}$. The effective
-bound in the default configuration is therefore the tighter
-$\log(10^{7}) \approx 16.12$ nats, not $20.72$.
+**The two floors compose, and the tighter one wins.** For $k < V$ a float32
+teacher tail has already passed through `log1mexp`, so it is at least
+`torch.finfo(torch.float32).eps` (about $1.19\times10^{-7}$). The
+`tail_epsilon` clamp does nothing unless it is larger. The effective bound in
+the default float32 configuration is therefore about $15.94$ nats, not $20.72$.
 
 ```python
 import math
@@ -573,8 +551,8 @@ eps=1e-09  reverse_kl=15.9465  log(1/eps)=20.7233
 
 At $\varepsilon = 10^{-3}$ and $10^{-6}$ the `tail_epsilon` clamp binds and the
 value tracks $\log(1/\varepsilon)$. At $\varepsilon = 10^{-9}$ it does not: the
-value saturates at 15.95, slightly under the $16.12$ that `NEG_CLAMP` allows. The
-run stays finite either way, which is the property being bought.
+value saturates at 15.95, matching the float32 dtype-aware clamp. The run stays
+finite either way, which is the property being bought.
 
 ### 5.5 `LOG_PROB_FLOOR`
 
@@ -822,12 +800,17 @@ at temperature 1, and the combined per-position value is a convex combination
 
 $$
 \ell_i \;=\; (1 - c)\,\ell^{\mathrm{div}}_{i} \;+\; c\,\ell^{\mathrm{CE}}_{i},
-\qquad c = \texttt{loss.ce\_weight} \in [0, 1] .
+\qquad c = \texttt{loss.sampled\_token\_nll\_weight} \in [0, 1] .
 $$
 
 When no teacher provider is supplied — the SFT path — the loss is pure
-cross-entropy and the trainer forces $c = 1$. When `ce_weight` is 0, the CE
-branch is skipped entirely rather than multiplied by zero.
+cross-entropy and the trainer forces $c = 1$. In a distillation run, $y_i$ is
+the token actually sampled from the student policy at that selected position;
+this term is therefore sampled-token NLL, not ground-truth CE and not teacher
+hard-label CE. When `sampled_token_nll_weight` is 0, the NLL branch is skipped
+entirely rather than multiplied by zero. The legacy YAML name `ce_weight` is
+accepted only for SFT compatibility and rejected when nonzero in distillation
+modes because its target semantics are ambiguous.
 
 ---
 
@@ -911,11 +894,11 @@ $[-30, 30]$, 60 examples per property.
 | Self-divergence is zero | `test_self_divergence_is_zero` |
 | Invariant to a constant logit shift (softmax shift-invariance) | `test_divergence_is_invariant_to_a_constant_logit_shift` |
 | Entropy lies in $[0, \log V]$ | `test_entropy_is_between_zero_and_log_vocab` |
-| **Bucketed $\le$ exact in float64**, all $k$, all three divergences | `test_bucketed_never_exceeds_exact` |
+| The shipped smoothed bucketed objective is empirically $\le$ exact on the float64 property grid | `test_bucketed_never_exceeds_exact` |
 | $k = V$ reproduces exact to `atol=1e-9` in float64 | `test_full_k_reproduces_exact` |
 | Top-k mass plus tail equals one | `test_teacher_topk_mass_and_tail_sum_to_one` |
 | `log1mexp` matches the reference outside the clamp | `test_log1mexp_matches_the_reference_outside_the_clamp` |
-| `log1mexp` clamps rather than diverging, at exactly $\log(10^{-7})$ | `test_log1mexp_clamps_instead_of_diverging_near_zero` |
+| `log1mexp` clamps rather than diverging at the working dtype's resolution | `test_log1mexp_clamps_instead_of_diverging_near_zero` |
 | `weighted_mean` is a weighted mean and lies within the value range | `test_weighted_mean_is_a_weighted_mean` (see [6.1](#61-an-exact-statement-about-the-floor)) |
 | Zero weights mask positions exactly | `test_zero_weights_mask_positions_exactly` |
 | A shape mismatch raises | `test_weighted_mean_rejects_a_shape_mismatch` |
@@ -927,11 +910,12 @@ $V = k + 1$ — so in float32 the two sides can differ by a few units in the las
 place in either direction. The float32 behaviour is covered separately by
 `test_bucketed_lower_bounds_exact`.
 
-Note that the data-processing inequality proved in section 4.3 applies to the
-*unfloored* coarse-graining. The implementation additionally floors both tails
-(section 5) and renormalizes, which perturbs both bucketed distributions. Both
-tests above are run on the floored implementation, so they check the bound as
-shipped rather than the theorem in isolation.
+The data-processing inequality proved in section 4.3 applies to the
+*unfloored* coarse-graining. The implementation additionally floors non-empty
+tails (section 5) and renormalizes, which perturbs both distributions and is not
+covered by that proof. The property tests exercise the smoothed implementation
+over a broad generated grid; they are regression evidence, not a universal
+theorem. The `k=V` test follows the separate no-smoothing identity path.
 
 ---
 

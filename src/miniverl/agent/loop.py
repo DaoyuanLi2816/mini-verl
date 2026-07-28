@@ -74,6 +74,7 @@ class RolloutStats:
     turns: int = 0
     tool_calls: int = 0
     invalid_tool_calls: int = 0
+    valid_final_answers: int = 0
     generated_tokens: int = 0
     termination_reasons: dict[str, int] | None = None
     failure_categories: dict[str, int] | None = None
@@ -98,6 +99,7 @@ class RolloutStats:
         reason = trajectory.termination_reason.value
         self.termination_reasons[reason] = self.termination_reasons.get(reason, 0) + 1
         if trajectory.verification is not None:
+            self.valid_final_answers += 1
             if trajectory.verification.solved:
                 self.solved += 1
             category = trajectory.verification.failure_category or "solved"
@@ -112,14 +114,20 @@ class RolloutStats:
         assert self.termination_reasons is not None
         assert self.failure_categories is not None
         n = max(self.rollouts, 1)
+        tool_call_count = self.tool_calls + self.invalid_tool_calls
         return {
             "rollouts": self.rollouts,
             "solved": self.solved,
             "success_rate": self.solved / n,
+            "strict_task_success_rate": self.solved / n,
             "avg_turns": self.turns / n,
             "avg_tool_calls": self.tool_calls / n,
-            "invalid_tool_call_rate": self.invalid_tool_calls
-            / max(self.tool_calls + self.invalid_tool_calls, 1),
+            "tool_call_count": tool_call_count,
+            "valid_tool_call_rate": (
+                self.tool_calls / tool_call_count if tool_call_count else None
+            ),
+            "invalid_tool_call_rate": self.invalid_tool_calls / max(tool_call_count, 1),
+            "final_answer_format_validity_rate": self.valid_final_answers / n,
             "generated_tokens": self.generated_tokens,
             "generated_tokens_per_task": self.generated_tokens / n,
             # None, not NaN: JSON has no NaN literal, so writing one produces a

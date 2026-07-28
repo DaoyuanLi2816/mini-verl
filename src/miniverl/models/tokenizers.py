@@ -318,6 +318,6 @@ def assert_same_tokenizer(student: Any, teacher: Any) -> None:
         raise TokenizerMismatchError(
             "student and teacher tokenizers are not identical "
             f"({student.fingerprint[:12]}... vs {teacher.fingerprint[:12]}...)",
-            hint="miniVERL v0.1 only supports same-tokenizer distillation; choose a "
+            hint="miniVERL currently supports same-tokenizer distillation only; choose a "
             "teacher from the same model family (see docs/limitations.md)",
         )

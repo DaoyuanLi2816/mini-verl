@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: "miniVERL: On-policy distillation for tool-using agents on one GPU"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
-version: 0.1.0
+version: 0.2.0
 date-released: 2026-07-27
 license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
@@ -46,7 +46,7 @@ references:
         given-names: Jeff
     year: 2015
     url: "https://arxiv.org/abs/1503.02531"
-    notes: "Source of the temperature-squared gradient correction miniVERL applies."
+    notes: "Source of the high-temperature forward-KL correction; reverse-KL and JSD use it only as an explicit heuristic."
   - type: article
     title: >-
       On-Policy Distillation of Language Models: Learning from Self-Generated
@@ -96,4 +96,4 @@ references:
     url: "https://arxiv.org/abs/2603.07079"
     notes: >-
       Motivates recording per-token teacher entropy. Entropy-aware divergence
-      mixing is a roadmap item and is not implemented in miniVERL v0.1.0.
+      mixing is a roadmap item and is not implemented in miniVERL v0.2.0.

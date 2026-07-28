@@ -1,9 +1,10 @@
 # Benchmarking
 
-miniVERL ships a matched-budget benchmark harness. It runs several training
-configurations ("arms") that differ only in the keys you tell it to change,
-holds everything else constant, and writes one JSON file and one Markdown file
-describing both the results and the controls.
+miniVERL ships a controlled benchmark harness with an explicit comparison
+axis. It runs several training configurations ("arms"), rejects undeclared
+config differences before model allocation, and writes one JSON file and one
+Markdown file describing the results, complete resolved controls and measured
+quantities that were not matched.
 
 Source files behind this document:
 
@@ -122,75 +123,86 @@ report `cuda_available: true`, and reports `None` for both when no record does.
 | `mode` | `run.mode` after merging the arm overrides |
 | `seed` | the seed this repetition used |
 | `run_id`, `run_dir` | the run directory this arm produced |
-| `loss_mode`, `divergence`, `selector` | resolved config values |
+| `objective`, `opd_freshness`, `loss_mode`, `divergence`, `selector`, `top_k` | the mode-aware run manifest; SFT records `sft_cross_entropy` and null divergence/top-k |
+| `resolved_config_digest`, `structured_diff` | SHA-256 of the complete resolved arm config and its leaf diff from the resolved common config |
+| student/teacher model IDs and revisions, tokenizer fingerprint, context mode | the actual run manifest |
+| `teacher_adapter` | validated adapter identity, hashes and policy evaluation, or null |
 | `top_k` | `manifest["objective"]["top_k"]`: the student vocabulary size in `exact_full_vocab` mode, otherwise `min(loss.top_k, vocab_size)` |
 | `optimizer_steps` | `TrainResult.global_step` |
 | `policy_version` | policy version reached |
 | `tasks` ... `tokens_per_solved_task` | the held-out evaluation payload above; `tokens_per_solved_task` is stored as `null` when it was NaN |
-| `selected_training_tokens` | `selected_model_tokens` from the last `*_cycle` metrics record; `0` when the arm produced no such record, as with `train.cycles: 0` |
-| `teacher_queried_position_ratio` | `selected_model_tokens / total_model_tokens` from the same record; `null` when there is no such record. For an SFT arm this describes supervised oracle-trace positions, not teacher queries, because SFT never calls a teacher |
-| `cache_bytes`, `cache_compression_ratio` | teacher-cache stats, `null` when no cache was opened |
+| `selected_training_tokens_total`, `model_generated_training_tokens_total`, `teacher_queried_positions_total` | numerators summed over every cycle; SFT teacher-query fields are null |
+| `selected_position_ratio`, `teacher_queried_position_ratio` | ratios of summed numerators and denominators, never an average of cycle ratios |
+| `cache_current_bytes`, `cache_bytes_written_total`, `cache_compression_ratio` | current cache footprint, cumulative bytes written despite pruning, and compression |
 | `peak_allocated_bytes`, `peak_reserved_bytes` | maxima described above, `null` on CPU |
-| `seconds` | wall clock around this arm's `train()` plus `evaluate()` |
+| `train_seconds`, `evaluation_seconds`, `wall_seconds` | separately measured phase and enclosing wall times |
 | `baseline_success_rate` | reserved for a shared starting score. The harness currently always writes `null`: `_cold_start` runs with `eval.enabled: false` and returns no score, because the cold start is measured by the `cold-start-only` arm on the benchmark's own split instead |
-| `measurement_status` | `measured`; `miniverl export-benchmark` writes `measured_cpu_only` when the run did not use CUDA |
+| `measurement_status` | explicit status for time, VRAM, cache and policy-competence fields |
 
 `BenchmarkResult.aggregate()` groups arms by name and reports
 `success_rate_mean`, `success_rate_min`, `success_rate_max`, the seed count,
 and a `single_seed` boolean. It computes no confidence intervals and no
 p-values.
 
-## What "matched budget" means here
+## Explicit design and budget axis
 
-`run_benchmark` records a `controlled` dictionary built from the **base**
-recipe, before any arm override is applied. These are the quantities the
-benchmark asserts were shared:
+Schema-v2 benchmark configs separate four layers:
 
-- `environment`, `difficulty`, `split_seed`, `train_tasks`, `eval_tasks`,
-  `test_tasks` - identical task splits, generated prompt-disjointly by
-  `make_splits`
-- `eval_split`, `eval_temperature`, `eval_seed` - identical held-out evaluation
-- `max_trajectory_tokens` (`rollout.max_total_tokens`), `max_turns`
-- `effective_batch_trajectories` (`train.gradient_accumulation_steps`),
-  `rollouts_per_cycle`
-- `optimizer`, `learning_rate`, `lr_schedule`
-- `cold_start_cycles`, `cold_start_mode`, `shared_initial_checkpoint`
-- `seeds`
-- `arms_differ_only_in` - the full override mapping, arm name to override dict
+```yaml
+base: ...
+common_overrides: ...
+cold_start_overrides: ...
+allowed_differences: [...]
+budget_axis: optimizer_steps
+arms:
+  - name: ...
+    overrides: ...
+```
 
-Quantities that cannot be matched by construction are measured and reported per
-arm instead of being equalized:
+Before a run directory is created or a model is loaded, `run_benchmark`
+resolves the common config, the cold-start config and every arm for every seed.
+It computes deterministic leaf-level structured diffs from the common config
+and rejects any path not declared in `allowed_differences`. Harness-only paths
+(`run.name`, `run.seed`, `run.run_id`, `report.enabled`) are allowlisted
+internally.
+
+The top-level `controlled` block points to the complete
+`common_resolved_config` and its digest; it is not reconstructed from a
+hand-picked subset. The cold-start record carries its own resolved config,
+digest, environment/difficulty, checkpoint digest and time. Every arm carries
+its own digest and diff.
+
+`budget_axis: optimizer_steps` means **equal optimizer updates**, not equal
+compute. Quantities that cannot be matched by construction are measured:
 
 - student generated tokens (`generated_tokens_per_task`,
   `tokens_per_solved_task`)
-- selected training tokens (`selected_training_tokens`)
+- selected training positions (`selected_training_tokens_total`)
 - teacher query ratio (`teacher_queried_position_ratio`)
-- teacher-cache size and compression ratio
+- teacher-cache current/cumulative bytes and compression ratio
 - peak CUDA memory
-- wall clock (`seconds`)
+- train, evaluation and wall time
 
 An OPD arm samples its own trajectories, so it cannot produce the same token
 count as an SFT arm reading oracle traces. Reporting those numbers is the
 honest alternative to pretending they are equal.
 
-### Matching is a property of your config, not an assertion
+### Controls are enforced before allocation
 
-The harness records what happened; it does not refuse to run an unmatched
-comparison. `controlled` is built from the base recipe, so if an arm overrides
-`train.cycles`, `train.rollouts_per_cycle` or
-`train.gradient_accumulation_steps`, that arm's real budget differs from the
-`controlled` block. The evidence that it did is always present:
-`arms_differ_only_in` lists the overrides and every result row carries its own
-`optimizer_steps`.
+An undeclared change in difficulty, schedule, effective batch size or any other
+leaf is a `ConfigError` that explicitly says validation happened before model
+loading. Intentional differences must be added to `allowed_differences`.
+Different step counts can be declared—for example the zero-step
+`cold-start-only` reference—but the result still records each actual count.
 
 For `recipes/benchmark_calc.yaml` the budgets work out as follows, computed
 from the merged configs rather than asserted:
 
-| arm | mode | loss mode | divergence | top_k | selector | optimizer steps |
+| arm | mode | loss mode | divergence | configured top_k | selector | optimizer steps |
 | --- | --- | --- | --- | --- | --- | --- |
-| (shared cold start) | sft | - | - | - | - | 200 |
-| `cold-start-only` | sft | bucketed_topk_tail | reverse_kl | 16 | all_model_tokens | 0 |
-| `sft-continued` | sft | bucketed_topk_tail | reverse_kl | 16 | all_model_tokens | 60 |
+| (shared cold start) | sft | - | - | - | all_model_tokens | 450 |
+| `cold-start-only` | sft | - | - | - | all_model_tokens | 0 |
+| `sft-continued` | sft | - | - | - | all_model_tokens | 60 |
 | `offline-kd` | offline_kd | bucketed_topk_tail | reverse_kl | 16 | all_model_tokens | 60 |
 | `opd-bucketed-k16` | opd | bucketed_topk_tail | reverse_kl | 16 | all_model_tokens | 60 |
 | `opd-exact` | opd | exact_full_vocab | reverse_kl | 1 | all_model_tokens | 60 |
@@ -209,18 +221,17 @@ before trusting it:
 
 ```bash
 python - <<'PY'
-from miniverl.config.models import RunConfig
-from miniverl.evaluation.benchmark import _load_base, deep_merge
+from miniverl.evaluation.benchmark import resolve_benchmark_configs
 from miniverl.evaluation.schema import BenchmarkConfig
 
 spec = BenchmarkConfig.from_yaml("recipes/benchmark_calc.yaml")
-base = _load_base(spec)
-for arm in spec.arms:
-    cfg = RunConfig.model_validate(deep_merge(base, arm.overrides))
+_, cold, arms = resolve_benchmark_configs(spec)
+print("cold", cold.environment.difficulty, cold.train.cycles)
+for arm, cfg, diff in arms:
     accum = cfg.train.gradient_accumulation_steps
     per_cycle = max(1, (cfg.train.rollouts_per_cycle + accum - 1) // accum)
     total = per_cycle * (cfg.train.cycles + cfg.train.sft_warmup_cycles)
-    print(f"{arm.name:26s} {cfg.run.mode.value:11s} steps={total}")
+    print(f"{arm.name:26s} {cfg.run.mode.value:11s} steps={total} diff={len(diff)}")
 PY
 ```
 
@@ -280,12 +291,12 @@ miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmark
 ```
 
 `benchmarks/configs/gpu_calc_hard.yaml` is the GPU counterpart: it uses
-`recipes/qwen_consumer_gpu_calc.yaml` as its base, 12 cold-start cycles, one
-seed, the `test` split, `difficulty: hard`, and four arms
-(`cold-start-only`, `sft-continued`, `opd-bucketed-k64` and
-`opd-privileged-context`, the last differing only in
-`models.teacher.mode`). One seed means no significance claim; see
-[Single-seed significance](#single-seed-significance).
+`recipes/qwen_consumer_gpu_calc.yaml` as its base, 12 cold-start cycles, the
+`test` split, `difficulty: hard`, two prespecified seeds, and five arms:
+`cold-start-only`, `sft-continued`, `opd-raw-teacher`,
+`opd-privileged-context` and `opd-protocol-sft-teacher`. The final arm is gated
+on a recorded teacher tool-policy evaluation; see
+[`teacher-adapters.md`](teacher-adapters.md).
 
 Options, all from `src/miniverl/cli.py`:
 
@@ -296,8 +307,8 @@ Options, all from `src/miniverl/cli.py`:
 - `--json` - print the whole result as JSON instead of a table
 
 `miniverl benchmark` requires the training extra
-(`pip install "miniverl[train]"`); the CLI raises a `MissingDependencyError`
-with the exact install command otherwise.
+(`python -m pip install ".[train]"` from a source checkout); the CLI raises a
+`MissingDependencyError` with the exact install command otherwise.
 
 The example benchmark runs 7 arms at 2 seeds plus 2 cold starts, all on toy CPU
 models. Its wall clock on any particular machine is not measured here.
@@ -305,12 +316,18 @@ models. Its wall clock on any particular machine is not measured here.
 ### Writing your own benchmark config
 
 ```yaml
-schema_version: 1
+schema_version: 2
 name: my-comparison           # 1-80 characters, used for the output filenames
 description: >-
   What question this comparison answers.
 base: toy_cpu.yaml            # path relative to this file, or an inline mapping
+common_overrides:
+  environment: {difficulty: hard}
+cold_start_overrides:
+  environment: {difficulty: medium}  # explicit transfer design, if intended
 cold_start_cycles: 200        # 0 disables the shared cold start
+allowed_differences: [run.mode, train.cycles, loss.divergence]
+budget_axis: optimizer_steps
 eval_split: test              # train | eval | test
 seeds: [1234, 20260727]       # at least one; more seeds means a variance range
 output_dir: runs/benchmarks
@@ -324,10 +341,9 @@ arms:
       loss: {divergence: forward_kl}
 ```
 
-`overrides` is deep-merged by `deep_merge`: nested mappings are merged
-recursively, everything else is replaced. Put **only** the keys the arm is
-supposed to differ in there. The harness force-overrides `run.seed`,
-`run.name` and `report.enabled` on every arm after your overrides are applied.
+Each layer is deep-merged: nested mappings are merged recursively and everything
+else is replaced. Every arm difference must be declared. The harness
+force-overrides `run.seed`, `run.name` and `report.enabled` after arm overrides.
 
 Validate the merged configs before spending GPU time; each arm is a normal
 `RunConfig` and is rejected at parse time if the combination is contradictory
@@ -353,30 +369,33 @@ Top level (`BenchmarkResult`, `extra="forbid"`):
 
 | key | contents |
 | --- | --- |
-| `schema_version` | `1`; a different value is rejected on load |
+| `schema_version` | `2` for new harness output; preserved `1` artifacts remain readable |
 | `miniverl_version` | the version that produced the file |
 | `name`, `description`, `notes` | from the benchmark config and `--notes` |
 | `created_at` | UTC ISO-8601, second resolution |
 | `git_commit` | resolved by reading `.git` directly; `null` outside a checkout |
+| `invocation`, `budget_axis` | exact command arguments and declared comparison axis |
 | `hardware` | `gpu`, `os`, `cpu_count` |
 | `software` | `python` version and the tracked package versions |
-| `controlled` | the held-constant block described above |
+| `cold_start` | resolved config/digest, environment/difficulty, and per-seed checkpoint digest/time |
+| `common_resolved_config`, `common_resolved_config_digest` | complete shared config and SHA-256 |
+| `controlled` | pointer/digest plus declared difference paths |
 | `arms` | a list of `ArmResult`, one per arm per seed |
 | `seeds` | the seed list |
 
 To read it without writing code:
 
 ```bash
-python -c "import json;d=json.load(open('runs/benchmarks/calc-matched-budget.json'));\
+python -c "import json;d=json.load(open('runs/benchmarks/cpu-toy-calc-equal-update-v2.json'));\
 print(json.dumps(d['controlled'], indent=2))"
 ```
 
 ### The Markdown
 
-`<name>.md` contains, in order: the header with miniVERL version, git commit,
-timestamp and hardware line; a per-arm results table; an aggregate table with
-mean, min and max success per arm; a fenced JSON block with the entire
-`controlled` dictionary; and the notes if any.
+`<name>.md` contains the version, git commit, budget axis, hardware, seeds, a
+per-arm table and the resolved-control caveat. Complete resolved configs,
+digests and structured diffs stay in JSON rather than being truncated into a
+human table.
 
 Two things in the rendering are load-bearing. When `len(result.seeds) == 1`
 the header line gains `**single seed -- no significance claimed**`, and the
@@ -414,13 +433,10 @@ that writes it, so the two cannot drift:
 miniverl schema --out benchmarks/schema/benchmark-result.schema.json
 ```
 
-The repository ships `benchmarks/README.md`, `benchmarks/configs/` (with
-`cpu_toy_calc.yaml` and `gpu_calc_hard.yaml`) and
-`benchmarks/schema/benchmark-result.schema.json`, which is byte-identical to
-the output of `miniverl schema`. `benchmarks/results/` exists but is empty: no
-hardware result has been submitted yet, including from the development machine.
-`.gitignore` carries an explicit `!benchmarks/results/*.json` line, commented
-`Committed benchmark results are small, schema-validated JSON and are wanted.`
+The repository ships configs, a byte-reproducible generated schema and
+preserved CPU/RTX 4080 result artifacts. Existing result files are v1 and stay
+byte-for-byte unchanged; their migration and erratum are documented in
+`benchmarks/README.md`.
 
 A submission should state, at minimum: the recipe used, the exact GPU and
 driver, the miniVERL version and git commit (all already in the file), and
@@ -431,31 +447,34 @@ whether the arms were matched. If you changed the recipe, include the diff.
 Every trap below is one that this harness makes possible. The mitigation is
 named in each case, and none of them is automatic.
 
-### Unmatched steps
+### Undeclared schedule differences
 
 **The lie.** Give the arm you like more optimizer steps, or a larger effective
 batch, and report only final success rates.
 
-**Why it is possible here.** `controlled` is derived from the base recipe.
-Nothing stops an arm from overriding `train.cycles`,
-`train.rollouts_per_cycle` or `train.gradient_accumulation_steps`.
+**How schema v2 prevents it.** The complete resolved config for each arm is
+diffed against the complete resolved common config before a model is loaded.
+An arm cannot change `train.cycles`, `train.rollouts_per_cycle`,
+`train.gradient_accumulation_steps` or any other leaf unless that path is
+listed in `allowed_differences`.
 
-**The mitigation.** Every result row carries its own `optimizer_steps`, the
-Markdown table has a `steps` column, and `arms_differ_only_in` records the full
-override mapping. Before quoting a table, check that the `steps` column is
-constant across the arms being compared, or that the difference is the point.
-The `cold-start-only` arm in the shipped benchmark has 0 steps on purpose: it
-is the common starting point, not a competitor.
+**What still needs review.** A declared difference can still make a comparison
+unfair. Every result row carries its own `optimizer_steps`, and the JSON stores
+the exact `structured_diff`. Before quoting a table, check that the declared
+`budget_axis` is the question you intended to ask and that the measured counts
+and times support the comparison. The `cold-start-only` arm in the shipped
+benchmark has 0 steps on purpose: it is the common starting point, not a
+competitor.
 
 ### Cherry-picked seeds
 
 **The lie.** Run five seeds, report the best.
 
-**Why it is possible here.** The harness runs the seeds listed in `seeds:`.
-Nothing prevents you from editing that list after seeing results.
+**Why it remains possible.** The harness faithfully runs the seeds listed in
+`seeds:`; it cannot know whether that list was chosen after seeing results.
 
-**The mitigation.** `seeds` is recorded at the top level of the result and
-inside `controlled`. `aggregate()` reports `success_rate_min` and
+**The mitigation.** `seeds` is recorded at the top level of the result.
+`aggregate()` reports `success_rate_min` and
 `success_rate_max` next to the mean, and the Markdown renders all three, so a
 single lucky seed inside a multi-seed arm is visible as a wide min-max range.
 The number of seeds per arm is printed as its own column. If you rerun with a

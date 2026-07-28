@@ -15,10 +15,12 @@
 
 **单卡上的工具调用智能体在线策略蒸馏（on-policy distillation）。**
 
-miniVERL 让一个小型的、会调用工具的语言模型在**它自己生成的多轮轨迹**上学习，监督信号来自教师模型的稠密 token 级分布。不需要 Ray，不需要 GPU 集群，也不需要 40 GB 显存的加速卡。
+miniVERL 让一个小型的、会调用工具的语言模型在**它自己生成的多轮轨迹**上学习，监督信号来自教师模型的分布式目标。不需要 Ray，不需要 GPU 集群，也不需要 40 GB 显存的加速卡。
 
 ```bash
-pip install "miniverl[train]"
+git clone https://github.com/DaoyuanLi2816/mini-verl.git
+cd mini-verl
+python -m pip install ".[train]"
 miniverl demo --output runs/demo        # 无需联网、无需 GPU，笔记本 CPU 上约 50 秒
 ```
 
@@ -27,7 +29,7 @@ miniverl demo --output runs/demo        # 无需联网、无需 GPU，笔记本 
 > 请如实理解这个数字：其中大部分提升来自 8 个 cycle 的监督冷启动——**第一批**在线策略 rollout 就已经达到 83.3%。这次运行证明的是整条流水线能在真实硬件上端到端跑通，**并不能**说明在线策略蒸馏优于监督微调，因为该任务已经饱和。本文中的每个数字都可以从 [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md) 记录的产物复现。
 
 > [!IMPORTANT]
-> **真正回答这个问题的等预算对照实验，结果是负面的。** 在不饱和的 `hard` 划分上，从同一个冷启动出发、给定完全相同的 12 个优化步，监督续训达到 **100.0%**，而在线策略蒸馏是 **0.0%**——无论教师是原始 instruct 模型，还是带特权上下文（privileged context）的教师，都是如此。失败原因已经追查到逐条解码后的轨迹文本，记录在 [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md#matched-budget-comparison)：最可能的解释是教师本身从未见过这套工具调用协议；能够验证这一点的实验已经写好命令，但**尚未运行**。miniVERL 是一份正确且可观测的在线策略蒸馏实现，但它并不构成"该方法在这里更优"的证据。
+> **真正回答这个问题的等优化器更新对照实验，结果是负面的。** 在不饱和的 `hard` 划分上，从同一个冷启动出发、给定完全相同的 12 个优化步，监督续训达到 **100.0%**，而在线策略蒸馏是 **0.0%**——无论教师是原始 instruct 模型，还是带特权上下文（privileged context）的教师，都是如此。失败原因已经追查到逐条解码后的轨迹文本，记录在 [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md#legacy-equal-update-comparison-schema-v1)：最可能的解释是教师本身从未见过这套工具调用协议；协议教师实验正在 v0.2 中按预注册 arm 集执行。在新结果完成前，旧负面结果仍是唯一已测结论。miniVERL 实现了带测试的 token 来源、因果对齐、缓存新鲜度检查和选定位置散度目标；这不等于项目对自身正确性作认证，也不构成“该方法在这里更优”的证据。
 
 ---
 
@@ -49,12 +51,13 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 学生自采样的多轮 rollout，带真实工具执行 | 支持 |
 | 严格的逐 token 来源标注（`system` / `user` / `assistant_*` / `tool_result`） | 支持，读写时都会校验 |
 | 精确全词表 forward KL、reverse KL、beta-JSD | 支持，与暴力参考实现逐项比对 |
-| 压缩的 `top-k + tail` KL / JSD | 支持，并证明了它是精确散度的下界 |
+| 压缩的 `top-k + tail` KL / JSD | 支持；未平滑粗粒化与精确散度的下界关系有严格证明 |
 | 特权上下文教师模式，带显式对齐表 | 支持 |
+| 标准冻结 PEFT 教师适配器，带来源记录与能力门禁 | 支持 |
 | QLoRA（NF4）学生，bf16 或量化教师 | 支持，已在 RTX 4080 上实测 |
 | `resident` / `swap` 显存策略与 `auto` 解析 | 支持，并有等价性测试 |
 | 带版本号与校验和、完全不用 pickle 的教师目标缓存 | 支持 |
-| SFT / 离线 KD / 真正的 OPD 统一在一个 trainer 中 | 支持 |
+| SFT / 离线 KD / 严格 OPD / 显式标注 replay 统一在一个 trainer 中 | 支持 |
 | 计算器、JSON 导航、SQLite 三个环境 | 支持，确定性生成 + 精确判分 |
 | 精确的断点续训 | 支持，逐参数断言 |
 | 完全自包含、可离线打开的 HTML 报告 | 支持 |
@@ -65,7 +68,7 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 不联网、不用 GPU、不下载任何权重。师生两个模型都是由配置直接构建的小型 transformer，分词器是一个可逆的约 190 词条玩具分词器，计算器环境自己生成并判分。
 
 ```bash
-pip install "miniverl[train]"          # CPU 版 torch 就够
+python -m pip install ".[train]"       # 在克隆后的仓库中执行；CPU 版 torch 就够
 miniverl doctor                        # 这台机器能跑什么？
 miniverl demo --output runs/demo
 ```
@@ -114,8 +117,10 @@ tokens by span type (only assistant_* can enter the loss)
 ## 消费级 GPU 快速上手
 
 ```bash
-pip install "miniverl[train,cuda]"
-pip install torch --index-url https://download.pytorch.org/whl/cu130   # 与你的驱动匹配
+git clone https://github.com/DaoyuanLi2816/mini-verl.git
+cd mini-verl
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
+python -m pip install ".[train,cuda]"
 
 miniverl doctor                                                   # 确认 CUDA 与 bitsandbytes
 miniverl validate recipes/qwen_consumer_gpu_calc.yaml
@@ -139,7 +144,7 @@ miniverl report   runs/<run-id> --out runs/<run-id>/report.html
 
 **`exact_full_vocab`** 会构造完整的 `[chunk, V]` 师生分布并计算真实散度。适用于词表很小（玩具后端），或教师常驻显存、分布按 chunk 现算的情况。由 `loss.exact_max_vocab`（默认 8192）兜底，避免静默地尝试持久化 `[positions, 152k]` 张量。
 
-**`bucketed_topk_tail`** 把词表粗粒化为「教师 top-k 个 token + 一个聚合尾桶」，再在两个 `K+1` 类分布之间算散度。这**不是**全词表 KL。由数据处理不等式，它是精确散度的**下界**，当 `k == V` 时取等；两点都有测试断言，后者在 float64 下精确到 `1e-9`。函数名就叫 `bucketed_forward_kl` / `bucketed_reverse_kl` / `bucketed_jsd`，任何调用点都无法把它伪装成精确 KL。
+**`bucketed_topk_tail`** 把词表粗粒化为「教师 top-k 个 token + 一个聚合尾桶」，再在两个 `K+1` 类分布之间算散度。这**不是**全词表 KL。数据处理不等式严格适用于未平滑的粗粒化；实际实现会对非空尾桶做 epsilon 下限和重新归一化，因此文档把它称为 epsilon 平滑目标，不宣称每个输入上仍严格满足该定理。当 `k == V` 时空尾桶绕过平滑，float64 测试确认实现与精确目标在 `1e-9` 内一致。函数名就叫 `bucketed_forward_kl` / `bucketed_reverse_kl` / `bucketed_jsd`，任何调用点都无法把它伪装成精确 KL。
 
 压缩真正省下的是**教师侧的存储**，以及把教师从显存中换出的能力。它**不会**按比例减少教师的 FLOPs——教师仍要跑一次完整前向来产生 hidden states。因此报告里写的是 `teacher_queried_position_ratio`，绝不写"节省了教师算力"。
 
@@ -155,17 +160,17 @@ top-k + tail 目标本身并不新颖：TRL 的 `ServerDistillationTrainer` 就�
 
 下面所有数字都由 [`docs/benchmarking.md`](docs/benchmarking.md) 中的命令、在对应结果文件记录的硬件上跑出来。没有估算，没有外推。
 
-* **RTX 4080，真实模型** —— [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md) 记录了实测显存峰值、解码吞吐、完整配方运行以及等预算对照，同时也记录了尝试过的配置和**未运行**的配置。
-* **CPU，玩具模型** —— `recipes/toy_cpu.yaml` 在 192 秒内把成功率从 0.0% 提到 91.7%；`benchmarks/results/` 中还有等预算对照运行。后者的准确率差异**在噪声范围内**，作用是证明所有分支在同一预算下都能跑完，而不是给它们排名。原因见 [`benchmarks/README.md`](benchmarks/README.md)。
+* **RTX 4080，真实模型** —— [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md) 记录了实测显存峰值、解码吞吐、完整配方运行以及旧版等优化器更新对照，同时也记录了尝试过的配置和**未运行**的配置。
+* **CPU，玩具模型** —— `recipes/toy_cpu.yaml` 在 192 秒内把成功率从 0.0% 提到 91.7%；`benchmarks/results/` 中还有旧版等优化器更新机制对照。后者的准确率差异**在噪声范围内**，作用是证明所有分支在同一比较轴下都能跑完，而不是给它们排名。原因见 [`benchmarks/README.md`](benchmarks/README.md)。
 
 ## 安装分层
 
 | 层次 | 安装命令 | 得到什么 |
 | --- | --- | --- |
-| 核心 | `pip install miniverl` | `doctor`、`validate`、`inspect`、`report`、`cache`，以及 schema 和 Python API。**不含 torch**。 |
-| 训练 | `pip install "miniverl[train]"` | `demo`、`train`、`eval`、`benchmark`。加入 torch、transformers、peft、accelerate。 |
-| 4-bit | `pip install "miniverl[cuda]"` | bitsandbytes，用于 NF4 QLoRA 与 8-bit 优化器。 |
-| 开发 | `pip install "miniverl[dev]"` | pytest、hypothesis、ruff、mypy、build、twine。 |
+| 核心 | `python -m pip install .` | `doctor`、`validate`、`inspect`、`report`、`cache`，以及 schema 和 Python API。**不含 torch**。 |
+| 训练 | `python -m pip install ".[train]"` | `demo`、`train`、`eval`、`benchmark`。加入 torch、transformers、peft、accelerate。 |
+| 4-bit | `python -m pip install ".[cuda]"` | bitsandbytes，用于 NF4 QLoRA 与 8-bit 优化器。 |
+| 开发 | `python -m pip install ".[dev]"` | pytest、hypothesis、ruff、mypy、build、twine。 |
 
 缺少可选依赖时不会抛出裸异常：
 
@@ -192,12 +197,15 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 
 自定义环境见 `examples/custom_environment/`，自定义教师见 `examples/custom_teacher/`，两个例子都可直接运行。
 
+标准冻结 PEFT 教师适配器、Qwen3 协议 SFT 配方、导出命令、兼容性检查和教师策略能力门禁见
+[`docs/teacher-adapters.md`](docs/teacher-adapters.md)。
+
 ## 局限
 
 简版如下，完整清单见 [`docs/limitations.md`](docs/limitations.md)。
 
 * 仅支持师生同一分词器；跨词表蒸馏会直接报错。
-* 每次前向只处理一条轨迹，因此 `gradient_accumulation_steps` **就是** batch size；v0.1 没有 padding 批处理。
+* 每次前向只处理一条轨迹，因此 `gradient_accumulation_steps` **就是** batch size；当前版本没有 padding 批处理。
 * 量化模型不能用 `swap`，因为 bitsandbytes 的参数绑定在量化时所在的设备上。
 * 只测试过 Qwen3 与 Qwen2 架构。其他架构可能能通过架构适配器工作，但本项目不作任何声明。
 * GPU 结果是单随机种子，不声称统计显著性。

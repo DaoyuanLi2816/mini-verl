@@ -230,11 +230,10 @@ def validate(
         (config.train.rollouts_per_cycle + config.train.gradient_accumulation_steps - 1)
         // config.train.gradient_accumulation_steps,
     )
-    if config.run.mode.value == "opd" and steps_per_cycle > 1:
+    if config.run.mode.value == "opd" and config.train.opd_freshness.value == "replay":
         warnings.append(
-            f"{steps_per_cycle} optimizer steps per rollout batch: steps after the first "
-            "are only approximately on-policy (set gradient_accumulation_steps = "
-            "rollouts_per_cycle for strict on-policy updates)"
+            f"opd_freshness=replay permits {steps_per_cycle} optimizer step(s) per "
+            "rollout batch; this is online distillation with replay, not genuine OPD"
         )
     if config.models.backend.value == "hf" and not config.models.student.revision:
         warnings.append("models.student.revision is unpinned; the manifest will record 'unpinned'")
@@ -247,14 +246,26 @@ def validate(
         "run_name": config.run.name,
         "mode": config.run.mode.value,
         "is_on_policy": config.is_on_policy,
+        "opd_freshness": (
+            config.train.opd_freshness.value if config.run.mode.value == "opd" else None
+        ),
         "backend": config.models.backend.value,
         "student": config.models.student.model_id,
         "teacher": config.models.teacher.model_id,
         "environment": config.environment.name,
         "difficulty": config.environment.difficulty,
-        "loss_mode": config.loss.mode.value,
-        "divergence": config.loss.divergence.value,
-        "top_k": config.loss.top_k,
+        "objective": (
+            "sft_cross_entropy"
+            if config.run.mode.value == "sft"
+            else (
+                "online_distillation_with_replay"
+                if config.run.mode.value == "opd" and not config.is_on_policy
+                else config.run.mode.value
+            )
+        ),
+        "loss_mode": config.loss.mode.value if config.run.mode.value != "sft" else None,
+        "divergence": config.loss.divergence.value if config.run.mode.value != "sft" else None,
+        "top_k": config.loss.top_k if config.run.mode.value != "sft" else None,
         "selector": config.selection.selector.value,
         "memory_strategy": config.memory.strategy.value,
         "cycles": config.train.cycles,
@@ -572,9 +583,15 @@ def eval_command(
     for key in (
         "tasks",
         "success_rate",
+        "strict_task_success_rate",
+        "lenient_diagnostic_success_rate",
         "avg_turns",
         "avg_tool_calls",
+        "tool_call_count",
+        "valid_tool_call_rate",
         "invalid_tool_call_rate",
+        "final_answer_format_validity_rate",
+        "protocol_token_accuracy",
         "generated_tokens_per_task",
         "rollout_tokens_per_second",
         "seconds",
@@ -848,6 +865,49 @@ def cache_validate(
             )
     if problems:
         raise typer.Exit(1)
+
+
+# --------------------------------------------------------- export-adapter
+
+
+@app.command("export-adapter")
+def export_adapter_command(
+    run: Path = typer.Option(..., "--run", help="Source miniVERL run directory."),
+    checkpoint: Optional[Path] = typer.Option(
+        None,
+        "--checkpoint",
+        help="Checkpoint directory (defaults to <run>/checkpoints/final).",
+    ),
+    out: Path = typer.Option(..., "--out", help="New standard PEFT adapter directory."),
+    local_files_only: bool = typer.Option(
+        False,
+        "--local-files-only",
+        help="Refuse network access while loading the base model/tokenizer.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Export a miniVERL LoRA checkpoint as a standard frozen PEFT adapter."""
+    try:
+        _require_training_stack("miniverl export-adapter")
+        from miniverl.models.adapter_io import export_adapter
+
+        source_checkpoint = checkpoint or run / "checkpoints" / "final"
+        manifest, destination = export_adapter(
+            run,
+            source_checkpoint,
+            out,
+            local_files_only=local_files_only,
+        )
+    except MiniVerlError as exc:
+        _fail(exc)
+        return
+    if as_json:
+        _emit_json({"written": str(destination), "manifest": manifest})
+        return
+    console.print(f"[green]adapter exported[/green] {_esc(destination)}")
+    console.print("  adapter_config.json")
+    console.print("  adapter_model.safetensors")
+    console.print("  miniverl_adapter_manifest.json")
 
 
 # ------------------------------------------------------- export-benchmark

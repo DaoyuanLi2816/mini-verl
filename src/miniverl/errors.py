@@ -60,7 +60,7 @@ class AlignmentError(MiniVerlError):
 
 
 class TokenizerMismatchError(AlignmentError):
-    """Student and teacher tokenizers differ; v0.1 requires an identical one."""
+    """Student and teacher tokenizers differ; miniVERL requires an identical one."""
 
 
 class ToolCallParseError(MiniVerlError):

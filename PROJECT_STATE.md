@@ -6,12 +6,86 @@ and what it printed.
 
 Last updated: 2026-07-27.
 
+## v0.2 takeover checkpoint (in progress)
+
+This section supersedes stale publication and next-action statements lower in
+this living log until the v0.2 branch is merged.
+
+| item | current state |
+| --- | --- |
+| public repository | `https://github.com/DaoyuanLi2816/mini-verl`; fetched `origin/main` is `3383f2b9a3c595e0fa143fecdc27522ab368b27f` |
+| working branch | `v0.2-protocol-aligned-opd`, based on the current public `main`; changes below are not committed yet |
+| version | `0.2.0` release candidate; no tag or publication has been created |
+| current PR | none yet; open a draft after the first complete, fully tested vertical slice |
+| GPU runs | none running; expensive work is gated on CPU/schema/adapter checks |
+| PyPI/release | not published, no tag, no upload authorized |
+
+Completed v0.2 work in the current worktree:
+
+- Benchmark schema/config v2 separates common and cold-start overrides, performs
+  a declared structured diff before model loading, records resolved hashes and
+  cumulative accounting, and retains v1 read/JSON-schema compatibility.
+- Strict OPD freshness is the default and rejects multiple optimizer updates
+  from one rollout batch; explicit replay is labeled
+  `online_distillation_with_replay`.
+- The ambiguous public `loss.ce_weight` name is replaced by
+  `sampled_token_nll_weight` for distillation; a nonzero legacy name is rejected.
+- Frozen standard PEFT teacher adapters can be validated, loaded and exported
+  with checksums and provenance. The no-network local Qwen-compatible round trip,
+  freeze checks, wrong-base/tokenizer checks and missing-file checks pass.
+- `recipes/qwen3_1.7b_protocol_teacher_sft.yaml` validates and its exact
+  `miniverl train ... --dry-run --json` command succeeds.
+- Policy evaluation now records strict success as primary plus lenient
+  diagnostic success, valid tool-call rate/count, final-format validity and
+  average turns. Protocol-token accuracy is explicitly `null/not_applicable`
+  for unaligned free-running trajectories.
+- `k == V` bypasses tail smoothing; temperature-squared claims are narrowed and
+  a deterministic 48-cell gradient sweep covers three divergences, four
+  temperatures and two logit regimes.
+- README source-install and CUDA installation order are corrected in English
+  and Chinese.
+
+Evidence executed on this branch:
+
+- `ruff check .` and `ruff format --check .` — clean, 146 files formatted.
+- `mypy src/miniverl` — clean, 73 source files.
+- complete offline/CPU suite — 961 passed, 4 GPU tests deselected, 85.27%
+  branch coverage over 6391 statements.
+- Transformers 4.51.3 boundary environment — offline Qwen3/PEFT/config bundle,
+  117 passed.
+- `python -m build` and `python -m twine check dist/*` — 0.2.0 sdist and wheel
+  built, both metadata checks passed.
+- committed benchmark schema exactly matches `miniverl schema`; every recipe
+  validates and the protocol-teacher dry run reports 24 optimizer steps and 192
+  oracle traces.
+- focused benchmark/config/cache suite — 129 passed before the adapter slice.
+- no-network PEFT adapter suite — 14 passed.
+- policy metrics, benchmark v2, packaging, toy pipeline and offline HF bundle —
+  119 passed; its only failure was a duplicate test tokenizer ID, corrected and
+  rerun as 1 passed.
+- loss/property/temperature sweep suite — 45 passed.
+- protocol-teacher recipe `validate --json` and `train --dry-run --json` —
+  valid, 24 planned optimizer steps and 192 oracle traces.
+
+Current unresolved scientific question: the protocol-trained teacher has not
+yet been trained or evaluated, so there is still no evidence that it prevents
+the raw-teacher collapse. No claim will be made from SFT loss alone.
+
+Exact next actions:
+
+1. Commit and push the complete CPU-validated vertical slice, open a draft PR,
+   and let remote CPU/compatibility checks run while local GPU work proceeds.
+2. Run one-cycle Qwen smoke tests, then train/export/evaluate the protocol
+   teacher and preserve all raw artifacts with checksums.
+3. Run the prespecified equal-optimizer-update arm set for the same seeds,
+   generate the result visualization from schema-validated JSON, update the
+   draft PR, wait for green CI and integrate it.
+
 ## Current phase
 
-Phase 6 -- release quality. Phases 1-5 (numerics, environments and toy backend,
-Hugging Face + QLoRA backend, CLI and reports, benchmarks) are implemented and
-covered by executed tests. Remaining work is listed under
-[Next three actions](#next-three-actions).
+Phase 7 -- v0.2 release candidate and protocol-teacher experiment. The v0.1
+foundation is complete; the v0.2 CPU slice passes locally and the remaining
+work is publication of the draft branch plus the prespecified GPU run.
 
 ## Environment (measured, not assumed)
 
@@ -42,7 +116,11 @@ Confirmed twice against `huggingface.co/api/models/...` with a negative control
 is padded. miniVERL sizes the cache and `top_k` from the model's output
 dimension, never from the tokenizer; a GPU test asserts both numbers.
 
-## Release gates (all executed on 2026-07-27)
+## Historical v0.1 release gates (executed on 2026-07-27)
+
+This table is retained as the v0.1 evidence baseline. Current v0.2 evidence is
+recorded in the takeover checkpoint above and will replace this table after the
+GPU experiment and clean-install verification finish.
 
 | gate | command | result |
 | --- | --- | --- |
@@ -195,7 +273,8 @@ None. Every gate in the table above passes.
 
 ## Unresolved design risks
 
-1. **The teacher is not taught the protocol, and it is the top open question.**
+1. **The measured teachers were not taught the protocol, and this remains the
+   top open question until the v0.2 GPU run finishes.**
    The GPU benchmark shows that distilling a protocol-cold-started student
    toward a raw instruct teacher *reduces* task success from 62.5% to 0.0% while
    the objective improves monotonically. Giving that teacher privileged access
@@ -204,50 +283,38 @@ None. Every gate in the table above passes.
    setup rather than a bug in the implementation, but it means the repository
    currently has **no evidence that its headline method helps**, and the README,
    CHANGELOG and `docs/limitations.md` all say so in those terms. The experiment
-   that would settle it is specified in `docs/rtx4080-baselines.md` under *Not
-   run* and needs GPU time, not code.
+   that would settle it is now implemented, competence-gated and prespecified
+   in `docs/protocol-teacher-grid.md`; it still needs GPU execution.
 2. **The toy backend cannot rank methods.** It solves only the `easy` split,
    where SFT saturates. Measured: `medium` and `hard` stay at 0% even after 700
    SFT steps. The CPU benchmark is therefore a parity check, not a ranking.
 3. **Single-seed GPU results.** Two seeds on CPU, one on GPU. No significance is
    claimed anywhere. The CPU pair quantifies why this matters: the between-seed
    spread there reaches 58 points against a between-arm spread of 4.
-4. **transformers 5.x API drift.** The dtype keyword is chosen by version
-   comparison with an introspection fallback; a future rename would need a new
-   branch.
+4. **Transformers API drift.** CI now tests the Qwen3 introduction boundary
+   (4.51.x) and the supported 5.x major. A future rename beyond the explicit
+   `<6` cap would still need a reviewed compatibility change.
 
 ## Next three actions
 
-Everything previously listed here is done. What remains is outside this
-environment and is listed under [External blockers](#external-blockers).
-
-1. Register the PyPI trusted publisher, then push the tag so
-   `.github/workflows/release.yml` can upload. The name `miniverl` was rechecked
-   on 2026-07-27 and is still unregistered (`curl -o /dev/null -w "%{http_code}"
-   https://pypi.org/pypi/miniverl/json` -> `404`; `mini-verl` and
-   `mini-verl-opd` are also free), so no fallback name is needed.
-2. Run the teacher-protocol experiment described in
-   `docs/rtx4080-baselines.md` under *Not run*. It is the single measurement
-   that would explain the negative benchmark, and it needs an unattended GPU
-   hour rather than any new code.
-3. Add a second GPU seed. Both OPD arms landed on exactly 0.0%, which is a floor
-   rather than a distribution.
+1. Publish the CPU-validated v0.2 slice as a draft PR and monitor its checks.
+2. Execute the primary protocol-teacher candidate and only use the two
+   prespecified one-variable fallbacks if its strict success misses 50%.
+3. Run all five benchmark arms at both prespecified seeds, preserve adverse
+   results, update the PR and integrate only after local and remote gates pass.
 
 ## External blockers
 
-* **Publishing to PyPI.** Requires a maintainer to register a trusted publisher
-  in the PyPI project settings. No credentials exist in this environment, so no
-  upload was attempted. The exact steps are in `docs/release-checklist.md`; the
-  release workflow validates and builds but deliberately does not upload.
-* **Pushing to GitHub / creating a release.** No push was attempted; the
-  repository is a local git checkout with all work committed.
+* **Publishing to PyPI or creating a tag/release.** Not authorized for this v0.2
+  iteration. The OIDC job is hard-disabled until a trusted publisher is
+  registered and a separate reviewed change explicitly enables publication.
 * **A GPU CI runner.** `.github/workflows/gpu.yml` is manual-dispatch only and
   targets a self-hosted `cuda` runner that does not exist for this repository.
-  The GPU tests were instead executed locally on the RTX 4080; results above.
+  The prespecified GPU tests and benchmark therefore run locally on the RTX
+  4080, with artifacts and checksums recorded for review.
 
 ## Final evidence table
 
-See [Release gates](#release-gates-all-executed-on-2026-07-27) above; that table
-is the evidence table. Known limitations are enumerated in
-`docs/limitations.md`, which is written to be read before the README's results
-section rather than after it.
+See the [v0.2 takeover checkpoint](#v02-takeover-checkpoint-in-progress) for
+current evidence and the historical table for the v0.1 baseline. Known
+limitations are enumerated in `docs/limitations.md`.

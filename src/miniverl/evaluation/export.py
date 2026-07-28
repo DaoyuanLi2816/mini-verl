@@ -67,21 +67,38 @@ def export_run(
         seed=int(manifest.get("seed") or 0),
         run_id=data.run_id,
         run_dir=Path(data.run_dir).name,
-        loss_mode=str(objective.get("loss_mode")),
-        divergence=str(objective.get("divergence")),
-        selector=str(objective.get("selector")),
-        top_k=int(objective.get("top_k") or 1),
+        objective=str(objective.get("name") or "legacy_unreported"),
+        opd_freshness=objective.get("opd_freshness"),
+        loss_mode=objective.get("loss_mode"),
+        divergence=objective.get("divergence"),
+        selector=objective.get("selector"),
+        top_k=objective.get("top_k"),
         optimizer_steps=int(throughput["optimizer_steps"]),
         policy_version=int(summary.get("policy_version") or 0),
         tasks=int(final["tasks"]),
         success_rate=float(final["success_rate"]),
+        strict_task_success_rate=finite_or_none(final.get("strict_task_success_rate")),
+        lenient_diagnostic_success_rate=finite_or_none(
+            final.get("lenient_diagnostic_success_rate")
+        ),
         avg_turns=float(final["avg_turns"]),
         avg_tool_calls=float(final["avg_tool_calls"]),
+        tool_call_count=(
+            int(final["tool_call_count"]) if final.get("tool_call_count") is not None else None
+        ),
+        valid_tool_call_rate=finite_or_none(final.get("valid_tool_call_rate")),
         invalid_tool_call_rate=float(final["invalid_tool_call_rate"]),
+        final_answer_format_validity_rate=finite_or_none(
+            final.get("final_answer_format_validity_rate")
+        ),
+        protocol_token_accuracy=finite_or_none(final.get("protocol_token_accuracy")),
         generated_tokens_per_task=float(final["generated_tokens_per_task"]),
         tokens_per_solved_task=tokens_per_solved,
-        selected_training_tokens=int(sum(count for _, count in selection)),
-        cache_bytes=cache.get("actual_bytes"),
+        selected_training_tokens_total=int(sum(count for _, count in selection)),
+        teacher_queried_positions_total=(
+            None if data.mode == "sft" else int(sum(count for _, count in selection))
+        ),
+        cache_current_bytes=cache.get("actual_bytes"),
         cache_compression_ratio=cache.get("compression_ratio"),
         peak_allocated_bytes=(
             int(throughput["peak_allocated_gib"] * 1024**3)
@@ -93,13 +110,18 @@ def export_run(
             if throughput["peak_reserved_gib"] is not None
             else None
         ),
-        seconds=float(summary.get("duration_seconds") or 0.0),
+        wall_seconds=float(summary.get("duration_seconds") or 0.0),
         baseline_success_rate=(summary.get("baseline_eval") or {}).get("success_rate"),
-        measurement_status="measured" if throughput["cuda_available"] else "measured_cpu_only",
+        measurement_status={
+            "wall_time": "measured",
+            "peak_vram": ("measured" if throughput["cuda_available"] else "not_run_no_cuda"),
+            "cache": "measured" if cache else "not_applicable",
+        },
     )
 
     models = manifest.get("models") or {}
     result = BenchmarkResult(
+        schema_version=1,
         miniverl_version=__version__,
         name=f"community-{data.run_id}",
         description=(

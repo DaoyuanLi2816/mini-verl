@@ -90,6 +90,7 @@ train:
   cycles: 20
   rollouts_per_cycle: 8
   gradient_accumulation_steps: 8
+  opd_freshness: strict
   learning_rate: 0.003
   max_grad_norm: 1.0
   lr_schedule: cosine

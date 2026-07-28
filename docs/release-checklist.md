@@ -1,8 +1,9 @@
 # Release checklist
 
-Every box below was checked for `v0.1.0` by running the command next to it. The
-`release` workflow re-runs the mechanical ones and fails the tag if any item is
-left unchecked, so this file is a gate rather than a wish list.
+This is the release-candidate gate for `v0.2.0`. A checked box means the command
+was executed on the v0.2 source or the named invariant was inspected. The
+`release` workflow re-runs the mechanical gates and fails a tag if any item
+before *After the tag* is left unchecked.
 
 ## Version consistency
 
@@ -19,9 +20,8 @@ Checked by: `.github/workflows/release.yml`, job `validate`.
 - [x] `ruff format --check .`
 - [x] `mypy src/miniverl`
 - [x] `pytest -q -m "not gpu and not network"` with the coverage gate
-      (929 passed, 4 deselected, 85% branch coverage on 2026-07-27; the gate
-      table is in `docs/limitations.md`)
-- [x] `pytest -q -m gpu` on a machine with CUDA
+      (the exact v0.2 count and coverage are recorded in `PROJECT_STATE.md`)
+- [ ] `pytest -q -m gpu` on a machine with CUDA
 - [x] `rg -n "TODO|FIXME|XXX|HACK|NotImplementedError" src tests examples scripts`
       returns nothing
 
@@ -32,15 +32,15 @@ Checked by: `.github/workflows/release.yml`, job `validate`.
 - [x] The wheel contains `miniverl/reporting/templates/report.html.j2` and does
       **not** contain `tests/`.
 - [x] The sdist contains `recipes/`, `tests/`, `LICENSE` and `README.md`.
-- [x] A fresh virtual environment installing only the wheel can run
+- [ ] A fresh virtual environment installing only the wheel can run
       `miniverl --help`, `miniverl --version` and `miniverl doctor --json`, with
       torch absent.
-- [x] A second fresh environment with `[train]` can run `miniverl demo --fast`
+- [ ] A second fresh environment with `[train]` can run `miniverl demo --fast`
       end to end.
 
 ## Documentation
 
-- [x] Every command in `README.md` has been executed.
+- [ ] Every command in `README.md` has been executed.
 - [x] `README.zh-CN.md` describes the same behaviour as `README.md`.
 - [x] Every number in the README and in `docs/` is measured, or marked
       "not measured" / "not run".
@@ -51,7 +51,7 @@ Checked by: `.github/workflows/release.yml`, job `validate`.
 
 ## Artifacts and hygiene
 
-- [x] `git status --porcelain` is empty.
+- [ ] `git status --porcelain` is empty.
 - [x] No model weights, checkpoints, Hugging Face caches, databases, secrets or
       absolute user paths are committed
       (`git ls-files | rg "\.(safetensors|bin|pt|ckpt|sqlite|db)$"` is empty).
@@ -61,21 +61,20 @@ Checked by: `.github/workflows/release.yml`, job `validate`.
 
 ## Publishing (not automated)
 
-Publishing is deliberately **not** wired into CI, and this repository stores no
-secrets. To publish:
+The OIDC publication job exists but is deliberately disabled with `if: false`;
+this repository stores no secrets. To publish:
 
 1. On PyPI, create the `miniverl` project and add a **trusted publisher**:
    - Owner: `DaoyuanLi2816`
    - Repository: `mini-verl`
    - Workflow: `release.yml`
    - Environment: `pypi`
-2. Add a `publish` job to `release.yml` with
-   `permissions: {id-token: write}` and `pypa/gh-action-pypi-publish`.
-3. Push the tag. The `validate` job must pass first.
+2. In a separately reviewed change, remove the hard-disabled condition from
+   `publish-pypi` in `release.yml`.
+3. Push the tag. The `validate` job must pass before `publish-pypi`.
 
-Until step 1 is done by a maintainer with PyPI access, the release workflow
-validates and builds but does not upload — which is the correct behaviour, not an
-omission.
+Until the publisher is registered and publication is explicitly authorized,
+the release workflow validates and builds but cannot upload.
 
 ### Name availability
 
