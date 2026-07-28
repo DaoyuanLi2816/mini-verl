@@ -14,9 +14,10 @@ Last updated: 2026-07-28.
 | public `main` | `4859531e128bd23b7cbaff9ead811ec9bd71fff6`, fetched 2026-07-28 |
 | previous integration | PR [#4](https://github.com/DaoyuanLi2816/mini-verl/pull/4) merged; its main-branch CI and build runs passed |
 | working branch | `v0.2-release-hardening`, created from current public `main` |
-| current PR | not opened yet; the release-hardening change will be published as draft PR #5 or the next available number after the first coherent tested checkpoint |
+| current PR | draft [#5](https://github.com/DaoyuanLi2816/mini-verl/pull/5) |
 | lifecycle fix | destructive, idempotent cleanup implemented; explicit cold-start/arm context boundaries added |
 | local release gates | ruff and format clean; mypy clean over 73 source files; 981 CPU tests and all 5 GPU tests passed |
+| CI repair | initial core coverage jobs exposed a Pydantic 2.13.4 `AliasChoices` identity failure; explicit pre-validation migration preserves the legacy key, and the exact coverage command now passes 797 tests at 92.12% locally |
 | compatibility | Transformers 4.51.3 and 5.14.1 each passed the same 118-test offline Qwen3/config slice |
 | focused validation | 23 lifecycle/benchmark CPU tests passed; CUDA sequential-isolation test passed without test-side garbage collection after `close()` |
 | CUDA isolation | audited old close retained 32,330,752 allocated / 35,651,584 reserved bytes; corrected close returned allocated/reserved to 0 / 0 after both first and second trainers |
@@ -55,12 +56,11 @@ Observed external publication constraint:
 
 Exact next actions:
 
-1. Commit and push the coherent checkpoint, open a draft PR, include the
-   external PyPI blocker, then mark ready only after local gates pass.
-2. Execute the exact README source flow from a fresh remote branch clone.
-3. Wait for required CI/build workflows, merge only if green, and verify public
+1. Push the CI compatibility repair to draft PR #5.
+2. Wait for required CI/build workflows, mark ready and merge only if green,
+   then verify public
    `main`, Hub links, preserved benchmark SHA and clean synchronization.
-4. Do not create `v0.2.0` or a GitHub Release while the PyPI trusted publisher
+3. Do not create `v0.2.0` or a GitHub Release while the PyPI trusted publisher
    and GitHub `pypi` environment remain absent.
 
 ## Historical v0.2 pre-merge evidence (PR #4)
