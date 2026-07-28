@@ -21,7 +21,7 @@ Checked by: `.github/workflows/release.yml`, job `validate`.
 - [x] `mypy src/miniverl`
 - [x] `pytest -q -m "not gpu and not network"` with the coverage gate
       (the exact v0.2 count and coverage are recorded in `PROJECT_STATE.md`)
-- [ ] `pytest -q -m gpu` on a machine with CUDA
+- [x] `pytest -q -m gpu` on a machine with CUDA
 - [x] `rg -n "TODO|FIXME|XXX|HACK|NotImplementedError" src tests examples scripts`
       returns nothing
 
@@ -32,10 +32,10 @@ Checked by: `.github/workflows/release.yml`, job `validate`.
 - [x] The wheel contains `miniverl/reporting/templates/report.html.j2` and does
       **not** contain `tests/`.
 - [x] The sdist contains `recipes/`, `tests/`, `LICENSE` and `README.md`.
-- [ ] A fresh virtual environment installing only the wheel can run
+- [x] A fresh virtual environment installing only the wheel can run
       `miniverl --help`, `miniverl --version` and `miniverl doctor --json`, with
       torch absent.
-- [ ] A second fresh environment with `[train]` can run `miniverl demo --fast`
+- [x] A second fresh environment with `[train]` can run `miniverl demo --fast`
       end to end.
 
 ## Documentation

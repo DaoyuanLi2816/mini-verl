@@ -6,7 +6,7 @@ import copy
 import hashlib
 import sys
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from miniverl import __version__
@@ -21,6 +21,7 @@ from miniverl.utils.runs import canonical_json, read_jsonl, utc_now, write_json,
 __all__ = [
     "deep_merge",
     "structured_diff",
+    "portable_payload",
     "resolve_benchmark_configs",
     "run_benchmark",
     "render_benchmark_markdown",
@@ -87,6 +88,21 @@ def _path_allowed(path: str, patterns: set[str]) -> bool:
 
 def _digest_payload(payload: Any) -> str:
     return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+
+
+def portable_payload(value: Any) -> Any:
+    """Replace machine-local absolute paths before hashing or publishing provenance."""
+    if isinstance(value, dict):
+        return {key: portable_payload(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [portable_payload(item) for item in value]
+    if isinstance(value, str):
+        windows = PureWindowsPath(value)
+        posix = PurePosixPath(value)
+        if windows.is_absolute() or posix.is_absolute():
+            name = windows.name if windows.is_absolute() else posix.name
+            return f"<local>/{name or 'path'}"
+    return value
 
 
 def _load_base(config: BenchmarkConfig) -> dict[str, Any]:
@@ -276,7 +292,7 @@ def run_benchmark(
     # Preflight every seed before creating a run directory or allocating a model.
     preflight = {seed: resolve_benchmark_configs(config, seed=seed) for seed in config.seeds}
     common_config = preflight[config.seeds[0]][0]
-    common_dump = common_config.model_dump(mode="json")
+    common_dump = portable_payload(common_config.model_dump(mode="json"))
     common_digest = _digest_payload(common_dump)
 
     target = Path(output_dir or config.output_dir)
@@ -292,7 +308,9 @@ def run_benchmark(
             {
                 "seed": seed,
                 "run_id": f"{cold_config.run.name}-s{seed}",
-                "resolved_config_digest": _digest_payload(cold_config.model_dump(mode="json")),
+                "resolved_config_digest": _digest_payload(
+                    portable_payload(cold_config.model_dump(mode="json"))
+                ),
                 "checkpoint_digest": (
                     _checkpoint_digest(checkpoint)
                     if checkpoint is not None and checkpoint.is_dir()
@@ -302,7 +320,9 @@ def run_benchmark(
             }
         )
 
-        for arm, run_config, diff in resolved_arms:
+        for arm, run_config, _diff in resolved_arms:
+            portable_run_config = portable_payload(run_config.model_dump(mode="json"))
+            portable_diff = structured_diff(common_dump, portable_run_config)
             trainer = OPDTrainer.from_config(
                 run_config,
                 output_dir=target,
@@ -362,8 +382,8 @@ def run_benchmark(
                         divergence=objective.get("divergence"),
                         selector=objective.get("selector"),
                         top_k=objective.get("top_k"),
-                        resolved_config_digest=_digest_payload(run_config.model_dump(mode="json")),
-                        structured_diff=diff,
+                        resolved_config_digest=_digest_payload(portable_run_config),
+                        structured_diff=portable_diff,
                         student_model_id=models["student"]["model_id"],
                         student_model_revision=models["student"]["revision"],
                         teacher_model_id=(
@@ -442,14 +462,14 @@ def run_benchmark(
             finally:
                 trainer.close()
 
-    cold_dump = preflight[config.seeds[0]][1].model_dump(mode="json")
+    cold_dump = portable_payload(preflight[config.seeds[0]][1].model_dump(mode="json"))
     result = BenchmarkResult(
         miniverl_version=__version__,
         name=config.name,
         description=config.description,
         created_at=utc_now(),
         git_commit=env_info["git_commit"],
-        invocation=list(invocation or sys.argv),
+        invocation=portable_payload(list(invocation or sys.argv)),
         budget_axis=config.budget_axis,
         hardware={
             "gpu": env_info["gpu"],

@@ -22,6 +22,29 @@ there is no aligned token target; the measurement status states that explicitly.
 The primary candidate and conditional one-variable fallbacks were fixed before
 training in [`protocol-teacher-grid.md`](protocol-teacher-grid.md).
 
+### Measured v0.2 candidate
+
+Candidate A completed 24 optimizer updates on the RTX 4080 and scored **100.0%**
+strict success on all 24 held-out tasks, with 100.0% lenient diagnostic success,
+100.0% valid tool-call rate, 100.0% final-answer format validity, 33 tool calls
+and 2.375 average turns. It passed the prespecified 50% gate, so candidates B
+and C were not run.
+
+The exported artifact is intentionally not committed. Its reviewable identity
+is:
+
+| field | SHA-256 |
+| --- | --- |
+| source checkpoint tree | `e9c42893b861e371dd48e2c151940a198e22eff2f91649ca6a5303c525c5ee4c` |
+| `adapter_config.json` | `ca94a103c86a20f0297579a1d05c3ca971a6f1303b2e356b8dd33c644502e939` |
+| `adapter_model.safetensors` | `8df7e7bc1b8283b910aa13bc4173083ae20c838bcacb366d7dbcabc7b310b994` |
+| miniVERL adapter manifest | `502bca7489c6fe161ebf198d2a1b4622123d4f958885a7e4714c6a02a2e1ac43` |
+
+This competence measurement selected the teacher without looking at downstream
+OPD. In the subsequent two-seed comparison, its OPD arm reached 100% on both
+seeds and tied the SFT arm; see
+[`rtx4080-baselines.md`](rtx4080-baselines.md#protocol-teacher-equal-update-comparison-schema-v2).
+
 ## Export
 
 ```bash

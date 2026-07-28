@@ -13,6 +13,7 @@ from miniverl.config import TrainingMode
 from miniverl.errors import ConfigError
 from miniverl.evaluation.benchmark import (
     _training_accounting,
+    portable_payload,
     resolve_benchmark_configs,
     run_benchmark,
 )
@@ -140,6 +141,26 @@ arms:
     assert Path(adapter["path"]) == (tmp_path / "artifacts" / "protocol-teacher").resolve()
 
 
+def test_published_provenance_replaces_machine_local_absolute_paths() -> None:
+    payload = {
+        "run": {"output_dir": r"C:\Users\alice\runs"},
+        "models": {
+            "student": {"model_id": "Qwen/Qwen3-0.6B"},
+            "teacher": {
+                "adapter": {
+                    "source": "local",
+                    "path": r"C:\Users\alice\artifacts\protocol-teacher",
+                }
+            },
+        },
+    }
+    portable = portable_payload(payload)
+    assert portable["run"]["output_dir"] == "<local>/runs"
+    assert portable["models"]["student"]["model_id"] == "Qwen/Qwen3-0.6B"
+    assert portable["models"]["teacher"]["adapter"]["path"] == "<local>/protocol-teacher"
+    assert "alice" not in json.dumps(portable).lower()
+
+
 @pytest.mark.torch
 def test_schema_v2_benchmark_runs_end_to_end_and_writes_provenance(tmp_path: Path) -> None:
     base = _base()
@@ -183,9 +204,9 @@ def test_schema_v2_benchmark_runs_end_to_end_and_writes_provenance(tmp_path: Pat
     assert arm.teacher_queried_positions_total is None
     assert arm.optimizer_steps == 0
     assert arm.wall_seconds >= arm.evaluation_seconds
-    persisted = BenchmarkResult.model_validate_json(
-        (tmp_path / "benchmarks" / "tiny-v2.json").read_text(encoding="utf-8")
-    )
+    persisted_text = (tmp_path / "benchmarks" / "tiny-v2.json").read_text(encoding="utf-8")
+    assert str(tmp_path).lower() not in persisted_text.lower()
+    persisted = BenchmarkResult.model_validate_json(persisted_text)
     assert persisted.common_resolved_config_digest == result.common_resolved_config_digest
 
 

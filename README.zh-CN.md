@@ -29,7 +29,15 @@ miniverl demo --output runs/demo        # 无需联网、无需 GPU，笔记本 
 > 请如实理解这个数字：其中大部分提升来自 8 个 cycle 的监督冷启动——**第一批**在线策略 rollout 就已经达到 83.3%。这次运行证明的是整条流水线能在真实硬件上端到端跑通，**并不能**说明在线策略蒸馏优于监督微调，因为该任务已经饱和。本文中的每个数字都可以从 [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md) 记录的产物复现。
 
 > [!IMPORTANT]
-> **真正回答这个问题的等优化器更新对照实验，结果是负面的。** 在不饱和的 `hard` 划分上，从同一个冷启动出发、给定完全相同的 12 个优化步，监督续训达到 **100.0%**，而在线策略蒸馏是 **0.0%**——无论教师是原始 instruct 模型，还是带特权上下文（privileged context）的教师，都是如此。失败原因已经追查到逐条解码后的轨迹文本，记录在 [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md#legacy-equal-update-comparison-schema-v1)：最可能的解释是教师本身从未见过这套工具调用协议；协议教师实验正在 v0.2 中按预注册 arm 集执行。在新结果完成前，旧负面结果仍是唯一已测结论。miniVERL 实现了带测试的 token 来源、因果对齐、缓存新鲜度检查和选定位置散度目标；这不等于项目对自身正确性作认证，也不构成“该方法在这里更优”的证据。
+> **协议对齐避免了已经观察到的 OPD 崩溃，但在这里没有超过监督微调。**
+> 在 `hard` 划分的 schema-v2 等更新对照中，两个预先指定的种子都从
+> **75.0%** 的共同冷启动出发；12 步 SFT 后为 **100.0%**，原始教师和
+> 特权上下文教师的 OPD 都是 **0.0%**，协议训练教师的 OPD 则为
+> **100.0%**。因此，协议教师消除了旧结果中的主要混杂因素并追平 SFT，
+> 但没有证明 OPD 更优。完整结果和旧实验的逐轨迹诊断见
+> [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)。
+
+![双种子协议教师对照](docs/gpu-calc-hard-equal-update-v2.svg)
 
 ---
 
@@ -208,7 +216,7 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 * 每次前向只处理一条轨迹，因此 `gradient_accumulation_steps` **就是** batch size；当前版本没有 padding 批处理。
 * 量化模型不能用 `swap`，因为 bitsandbytes 的参数绑定在量化时所在的设备上。
 * 只测试过 Qwen3 与 Qwen2 架构。其他架构可能能通过架构适配器工作，但本项目不作任何声明。
-* GPU 结果是单随机种子，不声称统计显著性。
+* 主要 GPU 对照使用两个预先指定的随机种子；旧 GPU 产物仍是单种子。不声称统计显著性。
 * 在实测机器上，解码是 kernel 启动开销受限而非算力受限，因此吞吐数字与平台强相关。
 
 ## 可复现性

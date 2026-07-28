@@ -4,20 +4,20 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-07-27.
+Last updated: 2026-07-27 (pre-merge v0.2 evidence snapshot).
 
-## v0.2 takeover checkpoint (in progress)
+## v0.2 takeover checkpoint
 
-This section supersedes stale publication and next-action statements lower in
-this living log until the v0.2 branch is merged.
+This section records the final local evidence snapshot prepared for integration
+through PR #4. The PR link is authoritative for its later merge state.
 
-| item | current state |
+| item | evidence snapshot |
 | --- | --- |
 | public repository | `https://github.com/DaoyuanLi2816/mini-verl`; fetched `origin/main` is `3383f2b9a3c595e0fa143fecdc27522ab368b27f` |
-| working branch | `v0.2-protocol-aligned-opd`, based on the current public `main`; changes below are not committed yet |
+| working branch | `v0.2-protocol-aligned-opd`; foundational commits are pushed and the measured-result integration passes the final local gates |
 | version | `0.2.0` release candidate; no tag or publication has been created |
-| current PR | none yet; open a draft after the first complete, fully tested vertical slice |
-| GPU runs | none running; expensive work is gated on CPU/schema/adapter checks |
+| current PR | draft [#4](https://github.com/DaoyuanLi2816/mini-verl/pull/4) |
+| GPU runs | protocol teacher, adapter export/gate, 4 GPU tests and all 10 benchmark arms completed locally on the RTX 4080 |
 | PyPI/release | not published, no tag, no upload authorized |
 
 Completed v0.2 work in the current worktree:
@@ -44,13 +44,21 @@ Completed v0.2 work in the current worktree:
   temperatures and two logit regimes.
 - README source-install and CUDA installation order are corrected in English
   and Chinese.
+- Candidate A reached 100% strict held-out tool-policy success, passed its
+  prespecified 50% gate and was exported with complete checksums; candidates B
+  and C were not run by design.
+- The five-arm equal-update GPU benchmark completed at both prespecified seeds.
+  Cold start was 75% twice; SFT and protocol-teacher OPD were 100% twice;
+  raw-teacher and privileged-context OPD were 0% twice.
+- Published schema-v2 provenance is made portable before hashing. The result
+  JSON, Markdown and data-bound SVG pass schema, privacy and consistency tests.
 
 Evidence executed on this branch:
 
-- `ruff check .` and `ruff format --check .` — clean, 146 files formatted.
+- `ruff check .` and `ruff format --check .` — clean, 148 files formatted.
 - `mypy src/miniverl` — clean, 73 source files.
-- complete offline/CPU suite — 961 passed, 4 GPU tests deselected, 85.27%
-  branch coverage over 6391 statements.
+- complete offline/CPU suite — 966 passed, 4 GPU tests deselected, 86.55%
+  branch coverage over 6405 statements.
 - Transformers 4.51.3 boundary environment — offline Qwen3/PEFT/config bundle,
   117 passed.
 - `python -m build` and `python -m twine check dist/*` — 0.2.0 sdist and wheel
@@ -66,26 +74,39 @@ Evidence executed on this branch:
 - loss/property/temperature sweep suite — 45 passed.
 - protocol-teacher recipe `validate --json` and `train --dry-run --json` —
   valid, 24 planned optimizer steps and 192 oracle traces.
+- `pytest -q -m gpu` — 4 passed on the RTX 4080.
+- Candidate A training — 24 optimizer steps in 554.9 s; final strict/lenient
+  success, valid-call rate and final-format validity all 100% on 24 tasks.
+- Adapter export/validation — checkpoint tree
+  `e9c42893b861e371dd48e2c151940a198e22eff2f91649ca6a5303c525c5ee4c`,
+  adapter weights
+  `8df7e7bc1b8283b910aa13bc4173083ae20c838bcacb366d7dbcabc7b310b994`,
+  manifest
+  `502bca7489c6fe161ebf198d2a1b4622123d4f958885a7e4714c6a02a2e1ac43`.
+- Complete GPU benchmark — 5 arms x 2 seeds, all 10 completed; published JSON
+  SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
+- Fresh 0.2.0 build — sdist and wheel passed `twine check`; a wheel-only venv
+  ran `--help`, `--version` and `doctor --json` with torch absent, while a
+  second `[train]` venv completed `demo --fast` and inspected its trajectories.
 
-Current unresolved scientific question: the protocol-trained teacher has not
-yet been trained or evaluated, so there is still no evidence that it prevents
-the raw-teacher collapse. No claim will be made from SFT loss alone.
+Measured scientific conclusion: protocol competence prevents the observed
+raw/privileged-teacher collapse, but protocol-teacher OPD only ties SFT at 100%
+on both seeds. There is no measured OPD-over-SFT advantage.
 
-Exact next actions:
+Exact integration steps at this snapshot:
 
-1. Commit and push the complete CPU-validated vertical slice, open a draft PR,
-   and let remote CPU/compatibility checks run while local GPU work proceeds.
-2. Run one-cycle Qwen smoke tests, then train/export/evaluate the protocol
-   teacher and preserve all raw artifacts with checksums.
-3. Run the prespecified equal-optimizer-update arm set for the same seeds,
-   generate the result visualization from schema-validated JSON, update the
-   draft PR, wait for green CI and integrate it.
+1. Commit and push the portable artifacts and updated interpretation, then make
+   draft PR #4 ready once remote checks are green.
+2. Merge, verify `main` and its public artifacts, then close superseded
+   dependency PRs without creating a tag, release or PyPI upload.
+3. Preserve the two-seed result as the v0.2 baseline for a future,
+   less-saturated task-family experiment.
 
 ## Current phase
 
-Phase 7 -- v0.2 release candidate and protocol-teacher experiment. The v0.1
-foundation is complete; the v0.2 CPU slice passes locally and the remaining
-work is publication of the draft branch plus the prespecified GPU run.
+At this snapshot, phase 7 is at v0.2 release-candidate integration. The
+protocol-teacher experiment, both benchmark seeds and all local gates are
+complete; PR #4 contains the integration state.
 
 ## Environment (measured, not assumed)
 
@@ -206,9 +227,24 @@ whitelist), two statements in one call.
 * **Throughput probe**: NF4 11.19 tok/s, bf16 LoRA 12.84 tok/s (14.12 with
   determinism off). A 14-token prefill costs 37.0 ms and a cached one-token step
   costs 30.9 ms, so decoding here is **kernel-launch bound, not compute bound**.
+* **Protocol-teacher GPU benchmark v2** (`gpu-calc-hard-equal-update-v2`,
+  five arms x two prespecified seeds, 12 matched optimizer updates per
+  continuation):
+
+  | arm | seed 1234 | seed 20260727 | mean train s |
+  | --- | ---: | ---: | ---: |
+  | cold-start-only | 75.0% | 75.0% | 0.1 |
+  | sft-continued | **100.0%** | **100.0%** | 86.4 |
+  | opd-raw-teacher | **0.0%** | **0.0%** | 444.0 |
+  | opd-privileged-context | **0.0%** | **0.0%** | 531.5 |
+  | opd-protocol-sft-teacher | **100.0%** | **100.0%** | 523.8 |
+
+  The protocol teacher prevents the collapse and ties SFT; it does not beat
+  SFT. The complete portable schema-v2 artifact is
+  `benchmarks/results/gpu-calc-hard-equal-update-v2.json`.
 * **Matched-budget GPU benchmark** (`benchmarks/configs/gpu_calc_hard.yaml`,
-  chained `hard` calculator split, single seed, 12 matched optimizer steps from
-  one shared cold start). Result published in
+  chained `hard` calculator split, legacy schema v1, single seed, 12 matched
+  optimizer steps from one shared cold start). Result published in
   `benchmarks/results/rtx4080-calc-hard-matched.json`:
 
   | arm | steps | success |
@@ -261,6 +297,8 @@ Recorded because each one is a class of bug worth remembering.
 | Resume replayed completed cycles with a different LR schedule | the resume-equivalence test | `train()` continues at the checkpointed cycle; the teacher fit is wrapped in `fork_rng` |
 | The toy model could not learn to copy | measuring, not assuming | learned absolute positions -> RoPE; 48 traces -> 256 traces |
 | `ArmResult.run_dir` wrote an absolute path, carrying a username and home directory into a file meant for pull requests | a new privacy test over `benchmarks/results/` | a validator reduces any path to its final component |
+| Schema-v2 resolved configs and invocation still carried local adapter/run paths | inspecting the first complete GPU result before publication | recursively replace absolute provenance paths with portable `<local>/<name>` values before hashing or publishing; privacy and chart-source tests cover the result |
+| `eval.enabled: false` did not suppress cycle-triggered evaluation | timing the first GPU benchmark attempt | periodic evaluation now checks both the interval and the enabled flag; the incomplete attempt is preserved under `runs/benchmarks/_aborted/` and the complete benchmark was rerun |
 | The committed JSON schema was never checked against the model it is generated from, though `schema.py` claimed the two could not drift | writing the schema-validation test | a test asserts the committed file equals `json_schema()` |
 | 16 bare `NaN` tokens in `metrics.jsonl` and `eval.json`, which strict JSON parsers reject | diffing two identical demo runs | `tokens_per_solved_task` is `null` when nothing was solved, via `schema.finite_or_none`; a test parses every artifact with `parse_constant` set to reject |
 | `TerminationReason.ENVIRONMENT_ERROR` was declared but never assigned | auditing for dead public API | a raising tool now ends the policy rollout with it; the oracle path still raises, because a truncated oracle trace would silently degrade every SFT target |
@@ -273,35 +311,33 @@ None. Every gate in the table above passes.
 
 ## Unresolved design risks
 
-1. **The measured teachers were not taught the protocol, and this remains the
-   top open question until the v0.2 GPU run finishes.**
-   The GPU benchmark shows that distilling a protocol-cold-started student
-   toward a raw instruct teacher *reduces* task success from 62.5% to 0.0% while
-   the objective improves monotonically. Giving that teacher privileged access
-   to the answer does not fix it -- it removes tool use entirely, because a
-   teacher that knows the answer never needs the tool. This is a property of the
-   setup rather than a bug in the implementation, but it means the repository
-   currently has **no evidence that its headline method helps**, and the README,
-   CHANGELOG and `docs/limitations.md` all say so in those terms. The experiment
-   that would settle it is now implemented, competence-gated and prespecified
-   in `docs/protocol-teacher-grid.md`; it still needs GPU execution.
+1. **Protocol alignment removes collapse but has not produced an OPD-over-SFT
+   advantage.** The protocol-trained teacher reached 100% strict competence
+   before downstream selection and its OPD arm then reached 100% on both seeds,
+   versus 0% twice for raw and privileged teachers. SFT also reached 100% twice.
+   The result supports teacher-protocol competence as the explanation for the
+   collapse, but the small saturated evaluation cannot rank protocol OPD above
+   verified SFT.
 2. **The toy backend cannot rank methods.** It solves only the `easy` split,
    where SFT saturates. Measured: `medium` and `hard` stay at 0% even after 700
    SFT steps. The CPU benchmark is therefore a parity check, not a ranking.
-3. **Single-seed GPU results.** Two seeds on CPU, one on GPU. No significance is
-   claimed anywhere. The CPU pair quantifies why this matters: the between-seed
-   spread there reaches 58 points against a between-arm spread of 4.
+3. **Only two GPU seeds on one task and machine.** The primary v0.2 comparison
+   repeats all arms twice, while legacy GPU artifacts remain single-seed. No
+   significance or cross-task/model/hardware generalization is claimed.
 4. **Transformers API drift.** CI now tests the Qwen3 introduction boundary
    (4.51.x) and the supported 5.x major. A future rename beyond the explicit
    `<6` cap would still need a reviewed compatibility change.
 
 ## Next three actions
 
-1. Publish the CPU-validated v0.2 slice as a draft PR and monitor its checks.
-2. Execute the primary protocol-teacher candidate and only use the two
-   prespecified one-variable fallbacks if its strict success misses 50%.
-3. Run all five benchmark arms at both prespecified seeds, preserve adverse
-   results, update the PR and integrate only after local and remote gates pass.
+1. Finish the clean-wheel/core and clean-source-training install gates, plus
+   every executable README command that does not require rerunning the full GPU
+   experiment.
+2. Commit and push the measured artifacts/docs, make draft PR #4 ready, and
+   repair any remote check that is an actual failure rather than an approval
+   gate.
+3. Merge only after green CI, verify public `main` and artifact hashes, then
+   close superseded dependency PRs #1-#3. Do not tag or publish to PyPI.
 
 ## External blockers
 
@@ -315,6 +351,6 @@ None. Every gate in the table above passes.
 
 ## Final evidence table
 
-See the [v0.2 takeover checkpoint](#v02-takeover-checkpoint-in-progress) for
+See the [v0.2 takeover checkpoint](#v02-takeover-checkpoint) for
 current evidence and the historical table for the v0.1 baseline. Known
 limitations are enumerated in `docs/limitations.md`.

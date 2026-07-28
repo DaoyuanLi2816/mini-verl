@@ -72,6 +72,7 @@ Listed so you can check that this repository does not.
 
 | File | Hardware | What it shows |
 | --- | --- | --- |
+| `results/gpu-calc-hard-equal-update-v2.json` | RTX 4080 16 GB | Primary schema-v2, five-arm, two-seed equal-update comparison. The protocol-trained teacher prevented the raw/privileged-teacher collapse and reached 100% on both seeds, tying SFT rather than beating it. [Chart and interpretation.](../docs/rtx4080-baselines.md#protocol-teacher-equal-update-comparison-schema-v2) |
 | `results/cpu-toy-calc-matched.json` | CPU only | **Parity, not ranking.** All seven arms run to completion under identical budgets on the toy backend. The accuracy differences are within noise and must not be read as a ranking; see the note in the file. |
 | `results/rtx4080-calc-hard-matched.json` | RTX 4080 16 GB | Legacy single-seed equal-update comparison on the chained calculator split with the real Qwen3 pair. **On-policy distillation lost**, with both a standard and a privileged-context teacher; the transcript-level diagnosis and v1 erratum are in [`docs/rtx4080-baselines.md`](../docs/rtx4080-baselines.md#legacy-equal-update-comparison-schema-v1). |
 

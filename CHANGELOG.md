@@ -27,6 +27,9 @@ accounting.
   JSD in near-uniform and sharply peaked regimes.
 - CI compatibility rows for Transformers 4.51.x and 5.x, plus a disabled OIDC
   PyPI publishing job.
+- A measured five-arm, two-seed RTX 4080 comparison and data-bound SVG: the
+  protocol-trained teacher prevents the 0% raw/privileged-teacher collapse and
+  reaches 100% on both seeds, tying rather than beating SFT.
 
 ### Changed
 
@@ -44,6 +47,8 @@ accounting.
   the complete CPU scientific test suite.
 - Source installation is the primary README path until a real PyPI publication
   exists.
+- Published schema-v2 provenance replaces machine-local absolute paths before
+  hashing or rendering artifacts.
 
 ### Corrected
 
@@ -51,6 +56,8 @@ accounting.
   used `medium`, continuations/evaluation used `hard`, the old `controlled`
   block came from the base recipe, selected-token fields held only the final
   cycle and SFT's teacher-query ratio was not meaningful.
+- Periodic evaluation now honors `eval.enabled: false`; the incomplete GPU
+  attempt that exposed the defect was preserved and the full benchmark rerun.
 
 ## [0.1.0] - 2026-07-27
 

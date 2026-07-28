@@ -5,8 +5,9 @@ command printed next to it. Nothing is estimated, interpolated or scaled from
 another device. Where a configuration was tried and failed, or was not tried at
 all, it says so rather than being omitted.
 
-All GPU results here are **single-seed**. No statistical significance is
-claimed anywhere on this page.
+The primary schema-v2 comparison repeats every arm at two prespecified seeds;
+older GPU artifacts are single-seed. No statistical significance is claimed
+anywhere on this page.
 
 ## The machine
 
@@ -136,13 +137,57 @@ The next section is the experiment that tests that question.
 Per-cycle rollout success during the on-policy phase: 0.83, 1.00, 1.00, 1.00,
 1.00, 0.83, 1.00, 1.00.
 
+## Protocol-teacher equal-update comparison (schema v2)
+
+The v0.2 experiment removes the legacy comparison's largest confound. Candidate
+A fine-tuned the pinned Qwen3-1.7B teacher for 24 optimizer updates on verified
+oracle traces in the student's exact tool protocol. Its independent held-out
+policy evaluation reached 100% strict success on 24 tasks and passed the
+prespecified 50% gate, so the fallback candidates were not run.
+
+The benchmark then trained a separate shared `hard` cold start for each of two
+prespecified seeds. Every continuation arm loaded that seed's identical weights
+without optimizer state and received 12 optimizer updates. The declared
+comparison axis is therefore **optimizer steps**, not wall time or teacher
+compute.
+
+```bash
+miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
+```
+
+| arm | seed 1234 | seed 20260727 | mean train seconds |
+| --- | ---: | ---: | ---: |
+| cold-start-only | 75.0% | 75.0% | 0.1 |
+| sft-continued | **100.0%** | **100.0%** | 86.4 |
+| opd-raw-teacher | **0.0%** | **0.0%** | 444.0 |
+| opd-privileged-context | **0.0%** | **0.0%** | 531.5 |
+| opd-protocol-sft-teacher | **100.0%** | **100.0%** | 523.8 |
+
+The strict success column is primary. The protocol-teacher arm also had 100%
+lenient success, valid tool-call rate and final-answer format validity on both
+seeds. Raw and privileged teachers reproduced the collapse at 0%; their lenient
+diagnostic score was at most one task out of 24.
+
+This result supports a narrower causal conclusion than either “OPD works” or
+“OPD fails”: **a teacher competent in the deployed tool protocol prevents the
+collapse caused by protocol-naive supervision.** It does not show an advantage
+over verified SFT, because the protocol-teacher OPD and SFT arms tie at 100% on
+both seeds. The task is also saturated after continuation, the evaluation set
+has only 24 tasks, and two seeds do not support a significance claim.
+
+The schema-validated source is
+[`benchmarks/results/gpu-calc-hard-equal-update-v2.json`](../benchmarks/results/gpu-calc-hard-equal-update-v2.json),
+with a [generated Markdown table](../benchmarks/results/gpu-calc-hard-equal-update-v2.md).
+
+![Strict success and training time across the five arms](gpu-calc-hard-equal-update-v2.svg)
+
 ## Legacy equal-update comparison (schema v1)
 
 ```bash
 miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
 ```
 
-Continuation and evaluation ran on the **`hard`** calculator split (compute an
+Continuation and evaluation ran on the less-saturated **`hard`** calculator split (compute an
 expression, then convert the result — two dependent tool calls), because
 `medium` saturates. Every arm resumed from the same 12-cycle supervised cold
 start, **weights only**, and received the same 12 optimizer steps at a constant
@@ -301,11 +346,11 @@ It shows, on one seed, one task family, one model pair and a 12-step budget:
 
 It does **not** show that on-policy distillation is worse than supervised
 fine-tuning in general. Every arm here shares one confound: **the teacher was
-never trained on the tool protocol.** The measurement that would separate "OPD
-does not help here" from "this teacher does not help here" is listed under
-*Not run* below, with the command to run it. Until someone runs it, the honest
-summary of miniVERL's own headline method on its own headline benchmark is:
-**it did not work, and the most likely reason is the teacher.**
+never trained on the tool protocol.** The schema-v2 experiment above has now
+tested that explanation: its protocol-trained teacher prevents the collapse and
+reaches 100% on both seeds, while still only tying SFT. The legacy result remains
+published because it records the adverse finding and the distinct raw versus
+privileged failure modes.
 
 Both executions of this benchmark are reported. Neither was discarded, and no
 arm was re-run and re-reported after seeing its result.
@@ -322,14 +367,12 @@ page.
 | The toy backend on the `medium` and `hard` calculator splits | **0.0% after 700 supervised steps.** The toy models can only solve `easy`. This is why the CPU benchmark is a parity check and not a ranking. |
 | A 250-step supervised budget for `recipes/toy_cpu.yaml` | **0.0%.** The toy student acquires the tool-call format long before it can copy operands; 600 steps reaches 91.7%. |
 
-## Not run
+## Still not run
 
 | what | why | the exact command, for whoever has the hardware |
 | --- | --- | --- |
 | Anything on Linux | No Linux machine with a CUDA GPU was available. The dispatch-bound finding above is therefore Windows-specific. | `python scripts/gpu_probe_throughput.py` |
-| More than one seed on GPU | The preserved schema-v1 comparison used one seed. The v0.2 config prespecifies two seeds for every arm. | `miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks` |
 | The JSON-navigation and SQLite recipes on real models | Only the calculator environment was run end to end on GPU. | `miniverl train recipes/qwen_consumer_gpu_jsonnav.yaml` |
-| **A teacher that was itself fine-tuned on the tool protocol** | The single most important missing measurement on this page. Every negative result above shares this confound. It would separate "on-policy distillation does not help here" from "this teacher does not help here". | Train `recipes/qwen3_1.7b_protocol_teacher_sft.yaml`, export with `miniverl export-adapter`, then run the five-arm, two-seed `benchmarks/configs/gpu_calc_hard.yaml`. The competence gate and prespecified fallback grid are in `docs/teacher-adapters.md`. |
 | Any GPU other than an RTX 4080 | Only one card was available. | `miniverl export-benchmark runs/<run-id>` and open a pull request; see `benchmarks/README.md` |
 
 ## Regression fixtures

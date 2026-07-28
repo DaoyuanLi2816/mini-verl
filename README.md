@@ -37,19 +37,16 @@ task success from **0.0% to 100.0%** on 12 tasks.
 > artifacts recorded in [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md).
 
 > [!IMPORTANT]
-> **The legacy equal-optimizer-update comparison that tests that question came
-> out negative.** On the non-saturating `hard` split, at 12 optimizer updates
-> from an identical cold start, supervised continuation reached **100.0%** while
-> on-policy distillation reached **0.0%** — with a protocol-naive teacher and
-> again with a privileged-context teacher. The failure is diagnosed down to the
-> decoded transcripts in
-> [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md#legacy-equal-update-comparison-schema-v1);
-> the leading explanation is the teacher, which was never trained on the tool
-> protocol. A protocol-trained teacher arm is specified and gated in v0.2 but
-> has not yet produced a measured result. miniVERL implements token-provenance
-> checks, causal alignment, cache
-> freshness validation and selected-position distributional objectives; it is
-> not evidence that the method wins here.
+> **Protocol alignment prevents the observed OPD collapse, but does not beat
+> supervised fine-tuning here.** In the schema-v2 equal-update comparison on the
+> `hard` split, both prespecified seeds scored **75.0%** at the
+> shared cold start, **100.0%** after 12 SFT updates, **0.0%** after OPD from
+> either the raw or privileged teacher, and **100.0%** after OPD from the
+> protocol-trained teacher. The protocol teacher therefore resolves the main
+> confound in the legacy result and ties SFT; it does not establish an OPD
+> advantage. See the [full result and legacy transcript diagnosis](docs/rtx4080-baselines.md).
+
+![Two-seed protocol-teacher benchmark](docs/gpu-calc-hard-equal-update-v2.svg)
 
 ---
 
@@ -270,9 +267,8 @@ Every number below was produced by the commands in
 result file. Nothing is estimated or extrapolated.
 
 * **RTX 4080, real models** — [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)
-  has measured peak VRAM, decode throughput, the full-recipe run, and the legacy
-  equal-optimizer-update comparison, plus the configurations that were tried
-  and the ones that were not run.
+  has measured peak VRAM, decode throughput, the full-recipe run, the two-seed
+  schema-v2 protocol-teacher comparison, and the preserved legacy comparison.
 * **CPU, toy models** — `recipes/toy_cpu.yaml` moves task success from 0.0% to
   91.7% in 192 s, and `benchmarks/results/` holds the legacy equal-update parity
   run.
@@ -369,7 +365,8 @@ The short version; the full list is in [`docs/limitations.md`](docs/limitations.
   pinned to the device they were quantized on.
 * Only Qwen3 and Qwen2 architectures are tested. Others may work through the
   architecture adapter; nothing here claims they do.
-* GPU results are single-seed. No statistical significance is claimed.
+* The primary GPU comparison has two prespecified seeds; legacy GPU artifacts
+  are single-seed. No statistical significance is claimed.
 * On the measured machine, decoding is kernel-launch bound rather than compute
   bound, so throughput figures are platform-specific.
 

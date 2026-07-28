@@ -30,3 +30,12 @@ For B and C, copy the primary recipe and change only the field named in the
 table. The resolved config, git commit, checkpoint digest and final evaluation
 are preserved in the run and exported-adapter manifests, so the one-variable
 diff is independently checkable.
+
+## Execution record
+
+Candidate A was run once on 2026-07-27 and reached **100.0% strict held-out
+success (24/24)**, 100.0% valid tool-call rate and 100.0% final-answer format
+validity. It therefore passed the 50% gate. Per the rule above, A was exported
+and candidates B and C were not run. The downstream OPD result was not consulted
+when making that decision; hashes and the full competence record are in
+[`teacher-adapters.md`](teacher-adapters.md).

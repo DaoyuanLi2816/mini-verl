@@ -298,6 +298,24 @@ miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmark
 on a recorded teacher tool-policy evaluation; see
 [`teacher-adapters.md`](teacher-adapters.md).
 
+The completed two-seed RTX 4080 result is published as
+[`gpu-calc-hard-equal-update-v2.json`](../benchmarks/results/gpu-calc-hard-equal-update-v2.json),
+with a [human-readable table](../benchmarks/results/gpu-calc-hard-equal-update-v2.md)
+and [SVG comparison](gpu-calc-hard-equal-update-v2.svg). To rebuild the portable
+artifacts from the preserved run directory:
+
+```bash
+python scripts/publish_benchmark_artifacts.py \
+  runs/benchmarks/gpu-calc-hard-equal-update-v2.json \
+  --results-dir benchmarks/results \
+  --svg docs/gpu-calc-hard-equal-update-v2.svg \
+  --driver-version 596.49
+```
+
+The publisher removes machine-local absolute paths before recomputing config
+digests, validates the schema-v2 model, and makes the chart carry a prefix of
+the exact source JSON SHA-256.
+
 Options, all from `src/miniverl/cli.py`:
 
 - `--output PATH` - output directory; defaults to `output_dir` in the
