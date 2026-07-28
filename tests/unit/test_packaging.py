@@ -178,6 +178,19 @@ def test_version_is_a_release_string() -> None:
     assert re.fullmatch(r"\d+\.\d+\.\d+([.-]\w+)?", miniverl.__version__), miniverl.__version__
 
 
+def test_github_actions_use_full_commit_shas() -> None:
+    """A 39-character near-SHA looks pinned but GitHub refuses the workflow."""
+    import re
+
+    for path in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            match = re.search(r"\buses:\s+[^@\s]+@([^\s#]+)", line)
+            if match:
+                assert re.fullmatch(r"[0-9a-f]{40}", match.group(1)), (
+                    f"{path.name}:{number} action ref is not a full commit SHA: {match.group(1)}"
+                )
+
+
 def test_every_published_benchmark_result_validates_against_the_schema():
     """A schema nobody runs is a schema that drifts.
 
