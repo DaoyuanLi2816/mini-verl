@@ -23,6 +23,7 @@ __all__ = [
     "BackendError",
     "MemoryStrategyError",
     "GpuMemoryError",
+    "LifecycleError",
     "CheckpointError",
     "ReportError",
     "RunNotFoundError",
@@ -104,6 +105,10 @@ class MemoryStrategyError(MiniVerlError):
 
 class GpuMemoryError(MiniVerlError):
     """CUDA ran out of memory and the bounded, equivalence-preserving retries failed."""
+
+
+class LifecycleError(MiniVerlError):
+    """An operation used a closed object or resource teardown failed."""
 
 
 class CheckpointError(MiniVerlError):

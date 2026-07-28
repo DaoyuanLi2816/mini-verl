@@ -222,6 +222,13 @@ def test_every_published_benchmark_result_validates_against_the_schema():
         )
 
 
+def test_headline_schema_v2_result_is_preserved_byte_for_byte() -> None:
+    path = REPO_ROOT / "benchmarks" / "results" / "gpu-calc-hard-equal-update-v2.json"
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc"
+    )
+
+
 def test_published_benchmark_results_carry_no_personal_information():
     """A result file is published verbatim, so it must not leak the machine."""
     root = REPO_ROOT

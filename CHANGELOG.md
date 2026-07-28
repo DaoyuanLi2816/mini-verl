@@ -30,6 +30,10 @@ accounting.
 - A measured five-arm, two-seed RTX 4080 comparison and data-bound SVG: the
   protocol-trained teacher prevents the 0% raw/privileged-teacher collapse and
   reaches 100% on both seeds, tying rather than beating SFT.
+- A public, checksum-validated protocol-teacher adapter on the Hugging Face Hub,
+  pinned by the benchmark to an immutable revision with a local/offline config.
+- Destructive trainer lifecycle tests, including weak-reference coverage and a
+  measured sequential CUDA-allocation regression.
 
 ### Changed
 
@@ -49,6 +53,14 @@ accounting.
   exists.
 - Published schema-v2 provenance replaces machine-local absolute paths before
   hashing or rendering artifacts.
+- `OPDTrainer.close()` now destructively and idempotently releases target
+  providers, scorer, runner, optimizer, teacher, student, environment and CUDA
+  allocator state; public operations fail with `LifecycleError` after close.
+- Cold starts and benchmark arms now run inside isolated function-level trainer
+  contexts, with garbage collection and CUDA cache release between arms.
+- New schema-v2 output separates declared scientific differences,
+  runtime-resolution decisions and harness-only bookkeeping while retaining
+  compatibility fields for existing readers.
 
 ### Corrected
 
@@ -58,6 +70,11 @@ accounting.
   cycle and SFT's teacher-query ratio was not meaningful.
 - Periodic evaluation now honors `eval.enabled: false`; the incomplete GPU
   attempt that exposed the defect was preserved and the full benchmark rerun.
+- Hub teacher adapters now download and validate the miniVERL manifest and
+  checksums at the pinned revision instead of losing the competence record.
+- Legacy schema-v1 commands now point to their immutable source commit, and
+  historical `peak_reserved_bytes` are explicitly caveated rather than
+  silently rewritten.
 
 ## [0.1.0] - 2026-07-27
 

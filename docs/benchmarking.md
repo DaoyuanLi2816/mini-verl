@@ -113,6 +113,16 @@ counters when there is no CUDA device. The benchmark harness takes the maximum
 `peak_allocated_bytes` and `peak_reserved_bytes` over all metric records that
 report `cuda_available: true`, and reports `None` for both when no record does.
 
+The published v0.1/v0.2 result files predate destructive trainer teardown.
+Their per-arm `peak_allocated_bytes` measurements came from live tensors during
+that arm, but historical `peak_reserved_bytes` may include CUDA caching
+allocator state retained from an earlier arm in the same process. The result
+JSON is preserved rather than silently rewriting measured history. New harness
+runs close each trainer inside a function-level context, drop model/optimizer
+references, collect garbage, empty the CUDA cache, and only then construct the
+next arm. Use new lifecycle-isolated runs for cross-arm reserved-memory
+comparisons.
+
 ### Per-arm result fields
 
 `ArmResult` in `src/miniverl/evaluation/schema.py` is the full per-arm record:
@@ -124,7 +134,10 @@ report `cuda_available: true`, and reports `None` for both when no record does.
 | `seed` | the seed this repetition used |
 | `run_id`, `run_dir` | the run directory this arm produced |
 | `objective`, `opd_freshness`, `loss_mode`, `divergence`, `selector`, `top_k` | the mode-aware run manifest; SFT records `sft_cross_entropy` and null divergence/top-k |
-| `resolved_config_digest`, `structured_diff` | SHA-256 of the complete resolved arm config and its leaf diff from the resolved common config |
+| `resolved_config_digest`, `structured_diff` | compatibility fields for the fully defaulted pre-allocation arm config and its complete declared diff, including harness bookkeeping |
+| `declared_config_digest`, `scientific_config_diff` | digest of the pre-allocation arm config and only the differences declared as experimental treatments |
+| `runtime_resolved_config_digest`, `runtime_resolution_diff` | digest after `auto` decisions are frozen and changes such as `models.device: auto -> cuda` or `memory.strategy: auto -> resident`; these are execution provenance, not treatments |
+| `harness_config_diff` | run name/seed/id and report toggles introduced by the benchmark harness; never interpreted as scientific differences |
 | student/teacher model IDs and revisions, tokenizer fingerprint, context mode | the actual run manifest |
 | `teacher_adapter` | validated adapter identity, hashes and policy evaluation, or null |
 | `top_k` | `manifest["objective"]["top_k"]`: the student vocabulary size in `exact_full_vocab` mode, otherwise `min(loss.top_k, vocab_size)` |
@@ -166,11 +179,17 @@ and rejects any path not declared in `allowed_differences`. Harness-only paths
 (`run.name`, `run.seed`, `run.run_id`, `report.enabled`) are allowlisted
 internally.
 
+New results record three disjoint views: `scientific_config_diff` for declared
+treatments, `runtime_resolution_diff` for load-time decisions, and
+`harness_config_diff` for bookkeeping. `structured_diff` remains as a
+compatibility view for existing schema-v2 readers and is not labeled a
+scientific diff.
+
 The top-level `controlled` block points to the complete
-`common_resolved_config` and its digest; it is not reconstructed from a
-hand-picked subset. The cold-start record carries its own resolved config,
-digest, environment/difficulty, checkpoint digest and time. Every arm carries
-its own digest and diff.
+`common_declared_config` and its digest; the legacy-named
+`common_resolved_config` remains an identical compatibility field. Neither is
+reconstructed from a hand-picked subset. The cold-start record carries its own
+config, digest, environment/difficulty, checkpoint digest and time.
 
 `budget_axis: optimizer_steps` means **equal optimizer updates**, not equal
 compute. Quantities that cannot be matched by construction are measured:
@@ -288,6 +307,10 @@ miniverl benchmark recipes/benchmark_calc.yaml --output runs/benchmarks
 
 # One 16 GB GPU, the pinned Qwen3 pair
 miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
+
+# Offline equivalent after downloading the immutable adapter
+miniverl benchmark benchmarks/configs/gpu_calc_hard_local_adapter.yaml \
+  --output runs/benchmarks
 ```
 
 `benchmarks/configs/gpu_calc_hard.yaml` is the GPU counterpart: it uses
@@ -296,7 +319,10 @@ miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmark
 `cold-start-only`, `sft-continued`, `opd-raw-teacher`,
 `opd-privileged-context` and `opd-protocol-sft-teacher`. The final arm is gated
 on a recorded teacher tool-policy evaluation; see
-[`teacher-adapters.md`](teacher-adapters.md).
+[`teacher-adapters.md`](teacher-adapters.md). The primary config pins the public
+Hub adapter to immutable revision
+`23323751318135484c06c043b1f9b9e7016dd89f`; the `_local_adapter` config changes
+only its source/path for offline use.
 
 The completed two-seed RTX 4080 result is published as
 [`gpu-calc-hard-equal-update-v2.json`](../benchmarks/results/gpu-calc-hard-equal-update-v2.json),
@@ -396,7 +422,8 @@ Top level (`BenchmarkResult`, `extra="forbid"`):
 | `hardware` | `gpu`, `os`, `cpu_count` |
 | `software` | `python` version and the tracked package versions |
 | `cold_start` | resolved config/digest, environment/difficulty, and per-seed checkpoint digest/time |
-| `common_resolved_config`, `common_resolved_config_digest` | complete shared config and SHA-256 |
+| `common_declared_config`, `common_declared_config_digest` | complete fully defaulted, pre-allocation shared config and SHA-256 |
+| `common_resolved_config`, `common_resolved_config_digest` | compatibility aliases retained for existing schema-v2 readers |
 | `controlled` | pointer/digest plus declared difference paths |
 | `arms` | a list of `ArmResult`, one per arm per seed |
 | `seeds` | the seed list |
@@ -452,9 +479,9 @@ miniverl schema --out benchmarks/schema/benchmark-result.schema.json
 ```
 
 The repository ships configs, a byte-reproducible generated schema and
-preserved CPU/RTX 4080 result artifacts. Existing result files are v1 and stay
-byte-for-byte unchanged; their migration and erratum are documented in
-`benchmarks/README.md`.
+preserved CPU/RTX 4080 result artifacts. Historical v1 and the published v2
+result stay byte-for-byte unchanged; the v1 migration/erratum and the v2
+memory-provenance caveat are documented in `benchmarks/README.md`.
 
 A submission should state, at minimum: the recipe used, the exact GPU and
 driver, the miniVERL version and git commit (all already in the file), and

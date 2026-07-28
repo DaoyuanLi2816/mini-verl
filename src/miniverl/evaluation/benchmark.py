@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import gc
 import hashlib
 import sys
 import time
@@ -14,6 +15,7 @@ from miniverl.cache.store import sha256_file
 from miniverl.config.models import RunConfig, TrainingMode
 from miniverl.errors import ConfigError
 from miniverl.evaluation.schema import ArmResult, BenchmarkConfig, BenchmarkResult, finite_or_none
+from miniverl.utils import gpu
 from miniverl.utils.env import collect_environment
 from miniverl.utils.logging import get_logger
 from miniverl.utils.runs import canonical_json, read_jsonl, utc_now, write_json, write_text
@@ -213,13 +215,12 @@ def _cold_start(run_config: RunConfig, output_dir: Path) -> tuple[Path | None, f
         return None, 0.0
     from miniverl.trainer import OPDTrainer
 
-    trainer = OPDTrainer.from_config(
+    started = time.perf_counter()
+    with OPDTrainer.from_config(
         run_config,
         output_dir=output_dir,
         run_id=f"{run_config.run.name}-s{run_config.run.seed}",
-    )
-    started = time.perf_counter()
-    try:
+    ) as trainer:
         result = trainer.train()
         checkpoint = trainer.paths.checkpoints / "final"
         logger.info(
@@ -228,8 +229,19 @@ def _cold_start(run_config: RunConfig, output_dir: Path) -> tuple[Path | None, f
             result.global_step,
         )
         return checkpoint, time.perf_counter() - started
-    finally:
-        trainer.close()
+
+
+def _isolate_next_trainer(stage: str) -> None:
+    """Collect dead tensor owners and return cached CUDA blocks to the driver."""
+    gc.collect()
+    gpu.empty_cache()
+    snapshot = gpu.snapshot()
+    logger.debug(
+        "%s teardown: allocated=%d reserved=%d",
+        stage,
+        snapshot.allocated_bytes,
+        snapshot.reserved_bytes,
+    )
 
 
 def _training_accounting(trainer: Any, mode: TrainingMode) -> dict[str, Any]:
@@ -278,6 +290,196 @@ def _peak_memory(trainer: Any) -> tuple[int | None, int | None]:
     return (allocated, reserved) if seen else (None, None)
 
 
+def _classified_config_diffs(
+    *,
+    config: BenchmarkConfig,
+    common_config: dict[str, Any],
+    declared_arm_config: dict[str, Any],
+    runtime_arm_config: dict[str, Any],
+) -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    """Return legacy, scientific, runtime and harness config differences."""
+    declared = structured_diff(common_config, declared_arm_config)
+    allowed = set(config.allowed_differences)
+    scientific = [
+        {**row, "stage": "declared_vs_common"}
+        for row in declared
+        if _path_allowed(str(row["path"]), allowed)
+    ]
+    harness = [
+        {**row, "stage": "declared_vs_common"}
+        for row in declared
+        if _path_allowed(str(row["path"]), _HARNESS_DIFFERENCES)
+    ]
+    runtime_all = structured_diff(declared_arm_config, runtime_arm_config)
+    runtime = [
+        {**row, "stage": "runtime_resolution"}
+        for row in runtime_all
+        if not _path_allowed(str(row["path"]), _HARNESS_DIFFERENCES)
+    ]
+    harness.extend(
+        {**row, "stage": "runtime_resolution"}
+        for row in runtime_all
+        if _path_allowed(str(row["path"]), _HARNESS_DIFFERENCES)
+    )
+    return declared, scientific, runtime, harness
+
+
+def _run_one_arm(
+    *,
+    config: BenchmarkConfig,
+    target: Path,
+    seed: int,
+    arm: Any,
+    run_config: RunConfig,
+    common_dump: dict[str, Any],
+    checkpoint: Path | None,
+) -> ArmResult:
+    """Run one arm inside a model-owning lifetime boundary."""
+    from miniverl.trainer import OPDTrainer
+    from miniverl.training.checkpoint import load_checkpoint
+
+    declared_config = portable_payload(run_config.model_dump(mode="json"))
+    arm_started = time.perf_counter()
+    with OPDTrainer.from_config(
+        run_config,
+        output_dir=target,
+        run_id=run_config.run.name,
+    ) as trainer:
+        runtime_config = portable_payload(
+            RunConfig.from_yaml(trainer.paths.config_resolved).model_dump(mode="json")
+        )
+        legacy_diff, scientific_diff, runtime_diff, harness_diff = _classified_config_diffs(
+            config=config,
+            common_config=common_dump,
+            declared_arm_config=declared_config,
+            runtime_arm_config=runtime_config,
+        )
+        if checkpoint is not None and checkpoint.is_dir():
+            load_checkpoint(
+                checkpoint,
+                backend=trainer.student,
+                optimizer=trainer.optimizer,
+                device=trainer.student.device,
+                include_optimizer=False,
+                include_rng=False,
+            )
+            trainer.events.emit(
+                "benchmark_cold_start_loaded",
+                checkpoint_digest=_checkpoint_digest(checkpoint),
+                note="weights only; optimizer state and RNG intentionally not restored",
+            )
+
+        train_started = time.perf_counter()
+        train_result = trainer.train()
+        train_seconds = time.perf_counter() - train_started
+        eval_started = time.perf_counter()
+        evaluation = trainer.evaluate(
+            split=config.eval_split,
+            tag=f"benchmark-{arm.name}",
+        )
+        evaluation_seconds = time.perf_counter() - eval_started
+        wall_seconds = time.perf_counter() - arm_started
+        cache_stats = trainer._cache.stats() if trainer._cache is not None else None
+        accounting = _training_accounting(trainer, run_config.run.mode)
+        manifest = trainer.build_manifest()
+        objective = manifest["objective"]
+        models = manifest["models"]
+        memory = _peak_memory(trainer)
+        cache_written = (
+            getattr(trainer._cache, "bytes_written_total", None)
+            if trainer._cache is not None
+            else None
+        )
+        has_cuda = memory[0] is not None
+
+        result = ArmResult(
+            name=arm.name,
+            description=arm.description,
+            mode=run_config.run.mode.value,
+            seed=seed,
+            run_id=trainer.run_id,
+            run_dir=str(trainer.paths.root),
+            objective=str(objective["name"]),
+            opd_freshness=objective.get("opd_freshness"),
+            loss_mode=objective.get("loss_mode"),
+            divergence=objective.get("divergence"),
+            selector=objective.get("selector"),
+            top_k=objective.get("top_k"),
+            resolved_config_digest=_digest_payload(declared_config),
+            structured_diff=legacy_diff,
+            declared_config_digest=_digest_payload(declared_config),
+            runtime_resolved_config_digest=_digest_payload(runtime_config),
+            scientific_config_diff=scientific_diff,
+            runtime_resolution_diff=runtime_diff,
+            harness_config_diff=harness_diff,
+            student_model_id=models["student"]["model_id"],
+            student_model_revision=models["student"]["revision"],
+            teacher_model_id=(
+                models["teacher"]["model_id"] if models.get("teacher") is not None else None
+            ),
+            teacher_model_revision=(
+                models["teacher"]["revision"] if models.get("teacher") is not None else None
+            ),
+            teacher_adapter=(
+                models["teacher"].get("adapter") if models.get("teacher") is not None else None
+            ),
+            tokenizer_fingerprint=models["tokenizer_fingerprint"],
+            teacher_context_mode=(
+                models["teacher"]["context_mode"] if models.get("teacher") is not None else None
+            ),
+            optimizer_steps=train_result.global_step,
+            policy_version=train_result.policy_version,
+            **accounting,
+            tasks=int(evaluation["tasks"]),
+            success_rate=float(evaluation["success_rate"]),
+            strict_task_success_rate=finite_or_none(evaluation.get("strict_task_success_rate")),
+            lenient_diagnostic_success_rate=finite_or_none(
+                evaluation.get("lenient_diagnostic_success_rate")
+            ),
+            avg_turns=float(evaluation["avg_turns"]),
+            avg_tool_calls=float(evaluation["avg_tool_calls"]),
+            tool_call_count=int(evaluation["tool_call_count"]),
+            valid_tool_call_rate=finite_or_none(evaluation.get("valid_tool_call_rate")),
+            invalid_tool_call_rate=float(evaluation["invalid_tool_call_rate"]),
+            final_answer_format_validity_rate=finite_or_none(
+                evaluation.get("final_answer_format_validity_rate")
+            ),
+            protocol_token_accuracy=finite_or_none(evaluation.get("protocol_token_accuracy")),
+            generated_tokens_per_task=float(evaluation["generated_tokens_per_task"]),
+            tokens_per_solved_task=finite_or_none(evaluation["tokens_per_solved_task"]),
+            cache_current_bytes=(cache_stats.actual_bytes if cache_stats else None),
+            cache_bytes_written_total=cache_written,
+            cache_compression_ratio=(cache_stats.compression_ratio if cache_stats else None),
+            peak_allocated_bytes=memory[0],
+            peak_reserved_bytes=memory[1],
+            train_seconds=train_seconds,
+            evaluation_seconds=evaluation_seconds,
+            wall_seconds=wall_seconds,
+            measurement_status={
+                "train_time": "measured",
+                "evaluation_time": "measured",
+                "wall_time": "measured",
+                "peak_vram": ("measured" if has_cuda else "not_run_no_cuda"),
+                "cache": ("measured" if cache_stats is not None else "not_applicable"),
+                **evaluation.get("policy_competence_measurement_status", {}),
+            },
+        )
+        logger.info(
+            "arm %-18s seed %d: success %.3f in %d steps (%.1fs)",
+            arm.name,
+            seed,
+            float(evaluation["success_rate"]),
+            train_result.global_step,
+            wall_seconds,
+        )
+        return result
+
+
 def run_benchmark(
     config: BenchmarkConfig,
     *,
@@ -286,9 +488,6 @@ def run_benchmark(
     invocation: list[str] | None = None,
 ) -> BenchmarkResult:
     """Execute every preflight-validated arm and write a schema-v2 result."""
-    from miniverl.trainer import OPDTrainer
-    from miniverl.training.checkpoint import load_checkpoint
-
     # Preflight every seed before creating a run directory or allocating a model.
     preflight = {seed: resolve_benchmark_configs(config, seed=seed) for seed in config.seeds}
     common_config = preflight[config.seeds[0]][0]
@@ -303,7 +502,10 @@ def run_benchmark(
 
     for seed in config.seeds:
         _, cold_config, resolved_arms = preflight[seed]
-        checkpoint, cold_seconds = _cold_start(cold_config, target)
+        try:
+            checkpoint, cold_seconds = _cold_start(cold_config, target)
+        finally:
+            _isolate_next_trainer(f"cold start seed {seed}")
         cold_checkpoints.append(
             {
                 "seed": seed,
@@ -321,146 +523,20 @@ def run_benchmark(
         )
 
         for arm, run_config, _diff in resolved_arms:
-            portable_run_config = portable_payload(run_config.model_dump(mode="json"))
-            portable_diff = structured_diff(common_dump, portable_run_config)
-            trainer = OPDTrainer.from_config(
-                run_config,
-                output_dir=target,
-                run_id=run_config.run.name,
-            )
-            arm_started = time.perf_counter()
             try:
-                if checkpoint is not None and checkpoint.is_dir():
-                    load_checkpoint(
-                        checkpoint,
-                        backend=trainer.student,
-                        optimizer=trainer.optimizer,
-                        device=trainer.student.device,
-                        include_optimizer=False,
-                        include_rng=False,
-                    )
-                    trainer.events.emit(
-                        "benchmark_cold_start_loaded",
-                        checkpoint_digest=_checkpoint_digest(checkpoint),
-                        note="weights only; optimizer state and RNG intentionally not restored",
-                    )
-
-                train_started = time.perf_counter()
-                train_result = trainer.train()
-                train_seconds = time.perf_counter() - train_started
-                eval_started = time.perf_counter()
-                evaluation = trainer.evaluate(
-                    split=config.eval_split,
-                    tag=f"benchmark-{arm.name}",
-                )
-                evaluation_seconds = time.perf_counter() - eval_started
-                wall_seconds = time.perf_counter() - arm_started
-                cache_stats = trainer._cache.stats() if trainer._cache is not None else None
-                accounting = _training_accounting(trainer, run_config.run.mode)
-                manifest = trainer.build_manifest()
-                objective = manifest["objective"]
-                models = manifest["models"]
-                memory = _peak_memory(trainer)
-                cache_written = (
-                    getattr(trainer._cache, "bytes_written_total", None)
-                    if trainer._cache is not None
-                    else None
-                )
-                has_cuda = memory[0] is not None
-
                 results.append(
-                    ArmResult(
-                        name=arm.name,
-                        description=arm.description,
-                        mode=run_config.run.mode.value,
+                    _run_one_arm(
+                        config=config,
+                        target=target,
                         seed=seed,
-                        run_id=trainer.run_id,
-                        run_dir=str(trainer.paths.root),
-                        objective=str(objective["name"]),
-                        opd_freshness=objective.get("opd_freshness"),
-                        loss_mode=objective.get("loss_mode"),
-                        divergence=objective.get("divergence"),
-                        selector=objective.get("selector"),
-                        top_k=objective.get("top_k"),
-                        resolved_config_digest=_digest_payload(portable_run_config),
-                        structured_diff=portable_diff,
-                        student_model_id=models["student"]["model_id"],
-                        student_model_revision=models["student"]["revision"],
-                        teacher_model_id=(
-                            models["teacher"]["model_id"]
-                            if models.get("teacher") is not None
-                            else None
-                        ),
-                        teacher_model_revision=(
-                            models["teacher"]["revision"]
-                            if models.get("teacher") is not None
-                            else None
-                        ),
-                        teacher_adapter=(
-                            models["teacher"].get("adapter")
-                            if models.get("teacher") is not None
-                            else None
-                        ),
-                        tokenizer_fingerprint=models["tokenizer_fingerprint"],
-                        teacher_context_mode=(
-                            models["teacher"]["context_mode"]
-                            if models.get("teacher") is not None
-                            else None
-                        ),
-                        optimizer_steps=train_result.global_step,
-                        policy_version=train_result.policy_version,
-                        **accounting,
-                        tasks=int(evaluation["tasks"]),
-                        success_rate=float(evaluation["success_rate"]),
-                        strict_task_success_rate=finite_or_none(
-                            evaluation.get("strict_task_success_rate")
-                        ),
-                        lenient_diagnostic_success_rate=finite_or_none(
-                            evaluation.get("lenient_diagnostic_success_rate")
-                        ),
-                        avg_turns=float(evaluation["avg_turns"]),
-                        avg_tool_calls=float(evaluation["avg_tool_calls"]),
-                        tool_call_count=int(evaluation["tool_call_count"]),
-                        valid_tool_call_rate=finite_or_none(evaluation.get("valid_tool_call_rate")),
-                        invalid_tool_call_rate=float(evaluation["invalid_tool_call_rate"]),
-                        final_answer_format_validity_rate=finite_or_none(
-                            evaluation.get("final_answer_format_validity_rate")
-                        ),
-                        protocol_token_accuracy=finite_or_none(
-                            evaluation.get("protocol_token_accuracy")
-                        ),
-                        generated_tokens_per_task=float(evaluation["generated_tokens_per_task"]),
-                        tokens_per_solved_task=finite_or_none(evaluation["tokens_per_solved_task"]),
-                        cache_current_bytes=(cache_stats.actual_bytes if cache_stats else None),
-                        cache_bytes_written_total=cache_written,
-                        cache_compression_ratio=(
-                            cache_stats.compression_ratio if cache_stats else None
-                        ),
-                        peak_allocated_bytes=memory[0],
-                        peak_reserved_bytes=memory[1],
-                        train_seconds=train_seconds,
-                        evaluation_seconds=evaluation_seconds,
-                        wall_seconds=wall_seconds,
-                        measurement_status={
-                            "train_time": "measured",
-                            "evaluation_time": "measured",
-                            "wall_time": "measured",
-                            "peak_vram": ("measured" if has_cuda else "not_run_no_cuda"),
-                            "cache": ("measured" if cache_stats is not None else "not_applicable"),
-                            **evaluation.get("policy_competence_measurement_status", {}),
-                        },
+                        arm=arm,
+                        run_config=run_config,
+                        common_dump=common_dump,
+                        checkpoint=checkpoint,
                     )
-                )
-                logger.info(
-                    "arm %-18s seed %d: success %.3f in %d steps (%.1fs)",
-                    arm.name,
-                    seed,
-                    float(evaluation["success_rate"]),
-                    train_result.global_step,
-                    wall_seconds,
                 )
             finally:
-                trainer.close()
+                _isolate_next_trainer(f"arm {arm.name} seed {seed}")
 
     cold_dump = portable_payload(preflight[config.seeds[0]][1].model_dump(mode="json"))
     result = BenchmarkResult(
@@ -490,8 +566,10 @@ def run_benchmark(
         },
         common_resolved_config=common_dump,
         common_resolved_config_digest=common_digest,
+        common_declared_config=common_dump,
+        common_declared_config_digest=common_digest,
         controlled={
-            "source": "common_resolved_config",
+            "source": "common_declared_config",
             "digest": common_digest,
             "budget_axis": config.budget_axis,
             "allowed_differences": list(config.allowed_differences),
@@ -551,9 +629,9 @@ def render_benchmark_markdown(result: BenchmarkResult) -> str:
             "",
             "## Resolved controls",
             "",
-            "The complete common resolved configuration and every arm's structured "
-            "diff are stored in the JSON artifact. Undeclared differences are rejected "
-            "before any model is loaded.",
+            "The complete common declared configuration and separate scientific, "
+            "runtime-resolution and harness-only diffs are stored in the JSON artifact. "
+            "Undeclared scientific differences are rejected before any model is loaded.",
             "",
         ]
     )

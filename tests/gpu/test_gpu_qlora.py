@@ -230,7 +230,7 @@ def test_a_cuda_run_records_measured_memory_in_its_manifest(tmp_path):
     finally:
         trainer.close()
     assert result.global_step == 1
-    assert trainer.student.device == "cuda"
+    assert trainer.student is None
 
     from miniverl.reporting.data import ReportData
 

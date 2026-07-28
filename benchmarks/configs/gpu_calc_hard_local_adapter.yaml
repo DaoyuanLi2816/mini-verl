@@ -1,4 +1,4 @@
-# miniVERL equal-optimizer-update benchmark on a single RTX 4080 (16 GB).
+# miniVERL equal-optimizer-update benchmark using a downloaded local adapter.
 #
 # Why this exists separately from recipes/benchmark_calc.yaml: the toy backend
 # can only solve the `easy` calculator split, where supervised fine-tuning
@@ -12,16 +12,17 @@
 # the per-arm baseline/final evaluations so the only evaluation is the harness's
 # own held-out pass on the `test` split.
 #
-#   miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
-#
-# The protocol-teacher adapter is pinned to an immutable public Hub commit.
-# For an already-downloaded adapter, use gpu_calc_hard_local_adapter.yaml.
+#   hf download DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher \
+#     --revision 23323751318135484c06c043b1f9b9e7016dd89f \
+#     --local-dir artifacts/qwen3-1.7b-protocol-teacher
+#   miniverl benchmark benchmarks/configs/gpu_calc_hard_local_adapter.yaml \
+#     --output runs/benchmarks
 #
 # The seed set is prespecified for every arm. The first seed is diagnostic; the
 # second is retained only if the same complete arm set runs correctly.
 
 schema_version: 2
-name: gpu-calc-hard-equal-update-v2
+name: gpu-calc-hard-equal-update-v2-local-adapter
 description: >-
   Cold start, then equal-optimizer-update continuation under supervised
   fine-tuning and on-policy distillation from raw, privileged-answer and
@@ -104,8 +105,7 @@ arms:
         teacher:
           mode: standard
           adapter:
-            source: hub
-            path: DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher
-            revision: 23323751318135484c06c043b1f9b9e7016dd89f
+            source: local
+            path: ../../artifacts/qwen3-1.7b-protocol-teacher
             require_policy_evaluation: true
             minimum_strict_success_rate: 0.5

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import yaml
 
 from miniverl.config import TrainingMode
 from miniverl.errors import ConfigError
@@ -19,6 +20,8 @@ from miniverl.evaluation.benchmark import (
 )
 from miniverl.evaluation.schema import BenchmarkConfig, BenchmarkResult
 from miniverl.utils.runs import JsonlWriter
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _base() -> dict[str, Any]:
@@ -204,10 +207,26 @@ def test_schema_v2_benchmark_runs_end_to_end_and_writes_provenance(tmp_path: Pat
     assert arm.teacher_queried_positions_total is None
     assert arm.optimizer_steps == 0
     assert arm.wall_seconds >= arm.evaluation_seconds
+    assert arm.declared_config_digest == arm.resolved_config_digest
+    assert arm.runtime_resolved_config_digest
+    assert {row["path"] for row in arm.scientific_config_diff} == {
+        "run.mode",
+        "train.cycles",
+    }
+    runtime_paths = {row["path"] for row in arm.runtime_resolution_diff}
+    assert {"models.device", "memory.strategy"} <= runtime_paths
+    harness_paths = {row["path"] for row in arm.harness_config_diff}
+    assert {"run.name", "run.seed", "run.run_id", "report.enabled"} <= harness_paths
+    assert not (
+        {row["path"] for row in arm.scientific_config_diff}
+        & {row["path"] for row in arm.harness_config_diff}
+    )
     persisted_text = (tmp_path / "benchmarks" / "tiny-v2.json").read_text(encoding="utf-8")
     assert str(tmp_path).lower() not in persisted_text.lower()
     persisted = BenchmarkResult.model_validate_json(persisted_text)
     assert persisted.common_resolved_config_digest == result.common_resolved_config_digest
+    assert persisted.common_declared_config == persisted.common_resolved_config
+    assert persisted.common_declared_config_digest == persisted.common_resolved_config_digest
 
 
 def _metrics(tmp_path: Path, rows: list[dict[str, Any]]) -> Any:
@@ -286,3 +305,30 @@ def test_committed_v1_results_remain_readable(path: str) -> None:
         result.arms[0].selected_training_tokens_total
         == payload["arms"][0]["selected_training_tokens"]
     )
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "recipes/benchmark_calc.yaml",
+        "benchmarks/configs/cpu_toy_calc.yaml",
+        "benchmarks/configs/gpu_calc_hard.yaml",
+        "benchmarks/configs/gpu_calc_hard_local_adapter.yaml",
+    ],
+)
+def test_every_shipped_v2_benchmark_config_resolves_without_model_loading(path: str) -> None:
+    config = BenchmarkConfig.from_yaml(REPO_ROOT / path)
+    common, cold, arms = resolve_benchmark_configs(config)
+
+    assert common.models.student.model_id
+    assert cold.train.cycles == config.cold_start_cycles
+    assert len(arms) == len(config.arms)
+
+
+def test_legacy_gpu_config_is_an_explicit_immutable_archive() -> None:
+    path = REPO_ROOT / "benchmarks/configs/gpu_calc_hard_legacy_v1.yaml"
+    text = path.read_text(encoding="utf-8")
+    payload = yaml.safe_load(text)
+
+    assert payload["schema_version"] == 1
+    assert "3383f2b9a3c595e0fa143fecdc27522ab368b27f" in text

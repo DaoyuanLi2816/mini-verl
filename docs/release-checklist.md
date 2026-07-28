@@ -59,10 +59,20 @@ Checked by: `.github/workflows/release.yml`, job `validate`.
       `miniverl schema`.
 - [x] Every file in `benchmarks/results/` validates against that schema.
 
-## Publishing (not automated)
+## Publishing (externally blocked)
 
 The OIDC publication job exists but is deliberately disabled with `if: false`;
-this repository stores no secrets. To publish:
+this repository stores no secrets. Live verification on 2026-07-28 found:
+
+- `https://pypi.org/pypi/miniverl/json` returns HTTP 404, so no project exists
+  on which a trusted publisher could already be registered;
+- `gh api repos/DaoyuanLi2816/mini-verl/environments` returns
+  `{"total_count":0,"environments":[]}`, so the required GitHub `pypi`
+  environment is not configured.
+
+The absence of either external object means a workflow file alone is not
+trusted-publisher configuration. Do not remove `if: false`, create `v0.2.0`, or
+create a GitHub Release until these steps are completed:
 
 1. On PyPI, create the `miniverl` project and add a **trusted publisher**:
    - Owner: `DaoyuanLi2816`
@@ -71,7 +81,10 @@ this repository stores no secrets. To publish:
    - Environment: `pypi`
 2. In a separately reviewed change, remove the hard-disabled condition from
    `publish-pypi` in `release.yml`.
-3. Push the tag. The `validate` job must pass before `publish-pypi`.
+3. Create the GitHub `pypi` environment named exactly as above.
+4. Push the tag. The `validate` job must pass before `publish-pypi`.
+5. Verify the public PyPI page and a fresh wheel install before creating the
+   GitHub Release.
 
 Until the publisher is registered and publication is explicitly authorized,
 the release workflow validates and builds but cannot upload.
@@ -79,7 +92,7 @@ the release workflow validates and builds but cannot upload.
 ### Name availability
 
 `miniverl` was available on PyPI when this release was prepared
-(`https://pypi.org/pypi/miniverl/json` returned HTTP 404 on 2026-07-27).
+(`https://pypi.org/pypi/miniverl/json` returned HTTP 404 on 2026-07-28).
 **Re-check immediately before publishing.** If it has been taken, publish as
 `mini-verl-opd` and keep the display name `miniVERL`, the import package
 `miniverl`, the CLI command `miniverl` and the repository name `mini-verl`

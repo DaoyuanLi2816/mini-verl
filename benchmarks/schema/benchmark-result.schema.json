@@ -73,6 +73,18 @@
           "default": null,
           "title": "Cache Current Bytes"
         },
+        "declared_config_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declared Config Digest"
+        },
         "description": {
           "default": "",
           "title": "Description",
@@ -122,6 +134,14 @@
           "default": 0,
           "title": "Generated Training Tokens Total",
           "type": "integer"
+        },
+        "harness_config_diff": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Harness Config Diff",
+          "type": "array"
         },
         "invalid_tool_call_rate": {
           "title": "Invalid Tool Call Rate",
@@ -258,6 +278,34 @@
         "run_id": {
           "title": "Run Id",
           "type": "string"
+        },
+        "runtime_resolution_diff": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Runtime Resolution Diff",
+          "type": "array"
+        },
+        "runtime_resolved_config_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime Resolved Config Digest"
+        },
+        "scientific_config_diff": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Scientific Config Diff",
+          "type": "array"
         },
         "seconds": {
           "minimum": 0,
@@ -564,6 +612,31 @@
       ],
       "default": null,
       "title": "Cold Start"
+    },
+    "common_declared_config": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Common Declared Config"
+    },
+    "common_declared_config_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Common Declared Config Digest"
     },
     "common_resolved_config": {
       "anyOf": [

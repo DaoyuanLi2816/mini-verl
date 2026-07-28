@@ -117,6 +117,20 @@ as a numerical detail.
 
 ## Training loop
 
+### Historical reserved-memory numbers are order-sensitive
+
+Published v0.1/v0.2 benchmark arms recorded `peak_allocated_bytes` while their
+live tensors were present, but their `peak_reserved_bytes` can include CUDA
+caching-allocator blocks retained from an earlier arm in the same process.
+Those JSON files are preserved because the task-success measurements remain
+valid; they are not a clean cross-arm reserved-memory comparison.
+
+The corrected harness gives the cold start and every arm a function-level
+trainer lifetime, destructively drops model, scorer, rollout-runner and
+optimizer references, runs garbage collection, and empties the CUDA cache
+before constructing the next trainer. Use a new lifecycle-isolated run for
+memory comparisons rather than silently rewriting the historical artifact.
+
 ### One trajectory per forward pass
 
 `OPDTrainer._run_group` loops over the trajectories in a group and calls
