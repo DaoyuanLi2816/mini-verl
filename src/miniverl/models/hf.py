@@ -98,6 +98,27 @@ def _from_pretrained_kwargs(dtype: torch.dtype) -> dict[str, Any]:
     return {_dtype_kwarg_name(): dtype}
 
 
+def _adapter_probe_kwargs(*, revision: str | None, local_files_only: bool) -> dict[str, Any]:
+    """Build PEFT auto-detection kwargs across transformers 4.x and 5.x.
+
+    Transformers 4.x already forwards the top-level ``local_files_only`` value
+    to its PEFT-config probe, so repeating it in ``adapter_kwargs`` raises a
+    duplicate-keyword ``TypeError``. Transformers 5.x stopped forwarding that
+    policy, so it must be supplied explicitly there to preserve the zero-network
+    contract.
+    """
+    transformers = require_transformers("Model loading")
+    version = str(getattr(transformers, "__version__", "0"))
+    try:
+        major = int(version.split(".", maxsplit=1)[0])
+    except ValueError:  # pragma: no cover - unusual version strings
+        major = 0
+    kwargs: dict[str, Any] = {"revision": revision}
+    if major >= 5:
+        kwargs["local_files_only"] = local_files_only
+    return kwargs
+
+
 class HFBackend(CausalLMBackend):
     """Local Hugging Face causal LM, optionally quantized and LoRA-adapted."""
 
@@ -174,13 +195,12 @@ class HFBackend(CausalLMBackend):
             "trust_remote_code": spec.trust_remote_code,
             "local_files_only": local_files_only,
             # Transformers performs a separate PEFT-config probe before loading
-            # the base model. In 5.x that probe does not inherit hub kwargs, so
-            # pass the policy explicitly instead of relying on global offline
-            # environment variables.
-            "adapter_kwargs": {
-                "local_files_only": local_files_only,
-                "revision": spec.revision,
-            },
+            # the base model. Its policy propagation differs between 4.x and
+            # 5.x, so build compatible explicit probe kwargs.
+            "adapter_kwargs": _adapter_probe_kwargs(
+                revision=spec.revision,
+                local_files_only=local_files_only,
+            ),
             "attn_implementation": spec.attn_implementation,
             **_from_pretrained_kwargs(dtype),
         }

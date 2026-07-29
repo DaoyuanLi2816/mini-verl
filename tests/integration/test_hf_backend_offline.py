@@ -272,6 +272,32 @@ def test_dtype_resolution_matches_the_device():
     assert resolve_dtype(Precision.AUTO, "cpu") is torch.float32
 
 
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ("4.51.3", {"revision": "abc"}),
+        ("5.0.0", {"revision": "abc", "local_files_only": True}),
+    ],
+)
+def test_peft_probe_kwargs_preserve_offline_policy_across_transformers_versions(
+    version,
+    expected,
+    monkeypatch,
+):
+    import miniverl.models.hf as hf_module
+
+    fake_transformers = type("FakeTransformers", (), {"__version__": version})()
+    monkeypatch.setattr(hf_module, "require_transformers", lambda _feature: fake_transformers)
+
+    assert (
+        hf_module._adapter_probe_kwargs(
+            revision="abc",
+            local_files_only=True,
+        )
+        == expected
+    )
+
+
 @pytest.fixture
 def local_teacher_adapter(tmp_path: Path, tiny_model, tiny_tokenizer):
     """A standard local PEFT LoRA adapter plus miniVERL provenance."""

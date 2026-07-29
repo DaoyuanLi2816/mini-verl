@@ -23,7 +23,9 @@ Checked by: `.github/workflows/release.yml`, job `validate-and-test`.
       (the exact v0.2 count and coverage are recorded in `PROJECT_STATE.md`)
 - [x] `pytest -q -m gpu` on a machine with CUDA
 - [x] `rg -n "TODO|FIXME|XXX|HACK|NotImplementedError" src tests examples scripts`
-      returns nothing
+      has no unfinished implementation markers; its sole match is the
+      intentional compatibility catch for older model APIs in
+      `models/adapters.py`.
 
 ## Packaging
 
@@ -40,7 +42,9 @@ Checked by: `.github/workflows/release.yml`, job `validate-and-test`.
 
 ## Documentation
 
-- [ ] Every command in `README.md` has been executed.
+- [x] Every command in `README.md` has been executed; placeholder forms were
+      instantiated with the concrete toy/Qwen run, benchmark and adapter paths
+      recorded in `PROJECT_STATE.md`.
 - [x] `README.zh-CN.md` describes the same behaviour as `README.md`.
 - [x] Every number in the README and in `docs/` is measured, or marked
       "not measured" / "not run".
@@ -51,7 +55,7 @@ Checked by: `.github/workflows/release.yml`, job `validate-and-test`.
 
 ## Artifacts and hygiene
 
-- [ ] `git status --porcelain` is empty.
+- [x] `git status --porcelain` is empty at the release-candidate commit.
 - [x] No model weights, checkpoints, Hugging Face caches, databases, secrets or
       absolute user paths are committed
       (`git ls-files | rg "\.(safetensors|bin|pt|ckpt|sqlite|db)$"` is empty).

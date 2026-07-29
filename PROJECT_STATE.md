@@ -11,13 +11,13 @@ Last updated: 2026-07-28.
 | item | current state |
 | --- | --- |
 | public repository | `https://github.com/DaoyuanLi2816/mini-verl` |
-| public `main` | `caed62f1d332b31752e9c453553a6a0bf2896587`, fetched and confirmed against `origin/main` on 2026-07-28 |
+| pre-merge public `main` | `caed62f1d332b31752e9c453553a6a0bf2896587`, fetched and confirmed against `origin/main` on 2026-07-28 |
 | previous integration | PR [#4](https://github.com/DaoyuanLi2816/mini-verl/pull/4) and PR [#5](https://github.com/DaoyuanLi2816/mini-verl/pull/5) are merged |
 | working branch | `v0.2-final-release`, created from current public `main` |
-| current PR | not opened yet; the first complete offline/release-workflow slice will be pushed as a draft PR |
+| final integration | draft PR [#6](https://github.com/DaoyuanLi2816/mini-verl/pull/6), first commit `3414fca15d4ab76180e14753b9f141870eb42cd0` |
 | lifecycle fix | merged on `main`: destructive, idempotent cleanup and explicit cold-start/arm context boundaries are implemented |
 | last merged release gates | ruff and format clean; mypy clean; 981 CPU tests and all 5 GPU tests passed; compatibility passed on Transformers 4.51.3 and 5.14.1 |
-| final-pass status | offline and release-workflow vertical slice implemented; 36 focused tests pass, ruff/format/mypy are clean, and actionlint 1.7.12 accepts `release.yml` |
+| final-pass status | complete locally: 1004 CPU tests, 5 GPU tests, 129 focused offline tests, dual Transformers compatibility, build, clean-wheel, README-command, link, schema, JSON/JSONL, privacy and release-workflow gates pass |
 | version | `0.2.0`; no public `v0.2.0` tag, GitHub Release or PyPI publication is claimed |
 | PyPI | `https://pypi.org/pypi/miniverl/json` returned HTTP 404 on 2026-07-28; a pending publisher can create the project on first OIDC upload, but its registration has not been verified |
 | GitHub environment | `pypi` created through the repository API on 2026-07-28; custom deployment policy permits only tags matching `v*` |
@@ -28,36 +28,48 @@ Last updated: 2026-07-28.
 Focused final-pass evidence:
 
 - `pytest -q tests/unit/test_offline_contract.py
-  tests/unit/test_release_workflow.py tests/unit/test_pypi_release_verifier.py
-  tests/integration/test_hf_backend_offline.py` -- **36 passed**.
+  tests/integration/test_hf_backend_offline.py tests/unit/test_config.py` --
+  **129 passed**. Actual `train`, `benchmark`, `eval` and `export-adapter`
+  commands also completed with `--offline`; the export loaded the cached pinned
+  Qwen3 revision and wrote a standard PEFT adapter.
 - Socket denial exposed a Transformers 5.x PEFT auto-detection request even
-  with the top-level local-only flag. Explicit `adapter_kwargs` now carries
-  `local_files_only` into that probe; missing model, tokenizer, full adapter
-  snapshot and partial adapter snapshot tests all record zero socket attempts.
+  with the top-level local-only flag. Version-compatible PEFT probe kwargs now
+  carry `local_files_only` explicitly on 5.x without duplicating the parameter
+  on 4.x; missing model, tokenizer, full adapter snapshot and partial adapter
+  snapshot tests all record zero socket attempts.
 - Hub adapter validation returns public provenance plus one exact local
   snapshot and its config, weights and manifest paths. PEFT receives only that
   local snapshot; public manifests retain no cache path.
 - `release.yml` passed actionlint 1.7.12. Static tests prove manual dispatch and
   branch pushes cannot publish, a `v*` tag push can, distributions build once,
   and PyPI verification precedes GitHub Release creation.
-- `ruff check`, `ruff format --check` and `mypy src/miniverl` pass on the
-  vertical slice. The frozen benchmark remains byte-identical at SHA-256
+- `ruff check .`, `ruff format --check .` and `mypy src` pass. The complete
+  CPU suite reports **1004 passed, 5 deselected**; the CUDA suite reports
+  **5 passed, 1004 deselected** on the RTX 4080.
+- Independent Python 3.12 environments with Transformers **4.51.3** and
+  **5.14.1** each report **124 passed** for the offline Qwen3/PEFT/config
+  compatibility bundle.
+- A fresh isolated build produced the 0.2.0 wheel and sdist and both passed
+  `twine check`. A wheel-only environment confirmed torch absent and core
+  commands ready; a second `[train]` environment completed `demo --fast`,
+  `inspect` and `report`.
+- All 117 local Markdown targets, 47 Markdown anchors and 14 external Markdown
+  URLs passed. Ten representative runtime JSONL files (115 records) parsed
+  strictly; package/schema/SVG/privacy/release tests report **88 passed**.
+- The frozen benchmark remains byte-identical at SHA-256
   `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
 
 Currently failing commands:
 
-- None in the focused slice. The complete CPU/GPU, compatibility, package and
-  documentation gates have not yet been rerun on this branch.
+- None. The only remaining blocker is external account state: the PyPI pending
+  publisher has not been verifiably registered.
 
 Exact next actions:
 
-1. Push this complete vertical slice and open the final engineering PR as a
-   draft.
-2. Run the complete CPU/GPU, Transformers 4.51.x/5.x, README-command,
-   documentation, artifact, build and clean-wheel gates; record exact evidence.
-3. Mark the PR ready, wait for green CI/build, merge and synchronize local
-   `main`.
-4. Do not create `v0.2.0` while the PyPI pending publisher remains unverified.
+1. Push the final evidence commit to PR #6, mark it ready, wait for green
+   CI/build, merge and synchronize local `main`.
+2. Reconfirm the public repository and distribution endpoints after merge.
+3. Do not create `v0.2.0` while the PyPI pending publisher remains unverified.
 
 ## Historical v0.2 pre-merge evidence (PR #4)
 
