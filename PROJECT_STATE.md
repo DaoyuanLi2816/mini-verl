@@ -12,14 +12,14 @@ Last updated: 2026-07-29.
 | --- | --- |
 | audited starting commit | public and local `main` both resolved to `5b1c043b188b30b1261e118293f6fe124e2b7acb` after `git fetch --all --prune` on 2026-07-29 |
 | integration source | branch `v0.2.1-correctness` and correctness PR [#11](https://github.com/DaoyuanLi2816/mini-verl/pull/11), created without rewriting `main` or the immutable `v0.2.0` tag; the PR remains the authoritative integration record after its source branch is deleted |
-| version transition | post-v0.2.0 work started at honest `0.2.1.dev0`; the fully gated release candidate is now `0.2.1` in source, changelog and citation metadata |
-| release state | correctness PR [#11](https://github.com/DaoyuanLi2816/mini-verl/pull/11) carries the complete candidate and records its required checks and merge state; no tag, PyPI upload or GitHub Release for `v0.2.1` exists |
-| publication authorization | absent; the release may be prepared and merged, but must not be tagged or published without explicit authorization |
+| version transition | `v0.2.1` was released from exact commit `591881b0d094f5c53ff47a9419e679b762fb44b0`; post-release development now identifies honestly as `0.2.2.dev0`, while changelog and citation metadata retain the published `0.2.1` record |
+| release state | annotated tag [`v0.2.1`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.1) resolves to `591881b0d094f5c53ff47a9419e679b762fb44b0`; release run [`30474597179`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30474597179) passed all five jobs, including OIDC publication, public verification and GitHub Release creation |
+| publication authorization | granted on 2026-07-29; the release completed through the tag-only Trusted Publishing workflow without a long-lived PyPI token |
 | frozen scientific artifact | `benchmarks/results/gpu-calc-hard-equal-update-v2.json` remains required at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
 | immutable protocol adapter | `DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher@23323751318135484c06c043b1f9b9e7016dd89f`; its original v1 competence record is accepted for v1 without fabricating v0.2.1 metrics, and it was neither overwritten nor retrained |
-| local wheel | `miniverl-0.2.1-py3-none-any.whl`, SHA-256 `78bdeaefc7592caaf1004eb01a2ec2ec3060fc96d5ba7853d9d499de254c080d` |
-| local sdist | `miniverl-0.2.1.tar.gz`, SHA-256 `80f890c1ab8be0ccdf6c5ce293a5c4d7bb6a6f7ab7a57db34090384fcaa7e16c` |
-| exact blocker | publication authorization is absent; after a green merge, stop before creating `v0.2.1` or triggering Trusted Publishing |
+| published wheel | [`miniverl-0.2.1-py3-none-any.whl`](https://pypi.org/project/miniverl/0.2.1/), SHA-256 `0177d50026da86047c2a03f90e7786c794b26c5b0d6fef193c58ed35c08d8cda` |
+| published sdist | [`miniverl-0.2.1.tar.gz`](https://pypi.org/project/miniverl/0.2.1/), SHA-256 `80f890c1ab8be0ccdf6c5ce293a5c4d7bb6a6f7ab7a57db34090384fcaa7e16c` |
+| exact blocker | none; PyPI and the GitHub Release expose byte-identical distributions, PyPI reports Trusted Publishing attestations, and a clean public core install passed |
 
 ### Correctness changes and evidence
 
@@ -67,14 +67,15 @@ Last updated: 2026-07-29.
   `docs/gpu-calc-hard-equal-update-v2.svg` remains generated from the frozen
   JSON and labels the cold start `NO TRAINING` and the diagnostic controls
   `PROTOCOL MISMATCH` instead of presenting inapplicable zero bars as outcomes.
-- GitHub environment `pypi` exists with a branch policy; `release.yml` still
-  uses OIDC `id-token: write`; public PyPI remains `miniverl 0.2.0`.
+- GitHub environment `pypi` exists with a branch policy; `release.yml` used
+  OIDC `id-token: write` to publish and independently verify
+  [`miniverl 0.2.1`](https://pypi.org/project/miniverl/0.2.1/).
 
 Currently failing commands: **none**.
 
-Integration record: PR #11 and its required checks are authoritative. Once
-GitHub records a green merge, no further release action is authorized: stop
-before creating `v0.2.1` or triggering Trusted Publishing.
+Publication record: PR #11, annotated tag `v0.2.1`, release run `30474597179`,
+the public PyPI files and the GitHub Release are authoritative. The published
+tag and distributions are immutable; new work proceeds from `0.2.2.dev0`.
 
 ## v0.2 release-hardening status
 
