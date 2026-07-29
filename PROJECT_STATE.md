@@ -11,14 +11,14 @@ Last updated: 2026-07-29.
 | item | current state |
 | --- | --- |
 | audited starting commit | public and local `main` both resolved to `5b1c043b188b30b1261e118293f6fe124e2b7acb` after `git fetch --all --prune` on 2026-07-29 |
-| working branch | `v0.2.1-correctness`, created without rewriting `main` or the immutable `v0.2.0` tag |
+| integration source | branch `v0.2.1-correctness` and correctness PR [#11](https://github.com/DaoyuanLi2816/mini-verl/pull/11), created without rewriting `main` or the immutable `v0.2.0` tag; the PR remains the authoritative integration record after its source branch is deleted |
 | version transition | post-v0.2.0 work started at honest `0.2.1.dev0`; the fully gated release candidate is now `0.2.1` in source, changelog and citation metadata |
-| release state | correctness PR [#11](https://github.com/DaoyuanLi2816/mini-verl/pull/11) carries the complete candidate from branch `v0.2.1-correctness`; CI/merge is the remaining pre-publication integration step; no tag, PyPI upload or GitHub Release for `v0.2.1` exists |
+| release state | correctness PR [#11](https://github.com/DaoyuanLi2816/mini-verl/pull/11) carries the complete candidate and records its required checks and merge state; no tag, PyPI upload or GitHub Release for `v0.2.1` exists |
 | publication authorization | absent; the release may be prepared and merged, but must not be tagged or published without explicit authorization |
 | frozen scientific artifact | `benchmarks/results/gpu-calc-hard-equal-update-v2.json` remains required at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
 | immutable protocol adapter | `DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher@23323751318135484c06c043b1f9b9e7016dd89f`; its original v1 competence record is accepted for v1 without fabricating v0.2.1 metrics, and it was neither overwritten nor retrained |
 | local wheel | `miniverl-0.2.1-py3-none-any.whl`, SHA-256 `78bdeaefc7592caaf1004eb01a2ec2ec3060fc96d5ba7853d9d499de254c080d` |
-| local sdist | `miniverl-0.2.1.tar.gz`, SHA-256 `d6f41cf5c861decdd7e3bdd6bf5fafa9299edb1ef635cfa94bebadb8bcd52acf` |
+| local sdist | `miniverl-0.2.1.tar.gz`, SHA-256 `80f890c1ab8be0ccdf6c5ce293a5c4d7bb6a6f7ab7a57db34090384fcaa7e16c` |
 | exact blocker | publication authorization is absent; after a green merge, stop before creating `v0.2.1` or triggering Trusted Publishing |
 
 ### Correctness changes and evidence
@@ -72,8 +72,9 @@ Last updated: 2026-07-29.
 
 Currently failing commands: **none**.
 
-Next action: wait for every required check on PR #11, merge it, verify `main`,
-and stop before the tag because publication is not authorized.
+Integration record: PR #11 and its required checks are authoritative. Once
+GitHub records a green merge, no further release action is authorized: stop
+before creating `v0.2.1` or triggering Trusted Publishing.
 
 ## v0.2 release-hardening status
 
