@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import torch
@@ -173,6 +174,7 @@ class HFBackend(CausalLMBackend):
         tokenizer: TokenizerLike,
         trainable: bool,
         local_files_only: bool = False,
+        protocol_version: str | None = None,
     ) -> HFBackend:
         """Load a model from a local path or the Hub."""
         transformers = require_transformers("Loading a Hugging Face causal LM")
@@ -187,6 +189,7 @@ class HFBackend(CausalLMBackend):
                 spec.adapter,
                 spec,
                 tokenizer_fingerprint=tokenizer.fingerprint,
+                protocol_version=protocol_version,
                 local_files_only=local_files_only,
             )
             adapter_provenance = validated_adapter.provenance
@@ -209,8 +212,22 @@ class HFBackend(CausalLMBackend):
             kwargs["quantization_config"] = quant_config
             kwargs["device_map"] = {"": device}
         try:
-            model = transformers.AutoModelForCausalLM.from_pretrained(spec.model_id, **kwargs)
-        except OSError as exc:
+            model_source = spec.model_id
+            if local_files_only and not Path(spec.model_id).exists():
+                # Resolve the cached snapshot before entering Transformers.
+                # Some Transformers/Hub version combinations perform an
+                # adapter-discovery HEAD request even when the top-level model
+                # load received local_files_only=True.  A concrete snapshot
+                # path makes the zero-network contract unambiguous.
+                from huggingface_hub import snapshot_download
+
+                model_source = snapshot_download(
+                    repo_id=spec.model_id,
+                    revision=spec.revision,
+                    local_files_only=True,
+                )
+            model = transformers.AutoModelForCausalLM.from_pretrained(model_source, **kwargs)
+        except (OSError, ValueError) as exc:
             revision = f" at revision {spec.revision!r}" if spec.revision else ""
             preload = f"hf download {spec.model_id}"
             if spec.revision:
@@ -428,10 +445,28 @@ class HFBackend(CausalLMBackend):
     def load_trainable_state_dict(self, state: dict[str, torch.Tensor]) -> None:
         """Restore trainable weights in place."""
         own = dict(self.model.named_parameters())
-        missing = [k for k in state if k not in own]
+        expected = {name for name, parameter in own.items() if parameter.requires_grad}
+        unknown = sorted(set(state).difference(expected))
+        missing = sorted(expected.difference(state))
+        if unknown:
+            raise BackendError(
+                f"checkpoint contains {len(unknown)} unknown parameter names, e.g. {unknown[0]}",
+                hint="the checkpoint was written by a different model or LoRA config",
+            )
         if missing:
             raise BackendError(
-                f"checkpoint contains {len(missing)} unknown parameter names, e.g. {missing[0]}",
+                f"checkpoint is missing {len(missing)} trainable parameters, e.g. {missing[0]}",
+                hint="the checkpoint is incomplete or was written by a different LoRA config",
+            )
+        mismatched = [
+            (name, tuple(value.shape), tuple(own[name].shape))
+            for name, value in state.items()
+            if value.shape != own[name].shape
+        ]
+        if mismatched:
+            name, actual, expected_shape = mismatched[0]
+            raise BackendError(
+                f"checkpoint parameter {name!r} has shape {actual}, expected {expected_shape}",
                 hint="the checkpoint was written by a different model or LoRA config",
             )
         with torch.no_grad():

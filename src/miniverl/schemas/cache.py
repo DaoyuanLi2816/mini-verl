@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 __all__ = [
     "CACHE_SCHEMA_VERSION",
+    "READABLE_CACHE_SCHEMA_VERSIONS",
     "CacheEntryMeta",
     "CacheShardMeta",
     "CacheIndex",
@@ -21,7 +22,8 @@ __all__ = [
     "CacheCompressionStats",
 ]
 
-CACHE_SCHEMA_VERSION = 1
+CACHE_SCHEMA_VERSION = 2
+READABLE_CACHE_SCHEMA_VERSIONS = frozenset({1, CACHE_SCHEMA_VERSION})
 
 
 class CacheEntryMeta(BaseModel):
@@ -42,6 +44,7 @@ class CacheEntryMeta(BaseModel):
     tensor_keys: list[str]
     checksum: str
     selected_span_types: dict[str, int] = Field(default_factory=dict)
+    ordered_span_types: list[str] | None = None
 
 
 class CacheShardMeta(BaseModel):
@@ -65,6 +68,8 @@ class CacheIndex(BaseModel):
     teacher_model_id: str
     teacher_model_revision: str | None = None
     tokenizer_fingerprint: str
+    tokenizer_identity: dict[str, Any] = Field(default_factory=dict)
+    teacher_adapter_provenance: dict[str, Any] | None = None
     vocab_size: int = Field(gt=0)
     top_k: int = Field(ge=1)
     temperature: float = Field(gt=0.0)
@@ -75,6 +80,8 @@ class CacheIndex(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self) -> CacheIndex:
+        if self.schema_version not in READABLE_CACHE_SCHEMA_VERSIONS:
+            raise ValueError(f"unsupported cache schema_version {self.schema_version}")
         if self.top_k > self.vocab_size:
             raise ValueError(f"top_k={self.top_k} exceeds vocab_size={self.vocab_size}")
         for traj_id, entry in self.entries.items():

@@ -40,12 +40,29 @@ _POLICY_EVAL_FIELDS = (
     "tasks",
     "strict_task_success_rate",
     "lenient_diagnostic_success_rate",
+    "parse_valid_tool_call_rate",
+    "tool_execution_success_rate",
+    "tool_execution_error_rate",
+    "emitted_tool_calls",
+    "parsed_tool_calls",
     "valid_tool_call_rate",
     "tool_call_count",
     "final_answer_format_validity_rate",
     "avg_turns",
     "protocol_token_accuracy",
     "policy_competence_measurement_status",
+)
+_V1_POLICY_EVAL_FIELDS = tuple(
+    field
+    for field in _POLICY_EVAL_FIELDS
+    if field
+    not in {
+        "parse_valid_tool_call_rate",
+        "tool_execution_success_rate",
+        "tool_execution_error_rate",
+        "emitted_tool_calls",
+        "parsed_tool_calls",
+    }
 )
 
 
@@ -186,6 +203,7 @@ def validate_teacher_adapter(
     teacher: TeacherModelConfig,
     *,
     tokenizer_fingerprint: str,
+    protocol_version: str | None = None,
     local_files_only: bool = False,
 ) -> ValidatedTeacherAdapter:
     """Validate compatibility before the adapter can supervise training."""
@@ -239,6 +257,13 @@ def validate_teacher_adapter(
             hint=f"expected {expected_tokenizer[:16]}..., got {tokenizer_fingerprint[:16]}...",
         )
 
+    training_task = manifest.get("training_task") or {}
+    recorded_protocol = training_task.get("protocol_version")
+    if recorded_protocol is None:
+        legacy_protocol = training_task.get("protocol")
+        recorded_protocol = (
+            "v1" if legacy_protocol in (None, "miniverl_tool_protocol_v1") else str(legacy_protocol)
+        )
     policy_evaluation = manifest.get("policy_evaluation")
     if adapter.require_policy_evaluation:
         if not isinstance(policy_evaluation, dict):
@@ -249,7 +274,27 @@ def validate_teacher_adapter(
                     "SFT loss is not a teacher-competence measurement"
                 ),
             )
-        missing_metrics = [field for field in _POLICY_EVAL_FIELDS if field not in policy_evaluation]
+        evaluated_protocol = policy_evaluation.get(
+            "protocol_version",
+            recorded_protocol,
+        )
+        if protocol_version and evaluated_protocol != protocol_version:
+            raise BackendError(
+                f"teacher adapter competence was evaluated on protocol "
+                f"{evaluated_protocol!r}, not requested protocol {protocol_version!r}",
+                hint=(
+                    f"record an independent {protocol_version} policy evaluation, or use "
+                    f"environment.params.protocol_version: {evaluated_protocol}"
+                ),
+            )
+        # The immutable v0.2 protocol-teacher is a v1 artifact created before
+        # v0.2.1 split emitted, parsed and executed tool events. Its original
+        # competence record remains sufficient for v1 only. New protocol
+        # artifacts must carry the precise counters and rates.
+        required_fields = (
+            _V1_POLICY_EVAL_FIELDS if evaluated_protocol == "v1" else _POLICY_EVAL_FIELDS
+        )
+        missing_metrics = [field for field in required_fields if field not in policy_evaluation]
         if missing_metrics:
             raise BackendError(
                 "teacher adapter policy evaluation is incomplete: " + ", ".join(missing_metrics)
@@ -300,6 +345,7 @@ def validate_teacher_adapter(
             else None
         ),
         "policy_evaluation": policy_evaluation,
+        "protocol_version": recorded_protocol,
     }
     return ValidatedTeacherAdapter(
         provenance=provenance,
@@ -378,11 +424,13 @@ def export_adapter(
     }
     env = collect_environment()
     policy_evaluation = None
+    protocol_version = str(config.environment.params.get("protocol_version", "v1"))
     if paths.eval_json.is_file():
         summary = read_json(paths.eval_json)
         final_eval = summary.get("eval") if isinstance(summary, dict) else None
         if isinstance(final_eval, dict):
             policy_evaluation = {field: final_eval.get(field) for field in _POLICY_EVAL_FIELDS}
+            policy_evaluation["protocol_version"] = protocol_version
     manifest = {
         "schema_version": 1,
         "miniverl_version": __version__,
@@ -398,7 +446,8 @@ def export_adapter(
         "training_task": {
             "environment": config.environment.name,
             "difficulty": config.environment.difficulty,
-            "protocol": "miniverl_tool_protocol_v1",
+            "protocol": f"miniverl_tool_protocol_{protocol_version}",
+            "protocol_version": protocol_version,
             "mode": config.run.mode.value,
         },
         "policy_evaluation": policy_evaluation,

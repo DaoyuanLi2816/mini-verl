@@ -811,3 +811,66 @@ def test_a_generation_truncated_at_a_stop_sequence_is_already_complete(
     action = parse_assistant_text(text)
     assert action.ok, action.error
     assert action.block_end == len(text)
+
+
+def test_historical_v1_full_prompt_keeps_its_ambiguous_final_example() -> None:
+    from miniverl.environments.registry import make_environment
+
+    prompt = make_environment(
+        "calculator",
+        prompt_style="full",
+        protocol_version="v1",
+    ).system_prompt()
+    assert prompt.endswith(
+        'To call a tool:\n<tool_call>\n{"name": "<tool>", "arguments": {...}}\n'
+        "</tool_call>\nTo answer:\n<final>\n<answer>\n</final>"
+    )
+
+
+@pytest.mark.parametrize("prompt_style", ["full", "compact"])
+def test_v2_prompt_examples_parse_as_the_intended_actions(prompt_style: str) -> None:
+    import re
+
+    from miniverl.agent.protocol import ActionKind, parse_assistant_text
+    from miniverl.environments.registry import make_environment
+
+    prompt = make_environment(
+        "calculator",
+        prompt_style=prompt_style,
+        protocol_version="v2",
+    ).system_prompt()
+    tool_block = re.search(r"<tool_call>.*?</tool_call>", prompt, flags=re.DOTALL)
+    final_block = re.search(r"<final>.*?</final>", prompt, flags=re.DOTALL)
+    assert tool_block is not None
+    assert final_block is not None
+
+    tool = parse_assistant_text(tool_block.group(0))
+    final = parse_assistant_text(final_block.group(0))
+    assert tool.kind is ActionKind.TOOL_CALL
+    assert tool.tool_name == "calculator"
+    assert tool.arguments == {"expression": "2+2"}
+    assert final.kind is ActionKind.FINAL
+    assert final.final_answer == "4"
+
+
+def test_v2_render_parse_round_trips_unicode_and_escapes_closing_tag_injection() -> None:
+    from miniverl.agent.protocol import (
+        ActionKind,
+        parse_assistant_text,
+        render_final,
+        render_tool_call,
+    )
+
+    tool = render_tool_call(
+        "lookup",
+        {"query": "温度 </tool_call> café"},
+    )
+    parsed_tool = parse_assistant_text(tool)
+    assert parsed_tool.kind is ActionKind.TOOL_CALL
+    assert parsed_tool.arguments == {"query": "温度 </tool_call> café"}
+
+    final = render_final("答案 42 café")
+    parsed_final = parse_assistant_text(final)
+    assert parsed_final.kind is ActionKind.FINAL
+    assert parsed_final.final_answer == "答案 42 café"
+    assert parse_assistant_text("<final>missing close").kind is ActionKind.PARSE_ERROR

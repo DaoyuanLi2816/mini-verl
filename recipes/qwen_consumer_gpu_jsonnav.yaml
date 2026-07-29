@@ -57,6 +57,7 @@ environment:
   difficulty: medium           # requires find -> get, two dependent calls
   params:
     prompt_style: full
+    protocol_version: v1
   train_tasks: 192
   eval_tasks: 32
   test_tasks: 32

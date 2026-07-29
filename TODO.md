@@ -1,61 +1,30 @@
 # TODO
 
-Everything the v0.1.0 scope required is done; see `PROJECT_STATE.md` for the
-evidence table. This file is what is left, split into what is blocked on someone
-with credentials and what is genuinely future work.
+This is the post-v0.2.1 research and engineering backlog. Completed release,
+publication, protocol-teacher and two-seed benchmark work lives in
+`PROJECT_STATE.md` and `CHANGELOG.md`, not in this active list.
 
-## Blocked on credentials or infrastructure
+## Scientific follow-up
 
-These cannot be completed from a commit. Each one names the exact command or
-step, so nothing has to be rediscovered.
+- [ ] Select future protocol-teacher candidates on the `eval` split and reserve
+      `test` for downstream reporting.
+- [ ] Evaluate on a less saturated task family with at least three prespecified
+      seeds; retain SFT, raw-teacher and protocol-aligned controls.
+- [ ] Run JSON-navigation and SQLite real-model comparisons with the same
+      matched-budget and immutable-artifact discipline.
+- [ ] Repeat the measured GPU recipes on Linux; do not treat the expected
+      throughput improvement as measured until those artifacts exist.
 
-- [ ] **Publish to PyPI.** Register a trusted publisher on the PyPI project
-      (`DaoyuanLi2816` / `mini-verl` / `release.yml` / environment `pypi`), then
-      add the `publish` job described in `docs/release-checklist.md`. Re-check
-      that the name `miniverl` is still free first; it was on 2026-07-27
-      (`https://pypi.org/pypi/miniverl/json` returned 404). If taken, publish as
-      `mini-verl-opd` and change only `[project] name`.
-- [ ] **Push the repository and create the `v0.1.0` release.** The tag must be
-      `v0.1.0`; the release workflow will refuse it otherwise.
-- [ ] **Repository settings.** Description:
-      `On-policy distillation for tool-using LLM agents on one consumer GPU.`
-      Topics: `llm`, `on-policy-distillation`, `knowledge-distillation`,
-      `agentic-rl`, `tool-use`, `qlora`, `consumer-gpu`, `post-training`,
-      `qwen`, `llm-agents`, `verl`. Social preview: `docs/banner.svg` rendered
-      to PNG.
-- [ ] **A GPU CI runner.** `.github/workflows/gpu.yml` targets a self-hosted
-      runner labelled `cuda`. Until one is registered the workflow stays queued,
-      which is expected. The same tests were run locally; results are in
-      `docs/rtx4080-baselines.md`.
+## Runtime scope
 
-## Measurement gaps worth closing
+- [ ] Cross-tokenizer distillation with an explicit alignment contract.
+- [ ] Padded multi-trajectory batching; today gradient accumulation supplies
+      the effective batch size.
+- [ ] Additional tested model families beyond Qwen2/Qwen3.
+- [ ] Entropy-aware divergence mixing after a prespecified experiment; current
+      code records teacher entropy but does not implement the method.
+- [ ] A maintained GPU CI runner. GPU tests remain opt-in until real CUDA
+      infrastructure is configured.
 
-Not required for the release, but each would make a claim stronger.
-
-- [ ] **More seeds on GPU.** Every GPU number is single-seed. Three seeds on
-      `benchmarks/configs/gpu_calc_hard.yaml` would turn "measured" into
-      "measured with a variance estimate".
-- [ ] **A Linux measurement.** Decoding on the measured Windows machine is
-      kernel-launch bound (a 14-token prefill costs about the same as a cached
-      one-token step). The same recipe on Linux would very likely be faster, but
-      that is a prediction and is **not measured**; the docs say so.
-- [ ] **A teacher that knows the protocol.** The GPU benchmark shows that
-      distilling toward a raw instruct teacher can reduce task success. An arm
-      that SFTs the teacher first would separate "OPD does not help here" from
-      "this teacher does not help here".
-- [ ] **The JSON-navigation and SQLite recipes on GPU.** Only the calculator
-      environment has been run end to end on real models.
-
-## Roadmap (deliberately not implemented in v0.1.0)
-
-Listed in `docs/limitations.md` too. Nothing below exists in the code.
-
-- [ ] Cross-tokenizer distillation. Currently rejected with an explicit error.
-- [ ] Padded multi-sequence batching. Today one trajectory per forward pass, so
-      `gradient_accumulation_steps` is the batch size.
-- [ ] Entropy-aware divergence mixing (arXiv:2603.07079). miniVERL already
-      records per-token teacher entropy, which is the input such a method needs.
-- [ ] More model families. Only Qwen3 and Qwen2 are tested.
-- [ ] More environments. The registry and the example make this the cheapest
-      contribution to accept.
-- [ ] Multi-GPU. Out of scope on purpose; use verl.
+Multi-GPU training, Ray, FSDP, DeepSpeed, vLLM and PPO/GRPO remain intentionally
+out of scope; use verl or another distributed training system for those needs.

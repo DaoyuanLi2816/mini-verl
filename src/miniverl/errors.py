@@ -27,6 +27,7 @@ __all__ = [
     "CheckpointError",
     "ReportError",
     "RunNotFoundError",
+    "RunDirectoryError",
 ]
 
 
@@ -121,3 +122,7 @@ class ReportError(MiniVerlError):
 
 class RunNotFoundError(MiniVerlError):
     """A run directory does not exist or is missing required artifacts."""
+
+
+class RunDirectoryError(MiniVerlError):
+    """A run directory could not be created, resumed or safely replaced."""

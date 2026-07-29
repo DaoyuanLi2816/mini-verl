@@ -30,7 +30,7 @@ description: >-
 
 base: ../../recipes/qwen_consumer_gpu_calc_raw_teacher.yaml
 common_overrides:
-  environment: {difficulty: hard, test_tasks: 24}
+  environment: {difficulty: hard, test_tasks: 24, params: {protocol_version: v1}}
   train:
     sft_warmup_cycles: 0
     learning_rate: 5.0e-5

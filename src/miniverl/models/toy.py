@@ -364,9 +364,23 @@ class ToyBackend(CausalLMBackend):
     def load_trainable_state_dict(self, state: dict[str, torch.Tensor]) -> None:
         """Restore trainable parameters in place."""
         own = dict(self.model.named_parameters())
-        missing = [k for k in state if k not in own]
+        expected = {name for name, parameter in own.items() if parameter.requires_grad}
+        unknown = sorted(set(state).difference(expected))
+        missing = sorted(expected.difference(state))
+        if unknown:
+            raise BackendError(f"unknown trainable parameter names in state dict: {unknown[:5]}")
         if missing:
-            raise BackendError(f"unknown parameter names in state dict: {missing[:5]}")
+            raise BackendError(f"state dict is missing trainable parameters: {missing[:5]}")
+        mismatched = [
+            (name, tuple(value.shape), tuple(own[name].shape))
+            for name, value in state.items()
+            if value.shape != own[name].shape
+        ]
+        if mismatched:
+            name, actual, expected_shape = mismatched[0]
+            raise BackendError(
+                f"trainable parameter {name!r} has shape {actual}, expected {expected_shape}"
+            )
         with torch.no_grad():
             for name, value in state.items():
                 own[name].copy_(value.to(own[name].device, own[name].dtype))

@@ -29,6 +29,7 @@ import re
 import subprocess
 import sys
 from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -598,12 +599,16 @@ _RUN_PATH_PROPERTIES = (
     "config_original",
     "config_resolved",
     "manifest",
+    "manifest_start",
     "environment",
     "metrics",
     "events",
     "trajectories",
     "eval_trajectories",
     "teacher_cache",
+    "offline_dataset",
+    "offline_dataset_manifest",
+    "offline_dataset_trajectories",
     "checkpoints",
     "eval_json",
     "report_html",
@@ -616,9 +621,16 @@ def test_make_run_id_sanitizes_and_timestamps(monkeypatch: pytest.MonkeyPatch) -
     from miniverl.utils.runs import make_run_id
 
     run_id = make_run_id("Qwen Calc! v2/beta")
-    assert re.fullmatch(r"\d{8}-\d{6}-qwen-calc-v2-beta", run_id), run_id
+    assert re.fullmatch(r"\d{8}-\d{6}-\d{6}-[0-9a-f]{8}-qwen-calc-v2-beta", run_id), run_id
     assert make_run_id("keep.dots_and-dashes").endswith("-keep.dots_and-dashes")
-    assert re.fullmatch(r"\d{8}-\d{6}-run", make_run_id("///"))
+    assert re.fullmatch(r"\d{8}-\d{6}-\d{6}-[0-9a-f]{8}-run", make_run_id("///"))
+
+
+def test_generated_run_ids_do_not_collide_within_one_second() -> None:
+    from miniverl.utils.runs import make_run_id
+
+    ids = {make_run_id("same-run") for _ in range(32)}
+    assert len(ids) == 32
 
 
 def test_make_run_id_honours_an_explicit_id() -> None:
@@ -719,7 +731,29 @@ def test_read_json_raises_run_not_found_for_a_missing_file(tmp_path: Path) -> No
         read_json(tmp_path / "manifest.json")
 
 
+def test_atomic_json_failure_preserves_the_previous_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import miniverl.utils.runs as runs_module
+    from miniverl.utils.runs import write_json, write_json_atomic
+
+    target = write_json(tmp_path / "manifest.json", {"status": "running"})
+    before = target.read_bytes()
+
+    def fail_replace(_source, _target):
+        raise OSError("injected atomic replace failure")
+
+    monkeypatch.setattr(runs_module, "_replace_file", fail_replace)
+    with pytest.raises(OSError, match="injected"):
+        write_json_atomic(target, {"status": "completed"})
+
+    assert target.read_bytes() == before
+    assert not list(tmp_path.glob(".manifest.json.tmp-*"))
+
+
 def test_run_paths_create_makes_the_cache_and_checkpoint_directories(tmp_path: Path) -> None:
+    from miniverl.errors import MiniVerlError
     from miniverl.utils.runs import RunPaths
 
     paths = RunPaths.create(tmp_path / "runs", "20260101-000000-demo")
@@ -727,9 +761,48 @@ def test_run_paths_create_makes_the_cache_and_checkpoint_directories(tmp_path: P
     assert paths.root.is_dir()
     assert paths.teacher_cache.is_dir()
     assert paths.checkpoints.is_dir()
-    # create() is idempotent, so a resumed run does not explode.
-    again = RunPaths.create(tmp_path / "runs", "20260101-000000-demo")
-    assert again == paths
+    marker = paths.root / "old-artifact.txt"
+    marker.write_text("must survive a refused collision", encoding="utf-8")
+
+    with pytest.raises(MiniVerlError, match="already exists") as excinfo:
+        RunPaths.create(tmp_path / "runs", "20260101-000000-demo")
+    assert "--resume" in str(excinfo.value)
+    assert "--overwrite" in str(excinfo.value)
+    assert marker.read_text(encoding="utf-8") == "must survive a refused collision"
+
+
+def test_run_paths_explicit_overwrite_replaces_the_whole_run(tmp_path: Path) -> None:
+    from miniverl.utils.runs import RunPaths
+
+    first = RunPaths.create(tmp_path / "runs", "replace-me")
+    (first.root / "events.jsonl").write_text('{"old": true}\n', encoding="utf-8")
+    (first.checkpoints / "stale").mkdir()
+
+    second = RunPaths.create(tmp_path / "runs", "replace-me", overwrite=True)
+
+    assert second == first
+    assert not second.events.exists()
+    assert not (second.checkpoints / "stale").exists()
+    assert second.teacher_cache.is_dir()
+    assert second.checkpoints.is_dir()
+    assert not list((tmp_path / "runs").glob(".replace-me.overwrite-*"))
+
+
+def test_run_paths_concurrent_creation_has_one_winner(tmp_path: Path) -> None:
+    from miniverl.errors import MiniVerlError
+    from miniverl.utils.runs import RunPaths
+
+    def create() -> str:
+        try:
+            return str(RunPaths.create(tmp_path / "runs", "contended").root)
+        except MiniVerlError:
+            return "refused"
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(lambda _index: create(), range(2)))
+
+    assert outcomes.count(str(tmp_path / "runs" / "contended")) == 1
+    assert outcomes.count("refused") == 1
 
 
 def test_every_run_path_stays_inside_the_root_and_is_unique(tmp_path: Path) -> None:

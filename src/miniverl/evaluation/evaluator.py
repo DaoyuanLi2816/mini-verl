@@ -9,11 +9,12 @@ recipe -- is what makes the evaluation reproduce the run it is evaluating: any
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
 from miniverl.config.models import RunConfig
-from miniverl.errors import RunNotFoundError
+from miniverl.errors import CheckpointError, RunNotFoundError
 from miniverl.utils.logging import get_logger
 from miniverl.utils.runs import RunPaths, write_json
 
@@ -34,7 +35,11 @@ def evaluate_run(
 ) -> dict[str, Any]:
     """Re-evaluate a finished run and write the result next to it."""
     from miniverl.trainer import OPDTrainer
-    from miniverl.training.checkpoint import latest_checkpoint, load_checkpoint
+    from miniverl.training.checkpoint import (
+        latest_checkpoint,
+        load_checkpoint,
+        validate_checkpoint,
+    )
 
     paths = RunPaths.open(run_dir)
     if not paths.config_resolved.is_file():
@@ -47,30 +52,46 @@ def evaluate_run(
         config = config.model_copy(update={"eval": config.eval.model_copy(update={"tasks": tasks})})
 
     target_checkpoint = Path(checkpoint) if checkpoint else latest_checkpoint(paths.checkpoints)
+    if target_checkpoint is None:
+        raise CheckpointError(
+            f"no checkpoint found under {paths.checkpoints}",
+            hint="finish training or pass --checkpoint with a complete checkpoint directory",
+        )
+    validated = validate_checkpoint(target_checkpoint)
+    resolved_digest = hashlib.sha256(paths.config_resolved.read_bytes()).hexdigest()
+    if (
+        validated.state.resolved_config_digest
+        and validated.state.resolved_config_digest != resolved_digest
+    ):
+        raise CheckpointError(
+            "the checkpoint does not belong to this resolved run configuration",
+            hint="evaluate the run directory that originally produced this checkpoint",
+        )
     trainer = OPDTrainer.from_config(
         config,
         output_dir=paths.root.parent,
         run_id=paths.root.name,
         local_files_only=local_files_only,
         write_artifacts=False,
+        for_evaluation=True,
     )
     try:
-        if target_checkpoint is not None and Path(target_checkpoint).is_dir():
-            load_checkpoint(
-                target_checkpoint,
-                backend=trainer.student,
-                optimizer=trainer.optimizer,
-                device=trainer.student.device,
-                include_rng=False,
-            )
-            logger.info("restored checkpoint %s", target_checkpoint)
-        else:
-            logger.warning(
-                "no checkpoint found under %s; evaluating the freshly initialized student",
-                paths.checkpoints,
-            )
+        state = load_checkpoint(
+            target_checkpoint,
+            backend=trainer.student,
+            optimizer=None,
+            device=trainer.student.device,
+            include_optimizer=False,
+            include_rng=False,
+            expected_identity=(trainer._checkpoint_identity() if validated.identity else None),
+        )
+        trainer._apply_checkpoint_progress(state)
+        logger.info("restored checkpoint %s", target_checkpoint)
         payload = trainer.evaluate(split=split, tag=tag, write=True)
-        payload["checkpoint"] = str(target_checkpoint) if target_checkpoint else None
+        payload["checkpoint"] = str(target_checkpoint)
+        payload["checkpoint_digest"] = validated.content_digest
+        payload["checkpoint_integrity"] = validated.integrity
+        payload["checkpoint_global_step"] = validated.state.global_step
         payload["run_dir"] = str(paths.root)
         destination = Path(out) if out else paths.root / f"eval.{tag}.json"
         write_json(destination, payload)

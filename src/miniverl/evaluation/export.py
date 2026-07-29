@@ -83,6 +83,25 @@ def export_run(
         ),
         avg_turns=float(final["avg_turns"]),
         avg_tool_calls=float(final["avg_tool_calls"]),
+        **{
+            key: int(final[key]) if final.get(key) is not None else None
+            for key in (
+                "assistant_turns",
+                "emitted_tool_calls",
+                "parsed_tool_calls",
+                "tool_execution_successes",
+                "tool_execution_errors",
+                "unknown_tool_calls",
+                "parse_errors",
+                "repeated_call_terminations",
+                "final_answers_emitted",
+                "final_answers_format_valid",
+                "final_answers_verified",
+            )
+        },
+        parse_valid_tool_call_rate=finite_or_none(final.get("parse_valid_tool_call_rate")),
+        tool_execution_success_rate=finite_or_none(final.get("tool_execution_success_rate")),
+        tool_execution_error_rate=finite_or_none(final.get("tool_execution_error_rate")),
         tool_call_count=(
             int(final["tool_call_count"]) if final.get("tool_call_count") is not None else None
         ),

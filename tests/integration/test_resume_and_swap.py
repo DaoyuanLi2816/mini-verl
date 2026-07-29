@@ -124,6 +124,32 @@ def _assert_states_equal(
     assert worst <= atol, f"largest parameter difference {worst:.3e} exceeds {atol:.1e}"
 
 
+def _assert_optimizer_states_equal(a: dict[str, Any], b: dict[str, Any]) -> None:
+    assert a.keys() == b.keys()
+    assert a["param_groups"] == b["param_groups"]
+    assert a["state"].keys() == b["state"].keys()
+    for param_id in a["state"]:
+        assert a["state"][param_id].keys() == b["state"][param_id].keys()
+        for key, value in a["state"][param_id].items():
+            other = b["state"][param_id][key]
+            if isinstance(value, torch.Tensor):
+                assert torch.equal(value, other), (param_id, key)
+            else:
+                assert value == other
+
+
+def _normalized_cycle_metrics(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized = []
+    for record in records:
+        if not str(record.get("phase", "")).endswith("_cycle"):
+            continue
+        item = dict(record)
+        item.pop("seconds", None)
+        item.pop("ts", None)
+        normalized.append(item)
+    return normalized
+
+
 # ------------------------------------------------------------------ resume
 
 
@@ -175,6 +201,83 @@ def test_uninterrupted_and_resumed_training_agree_exactly(tmp_path: Path):
     _assert_states_equal(reference_state, resumed_state, atol=1e-6)
 
 
+def test_offline_kd_resume_reuses_the_exact_persisted_dataset(tmp_path: Path) -> None:
+    from miniverl.cache.store import sha256_file
+    from miniverl.trainer import OPDTrainer
+    from miniverl.trajectory.io import read_trajectories
+    from miniverl.utils.runs import read_jsonl
+    from miniverl.utils.seeding import seed_everything
+
+    offline = {
+        "run": {"mode": "offline_kd"},
+        "cache": {
+            "reuse_across_policy_versions": True,
+            "strict_policy_version": False,
+            "keep_cycles": 10,
+        },
+    }
+    seed_everything(11, deterministic=True)
+    reference = OPDTrainer.from_config(_config(tmp_path, **offline), run_id="offline-reference")
+    reference.train()
+    reference_state = _flat_state(reference.student)
+    reference_optimizer = reference.optimizer.state_dict()
+    reference_step = reference.global_step
+    reference_cursor = reference.task_cursor
+    reference_metrics = read_jsonl(reference.paths.metrics)
+    reference_digest = reference.offline_dataset_digest
+    reference.close()
+
+    seed_everything(11, deterministic=True)
+    first = OPDTrainer.from_config(_config(tmp_path, **offline), run_id="offline-interrupted")
+    first._prepare_toy_teacher()
+    for cycle in range(2):
+        first.cycle = cycle
+        first._run_cycle()
+    checkpoint = first.save_checkpoint(name="interrupt")
+    dataset_manifest = first.paths.offline_dataset_manifest
+    dataset_trajectories = first.paths.offline_dataset_trajectories
+    before_files = {
+        path: path.read_bytes()
+        for path in (
+            dataset_manifest,
+            dataset_trajectories,
+            first.paths.teacher_cache / "index.json",
+        )
+    }
+    trajectory_ids = [
+        trajectory.trajectory_id for trajectory in read_trajectories(dataset_trajectories)
+    ]
+    cache_digest_before, _ = sha256_file(first.paths.teacher_cache / "index.json")
+    interrupted_root = first.paths.root
+    interrupted_digest = first.offline_dataset_digest
+    first.close()
+
+    assert checkpoint.is_dir()
+    resumed = OPDTrainer.from_config(_config(tmp_path, **offline), resume=interrupted_root)
+    assert resumed.offline_dataset_digest == interrupted_digest
+    assert resumed._offline_samples is not None
+    assert [
+        sample.trajectory.trajectory_id for sample in resumed._offline_samples
+    ] == trajectory_ids
+    resumed.train()
+
+    resumed_state = _flat_state(resumed.student)
+    resumed_optimizer = resumed.optimizer.state_dict()
+    resumed_metrics = read_jsonl(resumed.paths.metrics)
+    cache_digest_after, _ = sha256_file(resumed.paths.teacher_cache / "index.json")
+    assert all(path.read_bytes() == contents for path, contents in before_files.items())
+    assert cache_digest_after == cache_digest_before
+    assert resumed.offline_dataset_digest == reference_digest
+    assert resumed.global_step == reference_step
+    assert resumed.task_cursor == reference_cursor
+    _assert_states_equal(reference_state, resumed_state, atol=1e-6)
+    _assert_optimizer_states_equal(reference_optimizer, resumed_optimizer)
+    assert _normalized_cycle_metrics(reference_metrics) == _normalized_cycle_metrics(
+        resumed_metrics
+    )
+    resumed.close()
+
+
 def test_checkpoint_round_trip_restores_optimizer_and_schedule(tmp_path: Path):
     from miniverl.trainer import OPDTrainer
     from miniverl.training.checkpoint import load_checkpoint
@@ -219,7 +322,12 @@ def test_checkpoint_files_are_pickle_free(tmp_path: Path):
     path = trainer.save_checkpoint(name="inspect")
     trainer.close()
     names = sorted(p.name for p in path.iterdir())
-    assert names == ["adapter.safetensors", "optimizer.safetensors", "state.json"]
+    assert names == [
+        "adapter.safetensors",
+        "checkpoint.json",
+        "optimizer.safetensors",
+        "state.json",
+    ]
     # A pickle stream starts with a protocol opcode; safetensors starts with a
     # little-endian header length. Assert the files are not pickles.
     for name in ("adapter.safetensors", "optimizer.safetensors"):
@@ -228,6 +336,7 @@ def test_checkpoint_files_are_pickle_free(tmp_path: Path):
     import json
 
     json.loads((path / "state.json").read_text(encoding="utf-8"))
+    json.loads((path / "checkpoint.json").read_text(encoding="utf-8"))
 
 
 def test_resuming_a_checkpoint_from_a_different_config_is_refused(tmp_path: Path):
@@ -242,8 +351,15 @@ def test_resuming_a_checkpoint_from_a_different_config_is_refused(tmp_path: Path
     other = OPDTrainer.from_config(
         _config(tmp_path, train={"cycles": 1, "learning_rate": 0.001}), run_id="digest-b"
     )
+    before = {
+        name: tensor.detach().clone()
+        for name, tensor in other.student.trainable_state_dict().items()
+    }
     with pytest.raises(ConfigError, match="different configuration"):
         other.load_from_checkpoint(path)
+    after = other.student.trainable_state_dict()
+    assert set(after) == set(before)
+    assert all(torch.equal(before[name], after[name]) for name in before)
     other.close()
 
 
@@ -378,3 +494,130 @@ def test_a_non_oom_error_is_not_retried():
     with pytest.raises(RuntimeError, match="shape mismatch"):
         run_with_oom_retry(boom, plan=plan, memory=MemoryConfig(oom_retries=3))
     assert calls == 1, "a real bug must surface immediately, not be retried away"
+
+
+def test_retry_restores_rng_and_commits_the_optimizer_exactly_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    config = _config(
+        tmp_path,
+        run={"mode": "sft"},
+        loss={"chunk_size": 8},
+        memory={"oom_retries": 1, "min_chunk_size": 4},
+        train={"cycles": 1},
+    )
+    reference = OPDTrainer.from_config(config, run_id="oom-reference")
+    retried = OPDTrainer.from_config(config, run_id="oom-retried")
+    reference.plan.chunk_size = 4
+    retried.plan.chunk_size = 8
+    retry_attempts = 0
+    optimizer_steps = 0
+
+    def install_compute(trainer, *, inject_oom: bool):
+        def compute(_group, _chunk: int):
+            nonlocal retry_attempts
+            trainer.optimizer.zero_grad(set_to_none=True)
+            parameter = trainer.student.trainable_parameters()[0]
+            values = torch.nn.functional.dropout(
+                parameter.reshape(-1)[:64],
+                p=0.4,
+                training=True,
+            )
+            loss = values.square().mean()
+            loss.backward()
+            if inject_oom and retry_attempts == 0:
+                retry_attempts += 1
+                raise RuntimeError("CUDA out of memory after backward")
+            return {
+                "loss": float(loss.detach()),
+                "selected_positions": 1,
+                "trajectories_in_step": 1,
+                "teacher_entropy_mean": None,
+                "loss_by_span_type": {},
+            }
+
+        monkeypatch.setattr(trainer, "_compute_group_gradients", compute)
+
+    install_compute(reference, inject_oom=False)
+    install_compute(retried, inject_oom=True)
+    original_step = retried.optimizer.step
+
+    def counted_step(*args, **kwargs):
+        nonlocal optimizer_steps
+        optimizer_steps += 1
+        return original_step(*args, **kwargs)
+
+    monkeypatch.setattr(retried.optimizer, "step", counted_step)
+    torch.manual_seed(991)
+    reference._optimize([object()], phase="test")
+    torch.manual_seed(991)
+    retried._optimize([object()], phase="test")
+
+    assert retry_attempts == 1
+    assert optimizer_steps == 1
+    assert retried.plan.chunk_size == 4
+    _assert_states_equal(
+        _flat_state(reference.student),
+        _flat_state(retried.student),
+        atol=0.0,
+    )
+    reference.close()
+    retried.close()
+
+
+def test_optimizer_step_oom_is_not_retried_and_marks_run_failed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json
+
+    from miniverl.errors import GpuMemoryError
+    from miniverl.trainer import OPDTrainer
+
+    trainer = OPDTrainer.from_config(
+        _config(tmp_path, run={"mode": "sft"}, train={"cycles": 1}),
+        run_id="optimizer-oom",
+    )
+    step_calls = 0
+
+    def compute(_group, _chunk: int):
+        trainer.optimizer.zero_grad(set_to_none=True)
+        parameter = trainer.student.trainable_parameters()[0]
+        parameter.square().mean().backward()
+        return {
+            "loss": 1.0,
+            "selected_positions": 1,
+            "trajectories_in_step": 1,
+            "teacher_entropy_mean": None,
+            "loss_by_span_type": {},
+        }
+
+    def fail_step(*_args, **_kwargs):
+        nonlocal step_calls
+        step_calls += 1
+        with torch.no_grad():
+            trainer.student.trainable_parameters()[0].add_(1.0)
+        raise RuntimeError("CUDA out of memory allocating Adam state")
+
+    def run_cycle():
+        trainer._optimize([object()], phase="test")
+        return []
+
+    monkeypatch.setattr(trainer, "_compute_group_gradients", compute)
+    monkeypatch.setattr(trainer.optimizer, "step", fail_step)
+    monkeypatch.setattr(trainer, "_run_cycle", run_cycle)
+    with pytest.raises(GpuMemoryError, match=r"optimizer\.step"):
+        trainer.train()
+
+    manifest = json.loads(trainer.paths.manifest.read_text(encoding="utf-8"))
+    assert step_calls == 1
+    assert trainer.global_step == 0
+    assert trainer.parameter_version == 0
+    assert manifest["status"] == "failed"
+    assert manifest["parameter_version"] == 0
+    assert manifest["failure"]["type"] == "GpuMemoryError"
+    assert not (trainer.paths.checkpoints / "final").exists()
+    trainer.close()

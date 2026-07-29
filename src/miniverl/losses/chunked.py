@@ -141,12 +141,20 @@ class LossOutput:
     loss: float
     num_positions: int
     total_weight: float
-    per_token: torch.Tensor
+    per_token_objective: torch.Tensor
+    per_token_divergence: torch.Tensor | None = None
     per_token_ce: torch.Tensor | None = None
     teacher_entropy: torch.Tensor | None = None
     grad_hidden: torch.Tensor | None = None
     num_chunks: int = 0
     metrics: dict[str, float] = field(default_factory=dict)
+
+    @property
+    def per_token(self) -> torch.Tensor:
+        """Backward-compatible divergence view; use explicit component fields."""
+        if self.per_token_divergence is not None:
+            return self.per_token_divergence
+        return torch.zeros_like(self.per_token_objective)
 
 
 def _cross_entropy(student_logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -213,8 +221,15 @@ def chunked_selected_position_loss(
             loss=0.0,
             num_positions=0,
             total_weight=0.0,
-            per_token=torch.zeros(0, dtype=torch.float32, device=device),
-            per_token_ce=torch.zeros(0, dtype=torch.float32, device=device),
+            per_token_objective=torch.zeros(0, dtype=torch.float32, device=device),
+            per_token_divergence=(
+                torch.zeros(0, dtype=torch.float32, device=device) if provider is not None else None
+            ),
+            per_token_ce=(
+                torch.zeros(0, dtype=torch.float32, device=device)
+                if provider is None or ce_weight > 0.0
+                else None
+            ),
             teacher_entropy=torch.zeros(0, dtype=torch.float32, device=device)
             if collect_teacher_entropy
             else None,
@@ -234,7 +249,8 @@ def chunked_selected_position_loss(
     work = hidden_states.detach().requires_grad_(True) if use_two_stage else hidden_states
 
     loss_value = 0.0
-    per_token_parts: list[torch.Tensor] = []
+    objective_parts: list[torch.Tensor] = []
+    divergence_parts: list[torch.Tensor] = []
     ce_parts: list[torch.Tensor] = []
     entropy_parts: list[torch.Tensor] = []
     num_chunks = 0
@@ -268,8 +284,11 @@ def chunked_selected_position_loss(
             (chunk_loss * loss_scale).backward()
         loss_value += float(chunk_loss.detach())
 
-        per_token_parts.append(divergence.detach())
-        ce_parts.append(ce.detach())
+        objective_parts.append(combined.detach())
+        if provider is not None:
+            divergence_parts.append(divergence.detach())
+        if provider is None or ce_weight > 0.0:
+            ce_parts.append(ce.detach())
         if collect_teacher_entropy and provider is not None:
             entropy_parts.append(provider.teacher_entropy(start, end).detach())
 
@@ -286,7 +305,8 @@ def chunked_selected_position_loss(
         loss=loss_value,
         num_positions=n,
         total_weight=float(w.sum()),
-        per_token=torch.cat(per_token_parts) if per_token_parts else torch.zeros(0),
+        per_token_objective=(torch.cat(objective_parts) if objective_parts else torch.zeros(0)),
+        per_token_divergence=(torch.cat(divergence_parts) if divergence_parts else None),
         per_token_ce=torch.cat(ce_parts) if ce_parts else None,
         teacher_entropy=torch.cat(entropy_parts) if entropy_parts else None,
         grad_hidden=grad_hidden,

@@ -209,8 +209,7 @@ def main() -> int:
     from miniverl.trainer import OPDTrainer
 
     output = Path(sys.argv[1] if len(sys.argv) > 1 else "runs/examples")
-    trainer = OPDTrainer.from_config(build_config(str(output)), run_id="sharpened-teacher")
-    try:
+    with OPDTrainer.from_config(build_config(str(output)), run_id="sharpened-teacher") as trainer:
         assert isinstance(trainer.scorer, LocalTeacherScorer)
         baseline_scorer = trainer.scorer
         trainer.scorer = SharpenedTeacherScorer(baseline_scorer, sharpness=2.0)
@@ -222,8 +221,6 @@ def main() -> int:
         )
 
         result = trainer.train()
-    finally:
-        trainer.close()
 
     # The targets really were modified: re-score one stored trajectory both ways
     # and confirm the sharpened distribution is more concentrated.

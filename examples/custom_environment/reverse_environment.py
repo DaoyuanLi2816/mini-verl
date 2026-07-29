@@ -278,11 +278,8 @@ def main() -> int:
     assert solved == len(splits["train"])
 
     output = Path(sys.argv[1] if len(sys.argv) > 1 else "runs/examples")
-    trainer = OPDTrainer.from_config(build_config(str(output)), run_id="reverse-opd")
-    try:
+    with OPDTrainer.from_config(build_config(str(output)), run_id="reverse-opd") as trainer:
         result = trainer.train()
-    finally:
-        trainer.close()
 
     baseline = (result.baseline_eval or {}).get("success_rate")
     final = (result.eval or {}).get("success_rate")

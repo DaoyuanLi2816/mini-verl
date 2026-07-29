@@ -9,7 +9,7 @@ from miniverl.agent.transcript import TokenizerLike
 from miniverl.config.models import ModelBackend, ModelsConfig, RunConfig
 from miniverl.errors import ConfigError, TokenizerMismatchError
 from miniverl.models.base import CausalLMBackend
-from miniverl.models.tokenizers import HFTokenizerAdapter, ToyTokenizer
+from miniverl.models.tokenizers import HFTokenizerAdapter, ToyTokenizer, assert_same_tokenizer
 from miniverl.utils.lazy import have_module
 
 __all__ = ["BackendBundle", "resolve_device", "build_tokenizer", "build_student", "build_teacher"]
@@ -75,14 +75,19 @@ def build_tokenizer(config: RunConfig, *, local_files_only: bool = False) -> Tok
         local_files_only=local_files_only,
     )
     teacher_id = teacher.tokenizer_id or teacher.model_id
-    if teacher_id != (student.tokenizer_id or student.model_id):
+    student_id = student.tokenizer_id or student.model_id
+    student_revision = student.tokenizer_revision or student.revision
+    teacher_revision = teacher.tokenizer_revision or teacher.revision
+    if (teacher_id, teacher_revision) != (student_id, student_revision):
         teacher_tok = HFTokenizerAdapter.load(
             teacher_id,
-            revision=teacher.tokenizer_revision or teacher.revision,
+            revision=teacher_revision,
             trust_remote_code=teacher.trust_remote_code,
             local_files_only=local_files_only,
         )
-        if teacher_tok.fingerprint != student_tok.fingerprint:
+        try:
+            assert_same_tokenizer(student_tok, teacher_tok)
+        except TokenizerMismatchError as exc:
             raise TokenizerMismatchError(
                 f"the student tokenizer ({student.tokenizer_id or student.model_id}) and the "
                 f"teacher tokenizer ({teacher_id}) tokenize differently",
@@ -90,7 +95,7 @@ def build_tokenizer(config: RunConfig, *, local_files_only: bool = False) -> Tok
                 "teacher from the same model family, e.g. Qwen/Qwen3-0.6B with "
                 "Qwen/Qwen3-1.7B. Cross-tokenizer distillation is a roadmap item "
                 "(docs/limitations.md).",
-            )
+            ) from exc
     return student_tok
 
 
@@ -167,4 +172,5 @@ def build_teacher(
         tokenizer=tokenizer,
         trainable=False,
         local_files_only=local_files_only,
+        protocol_version=str(config.environment.params.get("protocol_version", "v1")),
     )

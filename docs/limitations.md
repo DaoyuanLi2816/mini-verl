@@ -225,6 +225,16 @@ designed to test that.
 
 ### Protocol alignment prevents collapse but does not beat SFT
 
+The v0.2 tool prompt is now named protocol `v1` and remains byte-stable for
+historical artifacts. Its full and compact prompt examples were ambiguous:
+the final-answer placeholder looked like a literal wrapper even though the
+calculator verifier expects the numeric payload inside `<final>`. Protocol
+`v2` corrects the examples and round-trips them through the parser. Existing
+adapters and recipes stay on explicit `v1`; miniVERL refuses to use a
+competence-gated adapter under a different requested protocol. This versioning
+fix prevents silent reinterpretation, but it does not rewrite the frozen v0.2
+benchmark or adapter.
+
 The primary schema-v2 comparison uses an explicit equal-optimizer-update axis,
 two prespecified seeds and the `hard` split:
 
@@ -242,6 +252,43 @@ seen with both protocol-naive teachers, supporting the legacy transcript
 diagnosis. It still only ties SFT. This repository therefore has evidence that
 teacher protocol competence matters for this setup, but no evidence that OPD
 outperforms verified supervised continuation.
+
+There is an additional selection caveat. Candidate A was prespecified, passed
+the 50% gate on its first run, and therefore triggered no fallback tuning.
+However, the teacher gate used the same 24-task v0.2 `test` set that was later
+used for downstream OPD reporting. The downstream OPD outcome was not consulted
+when selecting the teacher, but the final task set was not completely untouched.
+The historical recipe and grid retain that fact. Future protocol-teacher
+selection must evaluate on `eval`; downstream comparisons must report `test`.
+
+### Teacher preparation is part of the cost
+
+The measured continuation-only protocol-OPD cost is **523.8 s** per student run
+on the RTX 4080 (mean over the two v0.2 seeds). Preparing Candidate A took
+**554.9 s** once. On the same measured wall-time basis:
+
+| accounting view | seconds per student run |
+| --- | ---: |
+| continuation only, reusing the published teacher | 523.8 |
+| teacher preparation + one continuation | 1,078.7 |
+| teacher reused across 5 student runs | 634.8 amortized |
+| teacher reused across 10 student runs | 579.3 amortized |
+
+These figures add measured training times; they exclude download, export and
+human selection time. Teacher preparation is reusable, not free.
+
+### Support claims follow the test matrix
+
+| surface | evidence |
+| --- | --- |
+| torch-free core | Python 3.10, 3.11, 3.12 and 3.13 in CI |
+| full CPU ML suite | Python 3.12 in CI |
+| no-network toy training | oldest/newest training-stack Python rows in CI |
+| Transformers | 4.51.x and supported 5.x rows on Python 3.12 |
+| GPU paths | opt-in workflow plus local RTX 4080 evidence on Python 3.12 |
+
+The core Python matrix is not a claim that every torch/PEFT/bitsandbytes build
+supports every one of those interpreters.
 
 The [schema-v2 result](../benchmarks/results/gpu-calc-hard-equal-update-v2.json)
 contains both seeds and every arm's complete resolved-config diff. The preserved

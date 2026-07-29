@@ -28,19 +28,39 @@ These come from `RolloutStats` in `src/miniverl/agent/loop.py`. One
 | `rollouts` | number of trajectories folded in |
 | `solved` | trajectories whose `verification.solved` is true |
 | `success_rate` | `solved / n` |
-| `avg_turns` | `sum(len(trajectory.turns)) / n` |
-| `avg_tool_calls` | turns whose recorded tool call is marked valid, divided by `n` |
-| `invalid_tool_call_rate` | `invalid_tool_calls / max(tool_calls + invalid_tool_calls, 1)` |
+| `assistant_turns` | assistant generations that emitted at least one token |
+| `emitted_tool_calls` | generations containing a `<tool_call>` opening marker |
+| `parsed_tool_calls` | emitted tool-call blocks accepted by the protocol parser |
+| `tool_execution_successes` | parsed calls whose environment step returned `ok=true` |
+| `tool_execution_errors` | parsed calls whose environment step failed or raised |
+| `unknown_tool_calls` | execution errors classified specifically as `unknown_tool` |
+| `parse_errors` | assistant generations that parsed as neither a tool call nor a final answer |
+| `repeated_call_terminations` | episodes stopped by the repeated-identical-call limit |
+| `final_answers_emitted` | generations containing a `<final>` opening marker |
+| `final_answers_format_valid` | final blocks accepted by the parser and not classified malformed by the verifier |
+| `final_answers_verified` | parsed final blocks for which the verifier returned a record |
+| `parse_valid_tool_call_rate` | `parsed_tool_calls / emitted_tool_calls`, or `null` when no tool block was emitted |
+| `tool_execution_success_rate` | successes divided by `successes + errors`, or `null` when no call was executed |
+| `tool_execution_error_rate` | errors divided by `successes + errors`, or `null` when no call was executed |
+| `final_answer_format_validity_rate` | `final_answers_format_valid / final_answers_emitted`, or `null` when no final block was emitted |
+| `avg_turns` | `assistant_turns / n` |
+| `avg_tool_calls` | `parsed_tool_calls / n` |
 | `generated_tokens` | sum of `trajectory.generated_token_count` |
 | `generated_tokens_per_task` | `generated_tokens / n` |
-| `tokens_per_solved_task` | `generated_tokens / solved`, or NaN when `solved == 0` |
+| `tokens_per_solved_task` | `generated_tokens / solved`, or `null` when `solved == 0` |
 | `termination_reasons` | counter over `TerminationReason` |
 | `failure_categories` | counter over `FailureCategory`, plus `no_final_answer` for trajectories with no verification record |
 
-`invalid_tool_calls` counts two things, both incremented in
-`RolloutRunner.rollout`: a turn whose assistant text failed to parse as either
-a tool call or a final answer, and a parsed tool call that the environment
-rejected (`step.ok` false).
+The old `tool_call_count`, `valid_tool_call_rate` and
+`invalid_tool_call_rate` fields remain derived compatibility aliases for
+schema-v1/v2 readers. New artifacts and reports use the precise fields above:
+a parsed call with invalid arguments is one emitted call, one parsed call and
+one execution error; it is never counted twice. A parse error is not an
+execution error.
+
+`rollout.max_parse_errors` is the maximum tolerated count. The episode stops
+as soon as the count reaches that value: `0` stops on the first parse error and
+`2` stops on the second. Tool execution errors do not advance this counter.
 
 `TerminationReason` is one of `final_answer`, `max_turns`, `max_tokens`,
 `parse_error_limit`, `repeated_call_limit`, `environment_error`,
@@ -58,8 +78,10 @@ rejected (`step.ok` false).
 | `tag` | label for this evaluation pass (`baseline`, `final`, `cycleN`, `benchmark-<arm>`, `standalone`) |
 | `split` | `train`, `eval` or `test` |
 | `tasks` | number of tasks evaluated, capped by `eval.tasks` (falling back to `environment.eval_tasks`) |
-| `policy_version` | policy version at evaluation time |
-| `global_step` | optimizer steps completed at evaluation time |
+| `parameter_version` | successful student parameter updates completed at evaluation time |
+| `policy_version` | deprecated alias of `parameter_version` |
+| `global_optimizer_step` / `global_step` | optimizer steps completed at evaluation time |
+| `rollout_policy_version` | parameter version that generated the most recently consumed rollout batch |
 | `temperature` | `eval.temperature`; the shipped recipes use `0.0`, which is exact argmax decoding |
 | `seconds` | wall clock of the evaluation pass |
 | `rollout_tokens_per_second` | `generated_tokens / seconds` |
@@ -142,7 +164,7 @@ comparisons.
 | `teacher_adapter` | validated adapter identity, hashes and policy evaluation, or null |
 | `top_k` | `manifest["objective"]["top_k"]`: the student vocabulary size in `exact_full_vocab` mode, otherwise `min(loss.top_k, vocab_size)` |
 | `optimizer_steps` | `TrainResult.global_step` |
-| `policy_version` | policy version reached |
+| `policy_version` | backward-compatible alias of the final parameter version |
 | `tasks` ... `tokens_per_solved_task` | the held-out evaluation payload above; `tokens_per_solved_task` is stored as `null` when it was NaN |
 | `selected_training_tokens_total`, `model_generated_training_tokens_total`, `teacher_queried_positions_total` | numerators summed over every cycle; SFT teacher-query fields are null |
 | `selected_position_ratio`, `teacher_queried_position_ratio` | ratios of summed numerators and denominators, never an average of cycle ratios |
@@ -311,6 +333,10 @@ miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmark
 # Strictly offline after preloading every pinned model, tokenizer and adapter
 miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml \
   --output runs/benchmarks --offline
+
+# Continue a validated partial benchmark; existing arm directories otherwise fail
+miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml \
+  --output runs/benchmarks --resume
 ```
 
 `benchmarks/configs/gpu_calc_hard.yaml` is the GPU counterpart: it uses
@@ -351,6 +377,8 @@ Options, all from `src/miniverl/cli.py`:
   Markdown
 - `--offline` - prohibit all network access and require every model, tokenizer
   and pinned adapter file to exist locally or in the Hugging Face cache
+- `--resume` - intentionally resume validated cold-start/arm checkpoints after
+  a partial run; without it, any arm-directory collision is a hard error
 - `--json` - print the whole result as JSON instead of a table
 
 `miniverl benchmark` requires the training extra

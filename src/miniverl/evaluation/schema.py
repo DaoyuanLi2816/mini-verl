@@ -189,6 +189,21 @@ class ArmResult(BaseModel):
     lenient_diagnostic_success_rate: float | None = None
     avg_turns: float
     avg_tool_calls: float
+    assistant_turns: int | None = None
+    emitted_tool_calls: int | None = None
+    parsed_tool_calls: int | None = None
+    tool_execution_successes: int | None = None
+    tool_execution_errors: int | None = None
+    unknown_tool_calls: int | None = None
+    parse_errors: int | None = None
+    repeated_call_terminations: int | None = None
+    final_answers_emitted: int | None = None
+    final_answers_format_valid: int | None = None
+    final_answers_verified: int | None = None
+    parse_valid_tool_call_rate: float | None = None
+    tool_execution_success_rate: float | None = None
+    tool_execution_error_rate: float | None = None
+    # Deprecated aliases for schema-v1/v2 benchmark readers.
     tool_call_count: int | None = None
     valid_tool_call_rate: float | None = None
     invalid_tool_call_rate: float

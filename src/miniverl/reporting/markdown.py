@@ -60,17 +60,20 @@ def render_markdown(data: ReportData) -> str:
         "",
         "## Results",
         "",
-        "| checkpoint | step | tasks | success | avg turns | invalid calls | gen tokens/task |",
-        "| --- | --- | --- | --- | --- | --- | --- |",
+        "| checkpoint | step | tasks | success | avg turns | parse-valid calls | "
+        "execution success | gen tokens/task |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for row in data.baseline_comparison():
         lines.append(
             f"| {row['label']} | {row['global_step']} | {row['tasks']} | "
             f"{_pct(row['success_rate'])} | {_num(row['avg_turns'], 2)} | "
-            f"{_pct(row['invalid_tool_call_rate'])} | {_num(row['generated_tokens_per_task'], 1)} |"
+            f"{_pct(row['parse_valid_tool_call_rate'])} | "
+            f"{_pct(row['tool_execution_success_rate'])} | "
+            f"{_num(row['generated_tokens_per_task'], 1)} |"
         )
     if not data.baseline_comparison():
-        lines.append("| _no evaluation recorded_ | | | | | | |")
+        lines.append("| _no evaluation recorded_ | | | | | | | |")
 
     lines += [
         "",

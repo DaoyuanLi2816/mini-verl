@@ -30,6 +30,7 @@ __all__ = [
     "ToyTokenizer",
     "HFTokenizerAdapter",
     "tokenizer_fingerprint",
+    "tokenizer_structural_digest",
     "PROBE_TEXT",
     "TOY_SPECIAL_TOKENS",
 ]
@@ -145,6 +146,42 @@ def tokenizer_fingerprint(payload: dict[str, Any]) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
+def tokenizer_structural_digest(tokenizer: Any) -> str:
+    """Incrementally hash tokenizer structure without exposing local file paths."""
+    digest = hashlib.sha256()
+
+    def update(name: str, value: Any) -> None:
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(
+            json.dumps(
+                value,
+                sort_keys=True,
+                ensure_ascii=False,
+                separators=(",", ":"),
+                default=str,
+            ).encode("utf-8")
+        )
+        digest.update(b"\0")
+
+    get_vocab = getattr(tokenizer, "get_vocab", None)
+    vocab = get_vocab() if callable(get_vocab) else {}
+    update("vocab", sorted((str(token), int(token_id)) for token, token_id in vocab.items()))
+    get_added_vocab = getattr(tokenizer, "get_added_vocab", None)
+    added = get_added_vocab() if callable(get_added_vocab) else {}
+    update("added_vocab", sorted((str(token), int(token_id)) for token, token_id in added.items()))
+    update("special_tokens_map", getattr(tokenizer, "special_tokens_map", {}))
+    update("tokenizer_class", type(tokenizer).__name__)
+    backend = getattr(tokenizer, "backend_tokenizer", None)
+    backend_to_str = getattr(backend, "to_str", None)
+    update(
+        "backend_tokenizer",
+        backend_to_str() if callable(backend_to_str) else None,
+    )
+    update("tokenizer_config", getattr(tokenizer, "init_kwargs", {}))
+    return digest.hexdigest()
+
+
 class ToyTokenizer:
     """Reversible greedy-longest-match tokenizer over a tiny fixed vocabulary.
 
@@ -186,6 +223,16 @@ class ToyTokenizer:
         self.fingerprint = tokenizer_fingerprint(
             {"kind": "toy", "version": 1, "vocab": self._vocab}
         )
+        self.identity = {
+            "behavioral_fingerprint_v1": self.fingerprint,
+            "structural_digest_v2": tokenizer_fingerprint(
+                {"kind": "toy", "version": 2, "vocab": self._vocab}
+            ),
+            "tokenizer_class": type(self).__name__,
+            "length": len(self._vocab),
+            "base_vocab_size": len(self._vocab),
+            "added_vocab_size": 0,
+        }
 
     # -- TokenizerLike --------------------------------------------------
 
@@ -268,6 +315,18 @@ class HFTokenizerAdapter:
                 "probe": probe_ids,
             }
         )
+        get_vocab = getattr(tokenizer, "get_vocab", None)
+        get_added_vocab = getattr(tokenizer, "get_added_vocab", None)
+        base_vocab = get_vocab() if callable(get_vocab) else {}
+        added_vocab = get_added_vocab() if callable(get_added_vocab) else {}
+        self.identity = {
+            "behavioral_fingerprint_v1": self.fingerprint,
+            "structural_digest_v2": tokenizer_structural_digest(tokenizer),
+            "tokenizer_class": type(tokenizer).__name__,
+            "length": len(tokenizer),
+            "base_vocab_size": len(base_vocab),
+            "added_vocab_size": len(added_vocab),
+        }
 
     @classmethod
     def load(
@@ -330,7 +389,16 @@ class HFTokenizerAdapter:
 
 def assert_same_tokenizer(student: Any, teacher: Any) -> None:
     """Raise unless the two adapters have identical fingerprints."""
-    if student.fingerprint != teacher.fingerprint:
+    student_identity = getattr(student, "identity", {})
+    teacher_identity = getattr(teacher, "identity", {})
+    student_structural = student_identity.get("structural_digest_v2")
+    teacher_structural = teacher_identity.get("structural_digest_v2")
+    same = (
+        student_structural == teacher_structural
+        if student_structural and teacher_structural
+        else student.fingerprint == teacher.fingerprint
+    )
+    if not same:
         raise TokenizerMismatchError(
             "student and teacher tokenizers are not identical "
             f"({student.fingerprint[:12]}... vs {teacher.fingerprint[:12]}...)",

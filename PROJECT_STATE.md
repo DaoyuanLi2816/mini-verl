@@ -4,7 +4,77 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-07-28.
+Last updated: 2026-07-29.
+
+## v0.2.1 correctness release status
+
+| item | current state |
+| --- | --- |
+| audited starting commit | public and local `main` both resolved to `5b1c043b188b30b1261e118293f6fe124e2b7acb` after `git fetch --all --prune` on 2026-07-29 |
+| working branch | `v0.2.1-correctness`, created without rewriting `main` or the immutable `v0.2.0` tag |
+| version transition | post-v0.2.0 work started at honest `0.2.1.dev0`; the fully gated release candidate is now `0.2.1` in source, changelog and citation metadata |
+| release state | local release candidate complete; correctness PR/CI/merge is the remaining pre-publication integration step; no tag, PyPI upload or GitHub Release for `v0.2.1` exists |
+| publication authorization | absent; the release may be prepared and merged, but must not be tagged or published without explicit authorization |
+| frozen scientific artifact | `benchmarks/results/gpu-calc-hard-equal-update-v2.json` remains required at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
+| immutable protocol adapter | `DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher@23323751318135484c06c043b1f9b9e7016dd89f`; its original v1 competence record is accepted for v1 without fabricating v0.2.1 metrics, and it was neither overwritten nor retrained |
+| local wheel | `miniverl-0.2.1-py3-none-any.whl`, SHA-256 `78bdeaefc7592caaf1004eb01a2ec2ec3060fc96d5ba7853d9d499de254c080d` |
+| local sdist | `miniverl-0.2.1.tar.gz`, SHA-256 `d6f41cf5c861decdd7e3bdd6bf5fafa9299edb1ef635cfa94bebadb8bcd52acf` |
+| exact blocker | publication authorization is absent; after a green merge, stop before creating `v0.2.1` or triggering Trusted Publishing |
+
+### Correctness changes and evidence
+
+| area | defect and implemented invariant | regression evidence |
+| --- | --- | --- |
+| run lifecycle | a new run could silently attach to a non-empty directory; creation is now exclusive, generated IDs include microseconds plus randomness, resume/overwrite are explicit and mutually exclusive, and overwrite uses rollback-safe whole-directory replacement | run creation, collision, concurrency, stale append, demo and benchmark resume tests; final-wheel collision exited 1 with every file hash unchanged, then `--overwrite` produced `status=completed`, eight fresh metric records and no stale standalone-eval file |
+| checkpoints/eval | checkpoint names could be selected lexicographically, writes were not atomic/checksummed, and eval could load fresh or partial weights; complete sibling-temp checkpoints now have a manifest, SHA-256/size/content digest and identity, and selection uses validated `state.global_step` | corruption, missing weights, duplicate-step ambiguity, temp-ignore, stale-final, legacy-v0.2 and fail-before-mutation tests; clean-wheel standalone eval loaded only weights and reported checkpoint/global step 4, parameter version 4 and `checksummed_v1` |
+| offline KD | resume could regenerate the nominally fixed dataset; trajectories, task order, exact spans/tails and provenance are now a first-class checksummed artifact | uninterrupted/resumed parameter, optimizer, task order, cache and dataset digest equality tests |
+| manifests | startup and terminal state could be conflated; immutable `manifest.start.json` and atomic completed/failed/interrupted `manifest.json` records preserve original failures and actual counters/digests | lifecycle, exception-preservation and fault-injection tests |
+| OOM transaction | retry boundaries could repeat stochastic work or an optimizer commit; only gradient computation is retryable with RNG restoration and gradient clearing, while optimizer commit is single-shot | RNG/dropout equivalence, one-commit, optimizer-OOM and non-OOM tests |
+| protocol/adapter | the historical v1 prompt has an ambiguous example, but changing it would invalidate the published adapter; v1 is frozen, v2 examples parse, and competence is protocol-version aware | v1 byte fixture, v2 parse/round-trip and v1/v2 adapter-gate tests; the immutable Hub revision passed the live network test |
+| losses/metrics | SFT span metrics could report zero divergence instead of CE, and tool events were double counted; objective/divergence/CE are distinct and emitted/parsed/executed/error/final events have precise denominators | per-token aggregate equivalence and adversarial agent-event tests |
+| cache/identity | empty tails, ordered span types, checksum flags, adapter identity and tokenizer/model revisions could be ambiguous or lossy; schema v2 fixes each while retaining v1 reads | exact-zero, ordering, checksum, adapter, exact-full-vocab, structural tokenizer, revision and LM-head tests |
+| parameter versions | cycle count was used as a proxy for parameter changes; `parameter_version` advances only after a successful commit and rollout/optimizer counters are separate | no-op, failed update, replay and exact-resume tests |
+| reset/lifecycle API | the runner could ignore `reset()`'s observation and examples could leak trainer resources; reset is authoritative and public examples use context managers | dynamic reset/state-ID/exactly-once and destructive close/context tests |
+
+### Final local gates
+
+- `git diff --check`, `ruff check .`, `ruff format --check .`,
+  `mypy src/miniverl` and actionlint 1.7.12 all pass.
+- `pytest -q -m "not gpu and not network" --cov=miniverl
+  --cov-report=term-missing --cov-fail-under=80`:
+  **1066 passed, 6 deselected, 87.11% branch coverage**.
+- `pytest -q -m gpu` on Torch 2.13.0+cu130 and an NVIDIA GeForce RTX 4080:
+  **5 passed, 1067 deselected**.
+- `pytest -q -m network`: **3 passed, 1069 deselected**, including the pinned
+  public protocol-teacher revision.
+- Minimum boundary, Python 3.10.11 / Torch 2.3.1+cpu / Transformers 4.51.3 /
+  PEFT 0.12.0 / Accelerate 0.33.0 / NumPy 1.24.4 / bitsandbytes 0.43.3:
+  **132 passed** under the offline guard.
+- Current boundary, Python 3.13.13 / Torch 2.13.0+cpu / Transformers 5.14.1 /
+  PEFT 0.20.0 / Accelerate 1.14.0 / NumPy 2.5.1 / bitsandbytes 0.50.0:
+  **132 passed** under the offline guard.
+- Clean build produced exactly one wheel and one sdist; both passed
+  `twine check`. Wheel/sdist content assertions passed.
+- A clean core-wheel environment ran help/version/doctor without installing or
+  importing torch, Transformers, PEFT or bitsandbytes. A separate clean
+  `[train]` environment ran demo, inspect, report, collision, overwrite and
+  weights-only standalone evaluation.
+- Every run recipe validated, every benchmark config resolved, the generated
+  JSON Schema byte-matched the committed file, every benchmark result
+  validated, all tracked JSON/JSONL parsed, 26 Markdown files passed link
+  checking, and no model weights/caches/databases are tracked.
+- The banner and benchmark SVG were rendered at native size and inspected.
+  `docs/gpu-calc-hard-equal-update-v2.svg` remains generated from the frozen
+  JSON and labels the cold start `NO TRAINING` and the diagnostic controls
+  `PROTOCOL MISMATCH` instead of presenting inapplicable zero bars as outcomes.
+- GitHub environment `pypi` exists with a branch policy; `release.yml` still
+  uses OIDC `id-token: write`; public PyPI remains `miniverl 0.2.0`.
+
+Currently failing commands: **none**.
+
+Next action: commit the complete candidate, open the correctness PR, wait for
+every required GitHub check, merge it, verify `main`, and stop before the tag
+because publication is not authorized.
 
 ## v0.2 release-hardening status
 

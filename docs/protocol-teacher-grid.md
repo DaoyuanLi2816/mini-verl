@@ -9,6 +9,12 @@ the deterministic `hard` calculator oracle traces, eight traces per optimizer
 update, greedy evaluation on the same 24 held-out test tasks, and otherwise the
 complete config in `recipes/qwen3_1.7b_protocol_teacher_sft.yaml`.
 
+That `test` choice is retained as historical provenance, not recommended
+methodology. The same 24 tasks were later used in the downstream v0.2
+benchmark, so they were not a completely untouched final test set. Candidate A
+passed on the first prespecified attempt and no fallback tuning occurred.
+Future grids select on `eval` and reserve `test` for downstream reporting.
+
 | candidate | optimizer updates | learning rate | changed from A |
 | --- | ---: | ---: | --- |
 | A (primary) | 24 | `1e-4` | none |
@@ -34,8 +40,9 @@ diff is independently checkable.
 ## Execution record
 
 Candidate A was run once on 2026-07-27 and reached **100.0% strict held-out
-success (24/24)**, 100.0% valid tool-call rate and 100.0% final-answer format
-validity. It therefore passed the 50% gate. Per the rule above, A was exported
+success (24/24)**, 100.0% parse-valid tool-call rate, 100.0% execution success
+and 100.0% final-answer format validity. It therefore passed the 50% gate. Per
+the rule above, A was exported
 and candidates B and C were not run. The downstream OPD result was not consulted
 when making that decision; hashes and the full competence record are in
 [`teacher-adapters.md`](teacher-adapters.md).

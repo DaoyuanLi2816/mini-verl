@@ -28,11 +28,13 @@ fingerprint, vocabulary size, `top_k`, temperature, loss mode, dtype) and one
 `"{trajectory_id}|{field}"`. Every entry also carries its own sha256 over the
 six tensor fields, recomputed and compared on read.
 
-**Checkpoints** (`src/miniverl/training/checkpoint.py`): three files per
-directory -- `adapter.safetensors` (trainable weights only),
-`optimizer.safetensors` (optimizer moment tensors) and `state.json`. The
-optimizer state dict is split by `_split_optimizer_state` into tensors, param
-groups and scalars precisely so that no opaque blob has to be pickled.
+**Checkpoints** (`src/miniverl/training/checkpoint.py`):
+`adapter.safetensors` (trainable weights only), optional
+`optimizer.safetensors` (optimizer moment tensors), `state.json`, and a
+`checkpoint.json` completion/integrity manifest written last. The optimizer
+state dict is split by `_split_optimizer_state` into tensors, param groups and
+scalars precisely so that no opaque blob has to be pickled. New checkpoints
+record byte sizes and SHA-256 checksums for every payload file.
 
 **Trajectories** (`src/miniverl/trajectory/io.py`): one JSON object per line,
 schema-version-checked and pydantic-validated on both write and read.
@@ -47,11 +49,11 @@ safetensors header is an 8-byte little-endian length followed by that many
 bytes of UTF-8 JSON, so `read_safetensors_header` parses it with the standard
 library alone -- no torch, no numpy, no safetensors package. That is what lets
 `miniverl cache stats` and `miniverl cache validate` inspect and checksum a
-cache from a bare `pip install miniverl`. And because `-inf` in a float16 shard
-is awkward for downstream consumers, `_finite_tail` stores an exactly-empty
-tail as `-1.0e4`; the loss floors the tail anyway, so the substitution is
-invisible, and `tests/unit/test_cache.py::test_exact_zero_tail_survives_storage`
-pins it.
+cache from a bare `pip install miniverl`. Exactly empty probability tails are
+stored as `-inf` and round-trip as exact zeros; exact full-vocabulary mode
+rejects float16 cache storage so no lossy representation can be called exact.
+`tests/unit/test_cache.py::test_exact_zero_tail_survives_storage` pins the
+empty-tail behavior.
 
 ## Consequences
 
