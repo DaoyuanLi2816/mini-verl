@@ -13,7 +13,7 @@ Last updated: 2026-07-29.
 | audited starting commit | public and local `main` both resolved to `5b1c043b188b30b1261e118293f6fe124e2b7acb` after `git fetch --all --prune` on 2026-07-29 |
 | working branch | `v0.2.1-correctness`, created without rewriting `main` or the immutable `v0.2.0` tag |
 | version transition | post-v0.2.0 work started at honest `0.2.1.dev0`; the fully gated release candidate is now `0.2.1` in source, changelog and citation metadata |
-| release state | local release candidate complete; correctness PR/CI/merge is the remaining pre-publication integration step; no tag, PyPI upload or GitHub Release for `v0.2.1` exists |
+| release state | correctness PR [#11](https://github.com/DaoyuanLi2816/mini-verl/pull/11) carries the complete candidate from branch `v0.2.1-correctness`; CI/merge is the remaining pre-publication integration step; no tag, PyPI upload or GitHub Release for `v0.2.1` exists |
 | publication authorization | absent; the release may be prepared and merged, but must not be tagged or published without explicit authorization |
 | frozen scientific artifact | `benchmarks/results/gpu-calc-hard-equal-update-v2.json` remains required at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
 | immutable protocol adapter | `DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher@23323751318135484c06c043b1f9b9e7016dd89f`; its original v1 competence record is accepted for v1 without fabricating v0.2.1 metrics, and it was neither overwritten nor retrained |
@@ -72,9 +72,8 @@ Last updated: 2026-07-29.
 
 Currently failing commands: **none**.
 
-Next action: commit the complete candidate, open the correctness PR, wait for
-every required GitHub check, merge it, verify `main`, and stop before the tag
-because publication is not authorized.
+Next action: wait for every required check on PR #11, merge it, verify `main`,
+and stop before the tag because publication is not authorized.
 
 ## v0.2 release-hardening status
 
