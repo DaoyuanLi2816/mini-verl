@@ -59,6 +59,7 @@ environment:
   difficulty: easy
   params:
     prompt_style: compact
+    protocol_version: v1
   train_tasks: 192
   eval_tasks: 16
   test_tasks: 16

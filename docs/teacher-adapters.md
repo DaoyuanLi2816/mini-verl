@@ -19,8 +19,9 @@ miniverl train recipes/qwen3_1.7b_protocol_teacher_sft.yaml \
 
 The final held-out evaluation, not SFT loss, is the competence record. It writes
 strict task success as the primary metric and also records diagnostic lenient
-success, valid tool-call rate/count, final-answer format validity and average
-turns. Protocol-token accuracy is `null` for free-running trajectories because
+success, parse-valid tool-call rate, execution success/error rates,
+final-answer format validity and average turns. Protocol-token accuracy is
+`null` for free-running trajectories because
 there is no aligned token target; the measurement status states that explicitly.
 The primary candidate and conditional one-variable fallbacks were fixed before
 training in [`protocol-teacher-grid.md`](protocol-teacher-grid.md).
@@ -29,9 +30,15 @@ training in [`protocol-teacher-grid.md`](protocol-teacher-grid.md).
 
 Candidate A completed 24 optimizer updates on the RTX 4080 and scored **100.0%**
 strict success on all 24 held-out tasks, with 100.0% lenient diagnostic success,
-100.0% valid tool-call rate, 100.0% final-answer format validity, 33 tool calls
-and 2.375 average turns. It passed the prespecified 50% gate, so candidates B
-and C were not run.
+100.0% parse-valid tool-call rate, 100.0% tool-execution success, 100.0%
+final-answer format validity, 33 parsed tool calls and 2.375 average turns. It
+passed the prespecified 50% gate, so candidates B and C were not run.
+
+Historical limitation: this v0.2 gate used the same 24 `test` tasks later used
+for the downstream benchmark. Candidate A passed first and no fallback tuning
+occurred, but the final task set was not completely untouched. Future teacher
+selection uses `eval`, while downstream reporting uses `test`; the historical
+recipe is not rewritten as though that had already happened.
 
 The exported artifact is intentionally not committed to Git. Its public Hub
 copy and reviewable identity are:
@@ -118,3 +125,9 @@ gate against supervising with a clearly broken protocol policy. Passing it does
 not make the teacher “stronger” by definition; the exact teacher metrics are
 carried into run and benchmark provenance and must be compared with the student
 under the same environment.
+
+The immutable v0.2 adapter is a protocol-v1 artifact. Its competence record
+predates the v0.2.1 split between emitted, parsed and executed tool events, so
+those new fields are absent and are not synthesized. That original record is
+accepted only for v1. A v2 competence-gated adapter must include the precise
+event counters and rates as well as an explicit v2 protocol identity.

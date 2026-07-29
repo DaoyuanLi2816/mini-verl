@@ -307,27 +307,33 @@ library versions.
 
 ## Exact-resume guarantees
 
-A checkpoint directory holds exactly three files, and
+A new checkpoint directory holds three required files plus an optional
+optimizer tensor file, and
 `tests/integration/test_resume_and_swap.py::test_checkpoint_files_are_pickle_free`
-asserts that list is exact:
+asserts that the tensor/state payloads are pickle-free:
 
 ```
 checkpoints/step-000012/
   adapter.safetensors      # trainable weights only
-  optimizer.safetensors    # optimizer moment tensors
+  optimizer.safetensors    # optimizer moment tensors; absent before any moments exist
   state.json               # everything that is not a tensor
+  checkpoint.json          # written last: identity, sizes, SHA-256 and content digest
 ```
 
 Tensors go through safetensors and structure goes through JSON. `torch.save`
 is never used, so loading a checkpoint cannot execute code. The same test
-asserts neither safetensors file begins with a pickle protocol opcode.
+asserts no safetensors file begins with a pickle protocol opcode. Checkpoints
+are assembled in a sibling temporary directory, fully validated, then swapped
+into place. Readers ignore incomplete temporary directories.
 
 `state.json` carries, measured from a real run:
 
 ```
 config_digest, cycle, global_step, metrics, miniverl_version,
+offline_dataset_digest, parameter_version, resolved_config_digest,
 optimizer_param_groups, optimizer_scalars, optimizer_state_keys,
-policy_version, rng, scaler, scheduler, schema_version, task_cursor
+policy_version, rng, rollout_iteration, rollout_policy_version, scaler,
+scheduler, schema_version, task_cursor
 ```
 
 `rng` contains `python_state`, `torch_state`, `cuda_states` and `numpy_state`.
@@ -342,9 +348,9 @@ CUDA states only when the device count matches.
 `tests/integration/test_resume_and_swap.py::test_uninterrupted_and_resumed_training_agree_exactly`
 runs four cycles in one process, then runs the same schedule with an
 interruption after two cycles, a checkpoint, and a fresh trainer that resumes.
-It asserts the final `global_step`, `policy_version` and `task_cursor` match
-exactly, and that the largest absolute difference over all trainable
-parameters is at most `1e-6`.
+It asserts the final `global_step`, `parameter_version`, `policy_version` alias
+and `task_cursor` match exactly, and that the largest absolute difference over
+all trainable parameters is at most `1e-6`.
 
 That is a numerical tolerance, not bitwise equality. The module docstring of
 `src/miniverl/training/checkpoint.py` says "match bit-for-bit" and names

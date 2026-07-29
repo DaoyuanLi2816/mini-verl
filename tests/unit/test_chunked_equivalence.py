@@ -172,6 +172,110 @@ def test_all_zero_weights_give_a_safe_zero_loss():
     assert float(backbone.linear.weight.grad.abs().sum()) == pytest.approx(0.0, abs=1e-9)
 
 
+def test_per_token_components_for_pure_sft_are_explicit() -> None:
+    from miniverl.losses.chunked import chunked_selected_position_loss
+
+    inputs, backbone, lm_head, _, weights, targets = _setup(n=7)
+    output = chunked_selected_position_loss(
+        hidden_states=backbone(inputs),
+        lm_head=lm_head,
+        weights=weights,
+        provider=None,
+        target_token_ids=targets,
+        ce_weight=1.0,
+        chunk_size=3,
+    )
+    assert output.per_token_divergence is None
+    assert output.per_token_ce is not None
+    assert torch.equal(output.per_token_objective, output.per_token_ce)
+    assert len(output.per_token_objective) == 7
+    expected = float((output.per_token_objective * weights).sum() / weights.sum())
+    assert output.loss == pytest.approx(expected, abs=1e-6)
+
+
+def test_per_token_components_for_pure_and_mixed_distillation() -> None:
+    from miniverl.losses.chunked import ExactTargetProvider, chunked_selected_position_loss
+
+    inputs, backbone, lm_head, teacher_logits, weights, targets = _setup(n=9)
+    provider = ExactTargetProvider(teacher_logits_fn=lambda start, end: teacher_logits[start:end])
+    pure = chunked_selected_position_loss(
+        hidden_states=backbone(inputs),
+        lm_head=lm_head,
+        weights=weights,
+        provider=provider,
+        target_token_ids=targets,
+        ce_weight=0.0,
+        chunk_size=4,
+    )
+    assert pure.per_token_divergence is not None
+    assert pure.per_token_ce is None
+    assert torch.equal(pure.per_token_objective, pure.per_token_divergence)
+
+    mixed = chunked_selected_position_loss(
+        hidden_states=backbone(inputs),
+        lm_head=lm_head,
+        weights=weights,
+        provider=provider,
+        target_token_ids=targets,
+        ce_weight=0.25,
+        chunk_size=4,
+    )
+    assert mixed.per_token_divergence is not None
+    assert mixed.per_token_ce is not None
+    expected_tokens = 0.75 * mixed.per_token_divergence + 0.25 * mixed.per_token_ce
+    assert torch.allclose(mixed.per_token_objective, expected_tokens)
+    expected_loss = float((expected_tokens * weights).sum() / weights.sum())
+    assert mixed.loss == pytest.approx(expected_loss, abs=1e-6)
+
+
+def test_empty_batch_preserves_component_applicability() -> None:
+    from miniverl.losses.chunked import ExactTargetProvider, chunked_selected_position_loss
+
+    empty_hidden = torch.zeros(0, 3)
+    head = torch.nn.Linear(3, 5)
+    provider = ExactTargetProvider(teacher_logits_fn=lambda _start, _end: torch.zeros(0, 5))
+    output = chunked_selected_position_loss(
+        hidden_states=empty_hidden,
+        lm_head=head,
+        weights=torch.zeros(0),
+        provider=provider,
+        chunk_size=2,
+    )
+    assert output.per_token_objective.numel() == 0
+    assert output.per_token_divergence is not None
+    assert output.per_token_divergence.numel() == 0
+    assert output.per_token_ce is None
+
+
+def test_span_objective_aggregation_uses_token_weights_and_strict_lengths() -> None:
+    from types import SimpleNamespace
+
+    from miniverl.trainer import OPDTrainer
+
+    sample = SimpleNamespace(
+        alignment=SimpleNamespace(
+            token_weights=[1.0, 9.0],
+            span_types=["assistant_final", "assistant_final"],
+        )
+    )
+    totals = OPDTrainer._loss_by_span_type(
+        None,
+        sample,
+        torch.tensor([10.0, 0.0]),
+    )
+    assert totals["assistant_final"] == [10.0, 10.0]
+    assert totals["assistant_final"][0] / totals["assistant_final"][1] == pytest.approx(1.0)
+
+    broken = SimpleNamespace(
+        alignment=SimpleNamespace(
+            token_weights=[1.0],
+            span_types=["assistant_final", "assistant_text"],
+        )
+    )
+    with pytest.raises(ValueError, match="zip"):
+        OPDTrainer._loss_by_span_type(None, broken, torch.tensor([1.0, 2.0]))
+
+
 def test_empty_selection_is_a_documented_no_op():
     from miniverl.losses.chunked import ExactTargetProvider, chunked_selected_position_loss
 

@@ -23,17 +23,21 @@ where they belong — without Ray, a GPU cluster, or a 40 GB accelerator.
 python -m pip install miniverl            # lightweight core
 miniverl doctor
 python -m pip install "miniverl[train]"   # add the local training stack
-miniverl demo --output runs/demo        # no network, no GPU, ~50 s on a laptop CPU
+miniverl demo --output runs/demo          # no network, no GPU, ~50 s on a laptop CPU
 ```
 
 The base install is the torch-free core (`doctor`, `validate`, `inspect`,
 `report`, schemas and the Python API). The `train` extra adds torch,
 Transformers and PEFT because `demo` performs real optimization.
+This split is intentional: `pip install miniverl` is enough to inspect and
+validate artifacts without downloading a multi-gigabyte ML stack; use
+`pip install "miniverl[train]"` whenever the goal is training or evaluation.
 
 **What it makes inspectable**
 
-- **Policy truth:** every OPD batch is sampled from the policy version it
-  updates; stale teacher targets are rejected.
+- **Policy truth:** strict OPD takes one update from each freshly sampled
+  parameter version; explicit replay keeps the rollout version visible, and
+  stale teacher targets are rejected.
 - **Token truth:** tool output stays context, while only typed assistant spans
   can enter the loss.
 - **Budget truth:** exact full-vocabulary objectives and compressed
@@ -107,6 +111,12 @@ two controls intentionally remove that guarantee: their loss decreased
 normally, but they taught the student an incompatible tool policy. This is a
 measured teacher-competence failure, not a trainer crash.
 
+The historical teacher-selection gate and the downstream benchmark both used
+the same 24-task v0.2 `test` set. Candidate A was prespecified and passed on the
+first attempt, so no fallback tuning occurred, but the final set was not a
+completely untouched test set. Future teacher selection uses `eval`; downstream
+reporting uses `test`. See [limitations](docs/limitations.md).
+
 OPD still only ties SFT and takes about 6x as much training time here
 (523.8 s versus 86.4 s on average). The task saturates; two seeds do not support
 a significance claim, and no general OPD advantage is claimed. See the
@@ -145,7 +155,8 @@ artifact landed and what to run next:
 demo complete  runs/demo
  mode              opd (genuine on-policy distillation)
  optimizer steps   132
- policy versions   13
+ parameter version 132
+ rollout iterations 13
  wall clock        52.9 s
  token provenance  45597 of 226383 tokens trainable (20%); 180786 are context
                    and can never be a target
@@ -324,6 +335,11 @@ result file. Nothing is estimated or extrapolated.
 | 4-bit | `python -m pip install ".[cuda]"` | bitsandbytes, for NF4 QLoRA and the 8-bit optimizer. |
 | Development | `python -m pip install ".[dev]"` | pytest, hypothesis, ruff, mypy, build, twine. |
 
+The published-package equivalents are `miniverl`, `miniverl[train]`,
+`miniverl[cuda]` and `miniverl[dev]`. Core Python 3.10–3.13 is tested without
+torch. The full CPU ML suite and Transformers 4.51.x/5.x compatibility rows run
+on Python 3.12; GPU paths are opt-in and were measured locally on Python 3.12.
+
 Install the CUDA build of torch that matches your driver separately; the PyPI
 wheel is CPU-only on some platforms:
 
@@ -367,8 +383,8 @@ from miniverl.config import RunConfig
 from miniverl.trainer import OPDTrainer
 
 config = RunConfig.from_yaml("recipes/toy_cpu.yaml")
-trainer = OPDTrainer.from_config(config)
-result = trainer.train()
+with OPDTrainer.from_config(config) as trainer:
+    result = trainer.train()
 
 print(result.run_dir, result.global_step, result.eval["success_rate"])
 ```
@@ -377,6 +393,9 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 
 Subclass `ToolEnvironment`, register it, and every recipe key works unchanged.
 `examples/custom_environment/` is a complete, runnable example.
+`reset(task)` is authoritative: it is called exactly once per episode, and its
+`Observation.text` plus `state_id` enter the trajectory. `user_prompt(task)` is
+only a compatibility helper; the runner does not call it a second time.
 
 ```python
 from miniverl.environments import ToolEnvironment, ToolSpec

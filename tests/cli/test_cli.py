@@ -305,6 +305,24 @@ def test_train_dry_run_rejects_a_missing_recipe(tmp_path: Path) -> None:
     assert "not found" in _collapse(result.output)
 
 
+@pytest.mark.parametrize(
+    "options",
+    [
+        ("--resume", "run", "--resume-from", "run/checkpoints/final"),
+        ("--resume", "run", "--overwrite"),
+        ("--resume-from", "run/checkpoints/final", "--run-id", "other"),
+    ],
+)
+def test_train_rejects_mutually_exclusive_run_lifecycle_options(
+    options: tuple[str, ...],
+) -> None:
+    result = _invoke("train", str(TOY_RECIPE), "--dry-run", *options)
+    assert result.exit_code != 0
+    assert "cannot be combined" in _collapse(result.output) or "mutually exclusive" in _collapse(
+        result.output
+    )
+
+
 # --------------------------------------------------------------------- schema
 
 
@@ -548,3 +566,25 @@ def test_export_benchmark_matches_the_published_schema(demo_run: Path) -> None:
     serialized = json.dumps(payload["result"])
     assert str(demo_run) not in serialized, "the submission leaks a local path"
     assert demo_run.as_posix() not in serialized
+
+
+@requires_torch
+@pytest.mark.torch
+def test_demo_rerun_refuses_without_modifying_any_existing_artifact(demo_run: Path) -> None:
+    before = {
+        path.relative_to(demo_run).as_posix(): path.read_bytes()
+        for path in demo_run.rglob("*")
+        if path.is_file()
+    }
+
+    result = _invoke("demo", "--output", str(demo_run), "--fast", "--json")
+
+    assert result.exit_code != 0
+    assert "--overwrite" in _collapse(result.output)
+    assert "--resume" in _collapse(result.output)
+    after = {
+        path.relative_to(demo_run).as_posix(): path.read_bytes()
+        for path in demo_run.rglob("*")
+        if path.is_file()
+    }
+    assert after == before

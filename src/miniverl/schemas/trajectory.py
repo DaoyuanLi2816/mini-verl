@@ -200,6 +200,17 @@ class Trajectory(BaseModel):
     termination_reason: TerminationReason
     generated_token_count: int = Field(ge=0, default=0)
     invalid_tool_calls: int = Field(ge=0, default=0)
+    assistant_turns: int | None = Field(default=None, ge=0)
+    emitted_tool_calls: int | None = Field(default=None, ge=0)
+    parsed_tool_calls: int | None = Field(default=None, ge=0)
+    tool_execution_successes: int | None = Field(default=None, ge=0)
+    tool_execution_errors: int | None = Field(default=None, ge=0)
+    unknown_tool_calls: int | None = Field(default=None, ge=0)
+    parse_errors: int | None = Field(default=None, ge=0)
+    repeated_call_terminations: int | None = Field(default=None, ge=0)
+    final_answers_emitted: int | None = Field(default=None, ge=0)
+    final_answers_format_valid: int | None = Field(default=None, ge=0)
+    final_answers_verified: int | None = Field(default=None, ge=0)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     # -- validation ----------------------------------------------------

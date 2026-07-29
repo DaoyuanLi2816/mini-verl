@@ -742,7 +742,10 @@ def test_make_environment_passes_params_through(name: str) -> None:
     with environment(name, tolerance=0.25) as env:
         assert env.name == name
         assert env.params["tolerance"] == pytest.approx(0.25)
-        assert env.describe() == {"name": name, "params": {"tolerance": 0.25}}
+        assert env.describe() == {
+            "name": name,
+            "params": {"tolerance": 0.25, "protocol_version": "v1"},
+        }
 
 
 # -- J. prompt style -----------------------------------------------------

@@ -44,7 +44,14 @@ from miniverl.config.models import (
 )
 from miniverl.environments.base import Task, ToolEnvironment, make_splits
 from miniverl.environments.registry import make_environment
-from miniverl.errors import ConfigError, LifecycleError, MiniVerlError
+from miniverl.errors import (
+    BackendError,
+    CheckpointError,
+    ConfigError,
+    GpuMemoryError,
+    LifecycleError,
+    MiniVerlError,
+)
 from miniverl.models.factory import build_student, build_teacher, build_tokenizer, resolve_device
 from miniverl.schemas.alignment import AlignmentMap
 from miniverl.schemas.trajectory import Trajectory
@@ -66,8 +73,16 @@ from miniverl.trajectory.io import append_trajectories
 from miniverl.utils import gpu
 from miniverl.utils.env import collect_environment
 from miniverl.utils.logging import EventLog, get_logger
-from miniverl.utils.runs import JsonlWriter, RunPaths, make_run_id, utc_now, write_json, write_text
-from miniverl.utils.seeding import capture_rng, seed_everything
+from miniverl.utils.runs import (
+    JsonlWriter,
+    RunPaths,
+    make_run_id,
+    utc_now,
+    write_json,
+    write_json_atomic,
+    write_text,
+)
+from miniverl.utils.seeding import capture_rng, restore_rng, seed_everything
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from miniverl.teachers.base import TeacherScoreResult
@@ -97,6 +112,8 @@ class TrainResult:
     cycles_completed: int
     global_step: int
     policy_version: int
+    parameter_version: int
+    rollout_policy_version: int
     duration_seconds: float
     final_metrics: dict[str, Any] = field(default_factory=dict)
     eval: dict[str, Any] | None = None
@@ -110,7 +127,11 @@ class TrainResult:
             "mode": self.mode,
             "cycles_completed": self.cycles_completed,
             "global_step": self.global_step,
+            "global_optimizer_step": self.global_step,
             "policy_version": self.policy_version,
+            "parameter_version": self.parameter_version,
+            "rollout_policy_version": self.rollout_policy_version,
+            "rollout_iteration": self.cycles_completed,
             "duration_seconds": round(self.duration_seconds, 3),
             "final_metrics": self.final_metrics,
             "eval": self.eval,
@@ -133,6 +154,7 @@ class OPDTrainer:
         student: Any,
         teacher: Any | None,
         plan: MemoryPlan,
+        evaluation_only: bool = False,
     ) -> None:
         self._closed = False
         self.config = config
@@ -144,6 +166,16 @@ class OPDTrainer:
         self.student = student
         self.teacher = teacher
         self.plan = plan
+        self._started_at = utc_now()
+        if paths.manifest_start.is_file():
+            try:
+                import json
+
+                self._started_at = json.loads(paths.manifest_start.read_text(encoding="utf-8")).get(
+                    "started_at", self._started_at
+                )
+            except (OSError, UnicodeError, ValueError):
+                pass
 
         self.metrics_log = JsonlWriter(paths.metrics)
         self.events = EventLog(JsonlWriter(paths.events))
@@ -157,12 +189,19 @@ class OPDTrainer:
             self.scorer: Any = LocalTeacherScorer(
                 teacher,
                 config.loss,
-                keep_exact_resident=plan.strategy is MemoryStrategy.RESIDENT,
+                keep_exact_resident=(
+                    plan.strategy is MemoryStrategy.RESIDENT
+                    and config.run.mode is not TrainingMode.OFFLINE_KD
+                ),
                 device=plan.device,
             )
         else:
             self.scorer = None
-        self.optimizer = build_optimizer(student.trainable_parameters(), config.train)
+        self.optimizer = (
+            None
+            if evaluation_only
+            else build_optimizer(student.trainable_parameters(), config.train)
+        )
         steps_per_cycle = self.optimizer_steps_per_cycle
         total_steps = max(
             1,
@@ -175,17 +214,21 @@ class OPDTrainer:
             total_steps=total_steps,
         )
         self.global_step = 0
-        self.policy_version = 0
+        self.parameter_version = 0
         self.cycle = 0
+        self._last_rollout_policy_version = 0
         self.task_cursor = 0
         self._task_order = self._build_task_order()
         self._cache: TeacherCache | None = None
         self._offline_samples: list[TrainSample] | None = None
+        self.offline_dataset_digest = ""
         self._teacher_on_device = teacher is not None and plan.strategy is MemoryStrategy.RESIDENT
         #: First cycle `train()` will execute. Set by `load_from_checkpoint` so a
         #: resumed run continues instead of redoing completed cycles.
         self._start_cycle = 0
         self._resumed = False
+        self._resumed_from: dict[str, Any] | None = None
+        self._cycles_completed = 0
 
     # -- construction --------------------------------------------------------
 
@@ -196,6 +239,38 @@ class OPDTrainer:
         rollouts = self.config.train.rollouts_per_cycle
         return max(1, (rollouts + accum - 1) // accum)
 
+    @property
+    def policy_version(self) -> int:
+        """Deprecated alias for the exact student parameter version."""
+        return self.parameter_version
+
+    @policy_version.setter
+    def policy_version(self, value: int) -> None:
+        self.parameter_version = value
+
+    def _apply_checkpoint_progress(self, state: CheckpointState) -> None:
+        """Copy validated, non-tensor progress into this trainer.
+
+        Training resume and weights-only standalone evaluation both need the
+        evaluated model to report the checkpoint's real parameter version.
+        This helper mutates counters only; it never loads optimizer or RNG
+        state.
+        """
+        self.global_step = state.global_step
+        self.parameter_version = (
+            state.policy_version if state.parameter_version is None else state.parameter_version
+        )
+        self.cycle = state.cycle
+        self._last_rollout_policy_version = (
+            state.policy_version
+            if state.rollout_policy_version is None
+            else state.rollout_policy_version
+        )
+        self.task_cursor = state.task_cursor
+        self._cycles_completed = (
+            max(state.cycle + 1, 0) if state.rollout_iteration is None else state.rollout_iteration
+        )
+
     @classmethod
     def from_config(
         cls,
@@ -205,6 +280,10 @@ class OPDTrainer:
         run_id: str | None = None,
         local_files_only: bool = False,
         write_artifacts: bool = True,
+        overwrite: bool = False,
+        resume: str | Path | None = None,
+        resume_from: str | Path | None = None,
+        for_evaluation: bool = False,
     ) -> OPDTrainer:
         """Validate, seed, load models and create the run directory.
 
@@ -213,6 +292,21 @@ class OPDTrainer:
         evaluator uses it so re-evaluating a run cannot destroy the provenance of
         the run being evaluated.
         """
+        resume_options = int(resume is not None) + int(resume_from is not None)
+        if resume_options > 1:
+            raise ConfigError("--resume and --resume-from are mutually exclusive")
+        if overwrite and resume_options:
+            raise ConfigError("--overwrite cannot be combined with --resume or --resume-from")
+        if not write_artifacts and (overwrite or resume_options):
+            raise ConfigError(
+                "write_artifacts=False is an evaluator attachment mode and cannot resume "
+                "or overwrite a run"
+            )
+        if for_evaluation and write_artifacts:
+            raise ConfigError("for_evaluation=True requires write_artifacts=False")
+        if for_evaluation and resume_options:
+            raise ConfigError("evaluation attachment cannot use training resume options")
+
         # bitsandbytes 4-bit parameters are pinned to the device they were
         # quantized on, so a quantized model cannot be moved off the GPU and
         # back. `swap` is therefore only available for unquantized pairs.
@@ -235,8 +329,23 @@ class OPDTrainer:
 
         seed_everything(config.run.seed, deterministic=config.run.deterministic)
         resolved_id = make_run_id(config.run.name, explicit=run_id or config.run.run_id)
-        paths = RunPaths.create(output_dir or config.run.output_dir, resolved_id)
-        if write_artifacts:
+        resume_checkpoint: Path | None = None
+        if resume is not None:
+            paths = RunPaths.open(resume)
+            resolved_id = paths.root.name
+        elif resume_from is not None:
+            resume_checkpoint = Path(resume_from).resolve()
+            paths = RunPaths.open(resume_checkpoint.parent.parent)
+            resolved_id = paths.root.name
+        elif write_artifacts:
+            paths = RunPaths.create(
+                output_dir or config.run.output_dir,
+                resolved_id,
+                overwrite=overwrite,
+            )
+        else:
+            paths = RunPaths.open(Path(output_dir or config.run.output_dir) / resolved_id)
+        if write_artifacts and resume_options == 0:
             write_text(paths.config_original, config.to_yaml())
 
         environment: ToolEnvironment | None = None
@@ -278,7 +387,7 @@ class OPDTrainer:
                     "auto -> resident: a quantized model cannot be moved off the "
                     "accelerator, so swap is unavailable"
                 )
-            if config.run.mode is not TrainingMode.SFT:
+            if config.run.mode is not TrainingMode.SFT and not for_evaluation:
                 if memory_config.strategy is MemoryStrategy.AUTO and device.startswith("cuda"):
 
                     def teacher_fits() -> bool:
@@ -313,6 +422,12 @@ class OPDTrainer:
                         device=teacher_device,
                         local_files_only=local_files_only,
                     )
+                if teacher.vocab_size != student.vocab_size:
+                    raise BackendError(
+                        "student and teacher LM-head output dimensions differ "
+                        f"({student.vocab_size} vs {teacher.vocab_size})",
+                        hint="miniVERL requires a shared output vocabulary for distillation",
+                    )
 
             trainer = cls(
                 config=config,
@@ -324,9 +439,27 @@ class OPDTrainer:
                 student=student,
                 teacher=teacher,
                 plan=plan,
+                evaluation_only=for_evaluation,
             )
-            if write_artifacts:
+            if write_artifacts and resume_options == 0:
                 trainer._write_startup_artifacts()
+            elif resume_options:
+                from miniverl.training.checkpoint import latest_checkpoint
+
+                selected = resume_checkpoint or latest_checkpoint(paths.checkpoints)
+                if selected is None:
+                    raise ConfigError(
+                        f"cannot resume {paths.root}: no valid checkpoint was found",
+                        hint="pass --resume-from <checkpoint-dir> or start a new run",
+                    )
+                state = trainer.load_from_checkpoint(selected)
+                trainer.events.emit(
+                    "resume_start",
+                    checkpoint=str(selected),
+                    previous_global_step=state.global_step,
+                    previous_policy_version=state.policy_version,
+                    next_cycle=trainer._start_cycle,
+                )
             return trainer
         except BaseException:
             # Construction owns every resource it has allocated. Teardown errors
@@ -389,7 +522,29 @@ class OPDTrainer:
             resolved.loss.top_k = min(config.loss.top_k, self.student.vocab_size)
         write_text(self.paths.config_resolved, resolved.to_yaml())
         write_json(self.paths.environment, collect_environment())
-        write_json(self.paths.manifest, self.build_manifest())
+        startup = self.build_manifest()
+        startup.update(
+            {
+                "manifest_schema_version": 2,
+                "status": "running",
+                "started_at": self._started_at,
+                "original_config_digest": hashlib.sha256(
+                    self.paths.config_original.read_bytes()
+                ).hexdigest(),
+                "resolved_config_digest": hashlib.sha256(
+                    self.paths.config_resolved.read_bytes()
+                ).hexdigest(),
+                "initial_memory": self.plan.to_dict(),
+                "global_step": 0,
+                "global_optimizer_step": 0,
+                "parameter_version": 0,
+                "policy_version": 0,
+                "rollout_iteration": 0,
+                "rollout_policy_version": 0,
+            }
+        )
+        write_json_atomic(self.paths.manifest_start, startup)
+        write_json_atomic(self.paths.manifest, startup)
 
     def build_manifest(self) -> dict[str, Any]:
         """Full provenance record for the run."""
@@ -442,7 +597,7 @@ class OPDTrainer:
             "miniverl_version": __version__,
             "run_id": self.run_id,
             "run_name": config.run.name,
-            "created_at": utc_now(),
+            "created_at": self._started_at,
             "git_commit": env_info["git_commit"],
             "python_version": env_info["python_version"],
             "os": env_info["os"],
@@ -489,17 +644,136 @@ class OPDTrainer:
                     else None
                 ),
                 "tokenizer_fingerprint": self.tokenizer.fingerprint,
+                "tokenizer_identity": getattr(self.tokenizer, "identity", {}),
                 "tokenizer_vocab_size": self.tokenizer.vocab_size,
+                "student_lm_head_vocab_size": self.student.vocab_size,
+                "teacher_lm_head_vocab_size": (
+                    self.teacher.vocab_size if self.teacher is not None else None
+                ),
             },
             "objective": objective,
             "memory": self.plan.to_dict(),
+            "global_optimizer_step": self.global_step,
+            "parameter_version": self.parameter_version,
             "policy_version": self.policy_version,
+            "rollout_iteration": self._cycles_completed,
+            "rollout_policy_version": self._last_rollout_policy_version,
             "measurement_status": {
                 "cpu_metrics": "measured",
                 "cuda_metrics": "measured" if gpu.cuda_available() else "not_run_no_cuda",
                 "simulated_results": "none",
             },
         }
+
+    def _finalize_manifest(
+        self,
+        *,
+        status: str,
+        result: TrainResult | None = None,
+        error: BaseException | None = None,
+    ) -> None:
+        """Atomically combine immutable startup provenance with final run state."""
+        import json
+
+        from miniverl.cache.store import sha256_file
+        from miniverl.training.checkpoint import latest_checkpoint, validate_checkpoint
+
+        if self.paths.manifest_start.is_file():
+            manifest = json.loads(self.paths.manifest_start.read_text(encoding="utf-8"))
+            startup_digest = hashlib.sha256(self.paths.manifest_start.read_bytes()).hexdigest()
+        else:
+            # Backward-compatible finalization for a legacy run directory.
+            manifest = self.build_manifest()
+            startup_digest = None
+        now = utc_now()
+        manifest.update(
+            {
+                "manifest_schema_version": 2,
+                "status": status,
+                "started_at": self._started_at,
+                "global_step": self.global_step,
+                "global_optimizer_step": self.global_step,
+                "parameter_version": self.parameter_version,
+                "policy_version": self.policy_version,
+                "rollout_iteration": self._cycles_completed,
+                "rollout_policy_version": self._last_rollout_policy_version,
+                "cycles_completed": self._cycles_completed,
+                "actual_optimizer_updates": self.global_step,
+                "final_projection_chunk_size": self.plan.chunk_size,
+                "chunk_size_history": list(self.plan.chunk_size_history),
+                "oom_retries": self.plan.oom_retries_used,
+                "final_memory": self.plan.to_dict(),
+                "offline_dataset": (
+                    {"digest": self.offline_dataset_digest} if self.offline_dataset_digest else None
+                ),
+                "resumed_from": self._resumed_from,
+                "startup_manifest_digest": startup_digest,
+            }
+        )
+        for key in ("completed_at", "failed_at", "interrupted_at", "failure"):
+            manifest.pop(key, None)
+        if status == "completed":
+            manifest["completed_at"] = now
+        elif status == "interrupted":
+            manifest["interrupted_at"] = now
+        else:
+            manifest["failed_at"] = now
+        if error is not None:
+            manifest["failure"] = {
+                "type": type(error).__name__,
+                "message": str(error),
+            }
+
+        checkpoint_payload = None
+        selected = latest_checkpoint(self.paths.checkpoints)
+        if selected is not None:
+            validated = validate_checkpoint(selected)
+            checkpoint_payload = {
+                "directory": selected.name,
+                "global_step": validated.state.global_step,
+                "digest": validated.content_digest,
+                "integrity": validated.integrity,
+            }
+        manifest["final_checkpoint"] = checkpoint_payload
+
+        eval_payload = None
+        if self.paths.eval_json.is_file():
+            digest, size = sha256_file(self.paths.eval_json)
+            eval_payload = {
+                "file": self.paths.eval_json.name,
+                "digest": digest,
+                "bytes": size,
+            }
+        manifest["final_evaluation"] = eval_payload
+
+        required = [
+            self.paths.config_original,
+            self.paths.config_resolved,
+            self.paths.environment,
+            self.paths.manifest_start,
+        ]
+        if status == "completed":
+            required.extend([self.paths.eval_json])
+            if checkpoint_payload is None:
+                required.append(self.paths.checkpoints / "final")
+            if self.config.run.mode is TrainingMode.OFFLINE_KD and self.config.train.cycles > 0:
+                required.extend(
+                    [
+                        self.paths.offline_dataset_manifest,
+                        self.paths.offline_dataset_trajectories,
+                    ]
+                )
+        manifest["expected_artifacts"] = {path.name: path.exists() for path in required}
+        manifest["all_expected_artifacts_complete"] = (
+            status == "completed"
+            and all(manifest["expected_artifacts"].values())
+            and checkpoint_payload is not None
+        )
+        if result is not None:
+            result_payload = result.to_dict()
+            result_payload["run_dir"] = self.paths.root.name
+            manifest["result"] = result_payload
+        write_json_atomic(self.paths.manifest, manifest)
 
     # -- task sampling --------------------------------------------------------
 
@@ -602,20 +876,168 @@ class OPDTrainer:
                 if self.config.loss.mode is LossMode.EXACT_FULL_VOCAB
                 else min(self.config.loss.top_k, self.student.vocab_size)
             )
+            path = Path(self.config.cache.dir or self.paths.teacher_cache)
+            identity = {
+                "teacher_model_id": self.config.models.teacher.model_id,
+                "teacher_model_revision": self.config.models.teacher.revision,
+                "tokenizer_fingerprint": self.tokenizer.fingerprint,
+                "tokenizer_identity": getattr(self.tokenizer, "identity", {}),
+                "teacher_adapter_provenance": getattr(self.teacher, "adapter_provenance", None),
+                "vocab_size": self.student.vocab_size,
+                "top_k": top_k,
+                "temperature": self.config.loss.temperature,
+                "loss_mode": self.config.loss.mode.value,
+                "dtype": self.config.cache.dtype,
+            }
+            if (path / "index.json").is_file():
+                self._cache = TeacherCache.open(
+                    path,
+                    verify_checksums=self.config.cache.verify_checksums_on_load,
+                )
+                self._cache.assert_compatible(**identity)
+                return self._cache
             self._cache = TeacherCache.create(
-                self.config.cache.dir or self.paths.teacher_cache,
+                path,
                 miniverl_version=__version__,
-                teacher_model_id=self.config.models.teacher.model_id,
-                teacher_model_revision=self.config.models.teacher.revision,
-                tokenizer_fingerprint=self.tokenizer.fingerprint,
-                vocab_size=self.student.vocab_size,
-                top_k=top_k,
-                temperature=self.config.loss.temperature,
-                loss_mode=self.config.loss.mode.value,
-                dtype=self.config.cache.dtype,
+                **identity,
                 entries_per_shard=self.config.cache.entries_per_shard,
             )
         return self._cache
+
+    def _teacher_identity(self) -> dict[str, Any]:
+        teacher = self.config.models.teacher
+        return {
+            "model_id": teacher.model_id,
+            "revision": teacher.revision,
+            "adapter": getattr(self.teacher, "adapter_provenance", None),
+        }
+
+    def _persist_offline_dataset(self, samples: list[TrainSample]) -> None:
+        from miniverl.training.offline_dataset import create_offline_dataset
+
+        if self._cache is None:
+            raise CheckpointError("offline KD produced no teacher cache")
+        self.offline_dataset_digest = create_offline_dataset(
+            self.paths,
+            samples=samples,
+            cache=self._cache,
+            config=self.config,
+            tokenizer_identity=getattr(self.tokenizer, "identity", {}),
+            teacher_identity=self._teacher_identity(),
+        )
+        self.events.emit(
+            "offline_dataset_created",
+            dataset_digest=self.offline_dataset_digest,
+            trajectories=len(samples),
+            source="environment_oracle",
+        )
+
+    def _load_offline_dataset(self, *, expected_digest: str) -> None:
+        from miniverl.losses.bucketed import bucketed_teacher_entropy
+        from miniverl.losses.chunked import BucketedTargetProvider
+        from miniverl.teachers.base import TeacherScoreResult
+        from miniverl.training.offline_dataset import load_offline_dataset
+
+        cache = self._open_cache()
+        manifest, trajectories = load_offline_dataset(
+            self.paths,
+            cache=cache,
+            expected_digest=expected_digest,
+        )
+        if manifest.get("tokenizer_identity") != getattr(self.tokenizer, "identity", {}):
+            raise CheckpointError("offline dataset tokenizer identity changed")
+        if manifest.get("teacher_identity") != self._teacher_identity():
+            raise CheckpointError("offline dataset teacher identity changed")
+
+        privileged = self.config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT
+        task_by_id = {task.task_id: task for split in self.splits.values() for task in split}
+        samples: list[TrainSample] = []
+        for trajectory in trajectories:
+            selection = select_positions(
+                trajectory,
+                self.config.selection,
+                run_seed=self.config.run.seed,
+            )
+            teacher_view = None
+            if privileged:
+                task = task_by_id.get(trajectory.task_id)
+                if task is None:
+                    raise CheckpointError(
+                        f"offline trajectory references unknown task {trajectory.task_id!r}"
+                    )
+                teacher_view = self.runner.privileged_render(trajectory, task)
+            alignment = build_alignment_map(
+                trajectory,
+                selection.positions,
+                selection.weights,
+                teacher=teacher_view,
+            )
+            batch = cache.read(trajectory.trajectory_id, device=self.plan.device)
+            if batch.positions.tolist() != alignment.teacher_prediction_positions:
+                raise CheckpointError(
+                    f"offline target positions changed for {trajectory.trajectory_id!r}"
+                )
+            if batch.target_token_ids.tolist() != alignment.target_token_ids:
+                raise CheckpointError(
+                    f"offline target token IDs changed for {trajectory.trajectory_id!r}"
+                )
+            if batch.span_types != alignment.span_types:
+                raise CheckpointError(
+                    f"offline span order changed for {trajectory.trajectory_id!r}"
+                )
+            provider = BucketedTargetProvider(
+                topk_indices=batch.topk_indices,
+                topk_log_probs=batch.topk_log_probs,
+                tail_log_prob=batch.tail_log_prob,
+                divergence_name=self.config.loss.divergence.value,
+                temperature=self.config.loss.temperature,
+                scale_by_temperature_squared=(self.config.loss.scale_by_temperature_squared),
+                jsd_beta=self.config.loss.jsd_beta,
+                tail_epsilon=self.config.loss.tail_epsilon,
+            )
+            teacher_score = TeacherScoreResult(
+                trajectory_id=trajectory.trajectory_id,
+                policy_version=trajectory.policy_version,
+                shape="cached",
+                provider=provider,
+                target_token_ids=batch.target_token_ids,
+                weights=batch.weights,
+                span_types=list(batch.span_types),
+                teacher_entropy=bucketed_teacher_entropy(
+                    batch.topk_log_probs,
+                    batch.tail_log_prob,
+                    tail_epsilon=self.config.loss.tail_epsilon,
+                ),
+                num_positions=int(batch.positions.numel()),
+                cacheable=batch,
+                metrics={"selected_positions": float(batch.positions.numel())},
+            )
+            samples.append(
+                TrainSample(
+                    trajectory=trajectory,
+                    alignment=alignment,
+                    selection=selection,
+                    teacher=teacher_score,
+                )
+            )
+        selected = manifest.get("selected_positions", [])
+        rebuilt = [
+            {
+                "trajectory_id": sample.trajectory.trajectory_id,
+                "count": len(sample.alignment.student_prediction_positions),
+                "positions": list(sample.alignment.student_prediction_positions),
+            }
+            for sample in samples
+        ]
+        if rebuilt != selected:
+            raise CheckpointError("offline dataset selection no longer matches its manifest")
+        self._offline_samples = samples
+        self.offline_dataset_digest = expected_digest or str(manifest["dataset_digest"])
+        self.events.emit(
+            "offline_dataset_loaded",
+            dataset_digest=self.offline_dataset_digest,
+            trajectories=len(samples),
+        )
 
     def _build_samples(self, trajectories: list[Trajectory]) -> list[TrainSample]:
         """Select positions, align, and (for KD modes) score with the teacher."""
@@ -665,24 +1087,39 @@ class OPDTrainer:
 
     # -- optimization --------------------------------------------------------------
 
-    def _loss_by_span_type(self, sample: TrainSample, per_token: Any) -> dict[str, float]:
+    def _loss_by_span_type(
+        self,
+        sample: TrainSample,
+        per_token_objective: Any,
+    ) -> dict[str, list[float]]:
         totals: dict[str, list[float]] = {}
         weights = sample.alignment.token_weights
         for value, weight, span in zip(
-            per_token.tolist(), weights, sample.alignment.span_types, strict=False
+            per_token_objective.tolist(),
+            weights,
+            sample.alignment.span_types,
+            strict=True,
         ):
             entry = totals.setdefault(span, [0.0, 0.0])
             entry[0] += value * weight
             entry[1] += weight
-        return {k: (v[0] / v[1] if v[1] else 0.0) for k, v in totals.items()}
+        return totals
 
-    def _run_group(self, group: list[TrainSample], chunk_size: int) -> dict[str, Any]:
+    def _compute_group_gradients(
+        self,
+        group: list[TrainSample],
+        chunk_size: int,
+    ) -> dict[str, Any]:
+        """Retryable forward/backward phase; never mutates optimizer parameters."""
         import torch
 
         from miniverl.losses.chunked import chunked_selected_position_loss
 
         config = self.config
-        self.optimizer.zero_grad(set_to_none=True)
+        optimizer = self.optimizer
+        if optimizer is None:
+            raise LifecycleError("training gradients are unavailable in evaluation-only mode")
+        optimizer.zero_grad(set_to_none=True)
         self.student.set_train(True)
         device = self.student.device
         loss_total = 0.0
@@ -690,6 +1127,12 @@ class OPDTrainer:
         entropy_sum = 0.0
         entropy_count = 0
         span_losses: dict[str, list[float]] = {}
+        divergence_total = 0.0
+        sampled_nll_total = 0.0
+        oracle_ce_total = 0.0
+        divergence_available = False
+        sampled_nll_available = False
+        oracle_ce_available = False
         scale = 1.0 / max(len(group), 1)
 
         for sample in group:
@@ -714,39 +1157,111 @@ class OPDTrainer:
                 backward=True,
                 loss_scale=scale,
             )
-            loss_total += output.loss * scale
+            loss_total += float(output.loss) * scale
             positions_total += output.num_positions
-            for name, value in self._loss_by_span_type(sample, output.per_token).items():
-                span_losses.setdefault(name, []).append(value)
+            for name, (numerator, denominator) in self._loss_by_span_type(
+                sample,
+                output.per_token_objective,
+            ).items():
+                entry = span_losses.setdefault(name, [0.0, 0.0])
+                entry[0] += numerator
+                entry[1] += denominator
+            weight_tensor = weights.to(torch.float32)
+            tensor_denominator = weight_tensor.sum().clamp_min(1e-12)
+            if output.per_token_divergence is not None:
+                divergence_available = True
+                divergence_total += (
+                    float(
+                        (output.per_token_divergence.to(device) * weight_tensor).sum()
+                        / tensor_denominator
+                    )
+                    * scale
+                )
+            if output.per_token_ce is not None:
+                component = (
+                    float(
+                        (output.per_token_ce.to(device) * weight_tensor).sum() / tensor_denominator
+                    )
+                    * scale
+                )
+                if provider is None:
+                    oracle_ce_available = True
+                    oracle_ce_total += component
+                else:
+                    sampled_nll_available = True
+                    sampled_nll_total += component
             if sample.teacher is not None and sample.teacher.teacher_entropy.numel():
                 entropy_sum += float(sample.teacher.teacher_entropy.sum())
                 entropy_count += int(sample.teacher.teacher_entropy.numel())
             del hidden, output
 
-        grad_norm = float(
-            torch.nn.utils.clip_grad_norm_(
-                self.student.trainable_parameters(), config.train.max_grad_norm
-            )
-        )
-        lr = self.schedule.lr_at(self.global_step)
-        for group_params in self.optimizer.param_groups:
-            group_params["lr"] = lr
-        self.optimizer.step()
-        self.optimizer.zero_grad(set_to_none=True)
-
         return {
             "loss": loss_total,
-            "grad_norm": grad_norm,
-            "lr": lr,
             "selected_positions": positions_total,
             "trajectories_in_step": len(group),
             "teacher_entropy_mean": (entropy_sum / entropy_count) if entropy_count else None,
-            "loss_by_span_type": {k: sum(v) / len(v) for k, v in sorted(span_losses.items()) if v},
+            "divergence_loss": divergence_total if divergence_available else None,
+            "sampled_token_nll_loss": (sampled_nll_total if sampled_nll_available else None),
+            "oracle_ce_loss": oracle_ce_total if oracle_ce_available else None,
+            "loss_by_span_type": {
+                name: numerator / denominator if denominator else 0.0
+                for name, (numerator, denominator) in sorted(span_losses.items())
+            },
         }
+
+    def _commit_update(self) -> dict[str, float]:
+        """Non-retryable optimizer commit; ``step`` is invoked at most once."""
+        import torch
+
+        optimizer = self.optimizer
+        if optimizer is None:
+            raise LifecycleError("optimizer commits are unavailable in evaluation-only mode")
+        grad_norm = float(
+            torch.nn.utils.clip_grad_norm_(
+                self.student.trainable_parameters(),
+                self.config.train.max_grad_norm,
+            )
+        )
+        lr = self.schedule.lr_at(self.global_step)
+        for group_params in optimizer.param_groups:
+            group_params["lr"] = lr
+        try:
+            optimizer.step()
+        except (RuntimeError, MemoryError) as exc:
+            optimizer.zero_grad(set_to_none=True)
+            if gpu.is_oom_error(exc):
+                raise GpuMemoryError(
+                    "CUDA ran out of memory inside optimizer.step; the update may have "
+                    "partially allocated optimizer state and was not retried.",
+                    hint=(
+                        "reducing loss.chunk_size cannot fix optimizer-state allocation. "
+                        "Use a smaller model or optimizer, QLoRA/quantization, or an "
+                        "8-bit optimizer, then restart from the last complete checkpoint. "
+                        f"Original error: {exc}"
+                    ),
+                ) from exc
+            raise
+        optimizer.zero_grad(set_to_none=True)
+        return {"grad_norm": grad_norm, "lr": lr}
 
     def _optimize(self, samples: list[TrainSample], *, phase: str) -> list[dict[str, Any]]:
         accum = self.config.train.gradient_accumulation_steps
         records: list[dict[str, Any]] = []
+        optimizer = self.optimizer
+        if optimizer is None:
+            raise LifecycleError("optimization is unavailable in evaluation-only mode")
+        rollout_versions = {
+            int(sample.trajectory.policy_version)
+            for sample in samples
+            if getattr(sample, "trajectory", None) is not None
+        }
+        if len(rollout_versions) > 1:
+            raise LifecycleError(
+                "one optimizer pass cannot mix trajectories from multiple parameter versions"
+            )
+        rollout_policy_version = (
+            next(iter(rollout_versions)) if rollout_versions else self.parameter_version
+        )
         for start in range(0, len(samples), accum):
             group = samples[start : start + accum]
             if not group:
@@ -754,9 +1269,10 @@ class OPDTrainer:
             if self.config.memory.reset_peak_stats_each_cycle:
                 gpu.reset_peak_stats()
             started = time.perf_counter()
+            retry_rng = capture_rng()
 
             def run(chunk: int, batch: list[TrainSample] = group) -> dict[str, Any]:
-                return self._run_group(batch, chunk)
+                return self._compute_group_gradients(batch, chunk)
 
             def note_retry(old_chunk: int, new_chunk: int) -> None:
                 self.events.emit(
@@ -766,8 +1282,9 @@ class OPDTrainer:
                     note="objective unchanged; only the projection chunk size shrank",
                 )
 
-            def clear_grads() -> None:
-                self.optimizer.zero_grad(set_to_none=True)
+            def clear_grads(snapshot: Any = retry_rng) -> None:
+                optimizer.zero_grad(set_to_none=True)
+                restore_rng(snapshot)
 
             record = run_with_oom_retry(
                 run,
@@ -776,14 +1293,20 @@ class OPDTrainer:
                 on_retry=note_retry,
                 cleanup=clear_grads,
             )
+            record.update(self._commit_update())
+            self.global_step += 1
+            self.parameter_version += 1
             elapsed = max(time.perf_counter() - started, 1e-9)
             record.update(
                 {
                     "phase": phase,
                     "cycle": self.cycle,
+                    "rollout_iteration": self.cycle,
                     "step": self.global_step,
+                    "global_optimizer_step": self.global_step,
+                    "parameter_version": self.parameter_version,
                     "policy_version": self.policy_version,
-                    "rollout_policy_version": self.policy_version,
+                    "rollout_policy_version": rollout_policy_version,
                     "seconds": round(elapsed, 4),
                     "train_selected_tokens_per_second": record["selected_positions"] / elapsed,
                     "projection_chunk_size": self.plan.chunk_size,
@@ -793,7 +1316,6 @@ class OPDTrainer:
             )
             self.metrics_log.write(record)
             records.append(record)
-            self.global_step += 1
             if self.global_step % self.config.train.log_every_steps == 0:
                 logger.info(
                     "%s step %d cycle %d loss %.4f lr %.2e positions %d",
@@ -835,8 +1357,34 @@ class OPDTrainer:
     # -- public API -----------------------------------------------------------------
 
     def train(self) -> TrainResult:
-        """Run the configured schedule and return a summary."""
+        """Run training and finalize the public manifest for every exit state."""
         self._ensure_open("train")
+        try:
+            result = self._train_impl()
+        except KeyboardInterrupt as exc:
+            try:
+                self._finalize_manifest(status="interrupted", error=exc)
+            except BaseException as manifest_error:
+                logger.warning(
+                    "manifest finalization failed while preserving KeyboardInterrupt: %s",
+                    manifest_error,
+                )
+            raise
+        except BaseException as exc:
+            try:
+                self._finalize_manifest(status="failed", error=exc)
+            except BaseException as manifest_error:
+                logger.warning(
+                    "manifest finalization failed while preserving %s: %s",
+                    type(exc).__name__,
+                    manifest_error,
+                )
+            raise
+        self._finalize_manifest(status="completed", result=result)
+        return result
+
+    def _train_impl(self) -> TrainResult:
+        """Run the configured schedule and return a summary."""
         config = self.config
         started = time.perf_counter()
         self.events.emit(
@@ -865,7 +1413,8 @@ class OPDTrainer:
                 ),
             )
 
-        self._prepare_toy_teacher()
+        if not (config.run.mode is TrainingMode.OFFLINE_KD and self._offline_samples is not None):
+            self._prepare_toy_teacher()
 
         baseline = None
         if self._resumed:
@@ -888,6 +1437,7 @@ class OPDTrainer:
         for cycle in range(self._start_cycle, config.train.cycles):
             self.cycle = cycle
             last_records = self._run_cycle()
+            self._cycles_completed = cycle + 1
             if (
                 config.eval.enabled
                 and config.train.eval_every_cycles
@@ -895,7 +1445,11 @@ class OPDTrainer:
                 and cycle + 1 < config.train.cycles
             ):
                 self.evaluate(tag=f"cycle{cycle + 1}")
-            if config.train.save_every_cycles and (cycle + 1) % config.train.save_every_cycles == 0:
+            if (
+                config.train.save_every_cycles
+                and (cycle + 1) % config.train.save_every_cycles == 0
+                and cycle + 1 < config.train.cycles
+            ):
                 self.save_checkpoint()
 
         final_eval = self.evaluate(tag="final") if config.eval.enabled else None
@@ -909,6 +1463,8 @@ class OPDTrainer:
             cycles_completed=config.train.cycles,
             global_step=self.global_step,
             policy_version=self.policy_version,
+            parameter_version=self.parameter_version,
+            rollout_policy_version=self._last_rollout_policy_version,
             duration_seconds=duration,
             final_metrics=last_records[-1] if last_records else {},
             eval=final_eval,
@@ -922,7 +1478,11 @@ class OPDTrainer:
             "run_end",
             run_id=self.run_id,
             steps=self.global_step,
+            global_optimizer_step=self.global_step,
+            parameter_version=self.parameter_version,
             policy_version=self.policy_version,
+            rollout_iteration=self._cycles_completed,
+            rollout_policy_version=self._last_rollout_policy_version,
             seconds=round(duration, 2),
             success_rate=(final_eval or {}).get("success_rate"),
         )
@@ -937,7 +1497,6 @@ class OPDTrainer:
             samples = self._build_samples_ce_only(trajectories)
             self._optimize(samples, phase="sft_warmup")
             self.events.emit("sft_warmup_cycle", cycle=index, trajectories=stats.rollouts)
-        self.policy_version += 1
         self.cycle = 0
 
     def _build_samples_ce_only(self, trajectories: list[Trajectory]) -> list[TrainSample]:
@@ -954,9 +1513,12 @@ class OPDTrainer:
         config = self.config
         mode = config.run.mode
         cycle_started = time.perf_counter()
+        rollout_policy_version = self.parameter_version
 
         if mode is TrainingMode.OFFLINE_KD and self._offline_samples is not None:
             samples = self._offline_samples
+            if samples:
+                rollout_policy_version = samples[0].trajectory.policy_version
             stats = RolloutStats()
             self.events.emit(
                 "offline_kd_reuse",
@@ -969,6 +1531,8 @@ class OPDTrainer:
             oracle = mode in (TrainingMode.SFT, TrainingMode.OFFLINE_KD)
             rollout_started = time.perf_counter()
             trajectories, stats = self._collect(tasks, oracle=oracle)
+            if trajectories:
+                rollout_policy_version = trajectories[0].policy_version
             rollout_seconds = max(time.perf_counter() - rollout_started, 1e-9)
 
             if mode is TrainingMode.SFT or self.teacher is None:
@@ -993,7 +1557,10 @@ class OPDTrainer:
             self.events.emit(
                 "rollouts_collected",
                 cycle=self.cycle,
+                rollout_iteration=self.cycle,
                 policy_version=self.policy_version,
+                parameter_version=self.parameter_version,
+                rollout_policy_version=rollout_policy_version,
                 trajectories=stats.rollouts,
                 success_rate=round(stats.to_dict()["success_rate"], 4),
                 generated_tokens=stats.generated_tokens,
@@ -1001,6 +1568,7 @@ class OPDTrainer:
             )
             if mode is TrainingMode.OFFLINE_KD:
                 self._offline_samples = samples
+                self._persist_offline_dataset(samples)
 
         if not samples:
             # A selector can legitimately find nothing -- `tool_and_final` on a
@@ -1009,7 +1577,10 @@ class OPDTrainer:
             self.events.emit(
                 "cycle_skipped_no_selected_positions",
                 cycle=self.cycle,
+                rollout_iteration=self.cycle,
                 policy_version=self.policy_version,
+                parameter_version=self.parameter_version,
+                rollout_policy_version=rollout_policy_version,
                 selector=config.selection.selector.value,
                 trajectories=stats.rollouts,
                 note=(
@@ -1035,8 +1606,12 @@ class OPDTrainer:
         cycle_metrics: dict[str, Any] = {
             "phase": f"{config.run.mode.value}_cycle",
             "cycle": self.cycle,
+            "rollout_iteration": self.cycle,
             "step": self.global_step,
+            "global_optimizer_step": self.global_step,
+            "parameter_version": self.parameter_version,
             "policy_version": self.policy_version,
+            "rollout_policy_version": rollout_policy_version,
             "seconds": round(time.perf_counter() - cycle_started, 3),
             "rollouts": stats.to_dict(),
             "selection": selection_stats,
@@ -1047,14 +1622,18 @@ class OPDTrainer:
             cycle_metrics["cache"] = self._cache.stats().model_dump(mode="json")
         self.metrics_log.write(cycle_metrics)
 
-        if mode is TrainingMode.OPD:
-            self.policy_version += 1
-            if self._cache is not None and config.cache.keep_cycles:
-                removed = self._cache.prune_before(self.policy_version - config.cache.keep_cycles)
+        self._last_rollout_policy_version = rollout_policy_version
+        if mode is TrainingMode.OPD and self._cache is not None and config.cache.keep_cycles:
+            versions = sorted(self._cache.index.policy_versions())
+            if len(versions) > config.cache.keep_cycles:
+                removed = self._cache.prune_before(versions[-config.cache.keep_cycles])
                 if removed:
                     self.events.emit("cache_pruned", removed=removed)
-        elif mode is TrainingMode.SFT:
-            self.policy_version += 1
+        # A rollout iteration is complete only after optimization (including a
+        # legitimate no-op) and cycle metrics have both finished. Keeping the
+        # counter here also makes an explicit checkpoint taken between public
+        # train() calls resume at the next iteration.
+        self._cycles_completed = max(self._cycles_completed, self.cycle + 1)
         return records
 
     def _write_token_analysis(self, samples: list[TrainSample]) -> int:
@@ -1183,7 +1762,18 @@ class OPDTrainer:
         limit = config.effective_eval_tasks if tasks is None else len(pool)
         pool = pool[:limit]
         if not pool:
-            return {"tag": tag, "tasks": 0, "success_rate": 0.0, "note": "no eval tasks"}
+            return {
+                "tag": tag,
+                "tasks": 0,
+                "success_rate": 0.0,
+                "global_step": self.global_step,
+                "global_optimizer_step": self.global_step,
+                "policy_version": self.policy_version,
+                "parameter_version": self.parameter_version,
+                "rollout_iteration": self._cycles_completed,
+                "rollout_policy_version": self._last_rollout_policy_version,
+                "note": "no eval tasks",
+            }
 
         self.student.set_train(False)
         gpu.reset_peak_stats()
@@ -1215,7 +1805,11 @@ class OPDTrainer:
             "split": chosen_split,
             "tasks": len(pool),
             "policy_version": self.policy_version,
+            "parameter_version": self.parameter_version,
             "global_step": self.global_step,
+            "global_optimizer_step": self.global_step,
+            "rollout_iteration": self._cycles_completed,
+            "rollout_policy_version": self._last_rollout_policy_version,
             "temperature": config.eval.temperature,
             "seconds": round(elapsed, 3),
             "rollout_tokens_per_second": round(stats.generated_tokens / elapsed, 2),
@@ -1231,6 +1825,15 @@ class OPDTrainer:
                 ),
                 "valid_tool_call_rate": (
                     "measured" if stats.tool_calls + stats.invalid_tool_calls else "not_observed"
+                ),
+                "parse_valid_tool_call_rate": (
+                    "measured" if stats.emitted_tool_calls else "not_observed"
+                ),
+                "tool_execution_success_rate": (
+                    "measured" if stats.parsed_tool_calls else "not_observed"
+                ),
+                "tool_execution_error_rate": (
+                    "measured" if stats.parsed_tool_calls else "not_observed"
                 ),
                 "final_answer_format_validity_rate": "measured",
                 "protocol_token_accuracy": (
@@ -1254,6 +1857,22 @@ class OPDTrainer:
     def _config_digest(self) -> str:
         return hashlib.sha256(self.config.to_yaml().encode("utf-8")).hexdigest()
 
+    def _resolved_config_digest(self) -> str:
+        if self.paths.config_resolved.is_file():
+            return hashlib.sha256(self.paths.config_resolved.read_bytes()).hexdigest()
+        return self._config_digest()
+
+    def _checkpoint_identity(self) -> dict[str, Any]:
+        student = self.config.models.student
+        return {
+            "backend": self.config.models.backend.value,
+            "student_model_id": student.model_id,
+            "student_revision": student.revision,
+            "tokenizer_identity": student.tokenizer_id or student.model_id,
+            "tokenizer_revision": student.tokenizer_revision or student.revision,
+            "lora": student.lora.model_dump(mode="json"),
+        }
+
     def save_checkpoint(self, *, name: str | None = None) -> Path:
         """Write a resumable checkpoint."""
         self._ensure_open("save_checkpoint")
@@ -1263,10 +1882,15 @@ class OPDTrainer:
             miniverl_version=__version__,
             global_step=self.global_step,
             policy_version=self.policy_version,
+            parameter_version=self.parameter_version,
             cycle=self.cycle,
+            rollout_iteration=self._cycles_completed,
+            rollout_policy_version=self._last_rollout_policy_version,
             task_cursor=self.task_cursor,
             scheduler=self.schedule.state_dict(),
             config_digest=self._config_digest(),
+            resolved_config_digest=self._resolved_config_digest(),
+            offline_dataset_digest=self.offline_dataset_digest,
         )
         save_checkpoint(
             target,
@@ -1274,6 +1898,7 @@ class OPDTrainer:
             optimizer=self.optimizer,
             state=state,
             rng=capture_rng(),
+            identity=self._checkpoint_identity(),
         )
         self.events.emit("checkpoint_saved", path=str(target), step=self.global_step)
         return target
@@ -1281,25 +1906,54 @@ class OPDTrainer:
     def load_from_checkpoint(self, directory: str | Path) -> CheckpointState:
         """Restore a checkpoint into this trainer."""
         self._ensure_open("load_from_checkpoint")
+        from miniverl.training.checkpoint import validate_checkpoint
+
+        validated = validate_checkpoint(directory)
+        digest = self._config_digest()
+        if validated.state.config_digest and validated.state.config_digest != digest:
+            raise ConfigError(
+                "the checkpoint was written by a different configuration",
+                hint="resume with the run's config.resolved.yaml, not a modified recipe",
+            )
+        identity = self._checkpoint_identity()
+        if validated.identity:
+            mismatches = {
+                key: (validated.identity.get(key), value)
+                for key, value in identity.items()
+                if validated.identity.get(key) != value
+            }
+            if mismatches:
+                details = ", ".join(
+                    f"{key}: checkpoint={actual!r}, current={expected!r}"
+                    for key, (actual, expected) in sorted(mismatches.items())
+                )
+                raise ConfigError(f"checkpoint model/tokenizer identity mismatch ({details})")
+        if self.config.run.mode is TrainingMode.OFFLINE_KD:
+            if not validated.state.offline_dataset_digest:
+                raise ConfigError(
+                    "offline-KD checkpoint has no persisted dataset identity",
+                    hint="restart this legacy run; exact offline-KD resume requires v0.2.1 artifacts",
+                )
+            self._load_offline_dataset(
+                expected_digest=validated.state.offline_dataset_digest,
+            )
         state = load_checkpoint(
             directory,
             backend=self.student,
             optimizer=self.optimizer,
             device=self.student.device,
+            expected_config_digest=digest,
+            expected_identity=identity if validated.identity else None,
         )
-        digest = self._config_digest()
-        if state.config_digest and state.config_digest != digest:
-            raise ConfigError(
-                "the checkpoint was written by a different configuration",
-                hint="resume with the run's config.resolved.yaml, not a modified recipe",
-            )
-        self.global_step = state.global_step
-        self.policy_version = state.policy_version
-        self.cycle = state.cycle
-        self.task_cursor = state.task_cursor
-        # `state.cycle` is the last cycle that ran, so resume at the next one.
-        self._start_cycle = max(state.cycle + 1, 0)
+        self._apply_checkpoint_progress(state)
+        self._start_cycle = self._cycles_completed
         self._resumed = True
+        self._resumed_from = {
+            "directory": Path(directory).name,
+            "global_step": validated.state.global_step,
+            "digest": validated.content_digest,
+            "integrity": validated.integrity,
+        }
         if state.scheduler:
             self.schedule = LearningRateSchedule.from_state_dict(state.scheduler)
         self.events.emit("checkpoint_loaded", path=str(directory), step=self.global_step)
@@ -1346,16 +2000,17 @@ class OPDTrainer:
         optimizer = self.optimizer
         self.optimizer = None
         if optimizer is not None:
+            owned_optimizer: Any = optimizer
             cleanup(
                 "optimizer gradient clear",
-                lambda: optimizer.zero_grad(set_to_none=True),
+                lambda: owned_optimizer.zero_grad(set_to_none=True),
             )
 
             def clear_optimizer() -> None:
-                optimizer.state.clear()
-                for group in optimizer.param_groups:
+                owned_optimizer.state.clear()
+                for group in owned_optimizer.param_groups:
                     group["params"] = []
-                optimizer.param_groups.clear()
+                owned_optimizer.param_groups.clear()
 
             cleanup("optimizer state clear", clear_optimizer)
         optimizer = None

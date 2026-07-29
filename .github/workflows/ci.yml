@@ -176,6 +176,77 @@ jobs:
           print("no unfinished implementation markers")
           PY
 
+  training-boundaries:
+    name: training ${{ matrix.name }} py${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: minimum
+            python-version: "3.10"
+            torch: "2.3.*"
+            transformers: "4.51.*"
+            peft: "0.12.*"
+            accelerate: "0.33.*"
+            numpy: "1.24.*"
+            bitsandbytes: "0.43.*"
+          - name: latest
+            python-version: "3.13"
+            torch: ""
+            transformers: ""
+            peft: ""
+            accelerate: ""
+            numpy: ""
+            bitsandbytes: ""
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install declared training boundary
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          if [[ "${{ matrix.name }}" == "minimum" ]]; then
+            pip install "torch==${{ matrix.torch }}" --index-url https://download.pytorch.org/whl/cpu
+            pip install \
+              "transformers==${{ matrix.transformers }}" \
+              "peft==${{ matrix.peft }}" \
+              "accelerate==${{ matrix.accelerate }}" \
+              "numpy==${{ matrix.numpy }}" \
+              "bitsandbytes==${{ matrix.bitsandbytes }}"
+            pip install -e ".[dev]"
+          else
+            pip install torch --index-url https://download.pytorch.org/whl/cpu
+            pip install -e ".[dev,train,cuda]"
+          fi
+
+      - name: Report resolved boundary
+        run: |
+          python - <<'PY'
+          import importlib.metadata as md
+          for name in ("torch", "transformers", "peft", "accelerate", "numpy", "bitsandbytes"):
+              print(name, md.version(name))
+          from transformers import Qwen3Config
+          from bitsandbytes.nn import Linear4bit
+          assert Qwen3Config(vocab_size=128).vocab_size == 128
+          assert Linear4bit is not None
+          PY
+
+      - name: No-network toy training smoke
+        env:
+          HF_HUB_OFFLINE: "1"
+          TRANSFORMERS_OFFLINE: "1"
+          MINIVERL_LOG_LEVEL: WARNING
+        run: |
+          pytest -q \
+            tests/integration/test_toy_pipeline.py::test_sft_completes_without_loading_a_teacher \
+            tests/integration/test_manifest_lifecycle.py::test_successful_training_finalizes_manifest_without_changing_startup
+
   transformers-compat:
     name: transformers ${{ matrix.transformers-version }}
     runs-on: ubuntu-latest

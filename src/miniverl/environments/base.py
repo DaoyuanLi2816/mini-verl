@@ -166,7 +166,12 @@ class ToolEnvironment(ABC):
 
     @abstractmethod
     def reset(self, task: Task) -> Observation:
-        """Start an episode for ``task`` and return the initial observation."""
+        """Start an episode and return its authoritative initial text and state.
+
+        The runner calls this exactly once and writes ``Observation.text`` and
+        ``state_id`` into trajectory provenance. Dynamic environments should
+        compute their initial view here.
+        """
         ...
 
     @abstractmethod
@@ -208,12 +213,28 @@ class ToolEnvironment(ABC):
             raise ValueError(f"prompt_style must be 'full' or 'compact', got {style!r}")
         return style
 
+    @property
+    def protocol_version(self) -> str:
+        """Prompt/protocol contract; v1 is the frozen historical v0.2 prompt."""
+        version = str(self.params.get("protocol_version", "v1"))
+        if version not in ("v1", "v2"):
+            raise ValueError(f"protocol_version must be 'v1' or 'v2', got {version!r}")
+        return version
+
     def system_prompt(self) -> str:
         """System message describing the protocol and the available tools."""
         if self.prompt_style == "compact":
             tools = "\n".join(
                 f"- {spec.name}({', '.join(spec.parameters)})" for spec in self.tool_specs()
             )
+            if self.protocol_version == "v2":
+                return (
+                    "Use tools to solve the task.\n"
+                    f"{tools}\n"
+                    "Reply with one block:\n<tool_call>\n"
+                    '{"name":"calculator","arguments":{"expression":"2+2"}}\n'
+                    "</tool_call>\nor\n<final>\n4\n</final>"
+                )
             return (
                 "Use tools to solve the task.\n"
                 f"{tools}\n"
@@ -221,6 +242,20 @@ class ToolEnvironment(ABC):
                 "</tool_call>\nor\n<final>\nanswer\n</final>"
             )
         tools = "\n".join(spec.render() for spec in self.tool_specs())
+        if self.protocol_version == "v2":
+            return (
+                "You are a tool-using assistant. Solve the task with the tools below.\n"
+                "\n"
+                "Tools:\n"
+                f"{tools}\n"
+                "\n"
+                "Reply with exactly one block per turn.\n"
+                "To call a tool:\n"
+                '<tool_call>\n{"name":"calculator","arguments":{"expression":"2+2"}}\n'
+                "</tool_call>\n"
+                "To answer:\n"
+                "<final>\n4\n</final>"
+            )
         return (
             "You are a tool-using assistant. Solve the task with the tools below.\n"
             "\n"
@@ -235,14 +270,24 @@ class ToolEnvironment(ABC):
         )
 
     def user_prompt(self, task: Task) -> str:
-        """User message for ``task``."""
+        """Compatibility helper for built-ins constructing ``reset()`` output.
+
+        The rollout runner never calls this separately: ``reset()`` is the one
+        authoritative initial-observation contract.
+        """
         return task.prompt
 
     # -- diagnostics -----------------------------------------------------
 
     def describe(self) -> dict[str, Any]:
         """Environment identity for the run manifest."""
-        return {"name": self.name, "params": dict(self.params)}
+        return {
+            "name": self.name,
+            "params": {
+                **dict(self.params),
+                "protocol_version": self.protocol_version,
+            },
+        }
 
 
 #: Index offsets keeping the three splits disjoint by construction.

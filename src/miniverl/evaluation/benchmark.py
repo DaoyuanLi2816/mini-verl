@@ -215,16 +215,20 @@ def _cold_start(
     output_dir: Path,
     *,
     local_files_only: bool = False,
+    resume_existing: bool = False,
 ) -> tuple[Path | None, float]:
     if run_config.train.cycles <= 0:
         return None, 0.0
     from miniverl.trainer import OPDTrainer
 
     started = time.perf_counter()
+    run_id = f"{run_config.run.name}-s{run_config.run.seed}"
+    existing = output_dir / run_id
     with OPDTrainer.from_config(
         run_config,
-        output_dir=output_dir,
-        run_id=f"{run_config.run.name}-s{run_config.run.seed}",
+        output_dir=None if resume_existing and existing.is_dir() else output_dir,
+        run_id=None if resume_existing and existing.is_dir() else run_id,
+        resume=existing if resume_existing and existing.is_dir() else None,
         local_files_only=local_files_only,
     ) as trainer:
         result = trainer.train()
@@ -345,6 +349,7 @@ def _run_one_arm(
     common_dump: dict[str, Any],
     checkpoint: Path | None,
     local_files_only: bool = False,
+    resume_existing: bool = False,
 ) -> ArmResult:
     """Run one arm inside a model-owning lifetime boundary."""
     from miniverl.trainer import OPDTrainer
@@ -352,10 +357,12 @@ def _run_one_arm(
 
     declared_config = portable_payload(run_config.model_dump(mode="json"))
     arm_started = time.perf_counter()
+    existing = target / run_config.run.name
     with OPDTrainer.from_config(
         run_config,
-        output_dir=target,
-        run_id=run_config.run.name,
+        output_dir=None if resume_existing and existing.is_dir() else target,
+        run_id=None if resume_existing and existing.is_dir() else run_config.run.name,
+        resume=existing if resume_existing and existing.is_dir() else None,
         local_files_only=local_files_only,
     ) as trainer:
         runtime_config = portable_payload(
@@ -451,6 +458,27 @@ def _run_one_arm(
             ),
             avg_turns=float(evaluation["avg_turns"]),
             avg_tool_calls=float(evaluation["avg_tool_calls"]),
+            **{
+                key: int(evaluation[key]) if evaluation.get(key) is not None else None
+                for key in (
+                    "assistant_turns",
+                    "emitted_tool_calls",
+                    "parsed_tool_calls",
+                    "tool_execution_successes",
+                    "tool_execution_errors",
+                    "unknown_tool_calls",
+                    "parse_errors",
+                    "repeated_call_terminations",
+                    "final_answers_emitted",
+                    "final_answers_format_valid",
+                    "final_answers_verified",
+                )
+            },
+            parse_valid_tool_call_rate=finite_or_none(evaluation.get("parse_valid_tool_call_rate")),
+            tool_execution_success_rate=finite_or_none(
+                evaluation.get("tool_execution_success_rate")
+            ),
+            tool_execution_error_rate=finite_or_none(evaluation.get("tool_execution_error_rate")),
             tool_call_count=int(evaluation["tool_call_count"]),
             valid_tool_call_rate=finite_or_none(evaluation.get("valid_tool_call_rate")),
             invalid_tool_call_rate=float(evaluation["invalid_tool_call_rate"]),
@@ -495,8 +523,14 @@ def run_benchmark(
     notes: str = "",
     invocation: list[str] | None = None,
     local_files_only: bool = False,
+    resume: bool = False,
 ) -> BenchmarkResult:
-    """Execute every preflight-validated arm and write a schema-v2 result."""
+    """Execute every preflight-validated arm and write a schema-v2 result.
+
+    Existing arm directories are always collisions unless ``resume=True``.
+    Resume attaches to their validated checkpoints and intentionally extends
+    the same logs; it never treats stale files as a new benchmark run.
+    """
     # Preflight every seed before creating a run directory or allocating a model.
     preflight = {seed: resolve_benchmark_configs(config, seed=seed) for seed in config.seeds}
     common_config = preflight[config.seeds[0]][0]
@@ -516,6 +550,7 @@ def run_benchmark(
                 cold_config,
                 target,
                 local_files_only=local_files_only,
+                resume_existing=resume,
             )
         finally:
             _isolate_next_trainer(f"cold start seed {seed}")
@@ -547,6 +582,7 @@ def run_benchmark(
                         common_dump=common_dump,
                         checkpoint=checkpoint,
                         local_files_only=local_files_only,
+                        resume_existing=resume,
                     )
                 )
             finally:

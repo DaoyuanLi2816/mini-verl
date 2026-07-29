@@ -350,6 +350,9 @@ class RolloutConfig(_Base):
     temperature: float = Field(default=1.0, ge=0.0, le=5.0)
     top_p: float = Field(default=1.0, gt=0.0, le=1.0)
     top_k: int = Field(default=0, ge=0)
+    # Maximum parse errors tolerated in an episode. The rollout terminates as
+    # soon as the count reaches this limit; zero therefore terminates on the
+    # first parse error.
     max_parse_errors: int = Field(default=2, ge=0, le=32)
     max_repeated_calls: int = Field(default=2, ge=1, le=32)
 
@@ -555,6 +558,11 @@ class RunConfig(_Base):
             )
 
         if self.loss.mode is LossMode.EXACT_FULL_VOCAB:
+            if self.cache.dtype != "float32":
+                raise ValueError(
+                    "loss.mode=exact_full_vocab requires cache.dtype=float32; a float16 "
+                    "teacher-probability cache would make the advertised exact objective lossy"
+                )
             # top_k is meaningless in exact mode. Reject it only when the recipe
             # *explicitly* set it to something other than 1, so that omitting the
             # key entirely -- the remedy the message suggests -- actually works.

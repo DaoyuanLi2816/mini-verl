@@ -211,15 +211,15 @@ flowchart TD
 
     H5 --> I["_optimize(samples, phase='opd')"]
     I --> I1["run_with_oom_retry(...)"]
-    I1 --> I2["_run_group(group, chunk_size)"]
+    I1 --> I2["_compute_group_gradients(group, chunk_size)"]
     I2 --> I3["student.hidden_states_at(with_grad=True)"]
     I3 --> I4["chunked_selected_position_loss()<br/>provider.divergence per chunk, backward=True"]
-    I4 --> I5["clip_grad_norm_ + schedule.lr_at + optimizer.step()"]
+    I4 --> I5["_commit_update()<br/>clip_grad_norm_ + schedule.lr_at + optimizer.step()"]
     I5 --> I6["metrics_log.write(record)"]
 
     I6 --> J["_write_token_analysis(samples)<br/>last cycle only"]
     J --> K["aggregate_selection_stats + cycle record"]
-    K --> L["policy_version += 1<br/>cache.prune_before()"]
+    K --> L["successful update only<br/>parameter_version += 1"]
     L --> E
 
     E --> M["evaluate(tag='final')<br/>temperature 0.0, held-out split"]
@@ -369,7 +369,9 @@ then `clip_grad_norm_`, `schedule.lr_at(global_step)` written into every
 `param_group["lr"]`, and `optimizer.step()`.
 
 Per-step records go to `metrics.jsonl` with `phase`, `cycle`, `step`,
-`policy_version`, `loss`, `grad_norm`, `lr`, `selected_positions`,
+`global_optimizer_step`, `parameter_version`, the deprecated
+`policy_version` alias, `rollout_policy_version`, `loss`, `divergence_loss`,
+`sampled_token_nll`, `grad_norm`, `lr`, `selected_positions`,
 `trajectories_in_step`, `teacher_entropy_mean`, `loss_by_span_type`, `seconds`,
 `train_selected_tokens_per_second`, `projection_chunk_size` and a
 `gpu.snapshot()` memory block.
@@ -383,11 +385,14 @@ mixing (see [Roadmap](#8-roadmap-not-implemented)).
 
 ### 3.8 Policy version bookkeeping
 
-At the end of an OPD cycle `policy_version += 1`, and
-`cache.prune_before(policy_version - cache.keep_cycles)` deletes entries (and
-whole shards, once empty) from older versions. Because `run.mode: opd` forces
-`cache.strict_policy_version: true`, any attempt to read a target at the wrong
-version raises `StaleCacheError`.
+After each successful optimizer commit, `parameter_version += 1`;
+`policy_version` is its deprecated compatibility alias. A cycle with no selected
+positions and a failed optimizer commit both leave it unchanged. Each trajectory
+and teacher target retain the `rollout_policy_version` that generated them, so
+explicit replay can consume one rollout version in multiple updates without
+relabelling the data. Because `run.mode: opd` forces
+`cache.strict_policy_version: true`, any attempt to read a target under a
+different rollout version raises `StaleCacheError`.
 
 ### 3.9 Memory strategies
 
@@ -427,11 +432,11 @@ knobs to turn.
 
 One class runs all three because they differ only along two axes.
 
-| `run.mode` | trajectories | targets | `policy_version` |
+| `run.mode` | trajectories | targets | parameter-version behavior |
 | --- | --- | --- | --- |
-| `sft` | `oracle_rollout` reference traces | the tokens themselves (cross-entropy) | increments per cycle |
-| `offline_kd` | one fixed trajectory set, reused | one frozen teacher cache | never increments |
-| `opd` | sampled from the *current* student every cycle | teacher scoring those exact states, every cycle | increments per cycle |
+| `sft` | `oracle_rollout` reference traces | the tokens themselves (cross-entropy) | increments after each successful optimizer commit |
+| `offline_kd` | one persisted fixed trajectory set, reused | one frozen teacher cache | increments after each successful optimizer commit; the rollout version stays fixed |
+| `opd` | sampled from the *current* student every rollout iteration | teacher scoring those exact states, every iteration | increments after each successful optimizer commit; strict mode takes one update per rollout version |
 
 The distinction is enforced by config validation, not documentation:
 `offline_kd` is the only mode allowed to set
@@ -505,7 +510,8 @@ the same as a real run's):
   checkpoints/final/
     adapter.safetensors                    trainable weights only
     optimizer.safetensors                  optimizer moment tensors
-    state.json                             step, policy version, scheduler, RNG
+    state.json                             step, parameter/rollout versions, scheduler, RNG
+    checkpoint.json                        completion marker, identity and file checksums
   eval.json                                final summary written by train()
   report.html                              self-contained offline report
   summary.md                               Markdown version of the same data
@@ -533,7 +539,8 @@ re-resolve an `auto` decision differently from the run being evaluated.
 mode, seed, determinism flag, environment description and split sizes, both
 model records (id, revision, quantization, precision, resolved
 `BackendCapabilities`), the tokenizer fingerprint and vocabulary size, the full
-objective block, the memory plan, the policy version, and a
+objective block, the memory plan, global optimizer step, parameter and rollout
+versions, and a
 `measurement_status` block that says `not_run_no_cuda` rather than reporting a
 zero when there is no GPU.
 

@@ -98,7 +98,7 @@ def test_float16_round_trip_stays_within_its_documented_precision(tmp_path: Path
 
 
 def test_exact_zero_tail_survives_storage(tmp_path: Path):
-    """``k == V`` yields ``-inf``; it must come back as an effectively-zero tail."""
+    """``k == V`` yields ``-inf`` and must round-trip as exact empty mass."""
     cache = TeacherCache.create(
         tmp_path / "tc",
         miniverl_version="0.1.0",
@@ -134,8 +134,151 @@ def test_exact_zero_tail_survives_storage(tmp_path: Path):
     )
     cache.flush()
     loaded = cache.read("t")
-    assert bool(torch.isfinite(loaded.tail_log_prob).all())
-    assert float(loaded.tail_log_prob.exp().max()) == pytest.approx(0.0, abs=1e-12)
+    assert bool(torch.isneginf(loaded.tail_log_prob).all())
+
+
+def test_ordered_span_types_survive_a_heterogeneous_round_trip(tmp_path: Path) -> None:
+    cache = _cache(tmp_path / "tc")
+    batch = _batch("ordered", positions=5)
+    batch.span_types = [
+        "assistant_text",
+        "assistant_final",
+        "assistant_tool_call",
+        "assistant_text",
+        "assistant_final",
+    ]
+    cache.write(batch, selector="hybrid")
+    cache.flush()
+
+    assert cache.read("ordered").span_types == batch.span_types
+
+
+def test_exact_full_vocab_refuses_a_lossy_float16_cache(tmp_path: Path) -> None:
+    with pytest.raises(CacheError, match=r"exact_full_vocab.*float32"):
+        TeacherCache.create(
+            tmp_path / "tc",
+            miniverl_version="0.2.1.dev0",
+            teacher_model_id="toy",
+            teacher_model_revision=None,
+            tokenizer_fingerprint="fp",
+            vocab_size=VOCAB,
+            top_k=VOCAB,
+            temperature=1.0,
+            loss_mode="exact_full_vocab",
+            dtype="float16",
+        )
+
+
+@pytest.mark.parametrize("divergence", ["forward_kl", "reverse_kl", "jsd"])
+def test_exact_full_vocab_cached_provider_matches_resident_exact_provider(
+    tmp_path: Path,
+    divergence: str,
+) -> None:
+    from miniverl.losses.bucketed import teacher_topk_targets
+    from miniverl.losses.chunked import BucketedTargetProvider, ExactTargetProvider
+
+    generator = torch.Generator().manual_seed(44)
+    teacher_logits = torch.randn(4, 17, generator=generator)
+    student_logits = torch.randn(4, 17, generator=generator)
+    indices, log_probs, tail = teacher_topk_targets(teacher_logits, top_k=17)
+    cache = TeacherCache.create(
+        tmp_path / "exact",
+        miniverl_version="0.2.1.dev0",
+        teacher_model_id="teacher",
+        teacher_model_revision="rev",
+        tokenizer_fingerprint="fp",
+        vocab_size=17,
+        top_k=17,
+        temperature=1.0,
+        loss_mode="exact_full_vocab",
+        dtype="float32",
+    )
+    cache.write(
+        TeacherTargetBatch(
+            trajectory_id="exact",
+            policy_version=0,
+            positions=torch.arange(4),
+            topk_indices=indices,
+            topk_log_probs=log_probs,
+            tail_log_prob=tail,
+            target_token_ids=torch.zeros(4, dtype=torch.long),
+            weights=torch.ones(4),
+            temperature=1.0,
+            top_k=17,
+            span_types=["assistant_final"] * 4,
+        ),
+        selector="all_model_tokens",
+        tail_is_exact_zero=True,
+    )
+    cache.flush()
+    loaded = cache.read("exact")
+
+    resident = ExactTargetProvider(
+        teacher_logits_fn=lambda start, end: teacher_logits[start:end],
+        divergence_name=divergence,
+    )
+    cached = BucketedTargetProvider(
+        topk_indices=loaded.topk_indices,
+        topk_log_probs=loaded.topk_log_probs,
+        tail_log_prob=loaded.tail_log_prob,
+        divergence_name=divergence,
+    )
+    assert torch.allclose(
+        resident.divergence(0, 4, student_logits),
+        cached.divergence(0, 4, student_logits),
+        atol=1e-6,
+        rtol=1e-6,
+    )
+
+
+def test_cache_identity_includes_teacher_adapter_provenance(tmp_path: Path) -> None:
+    provenance = {
+        "source": "hub",
+        "identity": "owner/adapter",
+        "revision": "a" * 40,
+        "weights_sha256": "b" * 64,
+        "manifest_digest": "c" * 64,
+        "base_model_revision": "d" * 40,
+    }
+    cache = TeacherCache.create(
+        tmp_path / "tc",
+        miniverl_version="0.2.1.dev0",
+        teacher_model_id="teacher",
+        teacher_model_revision="d" * 40,
+        tokenizer_fingerprint="fp",
+        tokenizer_identity={"structural_digest_v2": "e" * 64},
+        teacher_adapter_provenance=provenance,
+        vocab_size=VOCAB,
+        top_k=TOP_K,
+        temperature=1.0,
+        loss_mode="bucketed_topk_tail",
+    )
+    cache.assert_compatible(
+        teacher_model_id="teacher",
+        teacher_model_revision="d" * 40,
+        tokenizer_fingerprint="fp",
+        tokenizer_identity={"structural_digest_v2": "e" * 64},
+        teacher_adapter_provenance=provenance,
+        vocab_size=VOCAB,
+        top_k=TOP_K,
+        temperature=1.0,
+        loss_mode="bucketed_topk_tail",
+        dtype="float32",
+    )
+    changed = {**provenance, "revision": "f" * 40}
+    with pytest.raises(StaleCacheError, match="teacher_adapter_provenance"):
+        cache.assert_compatible(
+            teacher_model_id="teacher",
+            teacher_model_revision="d" * 40,
+            tokenizer_fingerprint="fp",
+            tokenizer_identity={"structural_digest_v2": "e" * 64},
+            teacher_adapter_provenance=changed,
+            vocab_size=VOCAB,
+            top_k=TOP_K,
+            temperature=1.0,
+            loss_mode="bucketed_topk_tail",
+            dtype="float32",
+        )
 
 
 def test_sharding_is_deterministic_and_index_stays_consistent(tmp_path: Path):

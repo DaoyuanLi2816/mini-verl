@@ -87,7 +87,8 @@ footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--line);
 <table>
   <thead><tr>
     <th>checkpoint</th><th class="num">step</th><th class="num">policy v</th><th class="num">tasks</th>
-    <th class="num">success</th><th class="num">avg turns</th><th class="num">invalid calls</th>
+    <th class="num">success</th><th class="num">avg turns</th><th class="num">parse-valid calls</th>
+    <th class="num">execution success</th>
     <th class="num">gen tokens/task</th><th class="num">rollout tok/s</th>
   </tr></thead>
   <tbody>
@@ -99,7 +100,8 @@ footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--line);
       <td class="num">{{ row.tasks }}</td>
       <td class="num">{{ pct(row.success_rate) }}</td>
       <td class="num">{{ num(row.avg_turns, 2) }}</td>
-      <td class="num">{{ pct(row.invalid_tool_call_rate) }}</td>
+      <td class="num">{{ pct(row.parse_valid_tool_call_rate) }}</td>
+      <td class="num">{{ pct(row.tool_execution_success_rate) }}</td>
       <td class="num">{{ num(row.generated_tokens_per_task, 1) }}</td>
       <td class="num">{{ num(row.rollout_tokens_per_second, 1) }}</td>
     </tr>

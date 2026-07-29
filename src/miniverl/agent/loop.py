@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from miniverl.agent.protocol import (
+    FINAL_OPEN,
+    TOOL_CALL_OPEN,
     ActionKind,
     parse_assistant_text,
     render_final,
@@ -45,6 +47,8 @@ from miniverl.agent.transcript import (
 )
 from miniverl.config.models import RolloutConfig
 from miniverl.environments.base import (
+    FailureCategory,
+    Observation,
     OracleActionKind,
     Task,
     ToolCall,
@@ -72,6 +76,19 @@ class RolloutStats:
     rollouts: int = 0
     solved: int = 0
     turns: int = 0
+    assistant_turns: int = 0
+    emitted_tool_calls: int = 0
+    parsed_tool_calls: int = 0
+    tool_execution_successes: int = 0
+    tool_execution_errors: int = 0
+    unknown_tool_calls: int = 0
+    parse_errors: int = 0
+    repeated_call_terminations: int = 0
+    final_answers_emitted: int = 0
+    final_answers_format_valid: int = 0
+    final_answers_verified: int = 0
+    # Deprecated compatibility aliases. New code and artifacts should use the
+    # event-specific counters above.
     tool_calls: int = 0
     invalid_tool_calls: int = 0
     valid_final_answers: int = 0
@@ -91,15 +108,77 @@ class RolloutStats:
         assert self.failure_categories is not None
         self.rollouts += 1
         self.turns += len(trajectory.turns)
-        self.tool_calls += sum(
-            1 for t in trajectory.turns if t.tool_call is not None and t.tool_call.valid
-        )
+        has_precise_counters = getattr(trajectory, "assistant_turns", None) is not None
+        if has_precise_counters:
+            assistant_turns = int(trajectory.assistant_turns or 0)
+            emitted_tool_calls = int(trajectory.emitted_tool_calls or 0)
+            parsed_tool_calls = int(trajectory.parsed_tool_calls or 0)
+            execution_successes = int(trajectory.tool_execution_successes or 0)
+            execution_errors = int(trajectory.tool_execution_errors or 0)
+            unknown_tool_calls = int(trajectory.unknown_tool_calls or 0)
+            parse_errors = int(trajectory.parse_errors or 0)
+            repeated_terminations = int(trajectory.repeated_call_terminations or 0)
+            final_answers_emitted = int(trajectory.final_answers_emitted or 0)
+            final_answers_format_valid = int(trajectory.final_answers_format_valid or 0)
+            final_answers_verified = int(trajectory.final_answers_verified or 0)
+        else:
+            # Legacy trajectories predate the event counters. Derive the
+            # narrowest backward-compatible interpretation available from their
+            # turn records without claiming unavailable distinctions.
+            assistant_turns = len(trajectory.turns)
+            parsed_turns = [
+                turn
+                for turn in trajectory.turns
+                if turn.tool_call is not None and turn.tool_call.valid
+            ]
+            parse_error_turns = [
+                turn
+                for turn in trajectory.turns
+                if turn.tool_call is not None and not turn.tool_call.valid
+            ]
+            emitted_tool_calls = len(parsed_turns) + len(parse_error_turns)
+            parsed_tool_calls = len(parsed_turns)
+            execution_successes = 0
+            execution_errors = 0
+            for turn in parsed_turns:
+                tool_result = getattr(turn, "tool_result", None)
+                if tool_result is None or tool_result.ok:
+                    execution_successes += 1
+                else:
+                    execution_errors += 1
+            unknown_tool_calls = 0
+            parse_errors = len(parse_error_turns)
+            repeated_terminations = int(
+                trajectory.termination_reason is TerminationReason.REPEATED_CALL_LIMIT
+            )
+            final_answers_emitted = int(
+                trajectory.termination_reason is TerminationReason.FINAL_ANSWER
+            )
+            final_answers_verified = int(trajectory.verification is not None)
+            final_answers_format_valid = int(
+                trajectory.verification is not None
+                and trajectory.verification.failure_category
+                != FailureCategory.MALFORMED_ANSWER.value
+            )
+
+        self.assistant_turns += assistant_turns
+        self.emitted_tool_calls += emitted_tool_calls
+        self.parsed_tool_calls += parsed_tool_calls
+        self.tool_execution_successes += execution_successes
+        self.tool_execution_errors += execution_errors
+        self.unknown_tool_calls += unknown_tool_calls
+        self.parse_errors += parse_errors
+        self.repeated_call_terminations += repeated_terminations
+        self.final_answers_emitted += final_answers_emitted
+        self.final_answers_format_valid += final_answers_format_valid
+        self.final_answers_verified += final_answers_verified
+        self.tool_calls += parsed_tool_calls
         self.invalid_tool_calls += trajectory.invalid_tool_calls
         self.generated_tokens += trajectory.generated_token_count
         reason = trajectory.termination_reason.value
         self.termination_reasons[reason] = self.termination_reasons.get(reason, 0) + 1
         if trajectory.verification is not None:
-            self.valid_final_answers += 1
+            self.valid_final_answers += final_answers_format_valid
             if trajectory.verification.solved:
                 self.solved += 1
             category = trajectory.verification.failure_category or "solved"
@@ -114,20 +193,53 @@ class RolloutStats:
         assert self.termination_reasons is not None
         assert self.failure_categories is not None
         n = max(self.rollouts, 1)
-        tool_call_count = self.tool_calls + self.invalid_tool_calls
+        tool_execution_attempts = self.tool_execution_successes + self.tool_execution_errors
+        parse_valid_tool_call_rate = (
+            self.parsed_tool_calls / self.emitted_tool_calls if self.emitted_tool_calls else None
+        )
+        tool_execution_success_rate = (
+            self.tool_execution_successes / tool_execution_attempts
+            if tool_execution_attempts
+            else None
+        )
+        tool_execution_error_rate = (
+            self.tool_execution_errors / tool_execution_attempts
+            if tool_execution_attempts
+            else None
+        )
         return {
             "rollouts": self.rollouts,
             "solved": self.solved,
             "success_rate": self.solved / n,
             "strict_task_success_rate": self.solved / n,
-            "avg_turns": self.turns / n,
-            "avg_tool_calls": self.tool_calls / n,
-            "tool_call_count": tool_call_count,
-            "valid_tool_call_rate": (
-                self.tool_calls / tool_call_count if tool_call_count else None
+            "assistant_turns": self.assistant_turns,
+            "emitted_tool_calls": self.emitted_tool_calls,
+            "parsed_tool_calls": self.parsed_tool_calls,
+            "tool_execution_successes": self.tool_execution_successes,
+            "tool_execution_errors": self.tool_execution_errors,
+            "unknown_tool_calls": self.unknown_tool_calls,
+            "parse_errors": self.parse_errors,
+            "repeated_call_terminations": self.repeated_call_terminations,
+            "final_answers_emitted": self.final_answers_emitted,
+            "final_answers_format_valid": self.final_answers_format_valid,
+            "final_answers_verified": self.final_answers_verified,
+            "parse_valid_tool_call_rate": parse_valid_tool_call_rate,
+            "tool_execution_success_rate": tool_execution_success_rate,
+            "tool_execution_error_rate": tool_execution_error_rate,
+            "final_answer_format_validity_rate": (
+                self.final_answers_format_valid / self.final_answers_emitted
+                if self.final_answers_emitted
+                else None
             ),
-            "invalid_tool_call_rate": self.invalid_tool_calls / max(tool_call_count, 1),
-            "final_answer_format_validity_rate": self.valid_final_answers / n,
+            "avg_turns": self.assistant_turns / n,
+            "avg_tool_calls": self.parsed_tool_calls / n,
+            # Deprecated aliases retained for backward readers. A "valid" tool
+            # call means parse-valid here; execution success is reported above.
+            "tool_call_count": self.emitted_tool_calls,
+            "valid_tool_call_rate": parse_valid_tool_call_rate,
+            "invalid_tool_call_rate": (
+                self.parse_errors / self.emitted_tool_calls if self.emitted_tool_calls else 0.0
+            ),
             "generated_tokens": self.generated_tokens,
             "generated_tokens_per_task": self.generated_tokens / n,
             # None, not NaN: JSON has no NaN literal, so writing one produces a
@@ -169,7 +281,7 @@ class RolloutRunner:
         """The backend's tokenizer."""
         return self.backend.tokenizer
 
-    def _new_builder(self, task: Task) -> TranscriptBuilder:
+    def _new_builder(self, initial_observation: Observation) -> TranscriptBuilder:
         builder = TranscriptBuilder(self.tokenizer, self.chat_format)
         builder.add_context(
             key="sys",
@@ -184,8 +296,9 @@ class RolloutRunner:
             span_type=SpanType.USER,
             turn_id=0,
             role="user",
-            body=self.environment.user_prompt(task),
+            body=initial_observation.text,
             open_next_assistant=True,
+            env_state_id=initial_observation.state_id,
         )
         return builder
 
@@ -279,11 +392,22 @@ class RolloutRunner:
         turn_budget = max_turns if max_turns is not None else cfg.max_turns
         sample_temperature = cfg.temperature if temperature is None else temperature
 
-        self.environment.reset(task)
-        builder = self._new_builder(task)
+        initial_observation = self.environment.reset(task)
+        builder = self._new_builder(initial_observation)
         turns: list[Turn] = []
         call_counts: Counter[str] = Counter()
         invalid_calls = 0
+        assistant_turns = 0
+        emitted_tool_calls = 0
+        parsed_tool_calls = 0
+        tool_execution_successes = 0
+        tool_execution_errors = 0
+        unknown_tool_calls = 0
+        parse_errors = 0
+        repeated_call_terminations = 0
+        final_answers_emitted = 0
+        final_answers_format_valid = 0
+        final_answers_verified = 0
         generated_tokens = 0
         verification: VerificationRecord | None = None
         metadata_error: str | None = None
@@ -306,8 +430,13 @@ class RolloutRunner:
             if not generation.token_ids:
                 termination = TerminationReason.EOS_WITHOUT_FINAL
                 break
+            assistant_turns += 1
             generated_tokens += len(generation.token_ids)
             parsed = parse_assistant_text(generation.text)
+            if TOOL_CALL_OPEN in generation.text:
+                emitted_tool_calls += 1
+            if FINAL_OPEN in generation.text:
+                final_answers_emitted += 1
 
             if parsed.kind is ActionKind.FINAL:
                 self._add_model_spans(
@@ -335,11 +464,15 @@ class RolloutRunner:
                     failure_category=result.failure_category.value,
                     detail=result.detail,
                 )
+                final_answers_verified += 1
+                if result.failure_category is not FailureCategory.MALFORMED_ANSWER:
+                    final_answers_format_valid += 1
                 turns.append(Turn(turn_id=turn_id, is_final=True))
                 termination = TerminationReason.FINAL_ANSWER
                 break
 
             if parsed.kind is ActionKind.TOOL_CALL:
+                parsed_tool_calls += 1
                 call_id = f"c{turn_id}"
                 name = parsed.tool_name or ""
                 arguments = parsed.arguments or {}
@@ -383,6 +516,7 @@ class RolloutRunner:
                             ),
                         )
                     )
+                    repeated_call_terminations += 1
                     termination = TerminationReason.REPEATED_CALL_LIMIT
                     break
 
@@ -414,11 +548,17 @@ class RolloutRunner:
                             ),
                         )
                     )
+                    tool_execution_errors += 1
                     termination = TerminationReason.ENVIRONMENT_ERROR
                     metadata_error = exc.message
                     break
                 if not step.ok:
                     invalid_calls += 1
+                    tool_execution_errors += 1
+                    if step.failure_category is FailureCategory.UNKNOWN_TOOL:
+                        unknown_tool_calls += 1
+                else:
+                    tool_execution_successes += 1
                 self._add_observation(
                     builder,
                     turn_id=turn_id,
@@ -449,6 +589,7 @@ class RolloutRunner:
 
             # Parse error.
             invalid_calls += 1
+            parse_errors += 1
             self._add_model_spans(
                 builder,
                 turn_id=turn_id,
@@ -474,7 +615,7 @@ class RolloutRunner:
             if generation.stop_reason == "eos":
                 termination = TerminationReason.EOS_WITHOUT_FINAL
                 break
-            if invalid_calls > cfg.max_parse_errors:
+            if parse_errors >= max(cfg.max_parse_errors, 1):
                 termination = TerminationReason.PARSE_ERROR_LIMIT
                 break
             self._add_observation(
@@ -502,12 +643,26 @@ class RolloutRunner:
             verification=verification,
             generated_token_count=generated_tokens,
             invalid_tool_calls=invalid_calls,
+            event_counters={
+                "assistant_turns": assistant_turns,
+                "emitted_tool_calls": emitted_tool_calls,
+                "parsed_tool_calls": parsed_tool_calls,
+                "tool_execution_successes": tool_execution_successes,
+                "tool_execution_errors": tool_execution_errors,
+                "unknown_tool_calls": unknown_tool_calls,
+                "parse_errors": parse_errors,
+                "repeated_call_terminations": repeated_call_terminations,
+                "final_answers_emitted": final_answers_emitted,
+                "final_answers_format_valid": final_answers_format_valid,
+                "final_answers_verified": final_answers_verified,
+            },
             metadata={
                 "source": "policy",
                 "seed": seed,
                 "temperature": sample_temperature,
                 "difficulty": task.difficulty,
                 "split": task.split,
+                "initial_observation_state_id": initial_observation.state_id,
                 **({"environment_error": metadata_error} if metadata_error else {}),
             },
         )
@@ -529,8 +684,8 @@ class RolloutRunner:
         truncated oracle trace would silently degrade every SFT target built
         from it, so the failure is allowed to propagate.
         """
-        self.environment.reset(task)
-        builder = self._new_builder(task)
+        initial_observation = self.environment.reset(task)
+        builder = self._new_builder(initial_observation)
         turns: list[Turn] = []
         generated_tokens = 0
         verification: VerificationRecord | None = None
@@ -612,10 +767,31 @@ class RolloutRunner:
             verification=verification,
             generated_token_count=generated_tokens,
             invalid_tool_calls=0,
+            event_counters={
+                "assistant_turns": len(turns),
+                "emitted_tool_calls": sum(turn.tool_call is not None for turn in turns),
+                "parsed_tool_calls": sum(turn.tool_call is not None for turn in turns),
+                "tool_execution_successes": sum(
+                    turn.tool_result is not None and turn.tool_result.ok for turn in turns
+                ),
+                "tool_execution_errors": sum(
+                    turn.tool_result is not None and not turn.tool_result.ok for turn in turns
+                ),
+                "unknown_tool_calls": 0,
+                "parse_errors": 0,
+                "repeated_call_terminations": 0,
+                "final_answers_emitted": int(verification is not None),
+                "final_answers_format_valid": int(
+                    verification is not None
+                    and verification.failure_category != FailureCategory.MALFORMED_ANSWER.value
+                ),
+                "final_answers_verified": int(verification is not None),
+            },
             metadata={
                 "source": "oracle",
                 "difficulty": task.difficulty,
                 "split": task.split,
+                "initial_observation_state_id": initial_observation.state_id,
             },
         )
 
@@ -668,5 +844,22 @@ class RolloutRunner:
             verification=student.verification,
             generated_token_count=student.generated_token_count,
             invalid_tool_calls=student.invalid_tool_calls,
+            event_counters={
+                field: int(getattr(student, field))
+                for field in (
+                    "assistant_turns",
+                    "emitted_tool_calls",
+                    "parsed_tool_calls",
+                    "tool_execution_successes",
+                    "tool_execution_errors",
+                    "unknown_tool_calls",
+                    "parse_errors",
+                    "repeated_call_terminations",
+                    "final_answers_emitted",
+                    "final_answers_format_valid",
+                    "final_answers_verified",
+                )
+                if getattr(student, field) is not None
+            },
             metadata={"source": "privileged_teacher_render", "of": student.trajectory_id},
         )

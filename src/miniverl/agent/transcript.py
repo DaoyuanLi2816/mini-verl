@@ -259,6 +259,7 @@ class TranscriptBuilder:
         verification: VerificationRecord | None = None,
         generated_token_count: int = 0,
         invalid_tool_calls: int = 0,
+        event_counters: dict[str, int] | None = None,
         metadata: dict[str, object] | None = None,
     ) -> Trajectory:
         """Freeze the accumulated segments into a validated trajectory."""
@@ -285,5 +286,6 @@ class TranscriptBuilder:
             termination_reason=termination_reason,
             generated_token_count=generated_token_count,
             invalid_tool_calls=invalid_tool_calls,
+            **dict(event_counters or {}),
             metadata=dict(metadata or {}),
         )

@@ -280,7 +280,11 @@ class ReportData:
                         "tasks": payload.get("tasks"),
                         "success_rate": payload.get("success_rate"),
                         "avg_turns": payload.get("avg_turns"),
-                        "invalid_tool_call_rate": payload.get("invalid_tool_call_rate"),
+                        "parse_valid_tool_call_rate": payload.get(
+                            "parse_valid_tool_call_rate",
+                            payload.get("valid_tool_call_rate"),
+                        ),
+                        "tool_execution_success_rate": payload.get("tool_execution_success_rate"),
                         "generated_tokens_per_task": payload.get("generated_tokens_per_task"),
                         "rollout_tokens_per_second": payload.get("rollout_tokens_per_second"),
                     }

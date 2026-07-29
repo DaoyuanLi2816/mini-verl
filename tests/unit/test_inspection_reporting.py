@@ -356,6 +356,8 @@ def _eval_json() -> dict[str, Any]:
             "success_rate": 0.25,
             "avg_turns": 2.5,
             "invalid_tool_call_rate": 0.125,
+            "parse_valid_tool_call_rate": 0.875,
+            "tool_execution_success_rate": 0.8,
             "generated_tokens_per_task": 40.0,
             "rollout_tokens_per_second": 90.0,
         },
@@ -367,6 +369,8 @@ def _eval_json() -> dict[str, Any]:
             "success_rate": 0.5,
             "avg_turns": 2.0,
             "invalid_tool_call_rate": 0.0,
+            "parse_valid_tool_call_rate": 1.0,
+            "tool_execution_success_rate": 1.0,
             "generated_tokens_per_task": 32.0,
             "rollout_tokens_per_second": 110.0,
         },
@@ -892,8 +896,8 @@ def test_render_markdown_has_the_run_and_a_results_row(report_data: ReportData) 
     text = render_markdown(report_data)
 
     assert f"# miniVERL run `{RUN_ID}`" in text
-    assert "| before training | 0 | 4 | 25.0% | 2.50 | 12.5% | 40.0 |" in text
-    assert "| after training | 4 | 4 | 50.0% | 2.00 | 0.0% | 32.0 |" in text
+    assert "| before training | 0 | 4 | 25.0% | 2.50 | 87.5% | 80.0% | 40.0 |" in text
+    assert "| after training | 4 | 4 | 50.0% | 2.00 | 100.0% | 100.0% | 32.0 |" in text
     assert "_no evaluation recorded_" not in text
     assert "- mode: **opd**  (genuine on-policy distillation)" in text
 
@@ -911,7 +915,7 @@ def test_render_markdown_placeholder_row_without_eval(synthetic_run: Path) -> No
     (synthetic_run / "eval.json").unlink()
     text = render_markdown(ReportData.from_run(synthetic_run))
 
-    assert "| _no evaluation recorded_ | | | | | | |" in text
+    assert "| _no evaluation recorded_ | | | | | | | |" in text
 
 
 def test_render_summary_json_top_level_keys(report_data: ReportData) -> None:

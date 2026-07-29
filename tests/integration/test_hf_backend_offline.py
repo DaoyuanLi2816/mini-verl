@@ -410,6 +410,7 @@ def test_hub_teacher_adapter_downloads_and_validates_miniverl_manifest(
     assert provenance["revision"] == "a" * 40
     assert provenance["weights_sha256"] == manifest["checksums"]["adapter_model.safetensors"]
     assert provenance["policy_evaluation"]["strict_task_success_rate"] == pytest.approx(0.75)
+    assert "parse_valid_tool_call_rate" not in provenance["policy_evaluation"]
     assert provenance.snapshot_dir == adapter
     assert policies == [True, True, True]
 
@@ -428,6 +429,54 @@ def test_hub_teacher_adapter_downloads_and_validates_miniverl_manifest(
     )
     assert online.snapshot_dir == provenance.snapshot_dir
     assert policies == [False, False, False]
+
+
+@requires_peft
+def test_v2_teacher_competence_requires_precise_tool_event_metrics(
+    local_teacher_adapter,
+    tiny_tokenizer,
+):
+    from miniverl.config.models import TeacherAdapterConfig, TeacherModelConfig
+    from miniverl.errors import BackendError
+    from miniverl.models.adapter_io import ADAPTER_MANIFEST, validate_teacher_adapter
+    from miniverl.utils.runs import read_json, write_json
+
+    base, adapter, _ = local_teacher_adapter
+    manifest = read_json(adapter / ADAPTER_MANIFEST)
+    manifest["training_task"] = {"protocol_version": "v2"}
+    manifest["policy_evaluation"] = {
+        "tag": "final",
+        "split": "test",
+        "tasks": 8,
+        "strict_task_success_rate": 0.75,
+        "lenient_diagnostic_success_rate": 0.75,
+        "valid_tool_call_rate": 1.0,
+        "tool_call_count": 16,
+        "final_answer_format_validity_rate": 1.0,
+        "avg_turns": 3.0,
+        "protocol_token_accuracy": None,
+        "policy_competence_measurement_status": {
+            "strict_task_success_rate": "measured_primary",
+            "protocol_token_accuracy": "not_applicable_free_running",
+        },
+    }
+    write_json(adapter / ADAPTER_MANIFEST, manifest)
+
+    with pytest.raises(
+        BackendError,
+        match="policy evaluation is incomplete: parse_valid_tool_call_rate",
+    ):
+        validate_teacher_adapter(
+            TeacherAdapterConfig(
+                path=str(adapter),
+                require_policy_evaluation=True,
+                minimum_strict_success_rate=0.5,
+            ),
+            TeacherModelConfig(model_id=str(base)),
+            tokenizer_fingerprint=tiny_tokenizer.fingerprint,
+            protocol_version="v2",
+            local_files_only=True,
+        )
 
 
 @requires_peft
@@ -730,6 +779,11 @@ def test_headline_teacher_gate_requires_recorded_policy_competence(
         "tasks": 8,
         "strict_task_success_rate": 0.75,
         "lenient_diagnostic_success_rate": 0.75,
+        "parse_valid_tool_call_rate": 1.0,
+        "tool_execution_success_rate": 1.0,
+        "tool_execution_error_rate": 0.0,
+        "emitted_tool_calls": 16,
+        "parsed_tool_calls": 16,
         "valid_tool_call_rate": 1.0,
         "tool_call_count": 16,
         "final_answer_format_validity_rate": 1.0,

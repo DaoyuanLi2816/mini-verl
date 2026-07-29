@@ -191,7 +191,10 @@ def test_toy_cpu_recipe_is_parsed_into_the_expected_typed_values() -> None:
 
     assert config.environment.name == "calculator"
     assert config.environment.difficulty == "easy"
-    assert config.environment.params == {"prompt_style": "compact"}
+    assert config.environment.params == {
+        "prompt_style": "compact",
+        "protocol_version": "v1",
+    }
     assert config.environment.train_tasks == raw["environment"]["train_tasks"]
     assert config.environment.eval_tasks == 24
     assert config.environment.test_tasks == 24

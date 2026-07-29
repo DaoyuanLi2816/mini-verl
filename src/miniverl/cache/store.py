@@ -36,6 +36,7 @@ from typing import Any
 from miniverl.errors import CacheCorruptionError, CacheError, StaleCacheError
 from miniverl.schemas.cache import (
     CACHE_SCHEMA_VERSION,
+    READABLE_CACHE_SCHEMA_VERSIONS,
     CacheCompressionStats,
     CacheEntryMeta,
     CacheIndex,
@@ -130,20 +131,36 @@ class TeacherCache:
         teacher_model_id: str,
         teacher_model_revision: str | None,
         tokenizer_fingerprint: str,
+        tokenizer_identity: dict[str, Any] | None = None,
+        teacher_adapter_provenance: dict[str, Any] | None = None,
         vocab_size: int,
         top_k: int,
         temperature: float,
         loss_mode: str,
         dtype: str = "float32",
         entries_per_shard: int = 32,
-        overwrite: bool = True,
+        overwrite: bool = False,
     ) -> TeacherCache:
         """Create (or reset) a cache directory."""
         target = Path(path)
+        if loss_mode == "exact_full_vocab" and dtype != "float32":
+            raise CacheError(
+                "exact_full_vocab requires a float32 teacher cache so its objective "
+                "is not silently quantized"
+            )
         if target.exists() and overwrite:
-            for child in sorted(target.glob("*")):
-                if child.is_file():
+            for child in sorted(target.iterdir()):
+                if child.is_dir():
+                    import shutil
+
+                    shutil.rmtree(child)
+                else:
                     child.unlink()
+        elif target.exists() and any(target.iterdir()):
+            raise CacheError(
+                f"teacher cache already exists at {target}",
+                hint="open and validate it when resuming, or choose a new cache directory",
+            )
         target.mkdir(parents=True, exist_ok=True)
         index = CacheIndex(
             schema_version=CACHE_SCHEMA_VERSION,
@@ -151,6 +168,10 @@ class TeacherCache:
             teacher_model_id=teacher_model_id,
             teacher_model_revision=teacher_model_revision,
             tokenizer_fingerprint=tokenizer_fingerprint,
+            tokenizer_identity=dict(tokenizer_identity or {}),
+            teacher_adapter_provenance=(
+                dict(teacher_adapter_provenance) if teacher_adapter_provenance is not None else None
+            ),
             vocab_size=vocab_size,
             top_k=top_k,
             temperature=temperature,
@@ -177,10 +198,10 @@ class TeacherCache:
         except json.JSONDecodeError as exc:
             raise CacheCorruptionError(f"{index_path} is not valid JSON: {exc}") from exc
         version = payload.get("schema_version")
-        if version != CACHE_SCHEMA_VERSION:
+        if version not in READABLE_CACHE_SCHEMA_VERSIONS:
             raise StaleCacheError(
                 f"cache schema_version {version!r} is not readable by this miniVERL build "
-                f"(expected {CACHE_SCHEMA_VERSION})",
+                f"(readable versions: {sorted(READABLE_CACHE_SCHEMA_VERSIONS)})",
                 hint="delete the cache directory and re-score; teacher targets are "
                 "cheap to regenerate and must never be silently reinterpreted",
             )
@@ -192,6 +213,48 @@ class TeacherCache:
                 "teacher cache failed validation:\n  - " + "\n  - ".join(problems)
             )
         return cache
+
+    def assert_compatible(
+        self,
+        *,
+        teacher_model_id: str,
+        teacher_model_revision: str | None,
+        tokenizer_fingerprint: str,
+        tokenizer_identity: dict[str, Any] | None,
+        teacher_adapter_provenance: dict[str, Any] | None,
+        vocab_size: int,
+        top_k: int,
+        temperature: float,
+        loss_mode: str,
+        dtype: str,
+    ) -> None:
+        """Reject reuse when any objective or teacher identity component changed."""
+        expected: dict[str, Any] = {
+            "teacher_model_id": teacher_model_id,
+            "teacher_model_revision": teacher_model_revision,
+            "tokenizer_fingerprint": tokenizer_fingerprint,
+            "vocab_size": vocab_size,
+            "top_k": top_k,
+            "temperature": temperature,
+            "loss_mode": loss_mode,
+            "dtype": dtype,
+        }
+        if self.index.schema_version >= 2:
+            expected["tokenizer_identity"] = dict(tokenizer_identity or {})
+            expected["teacher_adapter_provenance"] = (
+                dict(teacher_adapter_provenance) if teacher_adapter_provenance is not None else None
+            )
+        mismatches = {
+            key: (getattr(self.index, key), value)
+            for key, value in expected.items()
+            if getattr(self.index, key) != value
+        }
+        if mismatches:
+            details = ", ".join(
+                f"{key}: cache={actual!r}, current={current!r}"
+                for key, (actual, current) in sorted(mismatches.items())
+            )
+            raise StaleCacheError(f"teacher cache identity mismatch ({details})")
 
     # -- writing -----------------------------------------------------------
 
@@ -254,6 +317,7 @@ class TeacherCache:
                 "checksum": digest.hexdigest(),
                 "tail_is_exact_zero": tail_is_exact_zero,
                 "selected_span_types": span_counts,
+                "ordered_span_types": list(batch.span_types),
             },
         }
         self._pending_order.append(batch.trajectory_id)
@@ -273,6 +337,7 @@ class TeacherCache:
             tensor_keys=list(_TENSOR_FIELDS),
             checksum=digest.hexdigest(),
             selected_span_types=span_counts,
+            ordered_span_types=list(batch.span_types),
         )
 
     def _next_shard_name(self) -> str:
@@ -316,6 +381,7 @@ class TeacherCache:
                 tensor_keys=list(_TENSOR_FIELDS),
                 checksum=meta["checksum"],
                 selected_span_types=meta["selected_span_types"],
+                ordered_span_types=meta["ordered_span_types"],
             )
         self._pending.clear()
         self._pending_order.clear()
@@ -375,16 +441,27 @@ class TeacherCache:
                 f"checksum mismatch for {trajectory_id!r} in shard {entry.shard}: "
                 f"expected {entry.checksum[:16]}..., got {digest.hexdigest()[:16]}..."
             )
-        span_types: list[str] = []
-        for name, count in sorted(entry.selected_span_types.items()):
-            span_types.extend([name] * count)
+        if entry.ordered_span_types is not None:
+            span_types = list(entry.ordered_span_types)
+        elif len(entry.selected_span_types) <= 1:
+            span_types = [
+                name for name, count in entry.selected_span_types.items() for _ in range(count)
+            ]
+        else:
+            raise StaleCacheError(
+                f"v1 cache entry {trajectory_id!r} does not preserve ordered span types",
+                hint="re-score this legacy cache before using per-span metrics",
+            )
+        tail_log_prob = loaded["tail_log_prob"].to(device=device, dtype=torch.float32)
+        if entry.tail_is_exact_zero:
+            tail_log_prob = torch.full_like(tail_log_prob, float("-inf"))
         return TeacherTargetBatch(
             trajectory_id=trajectory_id,
             policy_version=entry.policy_version,
             positions=loaded["positions"].to(device),
             topk_indices=loaded["topk_indices"].to(device=device, dtype=torch.long),
             topk_log_probs=loaded["topk_log_probs"].to(device=device, dtype=torch.float32),
-            tail_log_prob=loaded["tail_log_prob"].to(device=device, dtype=torch.float32),
+            tail_log_prob=tail_log_prob,
             target_token_ids=loaded["target_token_ids"].to(device),
             weights=loaded["weights"].to(device),
             temperature=entry.temperature,

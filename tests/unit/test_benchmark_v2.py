@@ -11,7 +11,7 @@ import pytest
 import yaml
 
 from miniverl.config import TrainingMode
-from miniverl.errors import ConfigError
+from miniverl.errors import ConfigError, RunDirectoryError
 from miniverl.evaluation.benchmark import (
     _training_accounting,
     portable_payload,
@@ -227,6 +227,13 @@ def test_schema_v2_benchmark_runs_end_to_end_and_writes_provenance(tmp_path: Pat
     assert persisted.common_resolved_config_digest == result.common_resolved_config_digest
     assert persisted.common_declared_config == persisted.common_resolved_config
     assert persisted.common_declared_config_digest == persisted.common_resolved_config_digest
+
+    with pytest.raises(RunDirectoryError, match="already exists"):
+        run_benchmark(spec, output_dir=tmp_path / "benchmarks")
+
+    resumed = run_benchmark(spec, output_dir=tmp_path / "benchmarks", resume=True)
+    assert len(resumed.arms) == 1
+    assert resumed.arms[0].run_id == arm.run_id
 
 
 def _metrics(tmp_path: Path, rows: list[dict[str, Any]]) -> Any:

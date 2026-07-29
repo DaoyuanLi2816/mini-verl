@@ -242,9 +242,10 @@ def test_a_selector_that_finds_nothing_says_so_instead_of_doing_nothing(tmp_path
     are no *critical* tokens to supervise. The run must complete with zero
     optimizer steps AND record why, rather than looking like a normal cycle.
     """
-    trainer, result = _train(
-        _config(tmp_path, selection={"selector": "tool_and_final"}), "sel-empty"
-    )
+    from miniverl.trainer import OPDTrainer
+
+    config = _config(tmp_path, selection={"selector": "tool_and_final"})
+    trainer, result = _train(config, "sel-empty")
     assert result.global_step == 0
     events = [
         json.loads(line) for line in trainer.paths.events.read_text(encoding="utf-8").splitlines()
@@ -253,6 +254,50 @@ def test_a_selector_that_finds_nothing_says_so_instead_of_doing_nothing(tmp_path
     assert skipped, "an empty selection must be announced"
     assert skipped[0]["selector"] == "tool_and_final"
     assert "zero optimizer steps" in skipped[0]["note"]
+    assert result.parameter_version == 0
+    assert result.policy_version == 0
+    assert result.global_step == 0
+
+    resumed = OPDTrainer.from_config(config, run_id="sel-empty-resumed")
+    state = resumed.load_from_checkpoint(trainer.paths.checkpoints / "final")
+    assert state.global_step == 0
+    assert state.parameter_version == 0
+    resumed_result = resumed.train()
+    assert resumed_result.global_step == 0
+    assert resumed_result.parameter_version == 0
+    resumed.close()
+
+
+def test_replay_records_one_rollout_version_and_each_successful_parameter_version(
+    tmp_path: Path,
+):
+    """Two optimizer groups consume one rollout batch without relabelling it."""
+    trainer, result = _train(
+        _config(
+            tmp_path,
+            train={
+                "cycles": 1,
+                "rollouts_per_cycle": 4,
+                "gradient_accumulation_steps": 2,
+                "opd_freshness": "replay",
+            },
+            eval={"enabled": False},
+            report={"enabled": False},
+        ),
+        "version-replay",
+    )
+    metrics = [
+        json.loads(line) for line in trainer.paths.metrics.read_text(encoding="utf-8").splitlines()
+    ]
+    updates = [record for record in metrics if record.get("phase") == "opd"]
+
+    assert result.global_step == 2
+    assert result.parameter_version == 2
+    assert result.policy_version == 2
+    assert [record["global_optimizer_step"] for record in updates] == [1, 2]
+    assert [record["parameter_version"] for record in updates] == [1, 2]
+    assert {record["rollout_policy_version"] for record in updates} == {0}
+    assert result.rollout_policy_version == 0
 
 
 def test_sft_warmup_then_opd(tmp_path: Path):

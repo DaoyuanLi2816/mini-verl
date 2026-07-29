@@ -6,6 +6,38 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-29
+
+Correctness, lifecycle safety and reproducibility release.
+
+### Added
+
+- Exclusive new-run creation, collision-resistant generated IDs, mutually
+  exclusive `--resume`/`--resume-from`/`--overwrite` behavior, and atomic
+  whole-run replacement with rollback.
+- Atomic sibling-directory checkpoints with a manifest written last, SHA-256
+  and size validation, a content digest, model/config/tokenizer identity, and
+  state-based latest-checkpoint selection. Legacy v0.2 checkpoints remain
+  readable and are explicitly labeled `legacy_unchecksummed`.
+- A persisted, checksummed offline-KD dataset containing the exact trajectories,
+  task order, token spans and provenance required for exact resume.
+- Immutable startup manifests and atomic terminal manifests for completed,
+  failed and interrupted runs, including actual optimizer, parameter, rollout,
+  chunk-size, OOM, artifact and checkpoint state.
+- Precise agent-event counters separating emitted and parsed calls, successful
+  executions, execution errors, unknown tools, parse errors, repeated
+  termination and final-answer format/verification outcomes.
+- Versioned structural tokenizer identity, revision-aware tokenizer comparison,
+  LM-head vocabulary compatibility checks and fail-before-mutation trainable
+  weight validation.
+- Explicit `parameter_version`, `rollout_policy_version`,
+  `rollout_iteration` and `global_optimizer_step` records while retaining
+  `policy_version` as a compatibility alias.
+- Benchmark resume support and regression coverage for run collisions,
+  checkpoint corruption, standalone evaluation, exact offline resume, manifest
+  terminal states, OOM transaction boundaries, event metrics, tokenizer
+  identity and model-state loading.
+
 ### Changed
 
 - The default consumer-GPU recipe now uses the pinned, competence-gated
@@ -16,6 +48,40 @@ All notable changes to miniVERL are recorded here. The format follows
   0% strict success as a generic collapse.
 - Installation examples distinguish the torch-free `miniverl` core from the
   `miniverl[train]` extra required for local optimization.
+- OOM recovery now retries only the gradient-computation phase, restoring RNG
+  and clearing partial gradients. The optimizer commit is non-retryable, so a
+  single update cannot execute twice.
+- Historical tool prompt/protocol v1 is frozen byte-for-byte for the published
+  adapter and benchmark; corrected v2 examples are parser-valid and adapter
+  competence gates are protocol-version aware.
+- Per-token loss output now reports the optimized objective, divergence and
+  sampled-token cross-entropy separately; SFT span metrics report CE instead
+  of a meaningless zero divergence.
+- Cache schema v2 preserves exact zero tails and ordered span types, honors
+  checksum configuration, records complete teacher-adapter provenance and
+  rejects lossy dtypes in exact full-vocabulary mode while retaining v1 reads.
+- `ToolEnvironment.reset()` is now the authoritative initial observation and
+  is called once per trajectory. Public trainer examples consistently use
+  context managers.
+- The benchmark figure labels non-training and protocol-mismatch controls
+  directly instead of rendering misleading zero-length training bars.
+
+### Fixed
+
+- New, demo and benchmark runs can no longer append into or silently mix with a
+  non-empty output directory.
+- Standalone evaluation validates a checkpoint before loading and restores only
+  model weights, never optimizer, RNG or teacher state.
+- Missing or shape-incompatible trainable weights fail before any backend
+  parameter is mutated.
+- No-op and failed updates no longer advance the parameter version; replay can
+  perform multiple successful commits while preserving one rollout version.
+- Tool calls are no longer double counted, malformed final markers are not
+  format-valid, verifier failures are not successes, and
+  `max_parse_errors: 0` terminates at the first parse error.
+- Hugging Face offline model loading now resolves a concrete cached snapshot
+  before entering Transformers, preventing version-dependent adapter probes
+  from issuing a network request.
 
 ## [0.2.0] - 2026-07-28
 
@@ -197,5 +263,7 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.1.0

@@ -74,7 +74,7 @@ hard error rather than a silently ignored field.
 | `critical_mask` | `list[bool]` | `True` where the span type is in `CRITICAL_SPAN_TYPES`. Also re-derived and checked. |
 | `spans` | `list[Span]` | The partition. Must be in ascending `start` order and must tile `[0, len(token_ids))` with no gap and no overlap. |
 | `turns` | `list[Turn]` | One entry per assistant action. Defaults to empty. |
-| `policy_version` | `int >= 0` | Which policy produced the rollout. Incremented once per OPD cycle, so it is what makes a stale teacher-cache entry detectable. Default `0`. |
+| `policy_version` | `int >= 0` | Backward-compatible name for the exact `parameter_version` that generated the rollout. It increments only after a successful optimizer step; a no-op or failed update does not advance it. Default `0`. |
 | `tokenizer_fingerprint` | `str` | Behavioural tokenizer hash. Two tokenizers with the same fingerprint tokenize identically. Alignment refuses to proceed when the student and teacher fingerprints differ. |
 | `model_id` | `str` | The model that generated the rollout. |
 | `model_revision` | `str \| None` | Pinned revision, when one was configured. |
@@ -179,7 +179,7 @@ own reason so the failure taxonomy in reports is exact.
 | `final_answer` | The policy emitted a parseable `<final>` block. The only reason that carries a `verification` record. |
 | `max_turns` | The turn budget ran out. This is also the initial value of the loop variable, so it is what a rollout that ends without hitting any other condition reports. |
 | `max_tokens` | `rollout.max_total_tokens` was reached before the next turn could start. |
-| `parse_error_limit` | Parse errors exceeded `rollout.max_parse_errors`. |
+| `parse_error_limit` | Parse-error count reached `rollout.max_parse_errors` (`0` means stop on the first error; `2` means stop on the second). |
 | `repeated_call_limit` | An identical call signature repeated more than `rollout.max_repeated_calls` times. |
 | `environment_error` | Defined in the enum. Not emitted by `RolloutRunner`. |
 | `eos_without_final` | The backend emitted EOS, or produced zero tokens, without a final answer. |

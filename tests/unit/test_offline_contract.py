@@ -60,6 +60,12 @@ def test_train_cli_passes_offline_policy_to_trainer(tmp_path: Path, monkeypatch)
         def close(self) -> None:
             return None
 
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args) -> None:
+            self.close()
+
     def from_config(*args, **kwargs):
         seen.append(kwargs["local_files_only"])
         return FakeTrainer()
@@ -107,6 +113,7 @@ def test_evaluate_run_passes_offline_policy_to_reconstructed_trainer(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    import miniverl.training.checkpoint as checkpoint_module
     from miniverl.config import RunConfig
     from miniverl.trainer import OPDTrainer
 
@@ -133,6 +140,8 @@ def test_evaluate_run_passes_offline_policy_to_reconstructed_trainer(
     )
     (run_dir / "config.resolved.yaml").write_text(config.to_yaml(), encoding="utf-8")
     (run_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    checkpoint = run_dir / "checkpoints" / "final"
+    checkpoint.mkdir(parents=True)
     seen: list[bool] = []
 
     class FakeTrainer:
@@ -142,18 +151,33 @@ def test_evaluate_run_passes_offline_policy_to_reconstructed_trainer(
         def evaluate(self, **kwargs):
             return {"split": kwargs.get("split") or "test"}
 
+        def _apply_checkpoint_progress(self, state) -> None:
+            assert state.global_step == 2
+
         def close(self) -> None:
             return None
 
     def from_config(*args, **kwargs):
         seen.append(kwargs["local_files_only"])
+        assert kwargs["for_evaluation"] is True
         return FakeTrainer()
 
     monkeypatch.setattr(OPDTrainer, "from_config", staticmethod(from_config))
+    state = SimpleNamespace(resolved_config_digest="", global_step=2)
+    validated = SimpleNamespace(
+        state=state,
+        identity={},
+        content_digest="a" * 64,
+        integrity="checksummed_v1",
+    )
+    monkeypatch.setattr(checkpoint_module, "latest_checkpoint", lambda _root: checkpoint)
+    monkeypatch.setattr(checkpoint_module, "validate_checkpoint", lambda _path: validated)
+    monkeypatch.setattr(checkpoint_module, "load_checkpoint", lambda *_args, **_kwargs: state)
     payload = evaluate_run(run_dir, local_files_only=True)
 
     assert seen == [True]
     assert payload["split"] == "test"
+    assert payload["checkpoint_digest"] == "a" * 64
 
 
 @pytest.mark.torch

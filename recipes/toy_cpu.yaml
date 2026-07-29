@@ -66,6 +66,7 @@ environment:
   difficulty: easy
   params:
     prompt_style: compact   # the toy tokenizer is near-character-level
+    protocol_version: v1    # frozen historical v0.2 prompt
   train_tasks: 256
   eval_tasks: 24
   test_tasks: 24

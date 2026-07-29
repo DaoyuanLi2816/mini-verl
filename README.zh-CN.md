@@ -24,12 +24,15 @@ miniVERL 是一个紧凑、可审计的训练实验室，让小型语言模型�
 python -m pip install miniverl            # 轻量核心层
 miniverl doctor
 python -m pip install "miniverl[train]"   # 添加本地训练依赖
-miniverl demo --output runs/demo        # 无需联网、无需 GPU，笔记本 CPU 上约 50 秒
+miniverl demo --output runs/demo          # 无需联网、无需 GPU，笔记本 CPU 上约 50 秒
 ```
 
 基础安装是不含 torch 的核心层（`doctor`、`validate`、`inspect`、`report`、
 schema 与 Python API）。`train` extra 会添加 torch、Transformers 与 PEFT，
 因为 `demo` 会执行真实优化。
+这种拆分是有意的：`pip install miniverl` 可以在不下载数 GB 机器学习依赖的
+情况下检查和验证产物；要进行训练或评估，请安装
+`pip install "miniverl[train]"`。
 
 **它让三件事可以被检查**
 
@@ -126,7 +129,8 @@ miniverl demo --output runs/demo
 demo complete  runs/demo
  mode              opd (genuine on-policy distillation)
  optimizer steps   132
- policy versions   13
+ parameter version 132
+ rollout iterations 13
  wall clock        52.9 s
  token provenance  45597 of 226383 tokens trainable (20%); 180786 are context
                    and can never be a target
@@ -257,8 +261,8 @@ from miniverl.config import RunConfig
 from miniverl.trainer import OPDTrainer
 
 config = RunConfig.from_yaml("recipes/toy_cpu.yaml")
-trainer = OPDTrainer.from_config(config)
-result = trainer.train()
+with OPDTrainer.from_config(config) as trainer:
+    result = trainer.train()
 
 print(result.run_dir, result.global_step, result.eval["success_rate"])
 ```

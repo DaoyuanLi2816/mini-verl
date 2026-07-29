@@ -20,6 +20,7 @@ description: >-
 
 base: ../../recipes/toy_cpu.yaml
 common_overrides:
+  environment: {params: {protocol_version: v1}}
   train: {sft_warmup_cycles: 0, opd_freshness: strict}
 cold_start_overrides:
   environment: {difficulty: easy}

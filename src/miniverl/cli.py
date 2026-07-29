@@ -22,7 +22,8 @@ from rich.markup import escape
 from rich.table import Table
 
 from miniverl import __version__
-from miniverl.errors import MiniVerlError
+from miniverl.errors import ConfigError, MiniVerlError
+from miniverl.utils.runs import make_run_id
 
 app = typer.Typer(
     name="miniverl",
@@ -298,6 +299,11 @@ def validate(
 def demo(
     output: Path = typer.Option(Path("runs/demo"), "--output", help="Run directory to create."),
     fast: bool = typer.Option(False, "--fast", help="Shrink every budget (CI smoke test)."),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Explicitly replace the whole existing demo run directory.",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
     report_html: bool = typer.Option(True, "--report/--no-report", help="Also render report.html."),
 ) -> None:
@@ -313,18 +319,25 @@ def demo(
     target = Path(output)
     try:
         config = demo_config(fast=fast, output_dir=target.parent)
-        trainer = OPDTrainer.from_config(config, output_dir=target.parent, run_id=target.name)
-        try:
+        if overwrite and target.exists() and not as_json:
+            console.print(
+                f"[yellow]overwrite[/yellow] replacing whole run directory {_esc(target)}"
+            )
+        with OPDTrainer.from_config(
+            config,
+            output_dir=target.parent,
+            run_id=target.name,
+            overwrite=overwrite,
+        ) as trainer:
             result = trainer.train()
-        finally:
-            trainer.close()
+            paths = trainer.paths
         report_path: Path | None = None
         if report_html:
             from miniverl.reporting import ReportData, write_markdown, write_report
 
-            report_path = write_report(trainer.paths.root, trainer.paths.report_html)
-            write_markdown(ReportData.from_run(trainer.paths.root), trainer.paths.summary_md)
-        artifacts = _artifact_listing(trainer.paths.root)
+            report_path = write_report(paths.root, paths.report_html)
+            write_markdown(ReportData.from_run(paths.root), paths.summary_md)
+        artifacts = _artifact_listing(paths.root)
     except MiniVerlError as exc:
         _fail(exc)
         return
@@ -338,18 +351,19 @@ def demo(
         _emit_json(payload)
         return
     console.print()
-    console.print(f"[bold green]demo complete[/bold green]  {_esc(trainer.paths.root)}")
+    console.print(f"[bold green]demo complete[/bold green]  {_esc(paths.root)}")
     table = Table(show_header=False, box=None)
     baseline = (result.baseline_eval or {}).get("success_rate")
     final = (result.eval or {}).get("success_rate")
     table.add_row("mode", f"{result.mode} (genuine on-policy distillation)")
     table.add_row("optimizer steps", str(result.global_step))
-    table.add_row("policy versions", str(result.policy_version))
+    table.add_row("parameter version", str(result.parameter_version))
+    table.add_row("rollout iterations", str(result.cycles_completed))
     table.add_row("wall clock", f"{result.duration_seconds:.1f} s")
-    provenance = _provenance_summary(trainer.paths.trajectories)
+    provenance = _provenance_summary(paths.trajectories)
     if provenance:
         table.add_row("token provenance", provenance)
-    compression = _cache_summary(trainer.paths.teacher_cache)
+    compression = _cache_summary(paths.teacher_cache)
     if compression:
         table.add_row("teacher cache", compression)
     table.add_row(
@@ -372,11 +386,9 @@ def demo(
         console.print(f"  {_esc(name)}  [dim]{_esc(size)}[/dim]")
     console.print()
     console.print("[bold]next[/bold]")
-    console.print(f"  miniverl inspect {_esc(trainer.paths.trajectories)}")
-    console.print(f"  miniverl cache stats {_esc(trainer.paths.teacher_cache)}")
-    console.print(
-        f"  miniverl report {_esc(trainer.paths.root)} --out {_esc(trainer.paths.report_html)}"
-    )
+    console.print(f"  miniverl inspect {_esc(paths.trajectories)}")
+    console.print(f"  miniverl cache stats {_esc(paths.teacher_cache)}")
+    console.print(f"  miniverl report {_esc(paths.root)} --out {_esc(paths.report_html)}")
 
 
 def _provenance_summary(path: Path) -> str:
@@ -440,6 +452,21 @@ def train(
         None, "--output", help="Parent directory for the run (default: run.output_dir)."
     ),
     run_id: Optional[str] = typer.Option(None, "--run-id", help="Explicit run id."),
+    resume: Optional[Path] = typer.Option(
+        None,
+        "--resume",
+        help="Continue an existing run from its highest valid checkpoint.",
+    ),
+    resume_from: Optional[Path] = typer.Option(
+        None,
+        "--resume-from",
+        help="Continue an existing run from this exact checkpoint directory.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Explicitly replace the whole target run directory.",
+    ),
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
@@ -464,6 +491,23 @@ def train(
         err_console.print(f"[red]invalid recipe[/red] {_esc(recipe)}\n{_esc(exc)}")
         raise typer.Exit(1) from None
 
+    if resume is not None and resume_from is not None:
+        _fail(ConfigError("--resume and --resume-from are mutually exclusive"))
+        return
+    if overwrite and (resume is not None or resume_from is not None):
+        _fail(ConfigError("--overwrite cannot be combined with --resume or --resume-from"))
+        return
+    if (resume is not None or resume_from is not None) and (
+        run_id is not None or output is not None
+    ):
+        _fail(
+            ConfigError(
+                "--resume/--resume-from cannot be combined with --run-id or --output",
+                hint="the existing run directory already determines its id and output root",
+            )
+        )
+        return
+
     if dry_run:
         steps_per_cycle = max(
             1,
@@ -485,6 +529,9 @@ def train(
             * (config.train.cycles + config.train.sft_warmup_cycles),
             "planned_rollouts": config.train.rollouts_per_cycle * config.train.cycles,
             "output_dir": str(output or config.run.output_dir),
+            "resume": str(resume) if resume is not None else None,
+            "resume_from": str(resume_from) if resume_from is not None else None,
+            "overwrite": overwrite,
             "resolved_config": json.loads(json.dumps(config.model_dump(mode="json"), default=str)),
         }
         if as_json:
@@ -509,24 +556,38 @@ def train(
         _require_training_stack("miniverl train")
         from miniverl.trainer import OPDTrainer
 
-        trainer = OPDTrainer.from_config(
-            config, output_dir=output, run_id=run_id, local_files_only=offline
-        )
-        try:
+        explicit_id = run_id or config.run.run_id
+        if overwrite and explicit_id and not as_json:
+            target = Path(output or config.run.output_dir) / make_run_id(
+                config.run.name,
+                explicit=explicit_id,
+            )
+            if target.exists():
+                console.print(
+                    f"[yellow]overwrite[/yellow] replacing whole run directory {_esc(target)}"
+                )
+        with OPDTrainer.from_config(
+            config,
+            output_dir=output,
+            run_id=run_id,
+            local_files_only=offline,
+            overwrite=overwrite,
+            resume=resume,
+            resume_from=resume_from,
+        ) as trainer:
             result = trainer.train()
-        finally:
-            trainer.close()
+            paths = trainer.paths
         report_path: Path | None = None
         if make_report and config.report.enabled:
             from miniverl.reporting import ReportData, write_markdown, write_report
 
             report_path = write_report(
-                trainer.paths.root,
-                trainer.paths.report_html,
+                paths.root,
+                paths.report_html,
                 max_trajectories=config.report.max_trajectories,
                 max_tokens=config.report.max_tokens_per_trajectory,
             )
-            write_markdown(ReportData.from_run(trainer.paths.root), trainer.paths.summary_md)
+            write_markdown(ReportData.from_run(paths.root), paths.summary_md)
     except (MiniVerlError, ModuleNotFoundError) as exc:
         _fail(exc)
         return
@@ -536,15 +597,15 @@ def train(
         _emit_json(payload)
         return
     console.print()
-    console.print(f"[bold green]run complete[/bold green] {_esc(trainer.paths.root)}")
+    console.print(f"[bold green]run complete[/bold green] {_esc(paths.root)}")
     baseline = (result.baseline_eval or {}).get("success_rate")
     final = (result.eval or {}).get("success_rate")
     console.print(
         f"  task success {_fmt_pct(baseline)} -> {_fmt_pct(final)} "
         f"in {result.global_step} optimizer steps ({result.duration_seconds:.1f} s)"
     )
-    console.print(f"  eval  miniverl eval --run {_esc(trainer.paths.root)}")
-    console.print(f"  report {_esc(report_path or trainer.paths.report_html)}")
+    console.print(f"  eval  miniverl eval --run {_esc(paths.root)}")
+    console.print(f"  report {_esc(report_path or paths.report_html)}")
 
 
 # ------------------------------------------------------------------- eval
@@ -598,9 +659,11 @@ def eval_command(
         "lenient_diagnostic_success_rate",
         "avg_turns",
         "avg_tool_calls",
-        "tool_call_count",
-        "valid_tool_call_rate",
-        "invalid_tool_call_rate",
+        "emitted_tool_calls",
+        "parsed_tool_calls",
+        "parse_valid_tool_call_rate",
+        "tool_execution_success_rate",
+        "tool_execution_error_rate",
         "final_answer_format_validity_rate",
         "protocol_token_accuracy",
         "generated_tokens_per_task",
@@ -626,6 +689,11 @@ def benchmark(
         "--offline",
         help="Refuse network access; use only local or already-cached model and adapter files.",
     ),
+    resume: bool = typer.Option(
+        False,
+        "--resume",
+        help="Resume validated per-seed/per-arm run directories after a partial benchmark.",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Run a matched-budget comparison across training modes."""
@@ -640,6 +708,7 @@ def benchmark(
             output_dir=output,
             notes=notes,
             local_files_only=offline,
+            resume=resume,
         )
     except (ValidationError, MiniVerlError) as exc:
         if isinstance(exc, MiniVerlError):

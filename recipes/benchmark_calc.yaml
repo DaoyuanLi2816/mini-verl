@@ -25,6 +25,7 @@ description: >-
 
 base: toy_cpu.yaml
 common_overrides:
+  environment: {params: {protocol_version: v1}}
   train:
     learning_rate: 5.0e-4
     lr_schedule: constant
