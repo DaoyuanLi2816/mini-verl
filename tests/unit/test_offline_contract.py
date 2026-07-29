@@ -26,8 +26,10 @@ def test_every_network_capable_cli_uses_the_offline_term() -> None:
 
 
 def test_train_cli_passes_offline_policy_to_trainer(tmp_path: Path, monkeypatch) -> None:
+    import miniverl.cli as cli_module
     from miniverl.trainer import OPDTrainer
 
+    monkeypatch.setattr(cli_module, "_require_training_stack", lambda _purpose: None)
     seen: list[bool] = []
     run_root = tmp_path / "train-result"
     result = SimpleNamespace(
@@ -77,8 +79,10 @@ def test_export_adapter_offline_and_legacy_alias_are_equivalent(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    import miniverl.cli as cli_module
     from miniverl.models import adapter_io
 
+    monkeypatch.setattr(cli_module, "_require_training_stack", lambda _purpose: None)
     policies: list[bool] = []
 
     def fake_export(*args, **kwargs):
