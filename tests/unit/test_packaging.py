@@ -266,9 +266,24 @@ def test_published_gpu_visualization_matches_its_source_result():
         )
 
     digest = hashlib.sha256(json_path.read_bytes()).hexdigest()
-    visible_text = " ".join(text for text in root.itertext() if text)
+    text_nodes = [text.strip() for text in root.itertext() if text.strip()]
+    visible_text = " ".join(text_nodes)
     assert f"Source JSON SHA-256 {digest[:16]}" in visible_text
+    assert "Collapsed = 0% strict success in every recorded seed" in visible_text
+    cold_text = [text.strip() for text in groups["cold-start-only"].itertext() if text.strip()]
+    assert "NO TRAINING" in cold_text
+    assert "0s" not in cold_text
+    for name in ("opd-raw-teacher", "opd-privileged-context"):
+        arm_text = [text.strip() for text in groups[name].itertext() if text.strip()]
+        assert "COLLAPSED" in arm_text
+        assert "0%" not in arm_text
     assert "\ufffd" not in visible_text
+
+    from miniverl.evaluation.schema import BenchmarkResult
+    from scripts.publish_benchmark_artifacts import render_svg
+
+    result = BenchmarkResult.model_validate(document)
+    assert svg_path.read_text(encoding="utf-8") == render_svg(result, digest)
 
 
 def test_the_committed_json_schema_matches_the_pydantic_model():

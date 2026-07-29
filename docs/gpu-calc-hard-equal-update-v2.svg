@@ -1,78 +1,87 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="584" viewBox="0 0 1120 584" role="img" aria-labelledby="benchmark-title benchmark-desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="581" viewBox="0 0 1120 581" role="img" aria-labelledby="benchmark-title benchmark-desc">
 <title id="benchmark-title">miniVERL protocol-teacher benchmark</title>
-<desc id="benchmark-desc">Strict held-out success and training time for five equal-optimizer-update arms over two prespecified seeds.</desc>
-<style>text{font-family:ui-sans-serif,system-ui,sans-serif;fill:#111827}.title{font-size:25px;font-weight:600}.sub{font-size:14px;fill:#4b5563}.head{font-size:15px;font-weight:600}.label{font-size:15px}.value{font-size:14px;font-weight:600}.axis{font-size:12px;fill:#6b7280}.grid{stroke:#d1d5db;stroke-width:1}.dot{fill:#fff;stroke-width:2}</style>
-<rect width="100%" height="100%" fill="#ffffff"/>
-<text class="title" x="28" y="40">Protocol alignment prevents collapse</text>
-<text class="sub" x="28" y="66">schema v2 | 2 prespecified seeds | budget axis: optimizer_steps</text>
-<text class="head" x="300" y="110">Strict held-out success</text>
-<text class="head" x="730" y="110">Training time (seconds)</text>
-<line class="grid" x1="300.0" y1="124" x2="300.0" y2="536"/>
-<text class="axis" x="300.0" y="144" text-anchor="middle">0%</text>
-<line class="grid" x1="450.0" y1="124" x2="450.0" y2="536"/>
-<text class="axis" x="450.0" y="144" text-anchor="middle">50%</text>
-<line class="grid" x1="600.0" y1="124" x2="600.0" y2="536"/>
-<text class="axis" x="600.0" y="144" text-anchor="middle">100%</text>
-<line class="grid" x1="730.0" y1="124" x2="730.0" y2="536"/>
-<text class="axis" x="730.0" y="144" text-anchor="middle">0</text>
-<line class="grid" x1="880.0" y1="124" x2="880.0" y2="536"/>
-<text class="axis" x="880.0" y="144" text-anchor="middle">300</text>
-<line class="grid" x1="1030.0" y1="124" x2="1030.0" y2="536"/>
-<text class="axis" x="1030.0" y="144" text-anchor="middle">600</text>
+<desc id="benchmark-desc">Strict held-out success and training time for equal-optimizer-update arms over 2 prespecified seeds. 2 zero-success arms are labeled collapsed. The cold-start baseline is labeled no training.</desc>
+<style>text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;fill:#172033}.title{font-size:25px;font-weight:750;letter-spacing:-.3px}.sub{font-size:13px;fill:#64748b}.head{font-size:14px;font-weight:700}.label{font-size:14px;font-weight:560}.value{font-size:13px;font-weight:700}.axis{font-size:11.5px;fill:#718096}.note{font-size:11.5px;fill:#64748b}.panel{fill:#f8fafc;stroke:#e2e8f0}.track{fill:#e9eef5}.grid{stroke:#cbd5e1;stroke-width:1}.separator{stroke:#e8edf3;stroke-width:1}.dot{fill:#fff;stroke-width:2}.pill{fill:#fff;stroke-width:1.4}</style>
+<rect width="100%" height="100%" rx="16" fill="#ffffff"/>
+<rect x=".75" y=".75" width="1118.5" height="579.5" rx="15.25" fill="none" stroke="#e2e8f0" stroke-width="1.5"/>
+<text class="title" x="36" y="42">Protocol alignment prevents collapse</text>
+<text class="sub" x="36" y="68">schema v2  ·  2 prespecified seeds  ·  budget axis: optimizer_steps</text>
+<rect class="panel" x="282" y="91" width="380" height="433" rx="12"/>
+<rect class="panel" x="702" y="91" width="380" height="433" rx="12"/>
+<text class="head" x="315" y="119">Strict held-out success</text>
+<text class="head" x="735" y="119">Training time</text>
+<line class="grid" x1="315.0" y1="139" x2="315.0" y2="519"/>
+<text class="axis" x="315.0" y="153" text-anchor="middle">0%</text>
+<line class="grid" x1="457.5" y1="139" x2="457.5" y2="519"/>
+<text class="axis" x="457.5" y="153" text-anchor="middle">50%</text>
+<line class="grid" x1="600.0" y1="139" x2="600.0" y2="519"/>
+<text class="axis" x="600.0" y="153" text-anchor="middle">100%</text>
+<line class="grid" x1="735.0" y1="139" x2="735.0" y2="519"/>
+<text class="axis" x="735.0" y="153" text-anchor="middle">0s</text>
+<line class="grid" x1="870.0" y1="139" x2="870.0" y2="519"/>
+<text class="axis" x="870.0" y="153" text-anchor="middle">300s</text>
+<line class="grid" x1="1005.0" y1="139" x2="1005.0" y2="519"/>
+<text class="axis" x="1005.0" y="153" text-anchor="middle">600s</text>
 <g data-arm="cold-start-only" data-success-mean="0.750000" data-train-seconds-mean="0.061326">
-<text class="label" x="28" y="185">cold-start-only</text>
-<rect x="300" y="167" width="225.0" height="26" rx="3" fill="#6b7280" opacity="0.78"/>
-<circle class="dot" cx="525.0" cy="174" r="4" stroke="#6b7280"/>
-<circle class="dot" cx="525.0" cy="186" r="4" stroke="#6b7280"/>
-<text class="value" x="612" y="185">75%</text>
-<rect x="730" y="167" width="0.0" height="26" rx="3" fill="#6b7280" opacity="0.78"/>
-<circle class="dot" cx="730.0" cy="174" r="4" stroke="#6b7280"/>
-<circle class="dot" cx="730.0" cy="186" r="4" stroke="#6b7280"/>
-<text class="value" x="1042" y="185">0s</text>
+<text class="label" x="36" y="195">Cold start</text>
+<rect class="track" x="315" y="180" width="285" height="20" rx="5"/>
+<rect x="315" y="180" width="213.8" height="20" rx="5" fill="#64748b" opacity=".84"/>
+<circle class="dot" cx="528.8" cy="185" r="3.5" stroke="#64748b"/>
+<circle class="dot" cx="528.8" cy="195" r="3.5" stroke="#64748b"/>
+<text class="value" x="612" y="195">75%</text>
+<rect class="pill" x="747" y="177" width="104" height="26" rx="13" stroke="#94a3b8"/>
+<text class="value" x="799" y="194" text-anchor="middle" fill="#64748b">NO TRAINING</text>
 </g>
+<line class="separator" x1="36" y1="227" x2="1082" y2="227"/>
 <g data-arm="sft-continued" data-success-mean="1.000000" data-train-seconds-mean="86.439230">
-<text class="label" x="28" y="267">sft-continued</text>
-<rect x="300" y="249" width="300.0" height="26" rx="3" fill="#3b82f6" opacity="0.78"/>
-<circle class="dot" cx="600.0" cy="256" r="4" stroke="#3b82f6"/>
-<circle class="dot" cx="600.0" cy="268" r="4" stroke="#3b82f6"/>
-<text class="value" x="612" y="267">100%</text>
-<rect x="730" y="249" width="43.2" height="26" rx="3" fill="#3b82f6" opacity="0.78"/>
-<circle class="dot" cx="770.3" cy="256" r="4" stroke="#3b82f6"/>
-<circle class="dot" cx="776.2" cy="268" r="4" stroke="#3b82f6"/>
-<text class="value" x="1042" y="267">86s</text>
+<text class="label" x="36" y="270">Continued SFT</text>
+<rect class="track" x="315" y="255" width="285" height="20" rx="5"/>
+<rect x="315" y="255" width="285.0" height="20" rx="5" fill="#3b82f6" opacity=".84"/>
+<circle class="dot" cx="600.0" cy="260" r="3.5" stroke="#3b82f6"/>
+<circle class="dot" cx="600.0" cy="270" r="3.5" stroke="#3b82f6"/>
+<text class="value" x="612" y="270">100%</text>
+<rect class="track" x="735" y="255" width="270" height="20" rx="5"/>
+<rect x="735" y="255" width="38.9" height="20" rx="5" fill="#3b82f6" opacity=".84"/>
+<circle class="dot" cx="771.2" cy="260" r="3.5" stroke="#3b82f6"/>
+<circle class="dot" cx="776.6" cy="270" r="3.5" stroke="#3b82f6"/>
+<text class="value" x="1017" y="270">86s</text>
 </g>
+<line class="separator" x1="36" y1="302" x2="1082" y2="302"/>
 <g data-arm="opd-raw-teacher" data-success-mean="0.000000" data-train-seconds-mean="443.953792">
-<text class="label" x="28" y="349">opd-raw-teacher</text>
-<rect x="300" y="331" width="0.0" height="26" rx="3" fill="#dc2626" opacity="0.78"/>
-<circle class="dot" cx="300.0" cy="338" r="4" stroke="#dc2626"/>
-<circle class="dot" cx="300.0" cy="350" r="4" stroke="#dc2626"/>
-<text class="value" x="612" y="349">0%</text>
-<rect x="730" y="331" width="222.0" height="26" rx="3" fill="#dc2626" opacity="0.78"/>
-<circle class="dot" cx="964.3" cy="338" r="4" stroke="#dc2626"/>
-<circle class="dot" cx="939.6" cy="350" r="4" stroke="#dc2626"/>
-<text class="value" x="1042" y="349">444s</text>
+<text class="label" x="36" y="345">OPD · raw teacher</text>
+<rect class="pill" x="327" y="327" width="92" height="26" rx="13" stroke="#ef4444"/>
+<text class="value" x="373" y="344" text-anchor="middle" fill="#ef4444">COLLAPSED</text>
+<rect class="track" x="735" y="330" width="270" height="20" rx="5"/>
+<rect x="735" y="330" width="199.8" height="20" rx="5" fill="#ef4444" opacity=".84"/>
+<circle class="dot" cx="945.9" cy="335" r="3.5" stroke="#ef4444"/>
+<circle class="dot" cx="923.7" cy="345" r="3.5" stroke="#ef4444"/>
+<text class="value" x="1017" y="345">444s</text>
 </g>
+<line class="separator" x1="36" y1="377" x2="1082" y2="377"/>
 <g data-arm="opd-privileged-context" data-success-mean="0.000000" data-train-seconds-mean="531.523058">
-<text class="label" x="28" y="431">opd-privileged-context</text>
-<rect x="300" y="413" width="0.0" height="26" rx="3" fill="#f97316" opacity="0.78"/>
-<circle class="dot" cx="300.0" cy="420" r="4" stroke="#f97316"/>
-<circle class="dot" cx="300.0" cy="432" r="4" stroke="#f97316"/>
-<text class="value" x="612" y="431">0%</text>
-<rect x="730" y="413" width="265.8" height="26" rx="3" fill="#f97316" opacity="0.78"/>
-<circle class="dot" cx="1011.6" cy="420" r="4" stroke="#f97316"/>
-<circle class="dot" cx="979.9" cy="432" r="4" stroke="#f97316"/>
-<text class="value" x="1042" y="431">532s</text>
+<text class="label" x="36" y="420">OPD · privileged context</text>
+<rect class="pill" x="327" y="402" width="92" height="26" rx="13" stroke="#f59e0b"/>
+<text class="value" x="373" y="419" text-anchor="middle" fill="#f59e0b">COLLAPSED</text>
+<rect class="track" x="735" y="405" width="270" height="20" rx="5"/>
+<rect x="735" y="405" width="239.2" height="20" rx="5" fill="#f59e0b" opacity=".84"/>
+<circle class="dot" cx="988.5" cy="410" r="3.5" stroke="#f59e0b"/>
+<circle class="dot" cx="959.9" cy="420" r="3.5" stroke="#f59e0b"/>
+<text class="value" x="1017" y="420">532s</text>
 </g>
+<line class="separator" x1="36" y1="452" x2="1082" y2="452"/>
 <g data-arm="opd-protocol-sft-teacher" data-success-mean="1.000000" data-train-seconds-mean="523.820241">
-<text class="label" x="28" y="513">opd-protocol-sft-teacher</text>
-<rect x="300" y="495" width="300.0" height="26" rx="3" fill="#16a34a" opacity="0.78"/>
-<circle class="dot" cx="600.0" cy="502" r="4" stroke="#16a34a"/>
-<circle class="dot" cx="600.0" cy="514" r="4" stroke="#16a34a"/>
-<text class="value" x="612" y="513">100%</text>
-<rect x="730" y="495" width="261.9" height="26" rx="3" fill="#16a34a" opacity="0.78"/>
-<circle class="dot" cx="991.9" cy="502" r="4" stroke="#16a34a"/>
-<circle class="dot" cx="992.0" cy="514" r="4" stroke="#16a34a"/>
-<text class="value" x="1042" y="513">524s</text>
+<text class="label" x="36" y="495">OPD · protocol-aligned teacher</text>
+<rect class="track" x="315" y="480" width="285" height="20" rx="5"/>
+<rect x="315" y="480" width="285.0" height="20" rx="5" fill="#10b981" opacity=".84"/>
+<circle class="dot" cx="600.0" cy="485" r="3.5" stroke="#10b981"/>
+<circle class="dot" cx="600.0" cy="495" r="3.5" stroke="#10b981"/>
+<text class="value" x="612" y="495">100%</text>
+<rect class="track" x="735" y="480" width="270" height="20" rx="5"/>
+<rect x="735" y="480" width="235.7" height="20" rx="5" fill="#10b981" opacity=".84"/>
+<circle class="dot" cx="970.7" cy="485" r="3.5" stroke="#10b981"/>
+<circle class="dot" cx="970.8" cy="495" r="3.5" stroke="#10b981"/>
+<text class="value" x="1017" y="495">524s</text>
 </g>
-<text class="axis" x="28" y="566">Bars are seed means; hollow dots are individual seeds [1234, 20260727]. Source JSON SHA-256 53fc1d4d5b7adee0</text>
+<text class="note" x="36" y="546">Collapsed = 0% strict success in every recorded seed; cold start records setup only (0.06s), not a training phase.</text>
+<text class="note" x="36" y="564">Bars are seed means; hollow dots are individual seeds [1234, 20260727]. Source JSON SHA-256 53fc1d4d5b7adee0</text>
 </svg>

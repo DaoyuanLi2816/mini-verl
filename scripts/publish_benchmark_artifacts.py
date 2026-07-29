@@ -93,22 +93,34 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
                 "seconds_mean": sum(seconds) / len(seconds),
             }
         )
+    collapsed_count = sum(row["success_mean"] == 0.0 for row in rows)
+    cold_start_seconds = next(
+        (row["seconds_mean"] for row in rows if row["name"] == "cold-start-only"),
+        None,
+    )
 
     width = 1120
-    height = 174 + len(rows) * 82
-    label_x = 28
-    success_x = 300
-    success_w = 300
-    time_x = 730
-    time_w = 300
+    height = 206 + len(rows) * 75
+    label_x = 36
+    success_x = 315
+    success_w = 285
+    time_x = 735
+    time_w = 270
     max_seconds = max(row["seconds_mean"] for row in rows)
     time_ceiling = max(100, int(math.ceil(max_seconds / 100.0) * 100))
     colors = {
-        "cold-start-only": "#6b7280",
+        "cold-start-only": "#64748b",
         "sft-continued": "#3b82f6",
-        "opd-raw-teacher": "#dc2626",
-        "opd-privileged-context": "#f97316",
-        "opd-protocol-sft-teacher": "#16a34a",
+        "opd-raw-teacher": "#ef4444",
+        "opd-privileged-context": "#f59e0b",
+        "opd-protocol-sft-teacher": "#10b981",
+    }
+    labels = {
+        "cold-start-only": "Cold start",
+        "sft-continued": "Continued SFT",
+        "opd-raw-teacher": "OPD · raw teacher",
+        "opd-privileged-context": "OPD · privileged context",
+        "opd-protocol-sft-teacher": "OPD · protocol-aligned teacher",
     }
 
     def line(text: str) -> str:
@@ -120,89 +132,150 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         'aria-labelledby="benchmark-title benchmark-desc">'
     )
     svg += line('<title id="benchmark-title">miniVERL protocol-teacher benchmark</title>')
-    svg += line(
-        '<desc id="benchmark-desc">Strict held-out success and training time for five '
-        "equal-optimizer-update arms over two prespecified seeds.</desc>"
+    desc = (
+        "Strict held-out success and training time for equal-optimizer-update arms "
+        f"over {len(result.seeds)} prespecified seeds."
     )
+    if collapsed_count:
+        desc += f" {collapsed_count} zero-success arms are labeled collapsed."
+    if cold_start_seconds is not None:
+        desc += " The cold-start baseline is labeled no training."
+    svg += line(f'<desc id="benchmark-desc">{desc}</desc>')
     svg += line(
         "<style>"
-        "text{font-family:ui-sans-serif,system-ui,sans-serif;fill:#111827}"
-        ".title{font-size:25px;font-weight:600}.sub{font-size:14px;fill:#4b5563}"
-        ".head{font-size:15px;font-weight:600}.label{font-size:15px}"
-        ".value{font-size:14px;font-weight:600}.axis{font-size:12px;fill:#6b7280}"
-        ".grid{stroke:#d1d5db;stroke-width:1}.dot{fill:#fff;stroke-width:2}"
+        "text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;"
+        "fill:#172033}.title{font-size:25px;font-weight:750;letter-spacing:-.3px}"
+        ".sub{font-size:13px;fill:#64748b}.head{font-size:14px;font-weight:700}"
+        ".label{font-size:14px;font-weight:560}.value{font-size:13px;font-weight:700}"
+        ".axis{font-size:11.5px;fill:#718096}.note{font-size:11.5px;fill:#64748b}"
+        ".panel{fill:#f8fafc;stroke:#e2e8f0}.track{fill:#e9eef5}"
+        ".grid{stroke:#cbd5e1;stroke-width:1}.separator{stroke:#e8edf3;stroke-width:1}"
+        ".dot{fill:#fff;stroke-width:2}.pill{fill:#fff;stroke-width:1.4}"
         "</style>"
     )
-    svg += line('<rect width="100%" height="100%" fill="#ffffff"/>')
-    svg += line('<text class="title" x="28" y="40">Protocol alignment prevents collapse</text>')
+    svg += line('<rect width="100%" height="100%" rx="16" fill="#ffffff"/>')
     svg += line(
-        f'<text class="sub" x="28" y="66">schema v{result.schema_version} | '
-        f"{len(result.seeds)} prespecified seeds | budget axis: "
+        f'<rect x=".75" y=".75" width="{width - 1.5}" height="{height - 1.5}" rx="15.25" '
+        'fill="none" stroke="#e2e8f0" stroke-width="1.5"/>'
+    )
+    svg += line('<text class="title" x="36" y="42">Protocol alignment prevents collapse</text>')
+    svg += line(
+        f'<text class="sub" x="36" y="68">schema v{result.schema_version}  ·  '
+        f"{len(result.seeds)} prespecified seeds  ·  budget axis: "
         f"{html.escape(result.budget_axis or 'unreported')}</text>"
     )
-    svg += line(f'<text class="head" x="{success_x}" y="110">Strict held-out success</text>')
-    svg += line(f'<text class="head" x="{time_x}" y="110">Training time (seconds)</text>')
+    panel_y = 91
+    panel_h = height - 148
+    svg += line(
+        f'<rect class="panel" x="282" y="{panel_y}" width="380" height="{panel_h}" rx="12"/>'
+    )
+    svg += line(
+        f'<rect class="panel" x="702" y="{panel_y}" width="380" height="{panel_h}" rx="12"/>'
+    )
+    svg += line(f'<text class="head" x="{success_x}" y="119">Strict held-out success</text>')
+    svg += line(f'<text class="head" x="{time_x}" y="119">Training time</text>')
     for fraction in (0.0, 0.5, 1.0):
         x = success_x + success_w * fraction
-        svg += line(f'<line class="grid" x1="{x:.1f}" y1="124" x2="{x:.1f}" y2="{height - 48}"/>')
+        svg += line(f'<line class="grid" x1="{x:.1f}" y1="139" x2="{x:.1f}" y2="{height - 62}"/>')
         svg += line(
-            f'<text class="axis" x="{x:.1f}" y="144" text-anchor="middle">'
+            f'<text class="axis" x="{x:.1f}" y="153" text-anchor="middle">'
             f"{fraction * 100:.0f}%</text>"
         )
     for fraction in (0.0, 0.5, 1.0):
         x = time_x + time_w * fraction
-        svg += line(f'<line class="grid" x1="{x:.1f}" y1="124" x2="{x:.1f}" y2="{height - 48}"/>')
+        svg += line(f'<line class="grid" x1="{x:.1f}" y1="139" x2="{x:.1f}" y2="{height - 62}"/>')
         svg += line(
-            f'<text class="axis" x="{x:.1f}" y="144" text-anchor="middle">'
-            f"{time_ceiling * fraction:.0f}</text>"
+            f'<text class="axis" x="{x:.1f}" y="153" text-anchor="middle">'
+            f"{time_ceiling * fraction:.0f}s</text>"
         )
 
     for index, row in enumerate(rows):
-        y = 180 + index * 82
+        y = 190 + index * 75
         color = colors.get(row["name"], "#4b5563")
         escaped_name = html.escape(row["name"])
+        display_name = html.escape(labels.get(row["name"], row["name"]))
+        if index:
+            svg += line(f'<line class="separator" x1="36" y1="{y - 38}" x2="1082" y2="{y - 38}"/>')
         svg += line(
             f'<g data-arm="{escaped_name}" '
             f'data-success-mean="{row["success_mean"]:.6f}" '
             f'data-train-seconds-mean="{row["seconds_mean"]:.6f}">'
         )
-        svg += line(f'<text class="label" x="{label_x}" y="{y + 5}">{escaped_name}</text>')
+        svg += line(f'<text class="label" x="{label_x}" y="{y + 5}">{display_name}</text>')
 
-        success_end = success_x + success_w * row["success_mean"]
-        svg += line(
-            f'<rect x="{success_x}" y="{y - 13}" width="{success_end - success_x:.1f}" '
-            f'height="26" rx="3" fill="{color}" opacity="0.78"/>'
-        )
-        for seed_index, value in enumerate(row["success"]):
-            dot_x = success_x + success_w * value
-            dot_y = y - 6 + seed_index * 12
+        if row["success_mean"] == 0.0:
             svg += line(
-                f'<circle class="dot" cx="{dot_x:.1f}" cy="{dot_y}" r="4" stroke="{color}"/>'
+                f'<rect class="pill" x="{success_x + 12}" y="{y - 13}" width="92" '
+                f'height="26" rx="13" stroke="{color}"/>'
             )
-        svg += line(
-            f'<text class="value" x="{success_x + success_w + 12}" y="{y + 5}">'
-            f"{row['success_mean'] * 100:.0f}%</text>"
-        )
+            svg += line(
+                f'<text class="value" x="{success_x + 58}" y="{y + 4}" '
+                f'text-anchor="middle" fill="{color}">COLLAPSED</text>'
+            )
+        else:
+            success_end = success_x + success_w * row["success_mean"]
+            svg += line(
+                f'<rect class="track" x="{success_x}" y="{y - 10}" '
+                f'width="{success_w}" height="20" rx="5"/>'
+            )
+            svg += line(
+                f'<rect x="{success_x}" y="{y - 10}" width="{success_end - success_x:.1f}" '
+                f'height="20" rx="5" fill="{color}" opacity=".84"/>'
+            )
+            for seed_index, value in enumerate(row["success"]):
+                dot_x = success_x + success_w * value
+                dot_y = y - 5 + seed_index * 10
+                svg += line(
+                    f'<circle class="dot" cx="{dot_x:.1f}" cy="{dot_y}" r="3.5" stroke="{color}"/>'
+                )
+            svg += line(
+                f'<text class="value" x="{success_x + success_w + 12}" y="{y + 5}">'
+                f"{row['success_mean'] * 100:.0f}%</text>"
+            )
 
-        time_end = time_x + time_w * row["seconds_mean"] / time_ceiling
-        svg += line(
-            f'<rect x="{time_x}" y="{y - 13}" width="{time_end - time_x:.1f}" '
-            f'height="26" rx="3" fill="{color}" opacity="0.78"/>'
-        )
-        for seed_index, value in enumerate(row["seconds"]):
-            dot_x = time_x + time_w * value / time_ceiling
-            dot_y = y - 6 + seed_index * 12
+        if row["name"] == "cold-start-only":
             svg += line(
-                f'<circle class="dot" cx="{dot_x:.1f}" cy="{dot_y}" r="4" stroke="{color}"/>'
+                f'<rect class="pill" x="{time_x + 12}" y="{y - 13}" width="104" '
+                'height="26" rx="13" stroke="#94a3b8"/>'
             )
-        svg += line(
-            f'<text class="value" x="{time_x + time_w + 12}" y="{y + 5}">'
-            f"{row['seconds_mean']:.0f}s</text>"
-        )
+            svg += line(
+                f'<text class="value" x="{time_x + 64}" y="{y + 4}" '
+                'text-anchor="middle" fill="#64748b">NO TRAINING</text>'
+            )
+        else:
+            time_end = time_x + time_w * row["seconds_mean"] / time_ceiling
+            svg += line(
+                f'<rect class="track" x="{time_x}" y="{y - 10}" '
+                f'width="{time_w}" height="20" rx="5"/>'
+            )
+            svg += line(
+                f'<rect x="{time_x}" y="{y - 10}" width="{time_end - time_x:.1f}" '
+                f'height="20" rx="5" fill="{color}" opacity=".84"/>'
+            )
+            for seed_index, value in enumerate(row["seconds"]):
+                dot_x = time_x + time_w * value / time_ceiling
+                dot_y = y - 5 + seed_index * 10
+                svg += line(
+                    f'<circle class="dot" cx="{dot_x:.1f}" cy="{dot_y}" r="3.5" stroke="{color}"/>'
+                )
+            svg += line(
+                f'<text class="value" x="{time_x + time_w + 12}" y="{y + 5}">'
+                f"{row['seconds_mean']:.0f}s</text>"
+            )
         svg += line("</g>")
 
+    notes = []
+    if collapsed_count:
+        notes.append("Collapsed = 0% strict success in every recorded seed")
+    if cold_start_seconds is not None:
+        notes.append(
+            f"cold start records setup only ({cold_start_seconds:.2f}s), not a training phase"
+        )
     svg += line(
-        f'<text class="axis" x="28" y="{height - 18}">Bars are seed means; hollow '
+        f'<text class="note" x="36" y="{height - 35}">{html.escape("; ".join(notes))}.</text>'
+    )
+    svg += line(
+        f'<text class="note" x="36" y="{height - 17}">Bars are seed means; hollow '
         f"dots are individual seeds {html.escape(str(result.seeds))}. "
         f"Source JSON SHA-256 {source_sha256[:16]}</text>"
     )

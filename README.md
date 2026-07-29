@@ -14,49 +14,30 @@
 
 **On-policy distillation for tool-using agents on one GPU.**
 
-miniVERL trains a small tool-using language model on its own multi-turn
-trajectories using teacher distributional targets, without requiring Ray, a GPU
-cluster, or a 40 GB accelerator.
+miniVERL is a compact, auditable training lab for teaching a small language
+model from its own multi-turn tool trajectories. It runs real tools, keeps
+token provenance explicit, and applies teacher distributional targets only
+where they belong — without Ray, a GPU cluster, or a 40 GB accelerator.
 
 ```bash
-git clone https://github.com/DaoyuanLi2816/mini-verl.git
-cd mini-verl
-python -m pip install ".[train]"
+python -m pip install "miniverl[train]"
+miniverl doctor
 miniverl demo --output runs/demo        # no network, no GPU, ~50 s on a laptop CPU
 ```
 
-> [!IMPORTANT]
-> **Protocol alignment prevents the observed OPD collapse, but does not beat
-> supervised fine-tuning here.** The primary schema-v2 comparison uses two
-> prespecified seeds, equal optimizer updates, and the saturated `hard`
-> calculator split:
+**What it makes inspectable**
 
-| arm | seed 1234 | seed 20260727 |
-| --- | ---: | ---: |
-| cold start | 75.0% | 75.0% |
-| raw-teacher OPD | 0.0% | 0.0% |
-| privileged-teacher OPD | 0.0% | 0.0% |
-| protocol-teacher OPD | **100.0%** | **100.0%** |
-| continued SFT | **100.0%** | **100.0%** |
+- **Policy truth:** every OPD batch is sampled from the policy version it
+  updates; stale teacher targets are rejected.
+- **Token truth:** tool output stays context, while only typed assistant spans
+  can enter the loss.
+- **Budget truth:** exact full-vocabulary objectives and compressed
+  `top-k + tail` objectives are named and reported separately.
 
-The [public, immutable protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
-prevents the collapse caused by protocol-naive supervision, but OPD ties SFT
-and takes about 6x as much training time here (523.8 s versus 86.4 s on
-average). The task saturates; two seeds do not support a significance claim,
-and no general OPD advantage is claimed. See the
-[full result and legacy transcript diagnosis](docs/rtx4080-baselines.md).
-
-![Two-seed protocol-teacher benchmark](docs/gpu-calc-hard-equal-update-v2.svg)
-
-An older RTX 4080 pipeline smoke run trained **Qwen3-0.6B** from
-**Qwen3-1.7B** in **481 s / 16 optimizer steps**, peaking at **4.25 GiB
-allocated / 4.76 GiB reserved**, and moved held-out greedy success from
-**0.0% to 100.0%** on 12 tasks. The 8-cycle supervised cold start did most of
-that work: the first OPD rollout batch already scored 83.3%. It demonstrates
-the pipeline end to end, not an OPD-over-SFT result. Every number is traceable
-to [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md).
-
----
+[Run the local demo](#local-toy-demo) ·
+[Train on a consumer GPU](#consumer-gpu-quickstart) ·
+[Inspect the measured result](#measured-result-protocol-alignment-prevents-collapse) ·
+[Read the math](docs/math.md)
 
 ## Why miniVERL exists
 
@@ -96,6 +77,39 @@ keeps the whole thing on one 16 GB card.
 | Exact checkpoint/resume | yes, asserted parameter-for-parameter |
 | Self-contained offline HTML report with token-level divergence | yes |
 | Ray, FSDP, DeepSpeed, vLLM, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](docs/limitations.md) |
+
+## Measured result: protocol alignment prevents collapse
+
+> [!IMPORTANT]
+> **Protocol alignment prevents the observed OPD collapse, but does not beat
+> supervised fine-tuning here.** The primary schema-v2 comparison uses two
+> prespecified seeds, equal optimizer updates, and the saturated `hard`
+> calculator split:
+
+| arm | seed 1234 | seed 20260727 |
+| --- | ---: | ---: |
+| cold start | 75.0% | 75.0% |
+| raw-teacher OPD | 0.0% | 0.0% |
+| privileged-teacher OPD | 0.0% | 0.0% |
+| protocol-teacher OPD | **100.0%** | **100.0%** |
+| continued SFT | **100.0%** | **100.0%** |
+
+The [public, immutable protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
+prevents the collapse caused by protocol-naive supervision, but OPD ties SFT
+and takes about 6x as much training time here (523.8 s versus 86.4 s on
+average). The task saturates; two seeds do not support a significance claim,
+and no general OPD advantage is claimed. See the
+[full result and legacy transcript diagnosis](docs/rtx4080-baselines.md).
+
+![Two-seed protocol-teacher benchmark](docs/gpu-calc-hard-equal-update-v2.svg)
+
+An older RTX 4080 pipeline smoke run trained **Qwen3-0.6B** from
+**Qwen3-1.7B** in **481 s / 16 optimizer steps**, peaking at **4.25 GiB
+allocated / 4.76 GiB reserved**, and moved held-out greedy success from
+**0.0% to 100.0%** on 12 tasks. The 8-cycle supervised cold start did most of
+that work: the first OPD rollout batch already scored 83.3%. It demonstrates
+the pipeline end to end, not an OPD-over-SFT result. Every number is traceable
+to [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md).
 
 ## Local toy demo
 

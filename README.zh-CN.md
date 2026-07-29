@@ -16,45 +16,26 @@
 
 **单卡上的工具调用智能体在线策略蒸馏（on-policy distillation）。**
 
-miniVERL 让一个小型的、会调用工具的语言模型在**它自己生成的多轮轨迹**上学习，监督信号来自教师模型的分布式目标。不需要 Ray，不需要 GPU 集群，也不需要 40 GB 显存的加速卡。
+miniVERL 是一个紧凑、可审计的训练实验室，让小型语言模型从**它自己生成的
+多轮工具轨迹**中学习。它会真实执行工具、显式记录 token 来源，并且只在正确
+的位置使用教师分布目标——不需要 Ray、GPU 集群或 40 GB 显存的加速卡。
 
 ```bash
-git clone https://github.com/DaoyuanLi2816/mini-verl.git
-cd mini-verl
-python -m pip install ".[train]"
+python -m pip install "miniverl[train]"
+miniverl doctor
 miniverl demo --output runs/demo        # 无需联网、无需 GPU，笔记本 CPU 上约 50 秒
 ```
 
-> [!IMPORTANT]
-> **协议对齐避免了已经观察到的 OPD 崩溃，但在这里没有超过监督微调。**
-> 主要的 schema-v2 对照使用两个预先指定的种子、相同的优化步数，以及已经
-> 饱和的 `hard` 计算器划分：
+**它让三件事可以被检查**
 
-| 实验臂 | seed 1234 | seed 20260727 |
-| --- | ---: | ---: |
-| 冷启动 | 75.0% | 75.0% |
-| 原始教师 OPD | 0.0% | 0.0% |
-| 特权上下文教师 OPD | 0.0% | 0.0% |
-| 协议教师 OPD | **100.0%** | **100.0%** |
-| 继续 SFT | **100.0%** | **100.0%** |
+- **策略真实：** 每个 OPD 批次都来自它要更新的策略版本；过期教师目标会被拒绝。
+- **Token 真实：** 工具输出只作为上下文，只有带类型的 assistant span 能进入 loss。
+- **预算真实：** 精确全词表目标与压缩的 `top-k + tail` 目标分开命名、分开报告。
 
-[公开且固定版本的协议教师适配器](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
-避免了协议不匹配监督造成的崩溃，但 OPD 只追平 SFT，而且这里的平均训练时间
-约为 SFT 的 6 倍（523.8 秒对 86.4 秒）。任务已经饱和；两个种子不足以支持
-显著性结论，也不构成 OPD 普遍更优的证据。完整结果和旧实验的逐轨迹诊断见
-[`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)。
-
-![双种子协议教师对照](docs/gpu-calc-hard-equal-update-v2.svg)
-
-更早的一次 RTX 4080 流水线 smoke 运行用 **Qwen3-1.7B** 蒸馏
-**Qwen3-0.6B**，耗时 **481 秒 / 16 个优化步**，显存峰值为
-**4.25 GiB 已分配 / 4.76 GiB 已保留**，并在 12 个留出任务上把贪心成功率
-从 **0.0% 提升到 100.0%**。其中 8 个 cycle 的监督冷启动完成了大部分工作：
-第一批 OPD rollout 已经达到 83.3%。它证明流水线能端到端运行，而不是证明
-OPD 优于 SFT。所有数字都可追溯到
-[`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)。
-
----
+[运行本地 demo](#本地玩具演示) ·
+[在消费级 GPU 上训练](#消费级-gpu-快速上手) ·
+[查看实测结果](#实测结果协议对齐避免崩溃) ·
+[阅读数学说明](docs/math.md)
 
 ## 为什么需要 miniVERL
 
@@ -85,6 +66,37 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 精确的断点续训 | 支持，逐参数断言 |
 | 完全自包含、可离线打开的 HTML 报告 | 支持 |
 | Ray、FSDP、DeepSpeed、vLLM、VLM、跨词表、PPO/GRPO | **不支持**，见[局限](docs/limitations.md) |
+
+## 实测结果：协议对齐避免崩溃
+
+> [!IMPORTANT]
+> **协议对齐避免了已经观察到的 OPD 崩溃，但在这里没有超过监督微调。**
+> 主要的 schema-v2 对照使用两个预先指定的种子、相同的优化步数，以及已经
+> 饱和的 `hard` 计算器划分：
+
+| 实验臂 | seed 1234 | seed 20260727 |
+| --- | ---: | ---: |
+| 冷启动 | 75.0% | 75.0% |
+| 原始教师 OPD | 0.0% | 0.0% |
+| 特权上下文教师 OPD | 0.0% | 0.0% |
+| 协议教师 OPD | **100.0%** | **100.0%** |
+| 继续 SFT | **100.0%** | **100.0%** |
+
+[公开且固定版本的协议教师适配器](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
+避免了协议不匹配监督造成的崩溃，但 OPD 只追平 SFT，而且这里的平均训练时间
+约为 SFT 的 6 倍（523.8 秒对 86.4 秒）。任务已经饱和；两个种子不足以支持
+显著性结论，也不构成 OPD 普遍更优的证据。完整结果和旧实验的逐轨迹诊断见
+[`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)。
+
+![双种子协议教师对照](docs/gpu-calc-hard-equal-update-v2.svg)
+
+更早的一次 RTX 4080 流水线 smoke 运行用 **Qwen3-1.7B** 蒸馏
+**Qwen3-0.6B**，耗时 **481 秒 / 16 个优化步**，显存峰值为
+**4.25 GiB 已分配 / 4.76 GiB 已保留**，并在 12 个留出任务上把贪心成功率
+从 **0.0% 提升到 100.0%**。其中 8 个 cycle 的监督冷启动完成了大部分工作：
+第一批 OPD rollout 已经达到 83.3%。它证明流水线能端到端运行，而不是证明
+OPD 优于 SFT。所有数字都可追溯到
+[`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)。
 
 ## 本地玩具演示
 
