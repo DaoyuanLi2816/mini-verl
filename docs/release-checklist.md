@@ -1,9 +1,9 @@
 # Release checklist
 
-This is the release-candidate gate for `v0.2.0`. A checked box means the command
-was executed on the v0.2 source or the named invariant was inspected. The
-`release` workflow re-runs the mechanical gates and fails a tag if any item
-before *After the tag* is left unchecked.
+This is the release gate and publication record for `v0.2.0`. A checked box
+means the command was executed on the v0.2 source or the named invariant was
+inspected. The `release` workflow re-runs the mechanical gates and fails a tag
+if any item before *After the tag* is left unchecked.
 
 ## Version consistency
 
@@ -49,8 +49,8 @@ Checked by: `.github/workflows/release.yml`, job `validate-and-test`.
 - [x] Every number in the README and in `docs/` is measured, or marked
       "not measured" / "not run".
 - [x] The verl disclaimer is present and accurate.
-- [x] Badges point at workflows that exist. **No PyPI badge until the package is
-      actually published.**
+- [x] Badges point at workflows that exist. The PyPI badge was added only after
+      the public `0.2.0` publication was independently verified.
 - [x] `docs/limitations.md` is current and does not undersell anything.
 
 ## Artifacts and hygiene
@@ -63,65 +63,55 @@ Checked by: `.github/workflows/release.yml`, job `validate-and-test`.
       `miniverl schema`.
 - [x] Every file in `benchmarks/results/` validates against that schema.
 
-## Publishing (externally blocked)
+## Publishing (completed)
 
 The workflow stores no secret or long-lived PyPI token. Its publish, public
 verification and GitHub Release jobs each independently require a `push` event
 whose ref starts with `refs/tags/v`; `workflow_dispatch` validates, tests,
 builds and uploads a workflow artifact but can never publish.
 
-Live verification on 2026-07-28 found:
+The exact pending publisher was registered with project `miniverl`, owner
+`DaoyuanLi2816`, repository `mini-verl`, workflow `release.yml` and environment
+`pypi`. The tag was pushed only after that account-side registration was
+confirmed.
 
-- `https://pypi.org/pypi/miniverl/json` returns HTTP 404;
-- the GitHub `pypi` environment exists and its custom deployment policy permits
-  only tags matching `v*`;
-- no `v0.2.0` tag, PyPI release or GitHub Release exists;
-- **PyPI pending publisher not yet registered** is the sole external
-  publication blocker.
+Tag run
+[`30421231859`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30421231859)
+completed successfully on 2026-07-28 (2026-07-29 UTC):
 
-PyPI's
-[pending-publisher documentation](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
-supports creating a new project on the first OIDC upload. A project page does
-not need to exist first, and no token-based bootstrap upload is needed. The
-exact bootstrap is:
+1. `v0.2.0` resolved to release commit
+   `6092706b4a4e750c4571d7d6a7decbc26af851b2`.
+2. The full quality gate passed and the wheel and sdist were built exactly once.
+3. OIDC Trusted Publishing created
+   [`miniverl 0.2.0`](https://pypi.org/project/miniverl/0.2.0/) without a token.
+4. Public PyPI metadata, file hashes and repository-identity attestations passed,
+   followed by a clean public install and CLI exercise.
+5. Only then did the workflow create
+   [`miniVERL v0.2.0`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.0)
+   with the verified wheel, sdist and `SHA256SUMS`.
 
-1. Sign in to the intended PyPI maintainer account.
-2. Open the account-level **Publishing** page.
-3. Add a pending GitHub publisher with:
-   - PyPI project name: `miniverl`
-   - GitHub owner: `DaoyuanLi2816`
-   - Repository: `mini-verl`
-   - Workflow filename: `release.yml`
-   - Environment: `pypi`
-4. Confirm the GitHub environment is still named exactly `pypi`.
-5. Only with explicit publication authorization, push `v0.2.0`.
-6. Verify that the first tagged OIDC publication created the project and
-   converted the pending publisher to a normal publisher, following the
-   [OIDC publishing flow](https://docs.pypi.org/trusted-publishers/using-a-publisher/).
+### Published artifact identity
 
-The pending publisher does **not** reserve `miniverl` before that first upload.
-Re-check name availability immediately before registration and tagging.
-Package metadata `[project].name` must remain exactly `miniverl`, and every
-owner/repository/workflow/environment claim above must match exactly. Until the
-pending publisher is verifiably registered, do not create the tag.
+- `miniverl-0.2.0-py3-none-any.whl`:
+  SHA-256 `cf850a6333483a3ee22c0c0e98df1e1b2e6faa184480573e0666658b53a29262`
+- `miniverl-0.2.0.tar.gz`:
+  SHA-256 `3d5107b4f6351204335f800ce924208843f08f54441378bd9f25c3c6fa17456b`
 
-### Name availability
-
-`miniverl` was available on PyPI when this release was prepared
-(`https://pypi.org/pypi/miniverl/json` returned HTTP 404 on 2026-07-28).
-That 404 is not a reservation. **Re-check immediately before publishing** and
-stop rather than silently changing the distribution name if it has been taken.
+Independent downloads from both PyPI and the GitHub Release reproduced those
+digests. PyPI reports Trusted Publishing and an attestation publisher of
+`release.yml` on `DaoyuanLi2816/mini-verl`.
 
 ## After the tag
 
-- [ ] Set the GitHub repository description to
+- [x] Set the GitHub repository description to
       `On-policy distillation for tool-using LLM agents on one consumer GPU.`
-- [ ] Set the topics: `llm`, `on-policy-distillation`, `knowledge-distillation`,
+- [x] Set the topics: `llm`, `on-policy-distillation`, `knowledge-distillation`,
       `agentic-rl`, `tool-use`, `qlora`, `consumer-gpu`, `post-training`, `qwen`,
       `llm-agents`, `verl`.
 - [ ] Upload `docs/banner.svg` (rendered to PNG) as the social preview image.
-- [ ] Create the GitHub release from `CHANGELOG.md`.
+- [x] Create the GitHub release from the verified release distributions and
+      generated notes.
 
-These four are repository-settings actions that cannot be performed from a
-commit, so they stay unchecked here on purpose; the `release` workflow only
-inspects the sections above.
+The remaining social-preview upload is a repository-settings action. A
+1280×640 PNG was rendered and inspected; the `release` workflow only inspects
+the sections above.
