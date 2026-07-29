@@ -269,14 +269,20 @@ def test_published_gpu_visualization_matches_its_source_result():
     text_nodes = [text.strip() for text in root.itertext() if text.strip()]
     visible_text = " ".join(text_nodes)
     assert f"Source JSON SHA-256 {digest[:16]}" in visible_text
-    assert "Collapsed = 0% strict success in every recorded seed" in visible_text
+    assert "Protocol-aligned OPD matches continued SFT" in visible_text
+    assert "DIAGNOSTIC CONTROLS" in visible_text
+    assert "Diagnostic controls intentionally use protocol-incompatible teachers" in visible_text
     cold_text = [text.strip() for text in groups["cold-start-only"].itertext() if text.strip()]
     assert "NO TRAINING" in cold_text
     assert "0s" not in cold_text
     for name in ("opd-raw-teacher", "opd-privileged-context"):
         arm_text = [text.strip() for text in groups[name].itertext() if text.strip()]
-        assert "COLLAPSED" in arm_text
+        assert "PROTOCOL MISMATCH" in arm_text
         assert "0%" not in arm_text
+    assert "COLLAPSED" not in visible_text
+    assert text_nodes.index("OPD · protocol-aligned teacher") < text_nodes.index(
+        "DIAGNOSTIC CONTROLS · INTENTIONALLY PROTOCOL-INCOMPATIBLE TEACHERS"
+    )
     assert "\ufffd" not in visible_text
 
     from miniverl.evaluation.schema import BenchmarkResult

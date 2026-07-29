@@ -210,7 +210,8 @@ results.
 
 ### The 16 GB run demonstrates the pipeline, not an OPD-over-SFT win
 
-`recipes/qwen_consumer_gpu_calc.yaml` (run id `rtx4080-calc-opd`) completed 16
+`recipes/qwen_consumer_gpu_calc_raw_teacher.yaml` (run id
+`rtx4080-calc-opd`) completed 16
 optimizer steps in 481.1 s, and held-out greedy evaluation on 12 calculator
 tasks went from 0.0% to 100.0%.
 

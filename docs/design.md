@@ -454,7 +454,8 @@ KD/OPD loop. It is cheap (no generation) and it is what gets the policy emitting
 syntactically valid tool calls at all. It is also the reason a single end-to-end
 number is not evidence that OPD helped.
 
-On the one full 16 GB run of `recipes/qwen_consumer_gpu_calc.yaml` (run id
+On the one full 16 GB run of
+`recipes/qwen_consumer_gpu_calc_raw_teacher.yaml` (run id
 `rtx4080-calc-opd`), 16 optimizer steps took 481.1 s and held-out greedy
 evaluation on 12 calculator tasks went from 0.0 percent to 100.0 percent.
 Attributing that to on-policy distillation would be wrong: the 8-cycle SFT cold

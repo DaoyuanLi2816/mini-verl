@@ -48,7 +48,9 @@ Measured by `torch.cuda.max_memory_allocated` and `max_memory_reserved`, with
 the counters reset immediately before the phase.
 
 ```bash
-python scripts/gpu_smoke.py --output runs/gpu-smoke
+python scripts/gpu_smoke.py \
+  --recipe recipes/qwen_consumer_gpu_calc_raw_teacher.yaml \
+  --output runs/gpu-smoke
 ```
 
 | quantity | value |
@@ -60,7 +62,8 @@ python scripts/gpu_smoke.py --output runs/gpu-smoke
 | projection chunk size | 256 (unchanged) |
 | OOM retries used | **0** |
 
-Configuration that produced it: `recipes/qwen_consumer_gpu_calc.yaml` with
+Configuration that produced it:
+`recipes/qwen_consumer_gpu_calc_raw_teacher.yaml` with
 `train.cycles: 1`, `rollouts_per_cycle: 2`, `sft_warmup_cycles: 1`,
 `max_new_tokens_per_turn: 48`, `environment.train_tasks: 16`, `eval.tasks: 2`.
 
@@ -115,7 +118,7 @@ every wall-clock number on this page:
 ## The published recipe, end to end
 
 ```bash
-miniverl train recipes/qwen_consumer_gpu_calc.yaml --run-id rtx4080-calc-opd
+miniverl train recipes/qwen_consumer_gpu_calc_raw_teacher.yaml --run-id rtx4080-calc-opd
 ```
 
 | quantity | value |

@@ -33,7 +33,7 @@ description: >-
   on-policy distillation, on the chained calculator split with Qwen3-0.6B
   distilled from Qwen3-1.7B on one 16 GB consumer GPU.
 
-base: ../../recipes/qwen_consumer_gpu_calc.yaml
+base: ../../recipes/qwen_consumer_gpu_calc_raw_teacher.yaml
 cold_start_cycles: 12
 eval_split: test
 seeds: [1234]

@@ -62,9 +62,7 @@
           stroke="#94a3b8" stroke-opacity=".22"/>
     <circle cx="61" cy="223.5" r="3" fill="#67e8f9"/>
     <text x="72" y="228" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-          font-size="11.5" fill="#dbeafe">pip install "miniverl[train]"</text>
-
-    <line x1="405" y1="28" x2="405" y2="222" stroke="#ffffff" stroke-opacity=".12"/>
+          font-size="11.5" fill="#dbeafe">pip install miniverl</text>
 
     <g>
       <rect x="437" y="28" width="397" height="56" rx="12" fill="url(#card)"

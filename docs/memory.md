@@ -361,11 +361,13 @@ instead.
 
 ## Measured: one OPD cycle on an RTX 4080
 
-Produced by `scripts/gpu_smoke.py` with its default arguments against
-`recipes/qwen_consumer_gpu_calc.yaml`.
+Produced by `scripts/gpu_smoke.py` with the historical raw-teacher recipe
+`recipes/qwen_consumer_gpu_calc_raw_teacher.yaml`.
 
 ```bash
-python scripts/gpu_smoke.py --output runs/gpu-smoke
+python scripts/gpu_smoke.py \
+  --recipe recipes/qwen_consumer_gpu_calc_raw_teacher.yaml \
+  --output runs/gpu-smoke
 ```
 
 The script overrides the recipe budgets before running: `cycles=1`,

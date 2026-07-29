@@ -4,6 +4,19 @@ All notable changes to miniVERL are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The default consumer-GPU recipe now uses the pinned, competence-gated
+  protocol-teacher adapter; the previous raw-teacher payload is preserved
+  byte-for-byte as an explicitly labeled diagnostic-control recipe.
+- The primary benchmark figure leads with the supported OPD/SFT comparison and
+  separates protocol-incompatible controls instead of labeling their measured
+  0% strict success as a generic collapse.
+- Installation examples distinguish the torch-free `miniverl` core from the
+  `miniverl[train]` extra required for local optimization.
+
 ## [0.2.0] - 2026-07-28
 
 Protocol-aligned teacher support and scientifically explicit benchmark
@@ -159,7 +172,7 @@ one consumer GPU.
 
 ### Measured
 
-- RTX 4080 (16 GB), `recipes/qwen_consumer_gpu_calc.yaml`: 16 optimizer steps in
+- RTX 4080 (16 GB), `recipes/qwen_consumer_gpu_calc_raw_teacher.yaml`: 16 optimizer steps in
   481.1 s; peak 4.251 GiB allocated / 4.762 GiB reserved; held-out greedy task
   success 0.0% to 100.0% on 12 tasks. The supervised cold start does most of that
   work; see `docs/rtx4080-baselines.md`.

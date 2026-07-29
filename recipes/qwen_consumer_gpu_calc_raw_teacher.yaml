@@ -1,0 +1,135 @@
+# Historical negative-control recipe: Qwen3-0.6B distilled from the raw
+# Qwen3-1.7B instruct checkpoint on the calculator environment.
+#
+# The raw teacher has never learned miniVERL's tool-call protocol. It is
+# preserved to reproduce the original RTX 4080 measurements and the diagnosed
+# protocol-mismatch failure; it is NOT the recommended quickstart. Use
+# recipes/qwen_consumer_gpu_calc.yaml for the supported protocol-aligned path.
+#
+# Verified facts about this model pair (checked against the Hugging Face API on
+# 2026-07-27, and re-checkable with the commands in docs/reproducibility.md):
+#   * both repositories are Apache-2.0;
+#   * tokenizer.json is BYTE-IDENTICAL across the pair
+#     (sha256 aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4);
+#   * vocab_size 151936, tokenizer_class Qwen2Tokenizer, tie_word_embeddings true;
+#   * Qwen3 needs transformers >= 4.51.
+#
+#   miniverl validate recipes/qwen_consumer_gpu_calc_raw_teacher.yaml
+#   miniverl train recipes/qwen_consumer_gpu_calc_raw_teacher.yaml --dry-run
+#
+# The measured outcomes and transcript-level diagnosis are recorded in
+# docs/rtx4080-baselines.md.
+
+schema_version: 1
+
+run:
+  name: qwen3-calc-opd-4080
+  mode: opd
+  seed: 1234
+  output_dir: runs
+  deterministic: true
+  tags: [consumer-gpu, rtx4080, qwen3, calculator]
+
+models:
+  backend: hf
+  device: auto
+  student:
+    model_id: Qwen/Qwen3-0.6B
+    revision: c1899de289a04d12100db370d81485cdf75e47ca
+    tokenizer_revision: c1899de289a04d12100db370d81485cdf75e47ca
+    dtype: bfloat16
+    quantization: nf4
+    attn_implementation: sdpa
+    gradient_checkpointing: true
+    lora:
+      enabled: true
+      r: 16
+      alpha: 32
+      dropout: 0.0
+      target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  teacher:
+    model_id: Qwen/Qwen3-1.7B
+    revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+    tokenizer_revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+    dtype: bfloat16
+    quantization: none
+    attn_implementation: sdpa
+    mode: standard
+
+environment:
+  name: calculator
+  difficulty: medium
+  params:
+    prompt_style: full
+  train_tasks: 256
+  eval_tasks: 48
+  test_tasks: 48
+  split_seed: 7
+
+rollout:
+  max_turns: 3
+  max_new_tokens_per_turn: 48
+  max_total_tokens: 704
+  temperature: 1.0
+  top_p: 0.95
+  max_parse_errors: 2
+  max_repeated_calls: 2
+
+selection:
+  selector: hybrid
+  ratio: 0.6
+  critical_weight: 1.0
+  other_weight: 1.0
+
+loss:
+  mode: bucketed_topk_tail
+  divergence: reverse_kl
+  temperature: 1.0
+  scale_by_temperature_squared: true
+  top_k: 64
+  tail_epsilon: 1.0e-9
+  chunk_size: 256
+  sampled_token_nll_weight: 0.0
+
+train:
+  cycles: 8
+  rollouts_per_cycle: 6
+  gradient_accumulation_steps: 6
+  opd_freshness: strict
+  learning_rate: 1.0e-4
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  warmup_steps: 2
+  lr_schedule: cosine
+  optimizer: adamw8bit
+  sft_warmup_cycles: 8
+  save_every_cycles: 4
+  eval_every_cycles: 4
+
+memory:
+  strategy: auto
+  oom_retries: 3
+  min_chunk_size: 16
+  empty_cache_between_phases: true
+  reset_peak_stats_each_cycle: true
+  auto_swap_vram_headroom_gb: 2.0
+
+cache:
+  entries_per_shard: 8
+  strict_policy_version: true
+  reuse_across_policy_versions: false
+  dtype: float16
+  keep_cycles: 2
+  verify_checksums_on_load: true
+
+eval:
+  enabled: true
+  split: eval
+  tasks: 12
+  temperature: 0.0
+  seed: 0
+
+report:
+  enabled: true
+  max_trajectories: 4
+  max_tokens_per_trajectory: 320

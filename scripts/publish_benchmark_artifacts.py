@@ -93,14 +93,28 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
                 "seconds_mean": sum(seconds) / len(seconds),
             }
         )
-    collapsed_count = sum(row["success_mean"] == 0.0 for row in rows)
+    display_order = {
+        "cold-start-only": 0,
+        "sft-continued": 1,
+        "opd-protocol-sft-teacher": 2,
+        "opd-raw-teacher": 3,
+        "opd-privileged-context": 4,
+    }
+    rows.sort(key=lambda row: display_order.get(row["name"], len(display_order)))
+    diagnostic_names = {"opd-raw-teacher", "opd-privileged-context"}
+    diagnostic_count = sum(row["name"] in diagnostic_names for row in rows)
+    diagnostic_start = next(
+        (index for index, row in enumerate(rows) if row["name"] in diagnostic_names),
+        None,
+    )
     cold_start_seconds = next(
         (row["seconds_mean"] for row in rows if row["name"] == "cold-start-only"),
         None,
     )
 
     width = 1120
-    height = 206 + len(rows) * 75
+    diagnostic_gap = 22 if diagnostic_start is not None else 0
+    height = 206 + len(rows) * 75 + diagnostic_gap
     label_x = 36
     success_x = 315
     success_w = 285
@@ -118,8 +132,8 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
     labels = {
         "cold-start-only": "Cold start",
         "sft-continued": "Continued SFT",
-        "opd-raw-teacher": "OPD · raw teacher",
-        "opd-privileged-context": "OPD · privileged context",
+        "opd-raw-teacher": "Raw teacher (control)",
+        "opd-privileged-context": "Privileged context (control)",
         "opd-protocol-sft-teacher": "OPD · protocol-aligned teacher",
     }
 
@@ -136,8 +150,11 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         "Strict held-out success and training time for equal-optimizer-update arms "
         f"over {len(result.seeds)} prespecified seeds."
     )
-    if collapsed_count:
-        desc += f" {collapsed_count} zero-success arms are labeled collapsed."
+    if diagnostic_count:
+        desc += (
+            f" {diagnostic_count} protocol-incompatible negative controls are "
+            "shown separately from the supported comparison."
+        )
     if cold_start_seconds is not None:
         desc += " The cold-start baseline is labeled no training."
     svg += line(f'<desc id="benchmark-desc">{desc}</desc>')
@@ -148,6 +165,7 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         ".sub{font-size:13px;fill:#64748b}.head{font-size:14px;font-weight:700}"
         ".label{font-size:14px;font-weight:560}.value{font-size:13px;font-weight:700}"
         ".axis{font-size:11.5px;fill:#718096}.note{font-size:11.5px;fill:#64748b}"
+        ".section{font-size:10.5px;font-weight:750;letter-spacing:1.2px;fill:#94a3b8}"
         ".panel{fill:#f8fafc;stroke:#e2e8f0}.track{fill:#e9eef5}"
         ".grid{stroke:#cbd5e1;stroke-width:1}.separator{stroke:#e8edf3;stroke-width:1}"
         ".dot{fill:#fff;stroke-width:2}.pill{fill:#fff;stroke-width:1.4}"
@@ -158,7 +176,9 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         f'<rect x=".75" y=".75" width="{width - 1.5}" height="{height - 1.5}" rx="15.25" '
         'fill="none" stroke="#e2e8f0" stroke-width="1.5"/>'
     )
-    svg += line('<text class="title" x="36" y="42">Protocol alignment prevents collapse</text>')
+    svg += line(
+        '<text class="title" x="36" y="42">Protocol-aligned OPD matches continued SFT</text>'
+    )
     svg += line(
         f'<text class="sub" x="36" y="68">schema v{result.schema_version}  ·  '
         f"{len(result.seeds)} prespecified seeds  ·  budget axis: "
@@ -190,11 +210,18 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         )
 
     for index, row in enumerate(rows):
-        y = 190 + index * 75
+        is_diagnostic = row["name"] in diagnostic_names
+        y = 190 + index * 75 + (diagnostic_gap if is_diagnostic else 0)
         color = colors.get(row["name"], "#4b5563")
         escaped_name = html.escape(row["name"])
         display_name = html.escape(labels.get(row["name"], row["name"]))
-        if index:
+        if diagnostic_start is not None and index == diagnostic_start:
+            svg += line(f'<line class="separator" x1="36" y1="{y - 52}" x2="1082" y2="{y - 52}"/>')
+            svg += line(
+                f'<text class="section" x="36" y="{y - 34}">DIAGNOSTIC CONTROLS · '
+                "INTENTIONALLY PROTOCOL-INCOMPATIBLE TEACHERS</text>"
+            )
+        elif index:
             svg += line(f'<line class="separator" x1="36" y1="{y - 38}" x2="1082" y2="{y - 38}"/>')
         svg += line(
             f'<g data-arm="{escaped_name}" '
@@ -204,13 +231,15 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         svg += line(f'<text class="label" x="{label_x}" y="{y + 5}">{display_name}</text>')
 
         if row["success_mean"] == 0.0:
+            status = "PROTOCOL MISMATCH" if is_diagnostic else "NO SOLVES"
+            pill_width = 154 if is_diagnostic else 92
             svg += line(
-                f'<rect class="pill" x="{success_x + 12}" y="{y - 13}" width="92" '
+                f'<rect class="pill" x="{success_x + 12}" y="{y - 13}" width="{pill_width}" '
                 f'height="26" rx="13" stroke="{color}"/>'
             )
             svg += line(
-                f'<text class="value" x="{success_x + 58}" y="{y + 4}" '
-                f'text-anchor="middle" fill="{color}">COLLAPSED</text>'
+                f'<text class="value" x="{success_x + 12 + pill_width / 2:.1f}" y="{y + 4}" '
+                f'text-anchor="middle" fill="{color}">{status}</text>'
             )
         else:
             success_end = success_x + success_w * row["success_mean"]
@@ -265,8 +294,11 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         svg += line("</g>")
 
     notes = []
-    if collapsed_count:
-        notes.append("Collapsed = 0% strict success in every recorded seed")
+    if diagnostic_count:
+        notes.append(
+            "Diagnostic controls intentionally use protocol-incompatible teachers; "
+            "strict success was 0% in every seed"
+        )
     if cold_start_seconds is not None:
         notes.append(
             f"cold start records setup only ({cold_start_seconds:.2f}s), not a training phase"
