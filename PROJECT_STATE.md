@@ -11,17 +11,19 @@ Last updated: 2026-07-28.
 | item | current state |
 | --- | --- |
 | public repository | `https://github.com/DaoyuanLi2816/mini-verl` |
-| release-code merge | public `main` advanced to `4287682873e3e1f4858827822befc714f5478296` through PR #6; local `main`, `origin/main` and `ls-remote` matched after the merge |
+| release-code merge | PR [#6](https://github.com/DaoyuanLi2816/mini-verl/pull/6) and the final state sync in PR [#7](https://github.com/DaoyuanLi2816/mini-verl/pull/7) are merged; release commit `6092706b4a4e750c4571d7d6a7decbc26af851b2` is recorded as annotated tag `v0.2.0` |
 | previous integration | PR [#4](https://github.com/DaoyuanLi2816/mini-verl/pull/4) and PR [#5](https://github.com/DaoyuanLi2816/mini-verl/pull/5) are merged |
 | release branch | `v0.2-final-release` was merged and deleted |
-| final integration | PR [#6](https://github.com/DaoyuanLi2816/mini-verl/pull/6) merged on 2026-07-28; all eight PR checks and both post-merge `main` workflows passed |
+| final integration | PR #6 and PR #7 merged on 2026-07-28; all eight checks on each PR and both post-merge `main` workflows passed |
 | lifecycle fix | merged on `main`: destructive, idempotent cleanup and explicit cold-start/arm context boundaries are implemented |
-| public default-branch health | post-merge `ci` run `30417663806` and `build` run `30417663821` completed successfully |
+| public default-branch health | final pre-tag `ci` run [`30417912194`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30417912194) and `build` run [`30417912198`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30417912198) completed successfully |
 | final-pass status | complete locally: 1004 CPU tests, 5 GPU tests, 129 focused offline tests, dual Transformers compatibility, build, clean-wheel, README-command, link, schema, JSON/JSONL, privacy and release-workflow gates pass |
-| version | `0.2.0`; no public `v0.2.0` tag, GitHub Release or PyPI publication is claimed |
-| PyPI | `https://pypi.org/pypi/miniverl/json` returned HTTP 404 on 2026-07-28; a pending publisher can create the project on first OIDC upload, but its registration has not been verified |
+| version | `0.2.0` published on 2026-07-28 (2026-07-29 UTC); tag `v0.2.0` resolves to `6092706b4a4e750c4571d7d6a7decbc26af851b2` |
+| release workflow | tag run [`30421231859`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30421231859) passed metadata, full tests, single-build, OIDC publish, public verification and GitHub Release jobs |
+| PyPI | [`miniverl 0.2.0`](https://pypi.org/project/miniverl/0.2.0/) was created by Trusted Publishing; wheel SHA-256 `cf850a6333483a3ee22c0c0e98df1e1b2e6faa184480573e0666658b53a29262`, sdist SHA-256 `3d5107b4f6351204335f800ce924208843f08f54441378bd9f25c3c6fa17456b` |
+| GitHub Release | [`miniVERL v0.2.0`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.0) is public and contains the same wheel, sdist and `SHA256SUMS` |
 | GitHub environment | `pypi` created through the repository API on 2026-07-28; custom deployment policy permits only tags matching `v*` |
-| external publication blocker | **PyPI pending publisher not yet registered**; both available browser contexts reached the PyPI login page, so account-level pending state could not be verified |
+| external publication blocker | none; the exact pending publisher was registered, the first OIDC upload succeeded, and PyPI records `release.yml` on `DaoyuanLi2816/mini-verl` as the publisher |
 | Hugging Face adapter | public at `https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher`, immutable head `23323751318135484c06c043b1f9b9e7016dd89f` |
 | scientific artifact | schema-v2 JSON remains byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
 
@@ -61,17 +63,15 @@ Focused final-pass evidence:
 
 Currently failing commands:
 
-- None. The only remaining blocker is external account state: the PyPI pending
-  publisher has not been verifiably registered.
+- None. The tag release, public artifact verification and clean public install
+  all pass.
 
-Exact next actions:
+Post-release follow-up:
 
-1. Register and verify the exact PyPI pending publisher documented in
-   `docs/release-checklist.md`.
-2. Re-check PyPI name availability immediately before publication.
-3. Do not create `v0.2.0` while the pending publisher remains unverified; once
-   verified and publication is explicitly authorized, the tag-only workflow
-   publishes and verifies PyPI before creating the GitHub Release.
+1. Upload `docs/banner.svg`, rendered at 1280×640 PNG, as the repository social
+   preview through the authenticated repository settings page.
+2. Keep `v0.2.0` immutable. Future package changes require a new version and tag;
+   never move or replace the published tag.
 
 ## Historical v0.2 pre-merge evidence (PR #4)
 
@@ -186,7 +186,7 @@ complete; PR #4 contains the integration state.
 | transformers | 5.14.1 | `importlib.metadata.version` |
 | peft | 0.19.1 | idem |
 | bitsandbytes | 0.50.0, `bnb.nn.Linear4bit` present | idem |
-| PyPI name `miniverl` | AVAILABLE (HTTP 404 on `/pypi/miniverl/json`, 2026-07-27) | `Invoke-WebRequest` |
+| PyPI project `miniverl` | PUBLISHED (`0.2.0`, Trusted Publishing, 2026-07-28) | public PyPI JSON, Integrity API and clean install |
 
 ## Verified model pair (pinned in the recipes)
 
