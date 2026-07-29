@@ -11,57 +11,53 @@ Last updated: 2026-07-28.
 | item | current state |
 | --- | --- |
 | public repository | `https://github.com/DaoyuanLi2816/mini-verl` |
-| public `main` | `4859531e128bd23b7cbaff9ead811ec9bd71fff6`, fetched 2026-07-28 |
-| previous integration | PR [#4](https://github.com/DaoyuanLi2816/mini-verl/pull/4) merged; its main-branch CI and build runs passed |
-| working branch | `v0.2-release-hardening`, created from current public `main` |
-| current PR | draft [#5](https://github.com/DaoyuanLi2816/mini-verl/pull/5) |
-| lifecycle fix | destructive, idempotent cleanup implemented; explicit cold-start/arm context boundaries added |
-| local release gates | ruff and format clean; mypy clean over 73 source files; 981 CPU tests and all 5 GPU tests passed |
-| CI repair | initial core coverage jobs exposed a Pydantic 2.13.4 `AliasChoices` identity failure; explicit pre-validation migration preserves the legacy key, and the exact coverage command now passes 797 tests at 92.12% locally |
-| compatibility | Transformers 4.51.3 and 5.14.1 each passed the same 118-test offline Qwen3/config slice |
-| focused validation | 23 lifecycle/benchmark CPU tests passed; CUDA sequential-isolation test passed without test-side garbage collection after `close()` |
-| CUDA isolation | audited old close retained 32,330,752 allocated / 35,651,584 reserved bytes; corrected close returned allocated/reserved to 0 / 0 after both first and second trainers |
-| artifact audit | 39 Markdown files, 117 local links/anchors and 11 external links passed; 5 run recipes and 4 benchmark-v2 configs resolved; publishable privacy and unfinished-code scans were clean |
-| package gates | wheel and sdist passed `twine check`; a wheel-only core venv had no torch, and a separate wheel `[train]` venv completed demo, inspect and report |
+| public `main` | `caed62f1d332b31752e9c453553a6a0bf2896587`, fetched and confirmed against `origin/main` on 2026-07-28 |
+| previous integration | PR [#4](https://github.com/DaoyuanLi2816/mini-verl/pull/4) and PR [#5](https://github.com/DaoyuanLi2816/mini-verl/pull/5) are merged |
+| working branch | `v0.2-final-release`, created from current public `main` |
+| current PR | not opened yet; the first complete offline/release-workflow slice will be pushed as a draft PR |
+| lifecycle fix | merged on `main`: destructive, idempotent cleanup and explicit cold-start/arm context boundaries are implemented |
+| last merged release gates | ruff and format clean; mypy clean; 981 CPU tests and all 5 GPU tests passed; compatibility passed on Transformers 4.51.3 and 5.14.1 |
+| final-pass status | offline and release-workflow vertical slice implemented; 36 focused tests pass, ruff/format/mypy are clean, and actionlint 1.7.12 accepts `release.yml` |
 | version | `0.2.0`; no public `v0.2.0` tag, GitHub Release or PyPI publication is claimed |
-| PyPI | `miniverl` still returns HTTP 404, but GitHub has zero environments and PyPI cannot yet have a publisher for a nonexistent project; release remains externally blocked and `if: false` stays in place |
+| PyPI | `https://pypi.org/pypi/miniverl/json` returned HTTP 404 on 2026-07-28; a pending publisher can create the project on first OIDC upload, but its registration has not been verified |
+| GitHub environment | `pypi` created through the repository API on 2026-07-28; custom deployment policy permits only tags matching `v*` |
+| external publication blocker | **PyPI pending publisher not yet registered**; both available browser contexts reached the PyPI login page, so account-level pending state could not be verified |
 | Hugging Face adapter | public at `https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher`, immutable head `23323751318135484c06c043b1f9b9e7016dd89f` |
 | scientific artifact | schema-v2 JSON remains byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
 
-Highest-risk release defect and fix:
+Focused final-pass evidence:
 
-- The audited `OPDTrainer.close()` retained model-bearing trainer, scorer,
-  rollout, optimizer and exact-target references, so sequential benchmark arms
-  could begin while the prior arm still owned CUDA tensors.
-- `close()` now marks the trainer closed, flushes the cache, clears target
-  providers/runner/scorer/optimizer references, releases each backend, closes
-  the environment, collects garbage and empties CUDA after live references are
-  gone. It is idempotent, preserves an original context-manager exception and
-  raises `LifecycleError` for post-close public operations.
-- `_cold_start()` and `_run_one_arm()` now own trainers only inside `with`
-  blocks. The outer loop runs garbage collection and allocator cleanup before
-  constructing the next trainer.
-- Published success measurements remain untouched. Historical
-  `peak_reserved_bytes` are explicitly caveated because they may include
-  allocator state from earlier arms; future comparisons use the isolated
-  harness.
+- `pytest -q tests/unit/test_offline_contract.py
+  tests/unit/test_release_workflow.py tests/unit/test_pypi_release_verifier.py
+  tests/integration/test_hf_backend_offline.py` -- **36 passed**.
+- Socket denial exposed a Transformers 5.x PEFT auto-detection request even
+  with the top-level local-only flag. Explicit `adapter_kwargs` now carries
+  `local_files_only` into that probe; missing model, tokenizer, full adapter
+  snapshot and partial adapter snapshot tests all record zero socket attempts.
+- Hub adapter validation returns public provenance plus one exact local
+  snapshot and its config, weights and manifest paths. PEFT receives only that
+  local snapshot; public manifests retain no cache path.
+- `release.yml` passed actionlint 1.7.12. Static tests prove manual dispatch and
+  branch pushes cannot publish, a `v*` tag push can, distributions build once,
+  and PyPI verification precedes GitHub Release creation.
+- `ruff check`, `ruff format --check` and `mypy src/miniverl` pass on the
+  vertical slice. The frozen benchmark remains byte-identical at SHA-256
+  `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
 
-Observed external publication constraint:
+Currently failing commands:
 
-- `hf repos create DaoyuanLi2816/mini-verl-qwen3-1.7b-protocol-teacher`
-  returned 403 because the authenticated Hub namespace is `DaoyuanLi`, not
-  `DaoyuanLi2816`; publication then succeeded under the authenticated namespace.
-- no test failure remains. PyPI publication is blocked by the absent GitHub
-  `pypi` environment and absent trusted-publisher bootstrap.
+- None in the focused slice. The complete CPU/GPU, compatibility, package and
+  documentation gates have not yet been rerun on this branch.
 
 Exact next actions:
 
-1. Push the CI compatibility repair to draft PR #5.
-2. Wait for required CI/build workflows, mark ready and merge only if green,
-   then verify public
-   `main`, Hub links, preserved benchmark SHA and clean synchronization.
-3. Do not create `v0.2.0` or a GitHub Release while the PyPI trusted publisher
-   and GitHub `pypi` environment remain absent.
+1. Push this complete vertical slice and open the final engineering PR as a
+   draft.
+2. Run the complete CPU/GPU, Transformers 4.51.x/5.x, README-command,
+   documentation, artifact, build and clean-wheel gates; record exact evidence.
+3. Mark the PR ready, wait for green CI/build, merge and synchronize local
+   `main`.
+4. Do not create `v0.2.0` while the PyPI pending publisher remains unverified.
 
 ## Historical v0.2 pre-merge evidence (PR #4)
 

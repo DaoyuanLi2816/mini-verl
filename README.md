@@ -308,6 +308,25 @@ error miniverl demo requires the optional dependency 'torch', which is not insta
 hint  pip install "miniverl[train]"
 ```
 
+### Strict offline execution
+
+All model-loading commands use the same no-network contract:
+
+```bash
+miniverl train <recipe> --offline
+miniverl benchmark <benchmark.yaml> --offline
+miniverl eval --run <run-dir> --offline
+miniverl export-adapter --run <run-dir> --out <adapter-dir> --offline
+```
+
+In this mode, the base model, tokenizer and every adapter file must already be
+at a local path or in the Hugging Face cache. miniVERL permits no HTTP,
+metadata, ETag or Hub API request and does not fall back to online resolution.
+A Hub teacher adapter is resolved once at its pinned revision; PEFT then loads
+the exact local snapshot whose config, weights, manifest and checksums were
+validated. A cache miss prints the immutable identity and the exact `hf
+download` preload command.
+
 ## Python API
 
 The public surface is deliberately small.

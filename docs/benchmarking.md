@@ -308,9 +308,9 @@ miniverl benchmark recipes/benchmark_calc.yaml --output runs/benchmarks
 # One 16 GB GPU, the pinned Qwen3 pair
 miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
 
-# Offline equivalent after downloading the immutable adapter
-miniverl benchmark benchmarks/configs/gpu_calc_hard_local_adapter.yaml \
-  --output runs/benchmarks
+# Strictly offline after preloading every pinned model, tokenizer and adapter
+miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml \
+  --output runs/benchmarks --offline
 ```
 
 `benchmarks/configs/gpu_calc_hard.yaml` is the GPU counterpart: it uses
@@ -348,6 +348,8 @@ Options, all from `src/miniverl/cli.py`:
   benchmark YAML (`runs/benchmarks` in the shipped example)
 - `--notes TEXT` - free text stored in the result and rendered into the
   Markdown
+- `--offline` - prohibit all network access and require every model, tokenizer
+  and pinned adapter file to exist locally or in the Hugging Face cache
 - `--json` - print the whole result as JSON instead of a table
 
 `miniverl benchmark` requires the training extra

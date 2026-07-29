@@ -12,7 +12,7 @@ before *After the tag* is left unchecked.
 - [x] `CITATION.cff` `version:` matches.
 - [x] The git tag will be `v<version>`.
 
-Checked by: `.github/workflows/release.yml`, job `validate`.
+Checked by: `.github/workflows/release.yml`, job `validate-and-test`.
 
 ## Code quality
 
@@ -61,42 +61,52 @@ Checked by: `.github/workflows/release.yml`, job `validate`.
 
 ## Publishing (externally blocked)
 
-The OIDC publication job exists but is deliberately disabled with `if: false`;
-this repository stores no secrets. Live verification on 2026-07-28 found:
+The workflow stores no secret or long-lived PyPI token. Its publish, public
+verification and GitHub Release jobs each independently require a `push` event
+whose ref starts with `refs/tags/v`; `workflow_dispatch` validates, tests,
+builds and uploads a workflow artifact but can never publish.
 
-- `https://pypi.org/pypi/miniverl/json` returns HTTP 404, so no project exists
-  on which a trusted publisher could already be registered;
-- `gh api repos/DaoyuanLi2816/mini-verl/environments` returns
-  `{"total_count":0,"environments":[]}`, so the required GitHub `pypi`
-  environment is not configured.
+Live verification on 2026-07-28 found:
 
-The absence of either external object means a workflow file alone is not
-trusted-publisher configuration. Do not remove `if: false`, create `v0.2.0`, or
-create a GitHub Release until these steps are completed:
+- `https://pypi.org/pypi/miniverl/json` returns HTTP 404;
+- the GitHub `pypi` environment exists and its custom deployment policy permits
+  only tags matching `v*`;
+- no `v0.2.0` tag, PyPI release or GitHub Release exists;
+- **PyPI pending publisher not yet registered** is the sole external
+  publication blocker.
 
-1. On PyPI, create the `miniverl` project and add a **trusted publisher**:
-   - Owner: `DaoyuanLi2816`
+PyPI's
+[pending-publisher documentation](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/)
+supports creating a new project on the first OIDC upload. A project page does
+not need to exist first, and no token-based bootstrap upload is needed. The
+exact bootstrap is:
+
+1. Sign in to the intended PyPI maintainer account.
+2. Open the account-level **Publishing** page.
+3. Add a pending GitHub publisher with:
+   - PyPI project name: `miniverl`
+   - GitHub owner: `DaoyuanLi2816`
    - Repository: `mini-verl`
-   - Workflow: `release.yml`
+   - Workflow filename: `release.yml`
    - Environment: `pypi`
-2. In a separately reviewed change, remove the hard-disabled condition from
-   `publish-pypi` in `release.yml`.
-3. Create the GitHub `pypi` environment named exactly as above.
-4. Push the tag. The `validate` job must pass before `publish-pypi`.
-5. Verify the public PyPI page and a fresh wheel install before creating the
-   GitHub Release.
+4. Confirm the GitHub environment is still named exactly `pypi`.
+5. Only with explicit publication authorization, push `v0.2.0`.
+6. Verify that the first tagged OIDC publication created the project and
+   converted the pending publisher to a normal publisher, following the
+   [OIDC publishing flow](https://docs.pypi.org/trusted-publishers/using-a-publisher/).
 
-Until the publisher is registered and publication is explicitly authorized,
-the release workflow validates and builds but cannot upload.
+The pending publisher does **not** reserve `miniverl` before that first upload.
+Re-check name availability immediately before registration and tagging.
+Package metadata `[project].name` must remain exactly `miniverl`, and every
+owner/repository/workflow/environment claim above must match exactly. Until the
+pending publisher is verifiably registered, do not create the tag.
 
 ### Name availability
 
 `miniverl` was available on PyPI when this release was prepared
 (`https://pypi.org/pypi/miniverl/json` returned HTTP 404 on 2026-07-28).
-**Re-check immediately before publishing.** If it has been taken, publish as
-`mini-verl-opd` and keep the display name `miniVERL`, the import package
-`miniverl`, the CLI command `miniverl` and the repository name `mini-verl`
-unchanged; only `[project] name` in `pyproject.toml` changes.
+That 404 is not a reservation. **Re-check immediately before publishing** and
+stop rather than silently changing the distribution name if it has been taken.
 
 ## After the tag
 

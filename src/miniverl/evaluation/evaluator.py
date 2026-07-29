@@ -30,6 +30,7 @@ def evaluate_run(
     checkpoint: str | Path | None = None,
     out: str | Path | None = None,
     tag: str = "standalone",
+    local_files_only: bool = False,
 ) -> dict[str, Any]:
     """Re-evaluate a finished run and write the result next to it."""
     from miniverl.trainer import OPDTrainer
@@ -50,6 +51,7 @@ def evaluate_run(
         config,
         output_dir=paths.root.parent,
         run_id=paths.root.name,
+        local_files_only=local_files_only,
         write_artifacts=False,
     )
     try:

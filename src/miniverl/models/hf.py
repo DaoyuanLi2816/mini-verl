@@ -158,18 +158,29 @@ class HFBackend(CausalLMBackend):
         dtype = resolve_dtype(spec.dtype, device)
         quantization = spec.quantization
         adapter_provenance = None
+        validated_adapter = None
         if isinstance(spec, TeacherModelConfig) and spec.adapter is not None:
             from miniverl.models.adapter_io import validate_teacher_adapter
 
-            adapter_provenance = validate_teacher_adapter(
+            validated_adapter = validate_teacher_adapter(
                 spec.adapter,
                 spec,
                 tokenizer_fingerprint=tokenizer.fingerprint,
+                local_files_only=local_files_only,
             )
+            adapter_provenance = validated_adapter.provenance
         kwargs: dict[str, Any] = {
             "revision": spec.revision,
             "trust_remote_code": spec.trust_remote_code,
             "local_files_only": local_files_only,
+            # Transformers performs a separate PEFT-config probe before loading
+            # the base model. In 5.x that probe does not inherit hub kwargs, so
+            # pass the policy explicitly instead of relying on global offline
+            # environment variables.
+            "adapter_kwargs": {
+                "local_files_only": local_files_only,
+                "revision": spec.revision,
+            },
             "attn_implementation": spec.attn_implementation,
             **_from_pretrained_kwargs(dtype),
         }
@@ -180,12 +191,23 @@ class HFBackend(CausalLMBackend):
         try:
             model = transformers.AutoModelForCausalLM.from_pretrained(spec.model_id, **kwargs)
         except OSError as exc:
+            revision = f" at revision {spec.revision!r}" if spec.revision else ""
+            preload = f"hf download {spec.model_id}"
+            if spec.revision:
+                preload += f" --revision {spec.revision}"
+            offline_hint = (
+                f"offline mode found no complete cached model snapshot; preload it online "
+                f"with `{preload}`. "
+                if local_files_only
+                else ""
+            )
             raise BackendError(
-                f"could not load model {spec.model_id!r}"
-                + (f" at revision {spec.revision!r}" if spec.revision else ""),
-                hint="check the model id and revision, that you are online for the first "
-                "download, and that the license has been accepted on the Hub. "
-                f"Original error: {exc}",
+                f"could not load model {spec.model_id!r}{revision}",
+                hint=(
+                    offline_hint
+                    + "check the model id and revision and that any gated license has been "
+                    f"accepted on the Hub. Original error: {exc}"
+                ),
             ) from exc
 
         if quant_config is None:
@@ -211,13 +233,14 @@ class HFBackend(CausalLMBackend):
             model.train()
         else:
             if isinstance(spec, TeacherModelConfig) and spec.adapter is not None:
+                assert validated_adapter is not None
                 peft = require_peft("Loading a frozen teacher adapter")
                 try:
                     model = peft.PeftModel.from_pretrained(
                         model,
-                        spec.adapter.path,
-                        revision=spec.adapter.revision,
+                        str(validated_adapter.snapshot_dir),
                         is_trainable=False,
+                        local_files_only=True,
                     )
                 except (OSError, ValueError) as exc:
                     raise BackendError(

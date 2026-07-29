@@ -210,7 +210,12 @@ def _checkpoint_digest(directory: Path) -> str:
     return digest.hexdigest()
 
 
-def _cold_start(run_config: RunConfig, output_dir: Path) -> tuple[Path | None, float]:
+def _cold_start(
+    run_config: RunConfig,
+    output_dir: Path,
+    *,
+    local_files_only: bool = False,
+) -> tuple[Path | None, float]:
     if run_config.train.cycles <= 0:
         return None, 0.0
     from miniverl.trainer import OPDTrainer
@@ -220,6 +225,7 @@ def _cold_start(run_config: RunConfig, output_dir: Path) -> tuple[Path | None, f
         run_config,
         output_dir=output_dir,
         run_id=f"{run_config.run.name}-s{run_config.run.seed}",
+        local_files_only=local_files_only,
     ) as trainer:
         result = trainer.train()
         checkpoint = trainer.paths.checkpoints / "final"
@@ -338,6 +344,7 @@ def _run_one_arm(
     run_config: RunConfig,
     common_dump: dict[str, Any],
     checkpoint: Path | None,
+    local_files_only: bool = False,
 ) -> ArmResult:
     """Run one arm inside a model-owning lifetime boundary."""
     from miniverl.trainer import OPDTrainer
@@ -349,6 +356,7 @@ def _run_one_arm(
         run_config,
         output_dir=target,
         run_id=run_config.run.name,
+        local_files_only=local_files_only,
     ) as trainer:
         runtime_config = portable_payload(
             RunConfig.from_yaml(trainer.paths.config_resolved).model_dump(mode="json")
@@ -486,6 +494,7 @@ def run_benchmark(
     output_dir: str | Path | None = None,
     notes: str = "",
     invocation: list[str] | None = None,
+    local_files_only: bool = False,
 ) -> BenchmarkResult:
     """Execute every preflight-validated arm and write a schema-v2 result."""
     # Preflight every seed before creating a run directory or allocating a model.
@@ -503,7 +512,11 @@ def run_benchmark(
     for seed in config.seeds:
         _, cold_config, resolved_arms = preflight[seed]
         try:
-            checkpoint, cold_seconds = _cold_start(cold_config, target)
+            checkpoint, cold_seconds = _cold_start(
+                cold_config,
+                target,
+                local_files_only=local_files_only,
+            )
         finally:
             _isolate_next_trainer(f"cold start seed {seed}")
         cold_checkpoints.append(
@@ -533,6 +546,7 @@ def run_benchmark(
                         run_config=run_config,
                         common_dump=common_dump,
                         checkpoint=checkpoint,
+                        local_files_only=local_files_only,
                     )
                 )
             finally:

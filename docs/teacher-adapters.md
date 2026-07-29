@@ -85,28 +85,33 @@ models:
       minimum_strict_success_rate: 0.5
 ```
 
-For offline use, download the same immutable revision and switch only the
-adapter source/path:
+For offline use, preload the three required adapter files at the same immutable
+revision:
 
 ```bash
 hf download DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher \
   --revision 23323751318135484c06c043b1f9b9e7016dd89f \
-  --local-dir artifacts/qwen3-1.7b-protocol-teacher
+  --include adapter_config.json adapter_model.safetensors \
+  miniverl_adapter_manifest.json
 ```
 
-```yaml
-adapter:
-  source: local
-  path: artifacts/qwen3-1.7b-protocol-teacher
-  require_policy_evaluation: true
-  minimum_strict_success_rate: 0.5
+Then the Hub identity can remain in the recipe:
+
+```bash
+miniverl train <recipe> --offline
 ```
 
 Before the base model is allocated, miniVERL validates the PEFT files, type,
 target modules, base identity/revision, tokenizer fingerprint, checksums and
 competence record. Hub metadata and weights are downloaded from the pinned
-adapter revision and pass the same checks as a local directory. After
-attachment, every teacher parameter is frozen and checked again.
+adapter revision and pass the same checks as a local directory. The validated
+result retains the exact local snapshot directory and the three resolved paths;
+PEFT loads that directory rather than resolving the Hub repository a second
+time. Machine-local cache paths are never serialized into a run manifest or
+benchmark result. `--offline` passes `local_files_only=True` to model,
+tokenizer and adapter resolution and rejects any cache miss without attempting
+the network. After attachment, every teacher parameter is frozen and checked
+again.
 
 The `minimum_strict_success_rate` in the shipped GPU benchmark is an operational
 gate against supervising with a clearly broken protocol policy. Passing it does

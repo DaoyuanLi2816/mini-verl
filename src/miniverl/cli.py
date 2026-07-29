@@ -562,6 +562,11 @@ def eval_command(
     ),
     out: Optional[Path] = typer.Option(None, "--out", help="Where to write the eval JSON."),
     tag: str = typer.Option("standalone", "--tag", help="Label recorded with the results."),
+    offline: bool = typer.Option(
+        False,
+        "--offline",
+        help="Refuse network access; use only local or already-cached model and adapter files.",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Re-evaluate a finished run deterministically."""
@@ -570,7 +575,13 @@ def eval_command(
         from miniverl.evaluation.evaluator import evaluate_run
 
         payload = evaluate_run(
-            run, split=split, tasks=tasks, checkpoint=checkpoint, out=out, tag=tag
+            run,
+            split=split,
+            tasks=tasks,
+            checkpoint=checkpoint,
+            out=out,
+            tag=tag,
+            local_files_only=offline,
         )
     except (MiniVerlError, ModuleNotFoundError) as exc:
         _fail(exc)
@@ -610,6 +621,11 @@ def benchmark(
     config_path: Path = typer.Argument(..., help="Benchmark config YAML."),
     output: Optional[Path] = typer.Option(None, "--output", help="Output directory."),
     notes: str = typer.Option("", "--notes", help="Free-text notes stored in the result."),
+    offline: bool = typer.Option(
+        False,
+        "--offline",
+        help="Refuse network access; use only local or already-cached model and adapter files.",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Run a matched-budget comparison across training modes."""
@@ -619,7 +635,12 @@ def benchmark(
         from miniverl.evaluation.schema import BenchmarkConfig
 
         spec = BenchmarkConfig.from_yaml(config_path)
-        result = run_benchmark(spec, output_dir=output, notes=notes)
+        result = run_benchmark(
+            spec,
+            output_dir=output,
+            notes=notes,
+            local_files_only=offline,
+        )
     except (ValidationError, MiniVerlError) as exc:
         if isinstance(exc, MiniVerlError):
             _fail(exc)
@@ -879,10 +900,11 @@ def export_adapter_command(
         help="Checkpoint directory (defaults to <run>/checkpoints/final).",
     ),
     out: Path = typer.Option(..., "--out", help="New standard PEFT adapter directory."),
-    local_files_only: bool = typer.Option(
+    offline: bool = typer.Option(
         False,
+        "--offline",
         "--local-files-only",
-        help="Refuse network access while loading the base model/tokenizer.",
+        help="Refuse network access while loading the base model and tokenizer.",
     ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
@@ -896,7 +918,7 @@ def export_adapter_command(
             run,
             source_checkpoint,
             out,
-            local_files_only=local_files_only,
+            local_files_only=offline,
         )
     except MiniVerlError as exc:
         _fail(exc)
