@@ -12,12 +12,21 @@
 
 </div>
 
-**On-policy distillation for tool-using agents on one GPU.**
+<p align="center">
+  <a href="https://pypi.org/project/miniverl/"><strong>PyPI package</strong></a> ·
+  <a href="#single-gpu-quickstart">Install &amp; train</a> ·
+  <a href="docs/single-gpu-guide.md">Bring your own GPU</a> ·
+  <a href="#measured-result-protocol-aligned-opd-matches-sft">Measured result</a>
+</p>
+
+**A compact, auditable training stack for tool-using agents on one personal GPU.**
 
 miniVERL is a compact, auditable training lab for teaching a small language
 model from its own multi-turn tool trajectories. It runs real tools, keeps
 token provenance explicit, and applies teacher distributional targets only
-where they belong — without Ray, a GPU cluster, or a 40 GB accelerator.
+where they belong — without Ray or a GPU cluster. There is no device-name
+allowlist: use the NVIDIA CUDA card you have, then choose a model pair and
+sequence budget that fit it.
 
 ```bash
 python -m pip install miniverl            # lightweight core
@@ -44,7 +53,7 @@ validate artifacts without downloading a multi-gigabyte ML stack; use
   `top-k + tail` objectives are named and reported separately.
 
 [Run the local demo](#local-toy-demo) ·
-[Train on a consumer GPU](#consumer-gpu-quickstart) ·
+[Train on your GPU](#single-gpu-quickstart) ·
 [Inspect the measured result](#measured-result-protocol-aligned-opd-matches-sft) ·
 [Read the math](docs/math.md)
 
@@ -66,7 +75,7 @@ go wrong in practice, and all four are silent:
    cannot run.
 
 miniVERL makes each of those a *checked property* rather than a comment, and
-keeps the whole thing on one 16 GB card.
+keeps the whole lifecycle in one readable single-GPU process.
 
 ## What is implemented
 
@@ -78,7 +87,7 @@ keeps the whole thing on one 16 GB card.
 | Compressed `top-k + tail` KL and JSD | yes; the unsmoothed coarse-graining has a proven lower-bound relationship to the exact loss |
 | Privileged-context teacher with an explicit alignment map | yes |
 | Frozen standard PEFT teacher adapters with provenance and competence gates | yes |
-| QLoRA (NF4) student, bf16 or quantized teacher | yes, measured on an RTX 4080 |
+| Single-GPU CUDA path with automatic bf16/fp16 selection | yes; model-agnostic code path, measured reference on an RTX 4080 |
 | `resident` and `swap` memory strategies, `auto` resolution | yes, with an equivalence test |
 | Versioned, checksummed, pickle-free teacher-target cache | yes |
 | SFT / offline KD / strict OPD / explicitly labeled replay behind one trainer | yes |
@@ -105,7 +114,7 @@ keeps the whole thing on one 16 GB card.
 | diagnostic control | answer-privileged, protocol-naive teacher | 0.0% | 0.0% |
 
 The [public, immutable protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
-is the default in the consumer-GPU recipe. It passed an independently
+is the default in the single-GPU recipe. It passed an independently
 prespecified policy-competence gate before this benchmark was inspected. The
 two controls intentionally remove that guarantee: their loss decreased
 normally, but they taught the student an incompatible tool policy. This is a
@@ -200,7 +209,14 @@ The toy backend is a **machinery harness, not a capability demonstration**. Its
 models are too small to solve anything beyond the `easy` split. Capability
 numbers come from the GPU recipe.
 
-## Consumer-GPU quickstart
+## Single-GPU quickstart
+
+The default recipe uses `device: auto` and `dtype: auto`: bf16-capable cards use
+bf16, while older CUDA cards such as Titan V use fp16. RTX 3070, Titan V,
+RTX 4080 and RTX 5090-class cards all enter the same code path; only the
+RTX 4080 result is measured here. Exact fit is governed by VRAM, model sizes,
+drivers and token budgets, not the card's marketing name. See the
+[`single-GPU guide`](docs/single-gpu-guide.md) before changing the recipe.
 
 ```bash
 git clone https://github.com/DaoyuanLi2816/mini-verl.git
@@ -474,8 +490,10 @@ environments, and multi-GPU. For anything at cluster scale, use verl.
 The name is a nod to the problem space, not a claim of compatibility. verl is an
 excellent, much larger system that also implements on-policy distillation and
 multi-turn tool use — at cluster scale, with Ray. If you have a cluster, use it.
-miniVERL exists for the case where you have one consumer GPU and want to read
-every line of what is happening. See [`docs/comparisons.md`](docs/comparisons.md).
+miniVERL exists for the case where you have one personal GPU and want to read
+every line of what is happening. That can be an older 12 GiB card or a current
+high-end card; the repository claims measured performance only for hardware it
+actually ran. See [`docs/comparisons.md`](docs/comparisons.md).
 
 ## Citation
 

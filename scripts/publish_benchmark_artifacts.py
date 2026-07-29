@@ -113,21 +113,21 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
     )
 
     width = 1120
-    diagnostic_gap = 22 if diagnostic_start is not None else 0
-    height = 206 + len(rows) * 75 + diagnostic_gap
+    diagnostic_gap = 36 if diagnostic_start is not None else 0
+    height = 238 + len(rows) * 78 + diagnostic_gap
     label_x = 36
-    success_x = 315
-    success_w = 285
-    time_x = 735
-    time_w = 270
+    success_x = 310
+    success_w = 292
+    time_x = 728
+    time_w = 276
     max_seconds = max(row["seconds_mean"] for row in rows)
     time_ceiling = max(100, int(math.ceil(max_seconds / 100.0) * 100))
     colors = {
-        "cold-start-only": "#64748b",
-        "sft-continued": "#3b82f6",
-        "opd-raw-teacher": "#ef4444",
-        "opd-privileged-context": "#f59e0b",
-        "opd-protocol-sft-teacher": "#10b981",
+        "cold-start-only": "#94a3b8",
+        "sft-continued": "#60a5fa",
+        "opd-raw-teacher": "#fb7185",
+        "opd-privileged-context": "#fbbf24",
+        "opd-protocol-sft-teacher": "#34d399",
     }
     labels = {
         "cold-start-only": "Cold start",
@@ -161,20 +161,38 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
     svg += line(
         "<style>"
         "text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;"
-        "fill:#172033}.title{font-size:25px;font-weight:750;letter-spacing:-.3px}"
-        ".sub{font-size:13px;fill:#64748b}.head{font-size:14px;font-weight:700}"
-        ".label{font-size:14px;font-weight:560}.value{font-size:13px;font-weight:700}"
-        ".axis{font-size:11.5px;fill:#718096}.note{font-size:11.5px;fill:#64748b}"
-        ".section{font-size:10.5px;font-weight:750;letter-spacing:1.2px;fill:#94a3b8}"
-        ".panel{fill:#f8fafc;stroke:#e2e8f0}.track{fill:#e9eef5}"
-        ".grid{stroke:#cbd5e1;stroke-width:1}.separator{stroke:#e8edf3;stroke-width:1}"
-        ".dot{fill:#fff;stroke-width:2}.pill{fill:#fff;stroke-width:1.4}"
+        "fill:#e6edf7}.title{font-size:25px;font-weight:760;letter-spacing:-.35px}"
+        ".sub{font-size:13px;fill:#91a0b8}.head{font-size:14px;font-weight:700;fill:#dce7f7}"
+        ".label{font-size:14px;font-weight:580}.value{font-size:13px;font-weight:730}"
+        ".axis{font-size:11.5px;fill:#9aabc3}.note{font-size:11.5px;fill:#7f90aa}"
+        ".section{font-size:10.5px;font-weight:760;letter-spacing:1.15px;fill:#fda4af}"
+        ".panel{fill:url(#panel);stroke:#263752}.track{fill:#19263c}"
+        ".grid{stroke:#2b3c58;stroke-width:1}.row{fill:#ffffff;fill-opacity:.018}"
+        ".dot{fill:#08101f;stroke-width:2}.pill{fill:#0b1425;stroke-width:1.4}"
         "</style>"
     )
-    svg += line('<rect width="100%" height="100%" rx="16" fill="#ffffff"/>')
     svg += line(
-        f'<rect x=".75" y=".75" width="{width - 1.5}" height="{height - 1.5}" rx="15.25" '
-        'fill="none" stroke="#e2e8f0" stroke-width="1.5"/>'
+        "<defs>"
+        '<linearGradient id="background" x1="0" y1="0" x2="1" y2="1">'
+        '<stop offset="0%" stop-color="#050816"/>'
+        '<stop offset="58%" stop-color="#0a1224"/>'
+        '<stop offset="100%" stop-color="#101a34"/>'
+        "</linearGradient>"
+        '<linearGradient id="panel" x1="0" y1="0" x2="0" y2="1">'
+        '<stop offset="0%" stop-color="#111d34"/>'
+        '<stop offset="100%" stop-color="#0b1426"/>'
+        "</linearGradient>"
+        '<radialGradient id="glow" cx="80%" cy="0%" r="70%">'
+        '<stop offset="0%" stop-color="#4f46e5" stop-opacity=".24"/>'
+        '<stop offset="100%" stop-color="#4f46e5" stop-opacity="0"/>'
+        "</radialGradient>"
+        "</defs>"
+    )
+    svg += line('<rect width="100%" height="100%" rx="18" fill="url(#background)"/>')
+    svg += line('<rect width="100%" height="100%" rx="18" fill="url(#glow)"/>')
+    svg += line(
+        f'<rect x=".75" y=".75" width="{width - 1.5}" height="{height - 1.5}" rx="17.25" '
+        'fill="none" stroke="#334663" stroke-width="1.5"/>'
     )
     svg += line(
         '<text class="title" x="36" y="42">Protocol-aligned OPD matches continued SFT</text>'
@@ -184,45 +202,47 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         f"{len(result.seeds)} prespecified seeds  ·  budget axis: "
         f"{html.escape(result.budget_axis or 'unreported')}</text>"
     )
-    panel_y = 91
-    panel_h = height - 148
+    panel_y = 96
+    panel_h = height - 158
     svg += line(
-        f'<rect class="panel" x="282" y="{panel_y}" width="380" height="{panel_h}" rx="12"/>'
+        f'<rect class="panel" x="276" y="{panel_y}" width="394" height="{panel_h}" rx="14"/>'
     )
     svg += line(
-        f'<rect class="panel" x="702" y="{panel_y}" width="380" height="{panel_h}" rx="12"/>'
+        f'<rect class="panel" x="694" y="{panel_y}" width="390" height="{panel_h}" rx="14"/>'
     )
-    svg += line(f'<text class="head" x="{success_x}" y="119">Strict held-out success</text>')
-    svg += line(f'<text class="head" x="{time_x}" y="119">Training time</text>')
+    svg += line(f'<text class="head" x="{success_x}" y="123">Strict held-out success</text>')
+    svg += line(f'<text class="head" x="{time_x}" y="123">Training time</text>')
     for fraction in (0.0, 0.5, 1.0):
         x = success_x + success_w * fraction
-        svg += line(f'<line class="grid" x1="{x:.1f}" y1="139" x2="{x:.1f}" y2="{height - 62}"/>')
         svg += line(
-            f'<text class="axis" x="{x:.1f}" y="153" text-anchor="middle">'
+            f'<text class="axis" x="{x:.1f}" y="151" text-anchor="middle">'
             f"{fraction * 100:.0f}%</text>"
         )
+        svg += line(f'<line class="grid" x1="{x:.1f}" y1="166" x2="{x:.1f}" y2="{height - 74}"/>')
     for fraction in (0.0, 0.5, 1.0):
         x = time_x + time_w * fraction
-        svg += line(f'<line class="grid" x1="{x:.1f}" y1="139" x2="{x:.1f}" y2="{height - 62}"/>')
         svg += line(
-            f'<text class="axis" x="{x:.1f}" y="153" text-anchor="middle">'
+            f'<text class="axis" x="{x:.1f}" y="151" text-anchor="middle">'
             f"{time_ceiling * fraction:.0f}s</text>"
         )
+        svg += line(f'<line class="grid" x1="{x:.1f}" y1="166" x2="{x:.1f}" y2="{height - 74}"/>')
 
     for index, row in enumerate(rows):
         is_diagnostic = row["name"] in diagnostic_names
-        y = 190 + index * 75 + (diagnostic_gap if is_diagnostic else 0)
+        y = 204 + index * 78 + (diagnostic_gap if is_diagnostic else 0)
         color = colors.get(row["name"], "#4b5563")
         escaped_name = html.escape(row["name"])
         display_name = html.escape(labels.get(row["name"], row["name"]))
         if diagnostic_start is not None and index == diagnostic_start:
-            svg += line(f'<line class="separator" x1="36" y1="{y - 52}" x2="1082" y2="{y - 52}"/>')
             svg += line(
-                f'<text class="section" x="36" y="{y - 34}">DIAGNOSTIC CONTROLS · '
+                f'<rect x="24" y="{y - 57}" width="1072" height="28" rx="14" '
+                'fill="#fb7185" fill-opacity=".075" stroke="#fb7185" stroke-opacity=".16"/>'
+            )
+            svg += line(
+                f'<text class="section" x="38" y="{y - 39}">DIAGNOSTIC CONTROLS · '
                 "INTENTIONALLY PROTOCOL-INCOMPATIBLE TEACHERS</text>"
             )
-        elif index:
-            svg += line(f'<line class="separator" x1="36" y1="{y - 38}" x2="1082" y2="{y - 38}"/>')
+        svg += line(f'<rect class="row" x="24" y="{y - 27}" width="1072" height="54" rx="10"/>')
         svg += line(
             f'<g data-arm="{escaped_name}" '
             f'data-success-mean="{row["success_mean"]:.6f}" '
@@ -265,11 +285,11 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         if row["name"] == "cold-start-only":
             svg += line(
                 f'<rect class="pill" x="{time_x + 12}" y="{y - 13}" width="104" '
-                'height="26" rx="13" stroke="#94a3b8"/>'
+                'height="26" rx="13" stroke="#64748b"/>'
             )
             svg += line(
                 f'<text class="value" x="{time_x + 64}" y="{y + 4}" '
-                'text-anchor="middle" fill="#64748b">NO TRAINING</text>'
+                'text-anchor="middle" fill="#94a3b8">NO TRAINING</text>'
             )
         else:
             time_end = time_x + time_w * row["seconds_mean"] / time_ceiling

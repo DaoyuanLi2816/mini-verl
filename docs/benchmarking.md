@@ -327,7 +327,7 @@ recorded as `false`.
 # CPU, toy models
 miniverl benchmark recipes/benchmark_calc.yaml --output runs/benchmarks
 
-# One 16 GB GPU, the pinned Qwen3 pair
+# One GPU, the pinned Qwen3 pair
 miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml --output runs/benchmarks
 
 # Strictly offline after preloading every pinned model, tokenizer and adapter

@@ -6,7 +6,20 @@ and what it printed.
 
 Last updated: 2026-07-29.
 
-## v0.2.1 correctness release status
+## v0.2.2 single-GPU portability release candidate
+
+| item | current state |
+| --- | --- |
+| integration source | `agent/single-gpu-visuals`, based on synchronized public `main` at `dcded6bd1948eb7421f89e336f611e3b0d3c0ad3` |
+| version transition | source, changelog and citation metadata identify `0.2.2`; the intended annotated tag is `v0.2.2` |
+| hardware scope | one NVIDIA CUDA GPU with no device-name allowlist; automatic dtype selects bf16 when supported and fp16 otherwise; exact fit remains model/budget dependent |
+| measured evidence | the only published real-model GPU measurements remain the RTX 4080 runs; RTX 3070, Titan V, RTX 5090 and other cards are portable code paths, not fabricated benchmark claims |
+| presentation | banner and generated benchmark SVG use a dark single-GPU visual system; grid lines begin below tick labels and diagnostic 0% controls are status pills |
+| package discovery | both READMEs, project metadata and the GitHub About homepage expose `https://pypi.org/project/miniverl/` |
+| frozen scientific artifact | `benchmarks/results/gpu-calc-hard-equal-update-v2.json` remains byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
+| publication state | authorized for direct release; publish only after local gates, pull-request CI and synchronized default-branch CI pass |
+
+## Historical v0.2.1 correctness release status
 
 | item | current state |
 | --- | --- |

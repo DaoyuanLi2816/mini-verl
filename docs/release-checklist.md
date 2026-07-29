@@ -1,6 +1,6 @@
 # Release checklist
 
-This is the release gate and publication record for `v0.2.1`. A checked item
+This is the release gate and publication record for `v0.2.2`. A checked item
 names an invariant that was exercised on the release source. The tag workflow
 repeated the mechanical gates and refused inconsistent metadata or an
 unchecked pre-tag item. Publication began only after explicit maintainer
@@ -8,10 +8,10 @@ authorization.
 
 ## Version consistency
 
-- [x] `src/miniverl/__init__.py` is `0.2.1`.
-- [x] `CHANGELOG.md` has a dated `## [0.2.1]` section.
+- [x] `src/miniverl/__init__.py` is `0.2.2`.
+- [x] `CHANGELOG.md` has a dated `## [0.2.2]` section.
 - [x] `CITATION.cff` version and release date match.
-- [x] The future annotated tag is exactly `v0.2.1`.
+- [x] The future annotated tag is exactly `v0.2.2`.
 - [x] The package/project name remains `miniverl`.
 
 ## Correctness and lifecycle
@@ -88,6 +88,10 @@ authorization.
       or secret.
 - [x] No model weights, checkpoints, caches or databases are tracked.
 - [x] The banner and benchmark SVG were rendered and visually inspected.
+- [x] Benchmark grids begin below their tick labels; the generated dark SVG is
+      still bound to the immutable source JSON.
+- [x] The supported single-GPU recipe uses automatic bf16/fp16 selection and
+      carries no GPU model or VRAM-tier tag.
 - [x] The base-vs-`[train]` installation split and v1 scientific confound are
       stated explicitly.
 - [x] `TODO.md`, `PROJECT_STATE.md`, support claims and dependency boundaries
@@ -96,15 +100,24 @@ authorization.
 
 ## Trusted publishing readiness
 
-- [x] PyPI reports project `miniverl` and current public version `0.2.0`.
+- [x] PyPI reports project `miniverl` and current public version `0.2.1`.
 - [x] GitHub environment `pypi` exists and has a deployment branch policy.
 - [x] `release.yml` requests `id-token: write`, uses the `pypi` environment and
       publishes only on a tag push.
 - [x] The maintainer registered the pending publisher for
       `DaoyuanLi2816/mini-verl`, workflow `release.yml`, environment `pypi`.
-- [x] The immutable `v0.2.0` tag and public artifacts are unchanged.
+- [x] The immutable `v0.2.0` and `v0.2.1` tags and public artifacts are unchanged.
 
 ## After the tag
+
+Complete and check these in the post-release state-sync change:
+
+- [ ] Record the exact `v0.2.2` tag commit and release workflow run.
+- [ ] Verify public PyPI hashes, attestations and a clean core installation.
+- [ ] Verify the GitHub Release contains the identical distributions.
+- [ ] Advance development to `0.2.3.dev0`.
+
+## Historical v0.2.1 record
 
 Publication completed on 2026-07-29:
 
