@@ -11,12 +11,12 @@ Last updated: 2026-07-28.
 | item | current state |
 | --- | --- |
 | public repository | `https://github.com/DaoyuanLi2816/mini-verl` |
-| pre-merge public `main` | `caed62f1d332b31752e9c453553a6a0bf2896587`, fetched and confirmed against `origin/main` on 2026-07-28 |
+| release-code merge | public `main` advanced to `4287682873e3e1f4858827822befc714f5478296` through PR #6; local `main`, `origin/main` and `ls-remote` matched after the merge |
 | previous integration | PR [#4](https://github.com/DaoyuanLi2816/mini-verl/pull/4) and PR [#5](https://github.com/DaoyuanLi2816/mini-verl/pull/5) are merged |
-| working branch | `v0.2-final-release`, created from current public `main` |
-| final integration | draft PR [#6](https://github.com/DaoyuanLi2816/mini-verl/pull/6), first commit `3414fca15d4ab76180e14753b9f141870eb42cd0` |
+| release branch | `v0.2-final-release` was merged and deleted |
+| final integration | PR [#6](https://github.com/DaoyuanLi2816/mini-verl/pull/6) merged on 2026-07-28; all eight PR checks and both post-merge `main` workflows passed |
 | lifecycle fix | merged on `main`: destructive, idempotent cleanup and explicit cold-start/arm context boundaries are implemented |
-| last merged release gates | ruff and format clean; mypy clean; 981 CPU tests and all 5 GPU tests passed; compatibility passed on Transformers 4.51.3 and 5.14.1 |
+| public default-branch health | post-merge `ci` run `30417663806` and `build` run `30417663821` completed successfully |
 | final-pass status | complete locally: 1004 CPU tests, 5 GPU tests, 129 focused offline tests, dual Transformers compatibility, build, clean-wheel, README-command, link, schema, JSON/JSONL, privacy and release-workflow gates pass |
 | version | `0.2.0`; no public `v0.2.0` tag, GitHub Release or PyPI publication is claimed |
 | PyPI | `https://pypi.org/pypi/miniverl/json` returned HTTP 404 on 2026-07-28; a pending publisher can create the project on first OIDC upload, but its registration has not been verified |
@@ -66,10 +66,12 @@ Currently failing commands:
 
 Exact next actions:
 
-1. Push the final evidence commit to PR #6, mark it ready, wait for green
-   CI/build, merge and synchronize local `main`.
-2. Reconfirm the public repository and distribution endpoints after merge.
-3. Do not create `v0.2.0` while the PyPI pending publisher remains unverified.
+1. Register and verify the exact PyPI pending publisher documented in
+   `docs/release-checklist.md`.
+2. Re-check PyPI name availability immediately before publication.
+3. Do not create `v0.2.0` while the pending publisher remains unverified; once
+   verified and publication is explicitly authorized, the tag-only workflow
+   publishes and verifies PyPI before creating the GitHub Release.
 
 ## Historical v0.2 pre-merge evidence (PR #4)
 
