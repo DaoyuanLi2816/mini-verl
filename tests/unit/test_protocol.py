@@ -901,19 +901,19 @@ def test_v2_custom_environment_prompt_example_uses_its_tool_spec(prompt_style: s
             ]
 
         def generate_task(self, index: int, seed: int, *, difficulty: str, split: str) -> Task:
-            raise NotImplementedError
+            raise AssertionError("not used by this prompt-only test")
 
         def reset(self, task: Task) -> Any:
-            raise NotImplementedError
+            raise AssertionError("not used by this prompt-only test")
 
         def step(self, call: Any) -> Any:
-            raise NotImplementedError
+            raise AssertionError("not used by this prompt-only test")
 
         def verify(self, answer: str) -> Any:
-            raise NotImplementedError
+            raise AssertionError("not used by this prompt-only test")
 
         def oracle_actions(self, task: Task) -> list[Any]:
-            raise NotImplementedError
+            raise AssertionError("not used by this prompt-only test")
 
     environment = CustomEnvironment(
         prompt_style=prompt_style,
