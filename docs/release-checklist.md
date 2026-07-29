@@ -1,12 +1,10 @@
 # Release checklist
 
-This is the release gate for `v0.2.1`. A checked item names an invariant that
-was exercised on the release-candidate source. The tag workflow repeats the
-mechanical gates and refuses inconsistent metadata or an unchecked pre-tag
-item.
-
-Publication is intentionally separate: `v0.2.1` must not be tagged or uploaded
-until the maintainer explicitly authorizes it.
+This is the release gate and publication record for `v0.2.1`. A checked item
+names an invariant that was exercised on the release source. The tag workflow
+repeated the mechanical gates and refused inconsistent metadata or an
+unchecked pre-tag item. Publication began only after explicit maintainer
+authorization.
 
 ## Version consistency
 
@@ -108,17 +106,35 @@ until the maintainer explicitly authorizes it.
 
 ## After the tag
 
-These actions remain deliberately unchecked until publication is explicitly
-authorized:
+Publication completed on 2026-07-29:
 
-- [ ] Create annotated tag `v0.2.1` on the exact validated main commit.
-- [ ] Verify the tag workflow tests and builds the distributions once.
-- [ ] Verify OIDC publication, public PyPI hashes and attestations.
-- [ ] Verify the GitHub Release contains the same wheel, sdist and
+- [x] Create annotated tag `v0.2.1` on exact validated commit
+      `591881b0d094f5c53ff47a9419e679b762fb44b0`.
+- [x] Verify release run
+      [`30474597179`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30474597179)
+      tests and builds the distributions once.
+- [x] Verify OIDC publication, public PyPI hashes and Trusted Publishing
+      attestations for
+      [`miniverl 0.2.1`](https://pypi.org/project/miniverl/0.2.1/).
+- [x] Verify the
+      [`miniVERL v0.2.1`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.1)
+      GitHub Release contains the same wheel, sdist and
       `SHA256SUMS`.
-- [ ] Install public `miniverl==0.2.1` in a clean environment and run
-      `miniverl --version` plus `miniverl doctor --json`.
-- [ ] Open the post-release state-sync PR and bump main to `0.2.2.dev0`.
+- [x] Install public `miniverl==0.2.1` in a clean Windows environment and run
+      `miniverl --version` plus `miniverl doctor --json`; the core verdict
+      passed and Torch remained absent.
+- [x] Open the post-release state-sync change and advance development to
+      `0.2.2.dev0`.
+
+Published artifact identity:
+
+- `miniverl-0.2.1-py3-none-any.whl`: SHA-256
+  `0177d50026da86047c2a03f90e7786c794b26c5b0d6fef193c58ed35c08d8cda`
+- `miniverl-0.2.1.tar.gz`: SHA-256
+  `80f890c1ab8be0ccdf6c5ce293a5c4d7bb6a6f7ab7a57db34090384fcaa7e16c`
+
+Independent downloads from PyPI and the GitHub Release reproduced both
+digests.
 
 ## Historical v0.2.0 record
 
