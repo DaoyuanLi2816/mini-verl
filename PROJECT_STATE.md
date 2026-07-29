@@ -6,18 +6,21 @@ and what it printed.
 
 Last updated: 2026-07-29.
 
-## v0.2.2 single-GPU portability release candidate
+## v0.2.2 single-GPU portability release status
 
 | item | current state |
 | --- | --- |
-| integration source | `agent/single-gpu-visuals`, based on synchronized public `main` at `dcded6bd1948eb7421f89e336f611e3b0d3c0ad3` |
-| version transition | source, changelog and citation metadata identify `0.2.2`; the intended annotated tag is `v0.2.2` |
+| integration source | PR [#13](https://github.com/DaoyuanLi2816/mini-verl/pull/13), merged as `518590cb43ff788fa65f73ee9cf3a7afb6dfba5a` after all pull-request and synchronized-main checks passed |
+| version transition | `v0.2.2` was released from exact commit `518590cb43ff788fa65f73ee9cf3a7afb6dfba5a`; post-release development now identifies as `0.2.3.dev0` |
 | hardware scope | one NVIDIA CUDA GPU with no device-name allowlist; automatic dtype selects bf16 when supported and fp16 otherwise; exact fit remains model/budget dependent |
 | measured evidence | the only published real-model GPU measurements remain the RTX 4080 runs; RTX 3070, Titan V, RTX 5090 and other cards are portable code paths, not fabricated benchmark claims |
 | presentation | banner and generated benchmark SVG use a dark single-GPU visual system; grid lines begin below tick labels and diagnostic 0% controls are status pills |
 | package discovery | both READMEs, project metadata and the GitHub About homepage expose `https://pypi.org/project/miniverl/` |
 | frozen scientific artifact | `benchmarks/results/gpu-calc-hard-equal-update-v2.json` remains byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
-| publication state | authorized for direct release; publish only after local gates, pull-request CI and synchronized default-branch CI pass |
+| release state | release run [`30494182647`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30494182647) passed on attempt 3 after PyPI simple-index propagation; OIDC publication, public hashes, attestations, clean install and GitHub Release all passed |
+| published wheel | [`miniverl-0.2.2-py3-none-any.whl`](https://pypi.org/project/miniverl/0.2.2/), SHA-256 `1ead97173bb11ce3da963b94f628df825a5b14648fed488cf4d88c47cba9dd59` |
+| published sdist | [`miniverl-0.2.2.tar.gz`](https://pypi.org/project/miniverl/0.2.2/), SHA-256 `3951dd4addc5d85b3e58ce72ecffac65c38bf2eab951d2c08cce8f20c886185c` |
+| exact blocker | none; public PyPI and GitHub Release artifacts are byte-identical, and clean Python 3.10 and workflow Python 3.12 core installations passed |
 
 ## Historical v0.2.1 correctness release status
 

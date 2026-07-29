@@ -110,12 +110,33 @@ authorization.
 
 ## After the tag
 
-Complete and check these in the post-release state-sync change:
+Publication completed on 2026-07-29:
 
-- [ ] Record the exact `v0.2.2` tag commit and release workflow run.
-- [ ] Verify public PyPI hashes, attestations and a clean core installation.
-- [ ] Verify the GitHub Release contains the identical distributions.
-- [ ] Advance development to `0.2.3.dev0`.
+- [x] Annotated tag `v0.2.2` resolves to exact validated commit
+      `518590cb43ff788fa65f73ee9cf3a7afb6dfba5a`.
+- [x] Release run
+      [`30494182647`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30494182647)
+      passed metadata, tests, build, OIDC publication, public verification and
+      GitHub Release creation.
+- [x] Public PyPI hashes and Trusted Publishing attestations passed; clean
+      Python 3.10 and workflow Python 3.12 core installs reported
+      `miniverl 0.2.2`.
+- [x] The
+      [`miniVERL v0.2.2`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.2)
+      GitHub Release contains the byte-identical wheel, sdist and `SHA256SUMS`.
+- [x] Development advanced to `0.2.3.dev0`.
+
+Published artifact identity:
+
+- `miniverl-0.2.2-py3-none-any.whl`: SHA-256
+  `1ead97173bb11ce3da963b94f628df825a5b14648fed488cf4d88c47cba9dd59`
+- `miniverl-0.2.2.tar.gz`: SHA-256
+  `3951dd4addc5d85b3e58ce72ecffac65c38bf2eab951d2c08cce8f20c886185c`
+
+The first two install-verification attempts saw PyPI's JSON/file APIs before
+the public simple index had propagated. Attempt 3 passed unchanged. The
+post-release workflow now retries that final public-index install so future
+releases do not report this expected propagation window as a package defect.
 
 ## Historical v0.2.1 record
 
