@@ -1,4 +1,4 @@
-# Memory on a single consumer GPU
+# Memory on one personal GPU
 
 miniVERL runs a teacher and a student on one card. This document describes the
 two placement strategies, how `auto` picks between them, the out-of-memory retry

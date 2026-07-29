@@ -137,7 +137,7 @@ def test_run_recipe_fields_match_the_yaml_leaf_for_leaf(path: Path) -> None:
     _assert_same_leaves(_read_raw(path), config.model_dump(mode="json"))
 
 
-def test_consumer_gpu_quickstart_uses_competence_gated_protocol_teacher() -> None:
+def test_single_gpu_quickstart_is_portable_and_uses_protocol_teacher() -> None:
     supported = RunConfig.from_yaml(RECIPES_DIR / "qwen_consumer_gpu_calc.yaml")
     raw_control = RunConfig.from_yaml(RECIPES_DIR / "qwen_consumer_gpu_calc_raw_teacher.yaml")
 
@@ -148,6 +148,12 @@ def test_consumer_gpu_quickstart_uses_competence_gated_protocol_teacher() -> Non
     assert adapter.revision == "23323751318135484c06c043b1f9b9e7016dd89f"
     assert adapter.require_policy_evaluation is True
     assert adapter.minimum_strict_success_rate == pytest.approx(0.5)
+    assert supported.models.device == "auto"
+    assert supported.models.student.dtype is Precision.AUTO
+    assert supported.models.teacher.dtype is Precision.AUTO
+    assert supported.run.name == "qwen3-calc-opd-single-gpu"
+    assert "single-gpu" in supported.run.tags
+    assert not {"rtx4080", "16gb"} & set(supported.run.tags)
 
     assert supported.models.student.model_id == raw_control.models.student.model_id
     assert supported.models.teacher.model_id == raw_control.models.teacher.model_id

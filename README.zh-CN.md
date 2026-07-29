@@ -12,13 +12,21 @@
 
 </div>
 
+<p align="center">
+  <a href="https://pypi.org/project/miniverl/"><strong>PyPI 软件包</strong></a> ·
+  <a href="#个人单卡快速上手">安装与训练</a> ·
+  <a href="docs/single-gpu-guide.md">适配你的 GPU</a> ·
+  <a href="#实测结果协议对齐的-opd-追平-sft">实测结果</a>
+</p>
+
 > 本文是 [README.md](README.md) 的中文翻译。英文版为准；若两者不一致，请以英文版为准并提交 issue。
 
-**单卡上的工具调用智能体在线策略蒸馏（on-policy distillation）。**
+**面向个人单卡、紧凑且可审计的工具调用智能体训练栈。**
 
 miniVERL 是一个紧凑、可审计的训练实验室，让小型语言模型从**它自己生成的
 多轮工具轨迹**中学习。它会真实执行工具、显式记录 token 来源，并且只在正确
-的位置使用教师分布目标——不需要 Ray、GPU 集群或 40 GB 显存的加速卡。
+的位置使用教师分布目标——不需要 Ray 或 GPU 集群。代码没有显卡型号白名单：
+使用你现有的 NVIDIA CUDA 显卡，再选择能装进显存的模型组合与 token 预算。
 
 ```bash
 python -m pip install miniverl            # 轻量核心层
@@ -41,7 +49,7 @@ schema 与 Python API）。`train` extra 会添加 torch、Transformers 与 PEFT
 - **预算真实：** 精确全词表目标与压缩的 `top-k + tail` 目标分开命名、分开报告。
 
 [运行本地 demo](#本地玩具演示) ·
-[在消费级 GPU 上训练](#消费级-gpu-快速上手) ·
+[在你的 GPU 上训练](#个人单卡快速上手) ·
 [查看实测结果](#实测结果协议对齐的-opd-追平-sft) ·
 [阅读数学说明](docs/math.md)
 
@@ -54,7 +62,7 @@ schema 与 Python API）。`train` extra 会添加 torch、Transformers 与 PEFT
 3. **其实并不是 on-policy。** 跨策略版本复用教师缓存，做的就是离线 KD，却仍叫它 OPD。
 4. **显存放不下 logits。** `[batch, seq_len, 152k]` 的张量在消费级显卡上放不下，于是真正有意思的配置恰好都跑不了。
 
-miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注释里的一句承诺，并且整套流程只用一块 16 GB 显卡。
+miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注释里的一句承诺，并把整个生命周期放进一个可读的单卡进程。
 
 ## 已实现的能力
 
@@ -66,7 +74,7 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 压缩的 `top-k + tail` KL / JSD | 支持；未平滑粗粒化与精确散度的下界关系有严格证明 |
 | 特权上下文教师模式，带显式对齐表 | 支持 |
 | 标准冻结 PEFT 教师适配器，带来源记录与能力门禁 | 支持 |
-| QLoRA（NF4）学生，bf16 或量化教师 | 支持，已在 RTX 4080 上实测 |
+| 自动选择 bf16/fp16 的单卡 CUDA 路径 | 支持；代码路径不绑定型号，实测参考为 RTX 4080 |
 | `resident` / `swap` 显存策略与 `auto` 解析 | 支持，并有等价性测试 |
 | 带版本号与校验和、完全不用 pickle 的教师目标缓存 | 支持 |
 | SFT / 离线 KD / 严格 OPD / 显式标注 replay 统一在一个 trainer 中 | 支持 |
@@ -92,7 +100,7 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 诊断对照 | 获知答案但不懂协议的教师 | 0.0% | 0.0% |
 
 [公开且固定版本的协议教师适配器](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
-现在是消费级 GPU 配方的默认教师。它在下游 benchmark 被查看之前，已经通过
+现在是单卡配方的默认教师。它在下游 benchmark 被查看之前，已经通过
 预先指定、独立评估的策略能力门槛。两个负对照故意去掉了这个保证：loss 正常
 下降，但教师把不兼容的工具策略教给了学生。这是实测的教师能力问题，不是
 trainer 崩溃。
@@ -165,7 +173,13 @@ tokens by span type (only assistant_* can enter the loss)
 
 玩具后端是**机制验证台，不是能力展示**。它的模型太小，除了 `easy` 难度之外什么都做不了。能力数字来自 GPU 配方。
 
-## 消费级 GPU 快速上手
+## 个人单卡快速上手
+
+默认配方使用 `device: auto` 与 `dtype: auto`：支持 bf16 的显卡自动使用 bf16，
+Titan V 等较老 CUDA 显卡自动使用 fp16。RTX 3070、Titan V、RTX 4080 和
+RTX 5090 级别显卡都走同一条代码路径；本仓库目前只有 RTX 4080 的实测结果。
+能否装下取决于显存、模型大小、驱动和 token 预算，而不是显卡的商品名。修改配方前请阅读
+[`单卡适配指南`](docs/single-gpu-guide.md)。
 
 ```bash
 git clone https://github.com/DaoyuanLi2816/mini-verl.git
@@ -299,7 +313,7 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 
 > miniVERL 是一个独立项目，与 verl 项目、字节跳动（ByteDance）或火山引擎（Volcano Engine）没有隶属关系，也未获得其背书。它**不是** verl 的直接替代品。
 
-这个名字只是对问题领域的致意，不代表任何兼容性声明。verl 是一个优秀得多、规模也大得多的系统，它同样实现了在线策略蒸馏和多轮工具调用——只不过是在集群规模上，依赖 Ray。如果你有集群，请用它。miniVERL 面向的是「只有一块消费级显卡、并且希望把每一行发生的事都读懂」的场景。对比见 [`docs/comparisons.md`](docs/comparisons.md)。
+这个名字只是对问题领域的致意，不代表任何兼容性声明。verl 是一个优秀得多、规模也大得多的系统，它同样实现了在线策略蒸馏和多轮工具调用——只不过是在集群规模上，依赖 Ray。如果你有集群，请用它。miniVERL 面向的是「只有一块个人显卡、并且希望把每一行发生的事都读懂」的场景：它可以是较老的 12 GiB 显卡，也可以是当前的高端显卡；仓库只对实际跑过的硬件声明实测性能。对比见 [`docs/comparisons.md`](docs/comparisons.md)。
 
 ## 引用与许可证
 

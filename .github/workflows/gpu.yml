@@ -15,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       run_recipe:
-        description: "Also run the full 16 GB recipe (slow, ~10 minutes)"
+        description: "Also run the full single-GPU recipe (slow, ~10 minutes)"
         type: boolean
         default: false
 
@@ -46,7 +46,7 @@ jobs:
       - name: GPU tests
         run: pytest -q -m gpu -ra
 
-      - name: Full 16 GB recipe
+      - name: Full single-GPU recipe
         if: ${{ inputs.run_recipe }}
         env:
           MINIVERL_LOG_LEVEL: INFO

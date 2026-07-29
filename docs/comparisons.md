@@ -88,7 +88,7 @@ Use verl, not miniVERL, if any of the following is true:
 - You want something with a maintainer community, a release cadence and 51 CI
   workflows behind it.
 
-miniVERL is a reasonable choice when you have exactly one consumer GPU, you want
+miniVERL is a reasonable choice when you have exactly one personal NVIDIA GPU, you want
 to read and modify the loss, and you care more about being able to audit which
 token was supervised by which teacher distribution than about throughput.
 Reading `docs/limitations.md` before starting is strongly recommended.

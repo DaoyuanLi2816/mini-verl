@@ -594,7 +594,7 @@ quietly did no work.
 ## 7. Deliberately not here
 
 Every omission below is a scope decision, not an oversight. Each one is a thing a
-production framework does that a single-process 16 GB lab should not pretend to
+production framework does that a single-process one-GPU lab should not pretend to
 do.
 
 **Ray.** verl depends on `ray[default]` unconditionally because it schedules

@@ -2,7 +2,7 @@ cff-version: 1.2.0
 title: "miniVERL: On-policy distillation for tool-using agents on one GPU"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
-version: 0.2.1
+version: 0.2.2
 date-released: 2026-07-29
 license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
@@ -18,8 +18,9 @@ abstract: >-
   coarse-graining, enforces per-token provenance so that tool output can never
   become a training label, and stores teacher targets in a versioned,
   checksummed, pickle-free cache with policy-version enforcement. It is
-  designed and measured for a single 16 GB consumer GPU and requires neither
-  Ray nor a cluster.
+  designed for one personal CUDA GPU, automatically selects bf16 or fp16, and
+  requires neither Ray nor a cluster. Published performance is measured on one
+  RTX 4080; other GPU models use the same code path but remain unmeasured.
 authors:
   - family-names: Li
     given-names: Daoyuan
@@ -32,6 +33,7 @@ keywords:
   - agents
   - QLoRA
   - consumer GPU
+  - single GPU
   - post-training
   - reproducibility
 references:
@@ -96,4 +98,4 @@ references:
     url: "https://arxiv.org/abs/2603.07079"
     notes: >-
       Motivates recording per-token teacher entropy. Entropy-aware divergence
-      mixing is a roadmap item and is not implemented in miniVERL v0.2.1.
+      mixing is a roadmap item and is not implemented in miniVERL v0.2.2.

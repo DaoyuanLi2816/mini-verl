@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "miniverl"
 dynamic = ["version"]
-description = "On-policy distillation for tool-using agents on one GPU."
+description = "Auditable on-policy distillation for tool-using agents on one personal GPU."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -18,6 +18,7 @@ keywords = [
   "tool-use",
   "qlora",
   "consumer-gpu",
+  "single-gpu",
   "post-training",
   "qwen",
   "llm-agents",
@@ -72,6 +73,7 @@ miniverl = "miniverl.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/DaoyuanLi2816/mini-verl"
+PyPI = "https://pypi.org/project/miniverl/"
 Issues = "https://github.com/DaoyuanLi2816/mini-verl/issues"
 Repository = "https://github.com/DaoyuanLi2816/mini-verl"
 Changelog = "https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md"

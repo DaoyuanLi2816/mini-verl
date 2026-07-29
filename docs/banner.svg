@@ -1,100 +1,118 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 250" width="880" height="250"
      role="img" aria-labelledby="banner-title banner-desc">
   <title id="banner-title">miniVERL</title>
-  <desc id="banner-desc">A one-GPU lab for reliable on-policy distillation of tool-using agents.</desc>
+  <desc id="banner-desc">A personal single-GPU training stack for tool-using agents.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#080d1f"/>
-      <stop offset="52%" stop-color="#172554"/>
-      <stop offset="100%" stop-color="#312e81"/>
+      <stop offset="0%" stop-color="#030711"/>
+      <stop offset="55%" stop-color="#0a1230"/>
+      <stop offset="100%" stop-color="#20105a"/>
     </linearGradient>
     <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#67e8f9"/>
-      <stop offset="100%" stop-color="#a78bfa"/>
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="52%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#c084fc"/>
     </linearGradient>
     <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ffffff" stop-opacity=".12"/>
-      <stop offset="100%" stop-color="#ffffff" stop-opacity=".055"/>
+      <stop offset="0%" stop-color="#142342" stop-opacity=".92"/>
+      <stop offset="100%" stop-color="#11152c" stop-opacity=".88"/>
     </linearGradient>
-    <filter id="blur">
-      <feGaussianBlur stdDeviation="34"/>
+    <radialGradient id="violet-glow" cx="82%" cy="9%" r="68%">
+      <stop offset="0%" stop-color="#7c3aed" stop-opacity=".35"/>
+      <stop offset="100%" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cyan-glow" cx="43%" cy="100%" r="58%">
+      <stop offset="0%" stop-color="#0891b2" stop-opacity=".24"/>
+      <stop offset="100%" stop-color="#0891b2" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft-glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="5"/>
     </filter>
   </defs>
 
   <rect width="880" height="250" rx="18" fill="url(#bg)"/>
-  <circle cx="760" cy="14" r="118" fill="#7c3aed" opacity=".20" filter="url(#blur)"/>
-  <circle cx="390" cy="246" r="105" fill="#0891b2" opacity=".16" filter="url(#blur)"/>
-  <path d="M0 249 C190 207 307 266 472 225 S730 197 880 220 V250 H0Z"
-        fill="#38bdf8" opacity=".055"/>
+  <rect width="880" height="250" rx="18" fill="url(#violet-glow)"/>
+  <rect width="880" height="250" rx="18" fill="url(#cyan-glow)"/>
+  <path d="M0 224 C176 198 274 259 443 226 S710 196 880 214 V250 H0Z"
+        fill="#38bdf8" opacity=".045"/>
   <rect x=".75" y=".75" width="878.5" height="248.5" rx="17.25"
-        fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="1.5"/>
+        fill="none" stroke="#5b7198" stroke-opacity=".34" stroke-width="1.5"/>
 
   <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif">
-    <text x="46" y="34" font-size="11" font-weight="700" letter-spacing="2.2" fill="#a5f3fc">
-      ONE-GPU OPD LAB
+    <text x="44" y="32" font-size="10.5" font-weight="750" letter-spacing="2.15" fill="#7dd3fc">
+      PERSONAL SINGLE-GPU TRAINING
     </text>
-    <text x="46" y="84" font-size="46" font-weight="780" letter-spacing="-1.8" fill="#f8fafc">
+    <text x="44" y="80" font-size="45" font-weight="790" letter-spacing="-1.8" fill="#f8fafc">
       mini<tspan fill="url(#brand)">VERL</tspan>
     </text>
-    <text x="46" y="113" font-size="17" font-weight="550" fill="#e2e8f0">
+    <text x="44" y="109" font-size="16.5" font-weight="570" fill="#e2e8f0">
       On-policy distillation for tool-using agents.
     </text>
-    <text x="46" y="139" font-size="13" fill="#aebbd2">
-      Reproducible training, typed token provenance, and exact
+    <text x="44" y="135" font-size="12.8" fill="#a9b8cf">
+      Auditable rollouts, typed token provenance, and exact
     </text>
-    <text x="46" y="158" font-size="13" fill="#aebbd2">
-      or budgeted divergence — without a cluster.
+    <text x="44" y="154" font-size="12.8" fill="#a9b8cf">
+      or budgeted divergence — no Ray, no cluster.
     </text>
 
-    <g font-size="11.5" font-weight="650">
-      <rect x="46" y="177" width="88" height="24" rx="12" fill="#22d3ee" fill-opacity=".13"
-            stroke="#67e8f9" stroke-opacity=".32"/>
-      <text x="90" y="193.5" text-anchor="middle" fill="#cffafe">strict OPD</text>
-      <rect x="143" y="177" width="102" height="24" rx="12" fill="#818cf8" fill-opacity=".14"
-            stroke="#a5b4fc" stroke-opacity=".32"/>
-      <text x="194" y="193.5" text-anchor="middle" fill="#e0e7ff">offline-safe</text>
-      <rect x="254" y="177" width="92" height="24" rx="12" fill="#a78bfa" fill-opacity=".14"
-            stroke="#c4b5fd" stroke-opacity=".32"/>
-      <text x="300" y="193.5" text-anchor="middle" fill="#ede9fe">16 GB first</text>
+    <g font-size="11.2" font-weight="680">
+      <rect x="44" y="173" width="82" height="24" rx="12" fill="#22d3ee" fill-opacity=".12"
+            stroke="#67e8f9" stroke-opacity=".38"/>
+      <text x="85" y="189.5" text-anchor="middle" fill="#cffafe">one card</text>
+      <rect x="135" y="173" width="97" height="24" rx="12" fill="#60a5fa" fill-opacity=".12"
+            stroke="#93c5fd" stroke-opacity=".34"/>
+      <text x="183.5" y="189.5" text-anchor="middle" fill="#dbeafe">GPU adaptive</text>
+      <rect x="241" y="173" width="91" height="24" rx="12" fill="#a78bfa" fill-opacity=".13"
+            stroke="#c4b5fd" stroke-opacity=".35"/>
+      <text x="286.5" y="189.5" text-anchor="middle" fill="#ede9fe">audit first</text>
     </g>
 
-    <rect x="46" y="211" width="300" height="25" rx="7" fill="#020617" fill-opacity=".64"
-          stroke="#94a3b8" stroke-opacity=".22"/>
-    <circle cx="61" cy="223.5" r="3" fill="#67e8f9"/>
-    <text x="72" y="228" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-          font-size="11.5" fill="#dbeafe">pip install "miniverl[train]"</text>
+    <rect x="44" y="208" width="288" height="27" rx="7" fill="#020617" fill-opacity=".72"
+          stroke="#516381" stroke-opacity=".42"/>
+    <circle cx="59" cy="221.5" r="3" fill="#22d3ee"/>
+    <text x="70" y="226" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="11.3" fill="#dbeafe">pip install "miniverl[train,cuda]"</text>
+
+    <path d="M401 49 V201" fill="none" stroke="#33486d" stroke-width="2"
+          stroke-linecap="round"/>
+    <circle cx="401" cy="58" r="4" fill="#22d3ee"/>
+    <circle cx="401" cy="125" r="4" fill="#60a5fa"/>
+    <circle cx="401" cy="192" r="4" fill="#c084fc"/>
 
     <g>
-      <rect x="437" y="28" width="397" height="56" rx="12" fill="url(#card)"
-            stroke="#ffffff" stroke-opacity=".12"/>
-      <circle cx="467" cy="56" r="15" fill="#06b6d4" fill-opacity=".18"
-              stroke="#67e8f9" stroke-opacity=".44"/>
-      <path d="M461 56h12M467 50v12" stroke="#a5f3fc" stroke-width="1.8"
+      <rect x="420" y="29" width="414" height="56" rx="13" fill="url(#card)"
+            stroke="#4c6388" stroke-opacity=".55"/>
+      <circle cx="450" cy="57" r="16" fill="#22d3ee" opacity=".12" filter="url(#soft-glow)"/>
+      <circle cx="450" cy="57" r="14" fill="#0e7490" fill-opacity=".28"
+              stroke="#67e8f9" stroke-opacity=".52"/>
+      <path d="M444 57h12M450 51v12" stroke="#a5f3fc" stroke-width="1.8"
             stroke-linecap="round"/>
-      <text x="494" y="51" font-size="14" font-weight="700" fill="#f8fafc">Sample</text>
-      <text x="494" y="70" font-size="12" fill="#b9c5d8">Student trajectories with real tool execution</text>
+      <text x="478" y="52" font-size="14" font-weight="720" fill="#f8fafc">Sample</text>
+      <text x="478" y="71" font-size="12" fill="#afbed3">Run real tools on student trajectories</text>
     </g>
 
     <g>
-      <rect x="437" y="97" width="397" height="56" rx="12" fill="url(#card)"
-            stroke="#ffffff" stroke-opacity=".12"/>
-      <circle cx="467" cy="125" r="15" fill="#6366f1" fill-opacity=".20"
-              stroke="#a5b4fc" stroke-opacity=".44"/>
-      <path d="M460 121h14M460 125h9M460 129h12" stroke="#c7d2fe" stroke-width="1.8"
+      <rect x="420" y="97" width="414" height="56" rx="13" fill="url(#card)"
+            stroke="#4c6388" stroke-opacity=".55"/>
+      <circle cx="450" cy="125" r="16" fill="#60a5fa" opacity=".12" filter="url(#soft-glow)"/>
+      <circle cx="450" cy="125" r="14" fill="#1d4ed8" fill-opacity=".25"
+              stroke="#93c5fd" stroke-opacity=".52"/>
+      <path d="M443 121h14M443 125h9M443 129h12" stroke="#dbeafe" stroke-width="1.8"
             stroke-linecap="round"/>
-      <text x="494" y="120" font-size="14" font-weight="700" fill="#f8fafc">Align</text>
-      <text x="494" y="139" font-size="12" fill="#b9c5d8">Typed spans keep tool output as context</text>
+      <text x="478" y="120" font-size="14" font-weight="720" fill="#f8fafc">Align</text>
+      <text x="478" y="139" font-size="12" fill="#afbed3">Keep tool output as context, never labels</text>
     </g>
 
     <g>
-      <rect x="437" y="166" width="397" height="56" rx="12" fill="url(#card)"
-            stroke="#ffffff" stroke-opacity=".12"/>
-      <circle cx="467" cy="194" r="15" fill="#8b5cf6" fill-opacity=".20"
-              stroke="#c4b5fd" stroke-opacity=".44"/>
-      <path d="M460 198l5-7 5 4 5-8" fill="none" stroke="#ddd6fe" stroke-width="1.8"
+      <rect x="420" y="165" width="414" height="56" rx="13" fill="url(#card)"
+            stroke="#4c6388" stroke-opacity=".55"/>
+      <circle cx="450" cy="193" r="16" fill="#c084fc" opacity=".12" filter="url(#soft-glow)"/>
+      <circle cx="450" cy="193" r="14" fill="#7e22ce" fill-opacity=".25"
+              stroke="#d8b4fe" stroke-opacity=".52"/>
+      <path d="M443 197l5-7 5 4 5-8" fill="none" stroke="#f3e8ff" stroke-width="1.8"
             stroke-linecap="round" stroke-linejoin="round"/>
-      <text x="494" y="189" font-size="14" font-weight="700" fill="#f8fafc">Distill</text>
-      <text x="494" y="208" font-size="12" fill="#b9c5d8">Exact or top-k KL on one consumer GPU</text>
+      <text x="478" y="188" font-size="14" font-weight="720" fill="#f8fafc">Distill</text>
+      <text x="478" y="207" font-size="12" fill="#afbed3">Use BF16 or FP16 on the GPU you have</text>
     </g>
   </g>
 </svg>

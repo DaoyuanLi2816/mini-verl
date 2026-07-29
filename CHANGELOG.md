@@ -6,6 +6,34 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-29
+
+Single-GPU portability and presentation release.
+
+### Added
+
+- A hardware-portability guide for personal NVIDIA GPUs, including honest
+  starting points for 8–12 GiB, 16–24 GiB and 24–32+ GiB cards, OOM controls,
+  and a reproducible hardware-result contribution path.
+- A prominent PyPI destination in both READMEs and package metadata.
+- Visual regression assertions that keep benchmark grid lines below axis labels
+  and preserve the dark generated figure.
+
+### Changed
+
+- The supported Qwen3 recipe now uses model-agnostic run metadata and
+  `dtype: auto`, selecting bf16 when available and fp16 on older CUDA cards
+  such as Titan V. The pinned models, adapter, objective and budgets are
+  unchanged.
+- The repository is positioned as a personal single-GPU training stack rather
+  than a 16 GiB-specific implementation. RTX 4080 numbers remain explicitly
+  labeled as the only measured GPU evidence.
+- The banner and data-bound protocol benchmark figure use a new dark visual
+  system. Axis grids no longer cross tick labels, and protocol-incompatible
+  0% controls are rendered as diagnostic states rather than zero-length bars.
+- GPU workflow language now names the portable single-GPU recipe instead of a
+  particular VRAM tier.
+
 ## [0.2.1] - 2026-07-29
 
 Correctness, lifecycle safety and reproducibility release.

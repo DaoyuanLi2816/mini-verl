@@ -1,5 +1,5 @@
-# miniVERL supported 16 GB recipe: on-policy distillation of Qwen3-0.6B from a
-# protocol-aligned Qwen3-1.7B teacher on one consumer GPU.
+# miniVERL portable single-GPU starter: on-policy distillation of Qwen3-0.6B
+# from a protocol-aligned Qwen3-1.7B teacher on one CUDA GPU.
 #
 # Verified facts about this model pair (checked against the Hugging Face API on
 # 2026-07-27, and re-checkable with the commands in docs/reproducibility.md):
@@ -18,19 +18,25 @@
 #   miniverl train    recipes/qwen_consumer_gpu_calc.yaml --dry-run
 #   miniverl train    recipes/qwen_consumer_gpu_calc.yaml
 #
+# The code does not allowlist GPU models. `device: auto` selects the available
+# CUDA device and `dtype: auto` chooses bf16 when supported, otherwise fp16.
+# Exact fit still depends on VRAM, drivers and sequence lengths; run `doctor`,
+# `validate`, and `--dry-run` first. See docs/single-gpu-guide.md.
+#
 # Measured base-pair memory and the two-seed protocol-teacher comparison are in
-# docs/rtx4080-baselines.md. The historical protocol-naive recipe is preserved
+# docs/rtx4080-baselines.md. Those measurements are RTX 4080 evidence, not a
+# hardware requirement. The historical protocol-naive recipe is preserved
 # separately as qwen_consumer_gpu_calc_raw_teacher.yaml.
 
 schema_version: 1
 
 run:
-  name: qwen3-calc-opd-protocol-4080
+  name: qwen3-calc-opd-single-gpu
   mode: opd
   seed: 1234
   output_dir: runs
   deterministic: true
-  tags: [consumer-gpu, rtx4080, qwen3, calculator, protocol-teacher]
+  tags: [single-gpu, qwen3, calculator, protocol-teacher]
 
 models:
   backend: hf
@@ -39,7 +45,7 @@ models:
     model_id: Qwen/Qwen3-0.6B
     revision: c1899de289a04d12100db370d81485cdf75e47ca
     tokenizer_revision: c1899de289a04d12100db370d81485cdf75e47ca
-    dtype: bfloat16
+    dtype: auto
     # QLoRA: NF4 weights + double quantization. Measured on an RTX 4080 this
     # costs ~20% decode throughput versus bf16 LoRA and saves ~0.3 GiB on a
     # 0.6B student -- the win only matters once the teacher grows. Both
@@ -58,7 +64,7 @@ models:
     model_id: Qwen/Qwen3-1.7B
     revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
     tokenizer_revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
-    dtype: bfloat16            # a bf16 1.7B teacher is ~4.1 GiB; it fits
+    dtype: auto                # bf16 when supported; fp16 on older CUDA cards
     quantization: none
     attn_implementation: sdpa
     mode: standard

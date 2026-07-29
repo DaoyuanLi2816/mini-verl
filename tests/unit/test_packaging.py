@@ -284,12 +284,41 @@ def test_published_gpu_visualization_matches_its_source_result():
         "DIAGNOSTIC CONTROLS · INTENTIONALLY PROTOCOL-INCOMPATIBLE TEACHERS"
     )
     assert "\ufffd" not in visible_text
+    grid_lines = [
+        element
+        for element in root.findall("svg:line", namespace)
+        if element.attrib.get("class") == "grid"
+    ]
+    axis_labels = [
+        element
+        for element in root.findall("svg:text", namespace)
+        if element.attrib.get("class") == "axis"
+    ]
+    assert grid_lines and axis_labels
+    assert min(float(line.attrib["y1"]) for line in grid_lines) > max(
+        float(label.attrib["y"]) for label in axis_labels
+    )
+    assert 'fill="url(#background)"' in svg_path.read_text(encoding="utf-8")
 
     from miniverl.evaluation.schema import BenchmarkResult
     from scripts.publish_benchmark_artifacts import render_svg
 
     result = BenchmarkResult.model_validate(document)
     assert svg_path.read_text(encoding="utf-8") == render_svg(result, digest)
+
+
+def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
+    banner = (REPO_ROOT / "docs" / "banner.svg").read_text(encoding="utf-8")
+    assert "PERSONAL SINGLE-GPU TRAINING" in banner
+    assert "GPU adaptive" in banner
+    assert "16 GB first" not in banner
+    ET.fromstring(banner)
+
+    pypi_url = "https://pypi.org/project/miniverl/"
+    for readme in ("README.md", "README.zh-CN.md"):
+        text = (REPO_ROOT / readme).read_text(encoding="utf-8")
+        assert text.count(pypi_url) >= 2
+        assert "docs/single-gpu-guide.md" in text
 
 
 def test_the_committed_json_schema_matches_the_pydantic_model():
