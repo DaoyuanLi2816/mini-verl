@@ -206,7 +206,19 @@ jobs:
           VERSION="${VERSION#v}"
           python -m venv release-verify
           release-verify/bin/python -m pip install --upgrade pip
-          release-verify/bin/python -m pip install --no-cache-dir "miniverl==$VERSION"
+          for attempt in {1..12}; do
+            if release-verify/bin/python -m pip install \
+              --no-cache-dir --index-url https://pypi.org/simple \
+              "miniverl==$VERSION"; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "public simple index did not expose miniverl==$VERSION"
+              exit 1
+            fi
+            echo "public simple index is still propagating; retrying in 10 seconds"
+            sleep 10
+          done
           test "$(release-verify/bin/miniverl --version)" = "miniverl $VERSION"
           release-verify/bin/miniverl doctor --json > doctor.json
           release-verify/bin/python - <<'PY'
