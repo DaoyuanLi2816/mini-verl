@@ -10,10 +10,10 @@ Two implementations satisfy :class:`~miniverl.agent.transcript.TokenizerLike`:
 :class:`HFTokenizerAdapter`
     A thin wrapper over a Hugging Face fast tokenizer.
 
-Both expose a ``fingerprint``: a behavioural hash that changes if and only if
-the tokenizer would tokenize differently.  Trajectories, caches and alignment
-maps all carry it, so a mismatched pair is rejected instead of quietly
-producing garbage targets.
+Both expose a structural identity and a legacy behavioural fingerprint.  The
+fingerprint hashes one fixed probe and can detect many, but not all, behavioural
+differences.  Trajectories, caches and alignment maps carry tokenizer identity,
+so a known mismatch is rejected instead of quietly producing garbage targets.
 """
 
 from __future__ import annotations
@@ -174,12 +174,49 @@ def tokenizer_structural_digest(tokenizer: Any) -> str:
     update("tokenizer_class", type(tokenizer).__name__)
     backend = getattr(tokenizer, "backend_tokenizer", None)
     backend_to_str = getattr(backend, "to_str", None)
+    backend_description = backend_to_str() if callable(backend_to_str) else None
+    if isinstance(backend_description, str):
+        try:
+            parsed_backend = json.loads(backend_description)
+        except json.JSONDecodeError:
+            parsed_backend = backend_description
+        backend_description = parsed_backend
+    update("backend_tokenizer", _canonicalize_tokenizer_structure(backend_description))
     update(
-        "backend_tokenizer",
-        backend_to_str() if callable(backend_to_str) else None,
+        "tokenizer_config",
+        _canonicalize_tokenizer_structure(getattr(tokenizer, "init_kwargs", {})),
     )
-    update("tokenizer_config", getattr(tokenizer, "init_kwargs", {}))
     return digest.hexdigest()
+
+
+_NON_STRUCTURAL_TOKENIZER_KEYS = frozenset(
+    {
+        "added_tokens_file",
+        "cache_dir",
+        "chat_template_file",
+        "merges_file",
+        "name_or_path",
+        "special_tokens_map_file",
+        "tokenizer_config_file",
+        "tokenizer_file",
+        "vocab_file",
+    }
+)
+
+
+def _canonicalize_tokenizer_structure(value: Any) -> Any:
+    """Remove source-location metadata while preserving tokenizer behaviour."""
+    if isinstance(value, dict):
+        return {
+            str(key): _canonicalize_tokenizer_structure(item)
+            for key, item in value.items()
+            if str(key) not in _NON_STRUCTURAL_TOKENIZER_KEYS
+        }
+    if isinstance(value, (list, tuple)):
+        return [_canonicalize_tokenizer_structure(item) for item in value]
+    if isinstance(value, set):
+        return sorted(_canonicalize_tokenizer_structure(item) for item in value)
+    return value
 
 
 class ToyTokenizer:
@@ -388,7 +425,7 @@ class HFTokenizerAdapter:
 
 
 def assert_same_tokenizer(student: Any, teacher: Any) -> None:
-    """Raise unless the two adapters have identical fingerprints."""
+    """Raise unless structural identity, or the legacy fallback, matches."""
     student_identity = getattr(student, "identity", {})
     teacher_identity = getattr(teacher, "identity", {})
     student_structural = student_identity.get("structural_digest_v2")

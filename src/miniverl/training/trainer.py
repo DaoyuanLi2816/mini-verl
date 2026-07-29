@@ -24,6 +24,7 @@ from __future__ import annotations
 import gc
 import hashlib
 import random
+import shutil
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -461,7 +462,7 @@ class OPDTrainer:
                     next_cycle=trainer._start_cycle,
                 )
             return trainer
-        except BaseException:
+        except BaseException as construction_error:
             # Construction owns every resource it has allocated. Teardown errors
             # are logged because the construction failure is the actionable root
             # cause and must retain its original traceback.
@@ -509,6 +510,35 @@ class OPDTrainer:
                         "allocator cleanup after trainer construction failure: %s",
                         cleanup_error,
                     )
+            if write_artifacts and resume_options == 0 and paths.root.exists():
+                try:
+                    shutil.rmtree(paths.root)
+                except BaseException as cleanup_error:
+                    logger.warning(
+                        "run-directory cleanup after trainer construction failure: %s",
+                        cleanup_error,
+                    )
+                    failed_manifest = {
+                        "manifest_schema_version": 2,
+                        "status": "failed_construction",
+                        "run_id": resolved_id,
+                        "failed_at": utc_now(),
+                        "failure": {
+                            "type": type(construction_error).__name__,
+                            "message": str(construction_error),
+                        },
+                        "cleanup_failure": {
+                            "type": type(cleanup_error).__name__,
+                            "message": str(cleanup_error),
+                        },
+                    }
+                    try:
+                        write_json_atomic(paths.manifest, failed_manifest)
+                    except BaseException as manifest_error:
+                        logger.warning(
+                            "failed-construction manifest cleanup fallback failed: %s",
+                            manifest_error,
+                        )
             raise
 
     def _write_startup_artifacts(self) -> None:

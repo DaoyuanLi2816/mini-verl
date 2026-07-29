@@ -1,6 +1,6 @@
 # Bring your own GPU
 
-miniVERL is a **personal single-GPU** training stack. It has no GPU model
+miniVERL is a **single-GPU CUDA LLM post-training** stack. It has no GPU model
 allowlist and no multi-GPU launcher: one process uses one CUDA device, while
 the model pair and sequence budget determine whether a recipe fits.
 
@@ -18,14 +18,21 @@ RTX 4080. Its portable defaults are:
 
 ## Start here
 
-Install the training stack and the CUDA quantization backend:
+First use the [PyTorch install selector](https://pytorch.org/get-started/locally/)
+to install the wheel matching your CUDA driver. The measured stack used the
+following channel; choose a different supported channel when your system needs
+one:
 
 ```bash
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
 python -m pip install "miniverl[train,cuda]"
 miniverl doctor
 miniverl validate recipes/qwen_consumer_gpu_calc.yaml
 miniverl train recipes/qwen_consumer_gpu_calc.yaml --dry-run
 ```
+
+The `train,cuda` extra adds the training and quantization dependencies; it does
+not select a CUDA-enabled PyTorch build on its own.
 
 Then watch free memory in another terminal before the real run:
 
@@ -45,7 +52,7 @@ These are starting points, not benchmark claims:
 
 | Your card | Sensible first move | Evidence status |
 | --- | --- | --- |
-| 8–12 GiB, such as an RTX 3070 or Titan V | Try the shipped pair, but be ready to shorten token budgets or select a smaller teacher. Keep `dtype: auto`; Titan V-class hardware resolves to fp16 because it has no bf16 path. | Supported by model-agnostic code paths; not measured in this repository |
+| 8–12 GiB, such as an RTX 3070 or Titan V | Try the shipped pair, but be ready to shorten token budgets or select a smaller teacher. Keep `dtype: auto`; Titan V-class hardware resolves to fp16 because it has no bf16 path. | Supported by the device-name-agnostic CUDA path; not measured in this repository |
 | 16–24 GiB | Start with the shipped recipe unchanged. Increase budgets only after recording a successful baseline. | The exact default pair is measured on one RTX 4080 16 GiB |
 | 24–32+ GiB, such as RTX 3090/4090/5090-class cards | Use the same recipe first; extra headroom can support longer contexts, larger models, or less quantization. Change one variable at a time. | Expected from the same single-device path; not measured here |
 

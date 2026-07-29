@@ -21,22 +21,21 @@ code rather than documented and hoped for:
 
 - `miniverl.models.factory.build_tokenizer` returns **one** tokenizer object,
   which both backends then share. When the teacher declares a different
-  tokenizer id, that tokenizer is loaded and its behavioural fingerprint is
-  compared against the student's; any difference raises
-  `TokenizerMismatchError` before a single weight is downloaded.
+  tokenizer id, that tokenizer is loaded and
+  `miniverl.models.tokenizers.assert_same_tokenizer` is called before either
+  model is constructed. New runs compare structural identity first; any
+  difference raises `TokenizerMismatchError`.
 - `miniverl.trajectory.alignment.build_alignment_map` and
   `miniverl.teachers.local.LocalTeacherScorer.score` both re-check the
   fingerprint on the teacher render used by `privileged_context` mode.
 
-`miniverl.models.tokenizers.assert_same_tokenizer` also exists, but it has no
-call sites in `src/` or `tests/` and is not in the module's `__all__`. Do not
-rely on it; the two checks above are the ones that run.
-
-The fingerprint is a SHA-256 over the tokenizer class name, `len(tokenizer)`,
-the EOS and PAD ids, the sorted additional special tokens, and the token ids
-produced for a fixed probe string containing chat and tool markup
-(`miniverl.models.tokenizers.PROBE_TEXT`). Two tokenizers that agree on
-metadata but disagree on the probe are still rejected.
+Structural identity hashes the full vocabulary, added vocabulary, special-token
+map, backend tokenizer and behaviour-relevant tokenizer configuration. Local
+source paths are canonicalized away. The legacy fingerprint is a SHA-256 over
+the tokenizer class, length, special-token metadata and token ids produced for
+one fixed string (`miniverl.models.tokenizers.PROBE_TEXT`). It remains a
+compatibility fallback when an old artifact has no structural digest; agreement
+on that probe is not proof that two tokenizer structures are identical.
 
 The reason is structural, not incidental. A bucketed teacher target is a set of
 vocabulary **indices** plus log-probabilities; the student gathers its own

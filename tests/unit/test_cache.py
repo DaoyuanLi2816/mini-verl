@@ -281,6 +281,52 @@ def test_cache_identity_includes_teacher_adapter_provenance(tmp_path: Path) -> N
         )
 
 
+@pytest.mark.parametrize(
+    ("tokenizer_identity", "adapter_provenance", "unverified_component"),
+    [
+        ({"structural_digest_v2": "e" * 64}, None, "structural tokenizer identity"),
+        (
+            {},
+            {
+                "source": "hub",
+                "identity": "owner/adapter",
+                "revision": "a" * 40,
+            },
+            "teacher adapter provenance",
+        ),
+    ],
+)
+def test_schema_v1_cache_is_rejected_when_current_identity_cannot_be_verified(
+    tmp_path: Path,
+    tokenizer_identity: dict[str, object],
+    adapter_provenance: dict[str, object] | None,
+    unverified_component: str,
+) -> None:
+    cache_path = tmp_path / "tc"
+    _cache(cache_path)
+    index_path = cache_path / "index.json"
+    payload = json.loads(index_path.read_text(encoding="utf-8"))
+    payload["schema_version"] = 1
+    payload.pop("tokenizer_identity")
+    payload.pop("teacher_adapter_provenance")
+    index_path.write_text(json.dumps(payload), encoding="utf-8")
+    legacy_cache = TeacherCache.open(cache_path)
+
+    with pytest.raises(StaleCacheError, match=unverified_component):
+        legacy_cache.assert_compatible(
+            teacher_model_id="toy-teacher",
+            teacher_model_revision="rev-abc",
+            tokenizer_fingerprint="fp-1234",
+            tokenizer_identity=tokenizer_identity,
+            teacher_adapter_provenance=adapter_provenance,
+            vocab_size=VOCAB,
+            top_k=TOP_K,
+            temperature=1.0,
+            loss_mode="bucketed_topk_tail",
+            dtype="float32",
+        )
+
+
 def test_sharding_is_deterministic_and_index_stays_consistent(tmp_path: Path):
     cache = _cache(tmp_path / "tc", entries_per_shard=2)
     for i in range(5):
@@ -297,6 +343,58 @@ def test_sharding_is_deterministic_and_index_stays_consistent(tmp_path: Path):
     for entry in cache.index.entries.values():
         assert entry.shard in cache.index.shards
     assert cache.validate() == []
+
+
+def test_shard_is_written_to_a_temporary_name_before_publication(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import safetensors.torch as safetensors_torch
+
+    cache = _cache(tmp_path / "tc", entries_per_shard=8)
+    cache.write(_batch("t0"), selector="hybrid")
+    real_save_file = safetensors_torch.save_file
+    save_targets: list[Path] = []
+
+    def tracking_save_file(tensors, filename, *, metadata):  # type: ignore[no-untyped-def]
+        save_targets.append(Path(filename))
+        return real_save_file(tensors, filename, metadata=metadata)
+
+    monkeypatch.setattr(safetensors_torch, "save_file", tracking_save_file)
+    cache.flush()
+
+    assert len(save_targets) == 1
+    assert save_targets[0].name.startswith(".shard-00000.safetensors.tmp-")
+    assert (tmp_path / "tc" / "shard-00000.safetensors").is_file()
+    assert not list((tmp_path / "tc").glob(".*.tmp-*"))
+
+
+def test_failed_atomic_index_publication_keeps_the_previous_index_retriable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import miniverl.cache.store as store_module
+
+    cache_path = tmp_path / "tc"
+    cache = _cache(cache_path, entries_per_shard=8)
+    cache.write(_batch("t0"), selector="hybrid")
+    index_path = cache_path / "index.json"
+    original_index = index_path.read_bytes()
+    real_write_json_atomic = store_module.write_json_atomic
+
+    def fail_index_publication(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise OSError("injected atomic index replacement failure")
+
+    monkeypatch.setattr(store_module, "write_json_atomic", fail_index_publication)
+    with pytest.raises(OSError, match="injected atomic index"):
+        cache.flush()
+
+    assert index_path.read_bytes() == original_index
+    assert cache._pending_order == ["t0"]
+    assert len(TeacherCache.open(cache_path)) == 0
+    assert not list(cache_path.glob(".*.tmp-*"))
+
+    monkeypatch.setattr(store_module, "write_json_atomic", real_write_json_atomic)
+    cache.flush()
+    assert len(TeacherCache.open(cache_path)) == 1
 
 
 def test_reopening_a_cache_validates_it(tmp_path: Path):

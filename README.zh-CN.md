@@ -74,7 +74,7 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 压缩的 `top-k + tail` KL / JSD | 支持；未平滑粗粒化与精确散度的下界关系有严格证明 |
 | 特权上下文教师模式，带显式对齐表 | 支持 |
 | 标准冻结 PEFT 教师适配器，带来源记录与能力门禁 | 支持 |
-| 自动选择 bf16/fp16 的单卡 CUDA 路径 | 支持；代码路径不绑定型号，实测参考为 RTX 4080 |
+| 自动选择 bf16/fp16 的单卡 CUDA 路径 | 支持；CUDA 路径不绑定设备名称，实测参考为 RTX 4080 |
 | `resident` / `swap` 显存策略与 `auto` 解析 | 支持，并有等价性测试 |
 | 带版本号与校验和、完全不用 pickle 的教师目标缓存 | 支持 |
 | SFT / 离线 KD / 严格 OPD / 显式标注 replay 统一在一个 trainer 中 | 支持 |
@@ -101,25 +101,31 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 
 [公开且固定版本的协议教师适配器](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
 现在是单卡配方的默认教师。它在下游 benchmark 被查看之前，已经通过
-预先指定、独立评估的策略能力门槛。两个负对照故意去掉了这个保证：loss 正常
-下降，但教师把不兼容的工具策略教给了学生。这是实测的教师能力问题，不是
-trainer 崩溃。
+预先指定的能力门槛。两个负对照均正常完成且两个种子都是 0%；它们不是配置
+失败或崩溃。两者使用含歧义的历史 protocol-v1 prompt，故不能把 0% 只归因
+于教师内在行为；它诊断的是该设置缺少资格门禁。
 
-OPD 在这里仍然只是追平 SFT，而且平均训练时间约为 SFT 的 6 倍
-（523.8 秒对 86.4 秒）。任务已经饱和；两个种子不足以支持显著性结论，也不
-构成 OPD 普遍更优的证据。完整结果和旧实验的逐轨迹诊断见
+OPD 在这里仍然只是追平 SFT，继续训练耗时是 SFT 的 6.1 倍（523.8 秒对
+86.4 秒）。任务已经饱和；两个种子既不支持显著性结论，也不构成 OPD
+普遍更优的证据。完整结果和旧实验的逐轨迹诊断见
 [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)。
 
 ![双种子协议教师对照](docs/gpu-calc-hard-equal-update-v2.svg)
 
-更早的一次 RTX 4080 流水线 smoke 运行使用了现在保留的
-[原始教师对照配方](recipes/qwen_consumer_gpu_calc_raw_teacher.yaml)，用
-**Qwen3-1.7B** 蒸馏 **Qwen3-0.6B**，耗时 **481 秒 / 16 个优化步**，显存峰值为
-**4.25 GiB 已分配 / 4.76 GiB 已保留**，并在 12 个留出任务上把贪心成功率
-从 **0.0% 提升到 100.0%**。其中 8 个 cycle 的监督冷启动完成了大部分工作：
-第一批 OPD rollout 已经达到 83.3%。它证明流水线能端到端运行，而不是证明
-OPD 优于 SFT。所有数字都可追溯到
-[`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)。
+| 产物 | 定位 |
+| --- | --- |
+| [默认配方](recipes/qwen_consumer_gpu_calc.yaml) | 协议合格 |
+| [Schema-v2 结果](benchmarks/results/gpu-calc-hard-equal-update-v2.json) | 冻结五臂对照 |
+| [Raw-teacher](recipes/qwen_consumer_gpu_calc_raw_teacher.yaml) | 历史对照；非默认 |
+
+<details>
+<summary>481 秒 smoke（v1）</summary>
+
+16 步 481 秒，峰值 **4.25/4.76 GiB 已分配/保留**，12 题
+从 **0% 到 100%**。冷启动完成了大部分工作（首批 OPD：83.3%）；这证明
+流水线，而非 OPD 优于 SFT。[追溯](docs/rtx4080-baselines.md)。
+
+</details>
 
 ## 本地玩具演示
 
@@ -175,10 +181,9 @@ tokens by span type (only assistant_* can enter the loss)
 
 ## 个人单卡快速上手
 
-默认配方使用 `device: auto` 与 `dtype: auto`：支持 bf16 的显卡自动使用 bf16，
-Titan V 等较老 CUDA 显卡自动使用 fp16。RTX 3070、Titan V、RTX 4080 和
-RTX 5090 级别显卡都走同一条代码路径；本仓库目前只有 RTX 4080 的实测结果。
-能否装下取决于显存、模型大小、驱动和 token 预算，而不是显卡的商品名。修改配方前请阅读
+默认 `device: auto` / `dtype: auto`：新卡用 bf16，Titan V 等旧卡用 fp16。
+RTX 3070、Titan V、RTX 4080、RTX 5090 走同一 CUDA 路径，但仅 4080 有实测。
+能否装下取决于显存、模型、驱动和 token 预算。修改前请阅读
 [`单卡适配指南`](docs/single-gpu-guide.md)。
 
 ```bash
@@ -201,7 +206,7 @@ miniverl report   runs/<run-id> --out runs/<run-id>/report.html
 | 学生 | `Qwen/Qwen3-0.6B` | `c1899de289a04d12100db370d81485cdf75e47ca` | Apache-2.0 |
 | 教师 | `Qwen/Qwen3-1.7B` | `70d244cc86ccca08cf5af4e1e306ecf908b1ad5e` | Apache-2.0 |
 
-两者的 `tokenizer.json` **逐字节相同**（`sha256 aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`），这正是"同一分词器"契约成立的依据。miniVERL 在加载时用行为指纹核对，不一致就直接报错退出。
+两者的 `tokenizer.json` **逐字节相同**（`sha256 aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`）。新运行首查结构身份；旧产物回退到固定探针行为指纹。
 
 配方还把[协议教师适配器](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
 锁定在 revision `23323751318135484c06c043b1f9b9e7016dd89f`，并在分配教师模型
