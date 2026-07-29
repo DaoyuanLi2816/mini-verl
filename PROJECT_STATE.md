@@ -283,7 +283,8 @@ whitelist), two statements in one call.
 
 ### Real hardware
 
-* **Full recipe**, `recipes/qwen_consumer_gpu_calc.yaml`, run id
+* **Historical raw-teacher recipe**,
+  `recipes/qwen_consumer_gpu_calc_raw_teacher.yaml`, run id
   `rtx4080-calc-opd`: 16 optimizer steps in **481.1 s**; held-out greedy success
   **0.0% -> 100.0%** on 12 tasks. The 8-cycle SFT cold start did most of that:
   the first OPD rollout batch already scored 83.3%.

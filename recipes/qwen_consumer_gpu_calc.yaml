@@ -1,5 +1,5 @@
-# miniVERL 16 GB recipe: on-policy distillation of Qwen3-0.6B from Qwen3-1.7B
-# on the calculator environment, on a single consumer GPU.
+# miniVERL supported 16 GB recipe: on-policy distillation of Qwen3-0.6B from a
+# protocol-aligned Qwen3-1.7B teacher on one consumer GPU.
 #
 # Verified facts about this model pair (checked against the Hugging Face API on
 # 2026-07-27, and re-checkable with the commands in docs/reproducibility.md):
@@ -9,27 +9,28 @@
 #   * vocab_size 151936, tokenizer_class Qwen2Tokenizer, tie_word_embeddings true;
 #   * Qwen3 needs transformers >= 4.51.
 #
-# The revisions below are pinned. miniVERL records them in manifest.json, and
-# `miniverl train` will fail loudly rather than silently resolve to a moved main.
+# The model and adapter revisions below are pinned. The teacher adapter passed
+# an independent 100% strict tool-policy evaluation before the downstream OPD
+# result was inspected. miniVERL checks that competence record before loading.
 #
 #   miniverl doctor
 #   miniverl validate recipes/qwen_consumer_gpu_calc.yaml
 #   miniverl train    recipes/qwen_consumer_gpu_calc.yaml --dry-run
 #   miniverl train    recipes/qwen_consumer_gpu_calc.yaml
 #
-# Measured peak VRAM on an RTX 4080 (16 GB) is recorded in
-# docs/rtx4080-baselines.md. Do not trust any number in this comment block that
-# is not also in that file.
+# Measured base-pair memory and the two-seed protocol-teacher comparison are in
+# docs/rtx4080-baselines.md. The historical protocol-naive recipe is preserved
+# separately as qwen_consumer_gpu_calc_raw_teacher.yaml.
 
 schema_version: 1
 
 run:
-  name: qwen3-calc-opd-4080
+  name: qwen3-calc-opd-protocol-4080
   mode: opd
   seed: 1234
   output_dir: runs
   deterministic: true
-  tags: [consumer-gpu, rtx4080, qwen3, calculator]
+  tags: [consumer-gpu, rtx4080, qwen3, calculator, protocol-teacher]
 
 models:
   backend: hf
@@ -61,6 +62,12 @@ models:
     quantization: none
     attn_implementation: sdpa
     mode: standard
+    adapter:
+      source: hub
+      path: DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher
+      revision: 23323751318135484c06c043b1f9b9e7016dd89f
+      require_policy_evaluation: true
+      minimum_strict_success_rate: 0.5
 
 environment:
   name: calculator

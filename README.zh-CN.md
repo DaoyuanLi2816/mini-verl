@@ -21,10 +21,15 @@ miniVERL 是一个紧凑、可审计的训练实验室，让小型语言模型�
 的位置使用教师分布目标——不需要 Ray、GPU 集群或 40 GB 显存的加速卡。
 
 ```bash
-python -m pip install "miniverl[train]"
+python -m pip install miniverl            # 轻量核心层
 miniverl doctor
+python -m pip install "miniverl[train]"   # 添加本地训练依赖
 miniverl demo --output runs/demo        # 无需联网、无需 GPU，笔记本 CPU 上约 50 秒
 ```
+
+基础安装是不含 torch 的核心层（`doctor`、`validate`、`inspect`、`report`、
+schema 与 Python API）。`train` extra 会添加 torch、Transformers 与 PEFT，
+因为 `demo` 会执行真实优化。
 
 **它让三件事可以被检查**
 
@@ -34,7 +39,7 @@ miniverl demo --output runs/demo        # 无需联网、无需 GPU，笔记本 
 
 [运行本地 demo](#本地玩具演示) ·
 [在消费级 GPU 上训练](#消费级-gpu-快速上手) ·
-[查看实测结果](#实测结果协议对齐避免崩溃) ·
+[查看实测结果](#实测结果协议对齐的-opd-追平-sft) ·
 [阅读数学说明](docs/math.md)
 
 ## 为什么需要 miniVERL
@@ -67,31 +72,38 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 完全自包含、可离线打开的 HTML 报告 | 支持 |
 | Ray、FSDP、DeepSpeed、vLLM、VLM、跨词表、PPO/GRPO | **不支持**，见[局限](docs/limitations.md) |
 
-## 实测结果：协议对齐避免崩溃
+## 实测结果：协议对齐的 OPD 追平 SFT
 
 > [!IMPORTANT]
-> **协议对齐避免了已经观察到的 OPD 崩溃，但在这里没有超过监督微调。**
+> **受支持的协议对齐 OPD 在两个种子上都达到 100%，与继续 SFT 持平。**
 > 主要的 schema-v2 对照使用两个预先指定的种子、相同的优化步数，以及已经
-> 饱和的 `hard` 计算器划分：
+> 饱和的 `hard` 计算器划分。两个不懂工具协议的实验臂是诊断性负对照，
+> 不是推荐配置：
 
-| 实验臂 | seed 1234 | seed 20260727 |
-| --- | ---: | ---: |
-| 冷启动 | 75.0% | 75.0% |
-| 原始教师 OPD | 0.0% | 0.0% |
-| 特权上下文教师 OPD | 0.0% | 0.0% |
-| 协议教师 OPD | **100.0%** | **100.0%** |
-| 继续 SFT | **100.0%** | **100.0%** |
+| 角色 | 实验臂 | seed 1234 | seed 20260727 |
+| --- | --- | ---: | ---: |
+| 起点 | 冷启动 | 75.0% | 75.0% |
+| 基线 | 继续 SFT | **100.0%** | **100.0%** |
+| 受支持的 OPD | 协议对齐教师 | **100.0%** | **100.0%** |
+| 诊断对照 | 未经工具协议训练的原始教师 | 0.0% | 0.0% |
+| 诊断对照 | 获知答案但不懂协议的教师 | 0.0% | 0.0% |
 
 [公开且固定版本的协议教师适配器](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
-避免了协议不匹配监督造成的崩溃，但 OPD 只追平 SFT，而且这里的平均训练时间
-约为 SFT 的 6 倍（523.8 秒对 86.4 秒）。任务已经饱和；两个种子不足以支持
-显著性结论，也不构成 OPD 普遍更优的证据。完整结果和旧实验的逐轨迹诊断见
+现在是消费级 GPU 配方的默认教师。它在下游 benchmark 被查看之前，已经通过
+预先指定、独立评估的策略能力门槛。两个负对照故意去掉了这个保证：loss 正常
+下降，但教师把不兼容的工具策略教给了学生。这是实测的教师能力问题，不是
+trainer 崩溃。
+
+OPD 在这里仍然只是追平 SFT，而且平均训练时间约为 SFT 的 6 倍
+（523.8 秒对 86.4 秒）。任务已经饱和；两个种子不足以支持显著性结论，也不
+构成 OPD 普遍更优的证据。完整结果和旧实验的逐轨迹诊断见
 [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)。
 
 ![双种子协议教师对照](docs/gpu-calc-hard-equal-update-v2.svg)
 
-更早的一次 RTX 4080 流水线 smoke 运行用 **Qwen3-1.7B** 蒸馏
-**Qwen3-0.6B**，耗时 **481 秒 / 16 个优化步**，显存峰值为
+更早的一次 RTX 4080 流水线 smoke 运行使用了现在保留的
+[原始教师对照配方](recipes/qwen_consumer_gpu_calc_raw_teacher.yaml)，用
+**Qwen3-1.7B** 蒸馏 **Qwen3-0.6B**，耗时 **481 秒 / 16 个优化步**，显存峰值为
 **4.25 GiB 已分配 / 4.76 GiB 已保留**，并在 12 个留出任务上把贪心成功率
 从 **0.0% 提升到 100.0%**。其中 8 个 cycle 的监督冷启动完成了大部分工作：
 第一批 OPD rollout 已经达到 83.3%。它证明流水线能端到端运行，而不是证明
@@ -172,6 +184,10 @@ miniverl report   runs/<run-id> --out runs/<run-id>/report.html
 | 教师 | `Qwen/Qwen3-1.7B` | `70d244cc86ccca08cf5af4e1e306ecf908b1ad5e` | Apache-2.0 |
 
 两者的 `tokenizer.json` **逐字节相同**（`sha256 aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`），这正是"同一分词器"契约成立的依据。miniVERL 在加载时用行为指纹核对，不一致就直接报错退出。
+
+配方还把[协议教师适配器](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
+锁定在 revision `23323751318135484c06c043b1f9b9e7016dd89f`，并在分配教师模型
+之前要求其已记录的严格策略成功率至少达到 50%。
 
 ## 精确 vs. top-k + tail
 

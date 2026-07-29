@@ -28,7 +28,7 @@ description: >-
   fine-tuning and on-policy distillation from raw, privileged-answer and
   protocol-SFT Qwen3-1.7B teachers on the chained calculator split.
 
-base: ../../recipes/qwen_consumer_gpu_calc.yaml
+base: ../../recipes/qwen_consumer_gpu_calc_raw_teacher.yaml
 common_overrides:
   environment: {difficulty: hard, test_tasks: 24}
   train:

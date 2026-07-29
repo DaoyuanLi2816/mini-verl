@@ -314,7 +314,8 @@ miniverl benchmark benchmarks/configs/gpu_calc_hard.yaml \
 ```
 
 `benchmarks/configs/gpu_calc_hard.yaml` is the GPU counterpart: it uses
-`recipes/qwen_consumer_gpu_calc.yaml` as its base, 12 cold-start cycles, the
+`recipes/qwen_consumer_gpu_calc_raw_teacher.yaml` as its historical-control
+base, 12 cold-start cycles, the
 `test` split, `difficulty: hard`, two prespecified seeds, and five arms:
 `cold-start-only`, `sft-continued`, `opd-raw-teacher`,
 `opd-privileged-context` and `opd-protocol-sft-teacher`. The final arm is gated
@@ -560,7 +561,8 @@ them in prose.
 ### Attributing a cold start's gains to the method
 
 This one is not hypothetical. On the one measured 16 GB run of
-`recipes/qwen_consumer_gpu_calc.yaml` (run id `rtx4080-calc-opd`), held-out
+`recipes/qwen_consumer_gpu_calc_raw_teacher.yaml` (run id
+`rtx4080-calc-opd`), held-out
 greedy evaluation on 12 calculator tasks went from 0.0 percent to 100.0 percent
 across 16 optimizer steps in 481.1 s. The 8-cycle SFT cold start did most of
 that work: the first OPD rollout batch already scored 83.3 percent. That run

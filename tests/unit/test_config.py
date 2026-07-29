@@ -31,6 +31,7 @@ from pydantic import ValidationError
 
 from miniverl.config.models import (
     CONFIG_SCHEMA_VERSION,
+    AdapterSource,
     Divergence,
     LossMode,
     LRSchedule,
@@ -134,6 +135,23 @@ def test_every_run_recipe_validates(path: Path) -> None:
 def test_run_recipe_fields_match_the_yaml_leaf_for_leaf(path: Path) -> None:
     config = RunConfig.from_yaml(path)
     _assert_same_leaves(_read_raw(path), config.model_dump(mode="json"))
+
+
+def test_consumer_gpu_quickstart_uses_competence_gated_protocol_teacher() -> None:
+    supported = RunConfig.from_yaml(RECIPES_DIR / "qwen_consumer_gpu_calc.yaml")
+    raw_control = RunConfig.from_yaml(RECIPES_DIR / "qwen_consumer_gpu_calc_raw_teacher.yaml")
+
+    adapter = supported.models.teacher.adapter
+    assert adapter is not None
+    assert adapter.source is AdapterSource.HUB
+    assert adapter.path == "DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher"
+    assert adapter.revision == "23323751318135484c06c043b1f9b9e7016dd89f"
+    assert adapter.require_policy_evaluation is True
+    assert adapter.minimum_strict_success_rate == pytest.approx(0.5)
+
+    assert supported.models.student.model_id == raw_control.models.student.model_id
+    assert supported.models.teacher.model_id == raw_control.models.teacher.model_id
+    assert raw_control.models.teacher.adapter is None
 
 
 def test_toy_cpu_recipe_is_parsed_into_the_expected_typed_values() -> None:

@@ -20,10 +20,15 @@ token provenance explicit, and applies teacher distributional targets only
 where they belong — without Ray, a GPU cluster, or a 40 GB accelerator.
 
 ```bash
-python -m pip install "miniverl[train]"
+python -m pip install miniverl            # lightweight core
 miniverl doctor
+python -m pip install "miniverl[train]"   # add the local training stack
 miniverl demo --output runs/demo        # no network, no GPU, ~50 s on a laptop CPU
 ```
+
+The base install is the torch-free core (`doctor`, `validate`, `inspect`,
+`report`, schemas and the Python API). The `train` extra adds torch,
+Transformers and PEFT because `demo` performs real optimization.
 
 **What it makes inspectable**
 
@@ -36,7 +41,7 @@ miniverl demo --output runs/demo        # no network, no GPU, ~50 s on a laptop 
 
 [Run the local demo](#local-toy-demo) ·
 [Train on a consumer GPU](#consumer-gpu-quickstart) ·
-[Inspect the measured result](#measured-result-protocol-alignment-prevents-collapse) ·
+[Inspect the measured result](#measured-result-protocol-aligned-opd-matches-sft) ·
 [Read the math](docs/math.md)
 
 ## Why miniVERL exists
@@ -78,33 +83,41 @@ keeps the whole thing on one 16 GB card.
 | Self-contained offline HTML report with token-level divergence | yes |
 | Ray, FSDP, DeepSpeed, vLLM, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](docs/limitations.md) |
 
-## Measured result: protocol alignment prevents collapse
+## Measured result: protocol-aligned OPD matches SFT
 
 > [!IMPORTANT]
-> **Protocol alignment prevents the observed OPD collapse, but does not beat
-> supervised fine-tuning here.** The primary schema-v2 comparison uses two
+> **The supported protocol-aligned OPD path reached 100% in both seeds and
+> matched continued SFT.** The primary schema-v2 comparison uses two
 > prespecified seeds, equal optimizer updates, and the saturated `hard`
-> calculator split:
+> calculator split. The protocol-naive rows are diagnostic negative controls,
+> not recommended configurations:
 
-| arm | seed 1234 | seed 20260727 |
-| --- | ---: | ---: |
-| cold start | 75.0% | 75.0% |
-| raw-teacher OPD | 0.0% | 0.0% |
-| privileged-teacher OPD | 0.0% | 0.0% |
-| protocol-teacher OPD | **100.0%** | **100.0%** |
-| continued SFT | **100.0%** | **100.0%** |
+| role | arm | seed 1234 | seed 20260727 |
+| --- | --- | ---: | ---: |
+| starting point | cold start | 75.0% | 75.0% |
+| baseline | continued SFT | **100.0%** | **100.0%** |
+| supported OPD | protocol-aligned teacher | **100.0%** | **100.0%** |
+| diagnostic control | raw teacher without tool-protocol training | 0.0% | 0.0% |
+| diagnostic control | answer-privileged, protocol-naive teacher | 0.0% | 0.0% |
 
 The [public, immutable protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
-prevents the collapse caused by protocol-naive supervision, but OPD ties SFT
-and takes about 6x as much training time here (523.8 s versus 86.4 s on
-average). The task saturates; two seeds do not support a significance claim,
-and no general OPD advantage is claimed. See the
+is the default in the consumer-GPU recipe. It passed an independently
+prespecified policy-competence gate before this benchmark was inspected. The
+two controls intentionally remove that guarantee: their loss decreased
+normally, but they taught the student an incompatible tool policy. This is a
+measured teacher-competence failure, not a trainer crash.
+
+OPD still only ties SFT and takes about 6x as much training time here
+(523.8 s versus 86.4 s on average). The task saturates; two seeds do not support
+a significance claim, and no general OPD advantage is claimed. See the
 [full result and legacy transcript diagnosis](docs/rtx4080-baselines.md).
 
 ![Two-seed protocol-teacher benchmark](docs/gpu-calc-hard-equal-update-v2.svg)
 
-An older RTX 4080 pipeline smoke run trained **Qwen3-0.6B** from
-**Qwen3-1.7B** in **481 s / 16 optimizer steps**, peaking at **4.25 GiB
+An older RTX 4080 pipeline smoke run used the now-preserved
+[raw-teacher control recipe](recipes/qwen_consumer_gpu_calc_raw_teacher.yaml)
+to train **Qwen3-0.6B** from **Qwen3-1.7B** in **481 s / 16 optimizer steps**,
+peaking at **4.25 GiB
 allocated / 4.76 GiB reserved**, and moved held-out greedy success from
 **0.0% to 100.0%** on 12 tasks. The 8-cycle supervised cold start did most of
 that work: the first OPD rollout batch already scored 83.3%. It demonstrates
@@ -201,7 +214,10 @@ The recipe pins both revisions:
 Their `tokenizer.json` files are byte-identical
 (`sha256 aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`),
 which is what makes the same-tokenizer contract hold. miniVERL verifies it at
-load time by behavioural fingerprint and refuses to run otherwise.
+load time by behavioural fingerprint and refuses to run otherwise. The recipe
+also pins the [protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
+at revision `23323751318135484c06c043b1f9b9e7016dd89f` and requires its recorded
+strict policy success to be at least 50% before allocating the teacher.
 
 ## Architecture
 
