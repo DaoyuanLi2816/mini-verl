@@ -1,72 +1,102 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 260" width="880" height="260" role="img"
-     aria-label="miniVERL - on-policy distillation for tool-using agents on one GPU">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 250" width="880" height="250"
+     role="img" aria-labelledby="banner-title banner-desc">
+  <title id="banner-title">miniVERL</title>
+  <desc id="banner-desc">A one-GPU lab for reliable on-policy distillation of tool-using agents.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#10141a"/>
-      <stop offset="55%" stop-color="#161c25"/>
-      <stop offset="100%" stop-color="#1d2530"/>
+      <stop offset="0%" stop-color="#080d1f"/>
+      <stop offset="52%" stop-color="#172554"/>
+      <stop offset="100%" stop-color="#312e81"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#5aa9f0"/>
-      <stop offset="100%" stop-color="#63c48d"/>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#67e8f9"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
     </linearGradient>
-    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6"
-            orient="auto-start-reverse">
-      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7d8794"/>
-    </marker>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity=".12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity=".055"/>
+    </linearGradient>
+    <filter id="blur">
+      <feGaussianBlur stdDeviation="34"/>
+    </filter>
   </defs>
 
-  <rect width="880" height="260" rx="14" fill="url(#bg)"/>
-  <rect x="0" y="0" width="880" height="3" rx="1.5" fill="url(#accent)"/>
+  <rect width="880" height="250" rx="18" fill="url(#bg)"/>
+  <circle cx="760" cy="14" r="118" fill="#7c3aed" opacity=".20" filter="url(#blur)"/>
+  <circle cx="390" cy="246" r="105" fill="#0891b2" opacity=".16" filter="url(#blur)"/>
+  <path d="M0 249 C190 207 307 266 472 225 S730 197 880 220 V250 H0Z"
+        fill="#38bdf8" opacity=".055"/>
+  <rect x=".75" y=".75" width="878.5" height="248.5" rx="17.25"
+        fill="none" stroke="#ffffff" stroke-opacity=".12" stroke-width="1.5"/>
 
-  <!-- wordmark -->
-  <text x="48" y="82" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-        font-size="46" font-weight="700" letter-spacing="-1.2" fill="#e8ecf1">mini<tspan
-        fill="#5aa9f0">VERL</tspan></text>
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif">
+    <text x="46" y="34" font-size="11" font-weight="700" letter-spacing="2.2" fill="#a5f3fc">
+      ONE-GPU OPD LAB
+    </text>
+    <text x="46" y="84" font-size="46" font-weight="780" letter-spacing="-1.8" fill="#f8fafc">
+      mini<tspan fill="url(#brand)">VERL</tspan>
+    </text>
+    <text x="46" y="113" font-size="17" font-weight="550" fill="#e2e8f0">
+      On-policy distillation for tool-using agents.
+    </text>
+    <text x="46" y="139" font-size="13" fill="#aebbd2">
+      Reproducible training, typed token provenance, and exact
+    </text>
+    <text x="46" y="158" font-size="13" fill="#aebbd2">
+      or budgeted divergence — without a cluster.
+    </text>
 
-  <text x="48" y="116" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
-        font-size="18" fill="#c3cbd6">On-policy distillation for tool-using agents on one GPU.</text>
+    <g font-size="11.5" font-weight="650">
+      <rect x="46" y="177" width="88" height="24" rx="12" fill="#22d3ee" fill-opacity=".13"
+            stroke="#67e8f9" stroke-opacity=".32"/>
+      <text x="90" y="193.5" text-anchor="middle" fill="#cffafe">strict OPD</text>
+      <rect x="143" y="177" width="102" height="24" rx="12" fill="#818cf8" fill-opacity=".14"
+            stroke="#a5b4fc" stroke-opacity=".32"/>
+      <text x="194" y="193.5" text-anchor="middle" fill="#e0e7ff">offline-safe</text>
+      <rect x="254" y="177" width="92" height="24" rx="12" fill="#a78bfa" fill-opacity=".14"
+            stroke="#c4b5fd" stroke-opacity=".32"/>
+      <text x="300" y="193.5" text-anchor="middle" fill="#ede9fe">16 GB first</text>
+    </g>
 
-  <text x="48" y="142" font-family="system-ui, -apple-system, Segoe UI, Roboto, sans-serif"
-        font-size="13" fill="#7d8794">A readable, reproducible, 16GB-first post-training lab for
-        exact and budgeted on-policy distillation.</text>
+    <rect x="46" y="211" width="300" height="25" rx="7" fill="#020617" fill-opacity=".64"
+          stroke="#94a3b8" stroke-opacity=".22"/>
+    <circle cx="61" cy="223.5" r="3" fill="#67e8f9"/>
+    <text x="72" y="228" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
+          font-size="11.5" fill="#dbeafe">pip install "miniverl[train]"</text>
 
-  <!-- pipeline schematic -->
-  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11.5">
-    <!-- student -->
-    <rect x="48" y="176" width="126" height="46" rx="8" fill="#1f2833" stroke="#33404f"/>
-    <text x="111" y="195" text-anchor="middle" fill="#e8ecf1">student pi_theta</text>
-    <text x="111" y="211" text-anchor="middle" fill="#7d8794">QLoRA, 16 GB</text>
+    <line x1="405" y1="28" x2="405" y2="222" stroke="#ffffff" stroke-opacity=".12"/>
 
-    <!-- env -->
-    <rect x="204" y="176" width="132" height="46" rx="8" fill="#1f2833" stroke="#33404f"/>
-    <text x="270" y="195" text-anchor="middle" fill="#e8ecf1">tools + verifier</text>
-    <text x="270" y="211" text-anchor="middle" fill="#7d8794">calc / json / sqlite</text>
+    <g>
+      <rect x="437" y="28" width="397" height="56" rx="12" fill="url(#card)"
+            stroke="#ffffff" stroke-opacity=".12"/>
+      <circle cx="467" cy="56" r="15" fill="#06b6d4" fill-opacity=".18"
+              stroke="#67e8f9" stroke-opacity=".44"/>
+      <path d="M461 56h12M467 50v12" stroke="#a5f3fc" stroke-width="1.8"
+            stroke-linecap="round"/>
+      <text x="494" y="51" font-size="14" font-weight="700" fill="#f8fafc">Sample</text>
+      <text x="494" y="70" font-size="12" fill="#b9c5d8">Student trajectories with real tool execution</text>
+    </g>
 
-    <!-- trajectory -->
-    <rect x="366" y="176" width="150" height="46" rx="8" fill="#1f2833" stroke="#33404f"/>
-    <text x="441" y="195" text-anchor="middle" fill="#e8ecf1">typed token spans</text>
-    <text x="441" y="211" text-anchor="middle" fill="#7d8794">tool output = context</text>
+    <g>
+      <rect x="437" y="97" width="397" height="56" rx="12" fill="url(#card)"
+            stroke="#ffffff" stroke-opacity=".12"/>
+      <circle cx="467" cy="125" r="15" fill="#6366f1" fill-opacity=".20"
+              stroke="#a5b4fc" stroke-opacity=".44"/>
+      <path d="M460 121h14M460 125h9M460 129h12" stroke="#c7d2fe" stroke-width="1.8"
+            stroke-linecap="round"/>
+      <text x="494" y="120" font-size="14" font-weight="700" fill="#f8fafc">Align</text>
+      <text x="494" y="139" font-size="12" fill="#b9c5d8">Typed spans keep tool output as context</text>
+    </g>
 
-    <!-- teacher -->
-    <rect x="546" y="176" width="134" height="46" rx="8" fill="#1f2833" stroke="#33404f"/>
-    <text x="613" y="195" text-anchor="middle" fill="#e8ecf1">teacher scores</text>
-    <text x="613" y="211" text-anchor="middle" fill="#7d8794">those exact states</text>
-
-    <!-- update -->
-    <rect x="710" y="176" width="122" height="46" rx="8" fill="#1f2833" stroke="#5aa9f0"/>
-    <text x="771" y="195" text-anchor="middle" fill="#e8ecf1">masked KL</text>
-    <text x="771" y="211" text-anchor="middle" fill="#7d8794">top-k + tail</text>
-
-    <line x1="176" y1="199" x2="200" y2="199" stroke="#7d8794" stroke-width="1.4" marker-end="url(#arrow)"/>
-    <line x1="338" y1="199" x2="362" y2="199" stroke="#7d8794" stroke-width="1.4" marker-end="url(#arrow)"/>
-    <line x1="518" y1="199" x2="542" y2="199" stroke="#7d8794" stroke-width="1.4" marker-end="url(#arrow)"/>
-    <line x1="682" y1="199" x2="706" y2="199" stroke="#7d8794" stroke-width="1.4" marker-end="url(#arrow)"/>
-
-    <!-- feedback edge -->
-    <path d="M 771 226 L 771 242 L 111 242 L 111 226" fill="none" stroke="#3d4a5a"
-          stroke-width="1.4" stroke-dasharray="4 4" marker-end="url(#arrow)"/>
-    <text x="441" y="255" text-anchor="middle" fill="#5b6674" font-size="10.5">policy version + 1;
-      the next batch is resampled from the updated student</text>
+    <g>
+      <rect x="437" y="166" width="397" height="56" rx="12" fill="url(#card)"
+            stroke="#ffffff" stroke-opacity=".12"/>
+      <circle cx="467" cy="194" r="15" fill="#8b5cf6" fill-opacity=".20"
+              stroke="#c4b5fd" stroke-opacity=".44"/>
+      <path d="M460 198l5-7 5 4 5-8" fill="none" stroke="#ddd6fe" stroke-width="1.8"
+            stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="494" y="189" font-size="14" font-weight="700" fill="#f8fafc">Distill</text>
+      <text x="494" y="208" font-size="12" fill="#b9c5d8">Exact or top-k KL on one consumer GPU</text>
+    </g>
   </g>
 </svg>
