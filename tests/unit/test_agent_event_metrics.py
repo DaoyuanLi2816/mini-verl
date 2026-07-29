@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from types import SimpleNamespace
 
 import pytest
 
@@ -14,25 +15,17 @@ from miniverl.environments.calculator import CalculatorEnvironment
 from miniverl.errors import ToolEnvironmentError
 from miniverl.models.base import GenerationOutput
 from miniverl.models.tokenizers import ToyTokenizer
-from miniverl.models.toy import ToyBackend
 from miniverl.schemas.trajectory import SpanType, TerminationReason
 
 
-class _ScriptedBackend(ToyBackend):
+class _ScriptedBackend:
     def __init__(self, outputs: Sequence[tuple[str, str]]) -> None:
         self._outputs = list(outputs)
         self._output_index = 0
-        tokenizer = ToyTokenizer()
-        super().__init__(
-            tokenizer=tokenizer,
-            model_id="scripted",
-            seed=0,
-            hidden_size=16,
-            num_layers=1,
-            num_heads=2,
-            intermediate_size=32,
-            max_position_embeddings=2048,
-        )
+        self.tokenizer = ToyTokenizer()
+        self.model_id = "scripted"
+        self.model_revision = None
+        self.capabilities = SimpleNamespace(name=self.model_id)
 
     def generate(self, prefix_token_ids, **kwargs) -> GenerationOutput:
         del prefix_token_ids, kwargs
