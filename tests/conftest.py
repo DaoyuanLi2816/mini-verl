@@ -11,6 +11,7 @@ Tests are split by dependency weight:
 from __future__ import annotations
 
 import importlib.util
+import socket
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -64,3 +65,18 @@ def toy_tokenizer():  # type: ignore[no-untyped-def]
     from miniverl.models.tokenizers import ToyTokenizer
 
     return ToyTokenizer()
+
+
+@pytest.fixture
+def deny_network(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Fail a test at the first attempted socket connection."""
+    attempts: list[str] = []
+
+    def blocked(*args: object, **kwargs: object) -> None:
+        target = args[0] if args else kwargs.get("address", "unknown")
+        attempts.append(str(target))
+        raise AssertionError(f"network access attempted: {target}")
+
+    monkeypatch.setattr(socket, "create_connection", blocked)
+    monkeypatch.setattr(socket.socket, "connect", blocked)
+    return attempts

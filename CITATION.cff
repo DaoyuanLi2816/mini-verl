@@ -3,7 +3,7 @@ title: "miniVERL: On-policy distillation for tool-using agents on one GPU"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
 version: 0.2.0
-date-released: 2026-07-27
+date-released: 2026-07-28
 license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
 url: "https://github.com/DaoyuanLi2816/mini-verl"

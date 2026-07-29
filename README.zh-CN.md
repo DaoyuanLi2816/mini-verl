@@ -202,6 +202,23 @@ error miniverl demo requires the optional dependency 'torch', which is not insta
 hint  pip install "miniverl[train]"
 ```
 
+### 严格离线执行
+
+所有会加载模型的命令共享同一份“零网络”契约：
+
+```bash
+miniverl train <recipe> --offline
+miniverl benchmark <benchmark.yaml> --offline
+miniverl eval --run <run-dir> --offline
+miniverl export-adapter --run <run-dir> --out <adapter-dir> --offline
+```
+
+此模式要求基础模型、分词器和每个适配器文件已经位于本地路径或 Hugging
+Face 缓存中；miniVERL 不允许 HTTP、metadata、ETag 或 Hub API 请求，也不会
+静默退回在线解析。Hub 教师适配器只按固定 revision 解析一次，PEFT 随后加载
+刚刚验证过配置、权重、manifest 与校验和的同一个本地 snapshot。缓存缺失时，
+错误会给出不可变身份以及精确的 `hf download` 预加载命令。
+
 ## Python API
 
 对外暴露的接口刻意保持很小：

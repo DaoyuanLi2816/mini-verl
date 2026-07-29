@@ -423,8 +423,12 @@ Then:
   `models.teacher.tokenizer_revision` in the recipe, and re-verify the
   tokenizer fingerprints afterwards
 - if you have the weights locally already, force the offline path:
-  `miniverl train <recipe> --offline`, which sets `local_files_only=True` on
-  every `from_pretrained` call and refuses network access
+  `miniverl train <recipe> --offline`, which sets `local_files_only=True` for
+  models, tokenizers and Hub adapter file resolution, then makes PEFT load the
+  exact validated local snapshot. The same option exists on `benchmark`,
+  `eval` and `export-adapter`. A missing cache entry fails before any HTTP,
+  metadata, ETag or Hub API request and prints the exact online `hf download`
+  preload command
 
 Leaving a revision unset is legal but not recommended. `miniverl validate`
 warns:

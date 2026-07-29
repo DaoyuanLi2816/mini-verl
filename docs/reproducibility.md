@@ -453,15 +453,18 @@ weights that were published, without retraining:
 
 ```bash
 miniverl eval --run runs/<run-id>
+# Require all reconstructed model, tokenizer and adapter files to be cached:
+miniverl eval --run runs/<run-id> --offline
 ```
 
 `evaluate_run` rebuilds the trainer from `config.resolved.yaml` (not the
 original recipe, so any `auto` decision stays frozen), restores the latest
 checkpoint with `include_rng=False`, evaluates deterministically, and writes
 `eval.<tag>.json` next to the run. `--split`, `--tasks`, `--checkpoint`,
-`--out` and `--tag` are available. It refuses to run against a directory with
-no `config.resolved.yaml`, on the grounds that only runs created by
-`miniverl train` can be re-evaluated.
+`--out`, `--tag` and `--offline` are available. Offline evaluation passes the
+no-network policy into the reconstructed trainer, including any Hub teacher
+adapter. It refuses to run against a directory with no `config.resolved.yaml`,
+on the grounds that only runs created by `miniverl train` can be re-evaluated.
 
 **5. Compare.** The comparison that matters is the evaluation payload:
 `tasks`, `success_rate`, `avg_turns`, `avg_tool_calls`,

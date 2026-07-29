@@ -219,7 +219,7 @@ def test_the_backend_reports_honest_capabilities(tiny_model, tiny_tokenizer):
     assert caps["num_parameters"] > 0
 
 
-def test_loading_an_unknown_model_id_fails_with_advice():
+def test_loading_an_unknown_model_id_fails_with_advice(deny_network):
     from miniverl.config.models import StudentModelConfig
     from miniverl.errors import BackendError
     from miniverl.models.hf import HFBackend
@@ -231,6 +231,36 @@ def test_loading_an_unknown_model_id_fails_with_advice():
             spec, device="cpu", tokenizer=ToyTokenizer(), trainable=False, local_files_only=True
         )
     assert "revision" in (excinfo.value.hint or "")
+    assert "hf download miniverl/definitely-not-a-real-model" in (excinfo.value.hint or "")
+    assert deny_network == []
+
+
+def test_missing_cached_tokenizer_fails_actionably_without_network(monkeypatch, deny_network):
+    import transformers
+
+    from miniverl.errors import BackendError
+    from miniverl.models.tokenizers import HFTokenizerAdapter
+
+    seen: list[dict[str, object]] = []
+
+    def missing(model_id: str, **kwargs):
+        seen.append({"model_id": model_id, **kwargs})
+        raise OSError("snapshot is absent")
+
+    monkeypatch.setattr(transformers.AutoTokenizer, "from_pretrained", missing)
+    revision = "d" * 40
+    with pytest.raises(BackendError, match="cached tokenizer snapshot") as excinfo:
+        HFTokenizerAdapter.load(
+            "owner/missing-tokenizer",
+            revision=revision,
+            local_files_only=True,
+        )
+
+    assert seen[0]["local_files_only"] is True
+    assert f"hf download owner/missing-tokenizer --revision {revision}" in (
+        excinfo.value.hint or ""
+    )
+    assert deny_network == []
 
 
 def test_dtype_resolution_matches_the_device():
@@ -240,6 +270,32 @@ def test_dtype_resolution_matches_the_device():
     assert resolve_dtype(Precision.FLOAT32, "cpu") is torch.float32
     assert resolve_dtype(Precision.BFLOAT16, "cpu") is torch.bfloat16
     assert resolve_dtype(Precision.AUTO, "cpu") is torch.float32
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        ("4.51.3", {"revision": "abc"}),
+        ("5.0.0", {"revision": "abc", "local_files_only": True}),
+    ],
+)
+def test_peft_probe_kwargs_preserve_offline_policy_across_transformers_versions(
+    version,
+    expected,
+    monkeypatch,
+):
+    import miniverl.models.hf as hf_module
+
+    fake_transformers = type("FakeTransformers", (), {"__version__": version})()
+    monkeypatch.setattr(hf_module, "require_transformers", lambda _feature: fake_transformers)
+
+    assert (
+        hf_module._adapter_probe_kwargs(
+            revision="abc",
+            local_files_only=True,
+        )
+        == expected
+    )
 
 
 @pytest.fixture
@@ -322,9 +378,18 @@ def test_hub_teacher_adapter_downloads_and_validates_miniverl_manifest(
     }
     write_json(adapter / ADAPTER_MANIFEST, manifest)
 
-    def download(*, repo_id: str, filename: str, revision: str) -> str:
+    policies: list[bool] = []
+
+    def download(
+        *,
+        repo_id: str,
+        filename: str,
+        revision: str,
+        local_files_only: bool,
+    ) -> str:
         assert repo_id == "owner/protocol-teacher"
         assert revision == "a" * 40
+        policies.append(local_files_only)
         return str(adapter / filename)
 
     monkeypatch.setattr(huggingface_hub, "hf_hub_download", download)
@@ -338,12 +403,205 @@ def test_hub_teacher_adapter_downloads_and_validates_miniverl_manifest(
         ),
         TeacherModelConfig(model_id=str(base)),
         tokenizer_fingerprint=tiny_tokenizer.fingerprint,
+        local_files_only=True,
     )
 
     assert provenance["source"] == "hub"
     assert provenance["revision"] == "a" * 40
     assert provenance["weights_sha256"] == manifest["checksums"]["adapter_model.safetensors"]
     assert provenance["policy_evaluation"]["strict_task_success_rate"] == pytest.approx(0.75)
+    assert provenance.snapshot_dir == adapter
+    assert policies == [True, True, True]
+
+    policies.clear()
+    online = validate_teacher_adapter(
+        TeacherAdapterConfig(
+            source=AdapterSource.HUB,
+            path="owner/protocol-teacher",
+            revision="a" * 40,
+            require_policy_evaluation=True,
+            minimum_strict_success_rate=0.5,
+        ),
+        TeacherModelConfig(model_id=str(base)),
+        tokenizer_fingerprint=tiny_tokenizer.fingerprint,
+        local_files_only=False,
+    )
+    assert online.snapshot_dir == provenance.snapshot_dir
+    assert policies == [False, False, False]
+
+
+@requires_peft
+def test_cached_hub_adapter_is_loaded_from_the_exact_validated_snapshot_without_network(
+    local_teacher_adapter,
+    tiny_tokenizer,
+    monkeypatch,
+    deny_network,
+):
+    import huggingface_hub
+    import peft
+
+    from miniverl.config.models import (
+        AdapterSource,
+        TeacherAdapterConfig,
+        TeacherModelConfig,
+    )
+    from miniverl.models.hf import HFBackend
+
+    base, adapter, _ = local_teacher_adapter
+    revision = "b" * 40
+    policies: list[bool] = []
+
+    def download(
+        *,
+        repo_id: str,
+        filename: str,
+        revision: str,
+        local_files_only: bool,
+    ) -> str:
+        assert repo_id == "owner/cached-adapter"
+        assert revision == "b" * 40
+        policies.append(local_files_only)
+        return str(adapter / filename)
+
+    original = peft.PeftModel.from_pretrained
+    loaded_paths: list[str] = []
+
+    def load_adapter(model, model_id, **kwargs):
+        loaded_paths.append(str(model_id))
+        assert kwargs["local_files_only"] is True
+        return original(model, model_id, **kwargs)
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", download)
+    monkeypatch.setattr(peft.PeftModel, "from_pretrained", load_adapter)
+    backend = HFBackend.load(
+        TeacherModelConfig(
+            model_id=str(base),
+            adapter=TeacherAdapterConfig(
+                source=AdapterSource.HUB,
+                path="owner/cached-adapter",
+                revision=revision,
+            ),
+        ),
+        device="cpu",
+        tokenizer=tiny_tokenizer,
+        trainable=False,
+        local_files_only=True,
+    )
+
+    assert backend.adapter_provenance["identity"] == "owner/cached-adapter"
+    assert loaded_paths == [str(adapter)]
+    assert policies == [True, True, True]
+    assert deny_network == []
+
+
+@requires_peft
+def test_missing_cached_hub_adapter_file_is_actionable_and_never_retries_online(
+    local_teacher_adapter,
+    tiny_tokenizer,
+    monkeypatch,
+    deny_network,
+):
+    import huggingface_hub
+
+    from miniverl.config.models import (
+        AdapterSource,
+        TeacherAdapterConfig,
+        TeacherModelConfig,
+    )
+    from miniverl.errors import BackendError
+    from miniverl.models.adapter_io import validate_teacher_adapter
+
+    base, adapter, _ = local_teacher_adapter
+    revision = "c" * 40
+    requested: list[tuple[str, bool]] = []
+
+    def download(
+        *,
+        repo_id: str,
+        filename: str,
+        revision: str,
+        local_files_only: bool,
+    ) -> str:
+        requested.append((filename, local_files_only))
+        if filename == "adapter_model.safetensors":
+            raise FileNotFoundError("not in cache")
+        return str(adapter / filename)
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", download)
+    with pytest.raises(BackendError, match=r"adapter_model\.safetensors") as excinfo:
+        validate_teacher_adapter(
+            TeacherAdapterConfig(
+                source=AdapterSource.HUB,
+                path="owner/partial-adapter",
+                revision=revision,
+            ),
+            TeacherModelConfig(model_id=str(base)),
+            tokenizer_fingerprint=tiny_tokenizer.fingerprint,
+            local_files_only=True,
+        )
+
+    message = str(excinfo.value)
+    assert "owner/partial-adapter" in message
+    assert revision in message
+    assert (
+        f"hf download owner/partial-adapter --revision {revision} "
+        "--include adapter_config.json adapter_model.safetensors "
+        "miniverl_adapter_manifest.json"
+    ) in (excinfo.value.hint or "")
+    assert requested == [
+        ("adapter_config.json", True),
+        ("adapter_model.safetensors", True),
+    ]
+    assert deny_network == []
+
+
+@requires_peft
+def test_fully_missing_cached_hub_adapter_stops_at_first_file_without_network(
+    local_teacher_adapter,
+    tiny_tokenizer,
+    monkeypatch,
+    deny_network,
+):
+    import huggingface_hub
+
+    from miniverl.config.models import (
+        AdapterSource,
+        TeacherAdapterConfig,
+        TeacherModelConfig,
+    )
+    from miniverl.errors import BackendError
+    from miniverl.models.adapter_io import validate_teacher_adapter
+
+    base, _, _ = local_teacher_adapter
+    revision = "e" * 40
+    requested: list[tuple[str, bool]] = []
+
+    def missing(
+        *,
+        repo_id: str,
+        filename: str,
+        revision: str,
+        local_files_only: bool,
+    ) -> str:
+        requested.append((filename, local_files_only))
+        raise FileNotFoundError("snapshot absent")
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", missing)
+    with pytest.raises(BackendError, match=r"missing 'adapter_config\.json'") as excinfo:
+        validate_teacher_adapter(
+            TeacherAdapterConfig(
+                source=AdapterSource.HUB,
+                path="owner/missing-adapter",
+                revision=revision,
+            ),
+            TeacherModelConfig(model_id=str(base)),
+            tokenizer_fingerprint=tiny_tokenizer.fingerprint,
+            local_files_only=True,
+        )
+
+    assert requested == [("adapter_config.json", True)]
+    assert f"owner/missing-adapter --revision {revision}" in (excinfo.value.hint or "")
+    assert deny_network == []
 
 
 @requires_peft

@@ -280,13 +280,29 @@ class HFTokenizerAdapter:
     ) -> HFTokenizerAdapter:
         """Load a tokenizer from a local path or the Hub."""
         transformers = require_transformers("Loading a Hugging Face tokenizer")
-        tok = transformers.AutoTokenizer.from_pretrained(
-            model_id,
-            revision=revision,
-            trust_remote_code=trust_remote_code,
-            local_files_only=local_files_only,
-            use_fast=True,
-        )
+        try:
+            tok = transformers.AutoTokenizer.from_pretrained(
+                model_id,
+                revision=revision,
+                trust_remote_code=trust_remote_code,
+                local_files_only=local_files_only,
+                use_fast=True,
+            )
+        except OSError as exc:
+            revision_text = f" at revision {revision!r}" if revision else ""
+            preload = f"hf download {model_id}"
+            if revision:
+                preload += f" --revision {revision}"
+            offline_hint = (
+                f"offline mode found no complete cached tokenizer snapshot; preload it online "
+                f"with `{preload}`. "
+                if local_files_only
+                else ""
+            )
+            raise BackendError(
+                f"could not load tokenizer {model_id!r}{revision_text}",
+                hint=offline_hint + f"check the tokenizer id and revision. Original error: {exc}",
+            ) from exc
         return cls(tok, model_id=model_id, revision=revision)
 
     @property

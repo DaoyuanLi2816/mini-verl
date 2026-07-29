@@ -98,6 +98,27 @@ def _from_pretrained_kwargs(dtype: torch.dtype) -> dict[str, Any]:
     return {_dtype_kwarg_name(): dtype}
 
 
+def _adapter_probe_kwargs(*, revision: str | None, local_files_only: bool) -> dict[str, Any]:
+    """Build PEFT auto-detection kwargs across transformers 4.x and 5.x.
+
+    Transformers 4.x already forwards the top-level ``local_files_only`` value
+    to its PEFT-config probe, so repeating it in ``adapter_kwargs`` raises a
+    duplicate-keyword ``TypeError``. Transformers 5.x stopped forwarding that
+    policy, so it must be supplied explicitly there to preserve the zero-network
+    contract.
+    """
+    transformers = require_transformers("Model loading")
+    version = str(getattr(transformers, "__version__", "0"))
+    try:
+        major = int(version.split(".", maxsplit=1)[0])
+    except ValueError:  # pragma: no cover - unusual version strings
+        major = 0
+    kwargs: dict[str, Any] = {"revision": revision}
+    if major >= 5:
+        kwargs["local_files_only"] = local_files_only
+    return kwargs
+
+
 class HFBackend(CausalLMBackend):
     """Local Hugging Face causal LM, optionally quantized and LoRA-adapted."""
 
@@ -158,18 +179,28 @@ class HFBackend(CausalLMBackend):
         dtype = resolve_dtype(spec.dtype, device)
         quantization = spec.quantization
         adapter_provenance = None
+        validated_adapter = None
         if isinstance(spec, TeacherModelConfig) and spec.adapter is not None:
             from miniverl.models.adapter_io import validate_teacher_adapter
 
-            adapter_provenance = validate_teacher_adapter(
+            validated_adapter = validate_teacher_adapter(
                 spec.adapter,
                 spec,
                 tokenizer_fingerprint=tokenizer.fingerprint,
+                local_files_only=local_files_only,
             )
+            adapter_provenance = validated_adapter.provenance
         kwargs: dict[str, Any] = {
             "revision": spec.revision,
             "trust_remote_code": spec.trust_remote_code,
             "local_files_only": local_files_only,
+            # Transformers performs a separate PEFT-config probe before loading
+            # the base model. Its policy propagation differs between 4.x and
+            # 5.x, so build compatible explicit probe kwargs.
+            "adapter_kwargs": _adapter_probe_kwargs(
+                revision=spec.revision,
+                local_files_only=local_files_only,
+            ),
             "attn_implementation": spec.attn_implementation,
             **_from_pretrained_kwargs(dtype),
         }
@@ -180,12 +211,23 @@ class HFBackend(CausalLMBackend):
         try:
             model = transformers.AutoModelForCausalLM.from_pretrained(spec.model_id, **kwargs)
         except OSError as exc:
+            revision = f" at revision {spec.revision!r}" if spec.revision else ""
+            preload = f"hf download {spec.model_id}"
+            if spec.revision:
+                preload += f" --revision {spec.revision}"
+            offline_hint = (
+                f"offline mode found no complete cached model snapshot; preload it online "
+                f"with `{preload}`. "
+                if local_files_only
+                else ""
+            )
             raise BackendError(
-                f"could not load model {spec.model_id!r}"
-                + (f" at revision {spec.revision!r}" if spec.revision else ""),
-                hint="check the model id and revision, that you are online for the first "
-                "download, and that the license has been accepted on the Hub. "
-                f"Original error: {exc}",
+                f"could not load model {spec.model_id!r}{revision}",
+                hint=(
+                    offline_hint
+                    + "check the model id and revision and that any gated license has been "
+                    f"accepted on the Hub. Original error: {exc}"
+                ),
             ) from exc
 
         if quant_config is None:
@@ -211,13 +253,14 @@ class HFBackend(CausalLMBackend):
             model.train()
         else:
             if isinstance(spec, TeacherModelConfig) and spec.adapter is not None:
+                assert validated_adapter is not None
                 peft = require_peft("Loading a frozen teacher adapter")
                 try:
                     model = peft.PeftModel.from_pretrained(
                         model,
-                        spec.adapter.path,
-                        revision=spec.adapter.revision,
+                        str(validated_adapter.snapshot_dir),
                         is_trainable=False,
+                        local_files_only=True,
                     )
                 except (OSError, ValueError) as exc:
                     raise BackendError(

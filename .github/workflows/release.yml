@@ -9,9 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  validate:
-    name: validate the tag against the package
+  validate-and-test:
+    name: validate metadata and run release gates
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -21,24 +23,27 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install
+      - name: Install test dependencies
         run: |
-          python -m pip install --upgrade pip build twine
+          python -m pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install -e ".[dev,train]"
 
-      - name: The tag, __init__.py, CHANGELOG.md and CITATION.cff must agree
+      - name: Release metadata and tag must agree
         run: |
           python - <<'PY'
-          import os, pathlib, re, sys
+          import os
+          import pathlib
+          import re
+          import sys
+
+          from miniverl import __version__ as version
 
           ref = os.environ.get("GITHUB_REF", "")
           tag = ref.rsplit("/", 1)[-1] if ref.startswith("refs/tags/") else ""
-          from miniverl import __version__ as version
-
           problems = []
-          if tag and tag.lstrip("v") != version:
-              problems.append(f"tag {tag} does not match miniverl.__version__ {version}")
+          if tag and tag != f"v{version}":
+              problems.append(f"tag {tag} does not match v{version}")
 
           changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
           if f"## [{version}]" not in changelog:
@@ -54,15 +59,13 @@ jobs:
           print(f"release metadata is consistent at {version}")
           PY
 
-      - name: The release checklist must be complete
+      - name: Release checklist must be complete before a tag
         run: |
           python - <<'PY'
-          import pathlib, sys
+          import pathlib
+          import sys
 
           text = pathlib.Path("docs/release-checklist.md").read_text(encoding="utf-8")
-          # Everything before "## After the tag" must be done at tag time. The
-          # items after it are repository-settings actions that cannot be
-          # performed from a commit, so they are excluded on purpose.
           head = text.split("## After the tag", 1)[0]
           unchecked = [line for line in head.splitlines() if line.strip().startswith("- [ ]")]
           if unchecked:
@@ -71,11 +74,6 @@ jobs:
               sys.exit(1)
           print("release checklist is complete")
           PY
-
-      - name: Build and check
-        run: |
-          python -m build
-          python -m twine check dist/*
 
       - name: Full quality gate
         env:
@@ -92,18 +90,11 @@ jobs:
           git status --short
           test -z "$(git status --porcelain)"
 
-  publish-pypi:
-    name: publish to PyPI with OIDC (disabled)
-    needs: validate
-    # Enabling this requires a reviewed code change after the PyPI trusted
-    # publisher is registered and explicit publication authorization is given.
-    if: ${{ false }}
+  build-distributions:
+    name: build distributions exactly once
+    needs: validate-and-test
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/miniverl
     permissions:
-      id-token: write
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -112,10 +103,143 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Build the already-validated source
+      - name: Build and inspect wheel and sdist
         run: |
-          python -m pip install --upgrade pip build
+          python -m pip install --upgrade pip build twine
           python -m build
+          python -m twine check dist/*
+          python - <<'PY'
+          import hashlib
+          import pathlib
+          import sys
 
-      - name: Publish with trusted publishing
+          dist = pathlib.Path("dist")
+          files = sorted(path for path in dist.iterdir() if path.is_file())
+          wheels = [path for path in files if path.suffix == ".whl"]
+          sdists = [path for path in files if path.name.endswith(".tar.gz")]
+          if len(wheels) != 1 or len(sdists) != 1 or len(files) != 2:
+              print(f"expected one wheel and one sdist, found {[path.name for path in files]}")
+              sys.exit(1)
+          lines = [
+              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.as_posix()}"
+              for path in files
+          ]
+          pathlib.Path("SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="ascii")
+          print("\n".join(lines))
+          PY
+
+      - name: Upload immutable release distributions
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-distributions
+          path: |
+            dist/*
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+
+  publish-pypi:
+    name: publish exact distributions to PyPI with OIDC
+    needs: build-distributions
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/miniverl
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Download release distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-distributions
+          path: release-artifacts
+
+      - name: Verify downloaded artifact hashes
+        working-directory: release-artifacts
+        run: sha256sum --check SHA256SUMS
+
+      - name: Publish with trusted publishing and attestations
         uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
+        with:
+          packages-dir: release-artifacts/dist/
+
+  verify-pypi:
+    name: verify public PyPI files, hashes, attestations and install
+    needs: publish-pypi
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Download the published distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-distributions
+          path: release-artifacts
+
+      - name: Verify PyPI metadata, file hashes and trusted-publisher attestations
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          python -m pip install --upgrade pip pypi-attestations
+          python scripts/verify_pypi_release.py \
+            --project miniverl \
+            --version "${VERSION#v}" \
+            --sums release-artifacts/SHA256SUMS \
+            --artifact-root release-artifacts \
+            --repository https://github.com/DaoyuanLi2816/mini-verl \
+            --attempts 12 \
+            --delay 10
+
+      - name: Install and exercise the exact public version
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          VERSION="${VERSION#v}"
+          python -m venv release-verify
+          release-verify/bin/python -m pip install --upgrade pip
+          release-verify/bin/python -m pip install --no-cache-dir "miniverl==$VERSION"
+          test "$(release-verify/bin/miniverl --version)" = "miniverl $VERSION"
+          release-verify/bin/miniverl doctor --json > doctor.json
+          release-verify/bin/python - <<'PY'
+          import json
+          import pathlib
+
+          payload = json.loads(pathlib.Path("doctor.json").read_text(encoding="utf-8"))
+          assert payload["verdict"]["core_commands"] is True
+          PY
+
+  create-github-release:
+    name: create GitHub Release from the verified distributions
+    needs: verify-pypi
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the verified distributions
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-distributions
+          path: release-artifacts
+
+      - name: Recheck hashes and create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd release-artifacts && sha256sum --check SHA256SUMS)
+          gh release create "$GITHUB_REF_NAME" \
+            release-artifacts/dist/* \
+            release-artifacts/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "miniVERL $GITHUB_REF_NAME" \
+            --generate-notes

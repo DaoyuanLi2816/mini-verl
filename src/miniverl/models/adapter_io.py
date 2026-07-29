@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,7 @@ from miniverl.utils.runs import RunPaths, canonical_json, read_json, write_json
 
 __all__ = [
     "ADAPTER_MANIFEST",
+    "ValidatedTeacherAdapter",
     "validate_teacher_adapter",
     "export_adapter",
     "digest_tree",
@@ -44,6 +47,30 @@ _POLICY_EVAL_FIELDS = (
     "protocol_token_accuracy",
     "policy_competence_measurement_status",
 )
+
+
+@dataclass(frozen=True)
+class ValidatedTeacherAdapter(Mapping[str, Any]):
+    """A verified adapter plus the exact local snapshot PEFT must load.
+
+    Mapping compatibility keeps the existing internal/public provenance reads
+    concise without ever placing machine-local cache paths in serialized data.
+    """
+
+    provenance: dict[str, Any]
+    snapshot_dir: Path
+    adapter_config_path: Path
+    weights_path: Path
+    manifest_path: Path
+
+    def __getitem__(self, key: str) -> Any:
+        return self.provenance[key]
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.provenance)
+
+    def __len__(self) -> int:
+        return len(self.provenance)
 
 
 def digest_tree(directory: str | Path) -> str:
@@ -71,36 +98,41 @@ def _same_model_identity(expected: str, actual: str) -> bool:
     return False
 
 
-def _read_local_adapter(path: Path) -> tuple[dict[str, Any], dict[str, Any] | None]:
+def _read_local_adapter(path: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Path]]:
     if not path.is_dir():
         raise BackendError(
             f"teacher adapter directory not found: {path}",
             hint="export it with `miniverl export-adapter`, or correct models.teacher.adapter.path",
         )
-    missing = [name for name in (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS) if not (path / name).is_file()]
+    required = (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS, ADAPTER_MANIFEST)
+    missing = [name for name in required if not (path / name).is_file()]
     if missing:
         raise BackendError(
             f"teacher adapter {path} is incomplete (missing {', '.join(missing)})",
-            hint="a standard PEFT adapter needs adapter_config.json and adapter_model.safetensors",
+            hint=(
+                "a standard PEFT adapter used as a miniVERL teacher needs "
+                "adapter_config.json, adapter_model.safetensors and "
+                "miniverl_adapter_manifest.json"
+            ),
         )
     try:
         adapter_config = json.loads((path / _ADAPTER_CONFIG).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise BackendError(f"cannot read {path / _ADAPTER_CONFIG}: {exc}") from exc
     manifest_path = path / ADAPTER_MANIFEST
-    manifest = None
-    if manifest_path.is_file():
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise BackendError(f"cannot read {manifest_path}: {exc}") from exc
-    return adapter_config, manifest
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BackendError(f"cannot read {manifest_path}: {exc}") from exc
+    return adapter_config, manifest, {name: path / name for name in required}
 
 
 def _read_hub_adapter(
     repo_id: str,
     revision: str,
-) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Path]]:
+    *,
+    local_files_only: bool,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Path]]:
     """Download the reproducibility metadata and weights at one immutable revision."""
     try:
         from huggingface_hub import hf_hub_download
@@ -114,26 +146,38 @@ def _read_hub_adapter(
     for name in (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS, ADAPTER_MANIFEST):
         try:
             downloaded[name] = Path(
-                hf_hub_download(repo_id=repo_id, filename=name, revision=revision)
+                hf_hub_download(
+                    repo_id=repo_id,
+                    filename=name,
+                    revision=revision,
+                    local_files_only=local_files_only,
+                )
             )
         except Exception as exc:
-            if name == ADAPTER_MANIFEST:
-                continue
             raise BackendError(
-                f"could not download teacher adapter file {name!r} from "
-                f"{repo_id!r} at revision {revision!r}: {exc}"
+                f"could not resolve teacher adapter {repo_id!r} at pinned revision "
+                f"{revision!r}: missing {name!r}",
+                hint=(
+                    f"preload it online with `hf download {repo_id} --revision {revision} "
+                    f"--include {_ADAPTER_CONFIG} {_ADAPTER_WEIGHTS} {ADAPTER_MANIFEST}`; "
+                    f"original error: {exc}"
+                ),
             ) from exc
+    snapshot_dirs = {path.parent for path in downloaded.values()}
+    if len(snapshot_dirs) != 1:
+        details = ", ".join(f"{name}={path}" for name, path in sorted(downloaded.items()))
+        raise BackendError(
+            "teacher adapter files did not resolve to one exact local snapshot",
+            hint=f"clear the inconsistent cache entry and preload the pinned revision; {details}",
+        )
     try:
         adapter_config = json.loads(downloaded[_ADAPTER_CONFIG].read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise BackendError(f"cannot read downloaded {_ADAPTER_CONFIG}: {exc}") from exc
-    manifest = None
-    manifest_path = downloaded.get(ADAPTER_MANIFEST)
-    if manifest_path is not None:
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise BackendError(f"cannot read downloaded {ADAPTER_MANIFEST}: {exc}") from exc
+    try:
+        manifest = json.loads(downloaded[ADAPTER_MANIFEST].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BackendError(f"cannot read downloaded {ADAPTER_MANIFEST}: {exc}") from exc
     return adapter_config, manifest, downloaded
 
 
@@ -142,17 +186,20 @@ def validate_teacher_adapter(
     teacher: TeacherModelConfig,
     *,
     tokenizer_fingerprint: str,
-) -> dict[str, Any]:
+    local_files_only: bool = False,
+) -> ValidatedTeacherAdapter:
     """Validate compatibility before the adapter can supervise training."""
     if adapter.source is AdapterSource.LOCAL:
-        path = Path(adapter.path)
-        adapter_config, manifest = _read_local_adapter(path)
-        downloaded = {
-            name: path / name for name in (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS, ADAPTER_MANIFEST)
-        }
+        snapshot_dir = Path(adapter.path).resolve()
+        adapter_config, manifest, downloaded = _read_local_adapter(snapshot_dir)
     else:
         assert adapter.revision is not None
-        adapter_config, manifest, downloaded = _read_hub_adapter(adapter.path, adapter.revision)
+        adapter_config, manifest, downloaded = _read_hub_adapter(
+            adapter.path,
+            adapter.revision,
+            local_files_only=local_files_only,
+        )
+        snapshot_dir = downloaded[_ADAPTER_CONFIG].parent
 
     peft_type = str(adapter_config.get("peft_type") or "").upper()
     if peft_type != "LORA":
@@ -172,7 +219,6 @@ def validate_teacher_adapter(
             hint="load the adapter with the same base model it was trained from",
         )
 
-    manifest = manifest or {}
     expected_revision = adapter.base_model_revision or manifest.get("base_model_revision")
     if expected_revision and teacher.revision != expected_revision:
         raise BackendError(
@@ -236,7 +282,7 @@ def validate_teacher_adapter(
             )
 
     weights_digest, _ = sha256_file(downloaded[_ADAPTER_WEIGHTS])
-    return {
+    provenance = {
         "source": adapter.source.value,
         "identity": (
             Path(adapter.path).name if adapter.source is AdapterSource.LOCAL else adapter.path
@@ -255,6 +301,13 @@ def validate_teacher_adapter(
         ),
         "policy_evaluation": policy_evaluation,
     }
+    return ValidatedTeacherAdapter(
+        provenance=provenance,
+        snapshot_dir=snapshot_dir,
+        adapter_config_path=downloaded[_ADAPTER_CONFIG],
+        weights_path=downloaded[_ADAPTER_WEIGHTS],
+        manifest_path=downloaded[ADAPTER_MANIFEST],
+    )
 
 
 def export_adapter(

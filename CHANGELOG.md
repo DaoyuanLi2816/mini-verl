@@ -4,7 +4,7 @@ All notable changes to miniVERL are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.2.0] - 2026-07-27
+## [0.2.0] - 2026-07-28
 
 Protocol-aligned teacher support and scientifically explicit benchmark
 accounting.
@@ -34,6 +34,12 @@ accounting.
   pinned by the benchmark to an immutable revision with a local/offline config.
 - Destructive trainer lifecycle tests, including weak-reference coverage and a
   measured sequential CUDA-allocation regression.
+- A strict `--offline` contract shared by train, benchmark, standalone
+  evaluation and adapter export, including cached pinned Hub adapters and
+  socket-denial regression tests.
+- A tag-only release supply chain that builds wheel and sdist once, publishes
+  those exact artifacts with OIDC attestations, verifies public PyPI metadata,
+  hashes, provenance and a clean install, then creates the GitHub Release.
 
 ### Changed
 
@@ -61,6 +67,9 @@ accounting.
 - New schema-v2 output separates declared scientific differences,
   runtime-resolution decisions and harness-only bookkeeping while retaining
   compatibility fields for existing readers.
+- Hub teacher validation now returns the exact resolved local snapshot and
+  PEFT loads only that directory, preventing a second independent Hub
+  resolution after checksum validation.
 
 ### Corrected
 
