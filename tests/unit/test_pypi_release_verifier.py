@@ -227,7 +227,7 @@ def test_long_description_can_defer_a_client_challenge_to_browser_inspection(
     )
     banner = f"https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/{tag}/docs/banner.svg"
     links = [f"{repository}/blob/{tag}/{path}" for path in paths]
-    description = "\n".join([*links, f"![release banner]({banner})"])
+    description = "\n".join([*links, f'<img src="{banner}" alt="release banner" width="880">'])
     monkeypatch.setattr(
         verifier,
         "_request_json",

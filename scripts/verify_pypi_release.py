@@ -12,10 +12,40 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 
 _INTEGRITY_MEDIA_TYPE = "application/vnd.pypi.integrity.v1+json"
+
+
+class _PinnedImageParser(HTMLParser):
+    def __init__(self, target: str) -> None:
+        super().__init__()
+        self.target = target
+        self.alts: list[str] = []
+
+    def handle_starttag(
+        self,
+        tag: str,
+        attrs: list[tuple[str, str | None]],
+    ) -> None:
+        if tag != "img":
+            return
+        attributes = dict(attrs)
+        alt = attributes.get("alt")
+        if attributes.get("src") == self.target and alt:
+            self.alts.append(alt)
+
+
+def _pinned_image_alts(description: str, target: str) -> list[str]:
+    markdown_alts = re.findall(
+        rf"!\[([^\]]+)\]\({re.escape(target)}\)",
+        description,
+    )
+    parser = _PinnedImageParser(target)
+    parser.feed(description)
+    return [*markdown_alts, *parser.alts]
 
 
 def _request_json(url: str, *, accept: str = "application/json") -> dict[str, Any]:
@@ -135,10 +165,7 @@ def _verify_long_description_links(
     if f"{github}/blob/main/" in description or f"{raw}/main/" in description:
         raise RuntimeError("stable PyPI long description still links repository files through main")
 
-    image_matches = re.findall(
-        rf"!\[([^\]]+)\]\({re.escape(required_image_url)}\)",
-        description,
-    )
+    image_matches = _pinned_image_alts(description, required_image_url)
     if not image_matches:
         raise RuntimeError(
             "PyPI long description does not use the release-pinned banner as an image"
