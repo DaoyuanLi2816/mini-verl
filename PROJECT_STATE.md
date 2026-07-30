@@ -10,15 +10,17 @@ Last updated: 2026-07-29.
 
 | item | current state |
 | --- | --- |
-| integration source | PR [#15](https://github.com/DaoyuanLi2816/mini-verl/pull/15), squash-merged as `3e54ebf9a8501f58cb6a0901d827221aba8792e0` after all ten pull-request checks passed |
-| version transition | the release candidate identifies as `0.2.3`; `CHANGELOG.md`, `CITATION.cff` and the pre-tag checklist agree on `v0.2.3` |
+| integration source | PR [#15](https://github.com/DaoyuanLi2816/mini-verl/pull/15), squash-merged as `3e54ebf9a8501f58cb6a0901d827221aba8792e0`; release metadata PR [#16](https://github.com/DaoyuanLi2816/mini-verl/pull/16) merged as `38924da743180e6767f1e3b252feafdccd70759b` after all ten checks passed |
+| version transition | `v0.2.3` was released from exact commit `38924da743180e6767f1e3b252feafdccd70759b`; post-release development now identifies as `0.2.4.dev0` |
 | cache safety | shard size survives reopen; allocation advances past the highest indexed or on-disk numeric suffix; pruning publishes a copied index before best-effort orphan cleanup, with fault-injection coverage on both failure boundaries |
 | protocol examples | schema-v2 examples come from each active environment `ToolSpec`; calculator, JSON navigation, SQLite and custom-environment round trips pass while protocol v1 remains byte-frozen |
 | presentation | the generated figure scopes claims to the saturated v0.2 calculator task, reports completed controls at 0%, omits the unsourced preparation duration and remains legible at native and README widths |
 | frozen scientific artifact | `benchmarks/results/gpu-calc-hard-equal-update-v2.json` remains byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
-| release gates | 1085 non-GPU/non-network tests passed at 87.30% branch coverage; 5 GPU and 3 network tests passed; ruff, mypy, build/twine, Markdown links and generated-artifact comparison passed; PR #15 is green |
-| publication authorization | granted on 2026-07-29; publication will use the tag-only Trusted Publishing workflow, not a long-lived PyPI token |
-| exact blocker | none; create and validate the focused release-metadata PR, then annotate and push `v0.2.3` from its exact merged commit |
+| release gates | release run [`30513947051`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30513947051) passed metadata, 1085 tests at 87.30% branch coverage, one-time build, OIDC publication, public hashes/attestations, clean public install and GitHub Release creation |
+| published wheel | [`miniverl-0.2.3-py3-none-any.whl`](https://pypi.org/project/miniverl/0.2.3/), SHA-256 `033e51bfbdae20a91d942ef7a5c22ef6c8a00317cc9b775b102d303f2e1a6619` |
+| published sdist | [`miniverl-0.2.3.tar.gz`](https://pypi.org/project/miniverl/0.2.3/), SHA-256 `6f7d20fd4b4a90e6a3fe1e97c9ced26268e013bb87462ba75a7d09510bd2f011` |
+| publication authorization | granted on 2026-07-29 and completed through the tag-only Trusted Publishing workflow without a long-lived PyPI token |
+| exact blocker | none; PyPI and GitHub expose byte-identical artifacts, attestations passed, independent Python 3.10 core installation passed, and development has advanced past the immutable release |
 
 ## v0.2.2 single-GPU portability release status
 

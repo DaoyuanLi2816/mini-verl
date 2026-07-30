@@ -111,16 +111,28 @@ authorization.
 
 ## After the tag
 
-To be completed from the public release workflow:
+Publication completed on 2026-07-29:
 
-- [ ] Annotated tag `v0.2.3` resolves to the exact validated release commit.
-- [ ] The tag workflow passes metadata, tests, build, OIDC publication, public
-      verification and GitHub Release creation.
-- [ ] Public PyPI hashes and Trusted Publishing attestations match the workflow
-      artifacts, and a clean public core install reports `miniverl 0.2.3`.
-- [ ] The `miniVERL v0.2.3` GitHub Release contains the byte-identical wheel,
-      sdist and `SHA256SUMS`.
-- [ ] Development advances to `0.2.4.dev0`.
+- [x] Annotated tag `v0.2.3` resolves to exact validated commit
+      `38924da743180e6767f1e3b252feafdccd70759b`.
+- [x] Release run
+      [`30513947051`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30513947051)
+      passed metadata, tests, build, OIDC publication, public verification and
+      GitHub Release creation.
+- [x] Public PyPI hashes and Trusted Publishing attestations match the workflow
+      artifacts; clean workflow Python 3.12 and independent Windows Python 3.10
+      core installs reported `miniverl 0.2.3`.
+- [x] The
+      [`miniVERL v0.2.3`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.3)
+      GitHub Release contains the byte-identical wheel, sdist and `SHA256SUMS`.
+- [x] Development advanced to `0.2.4.dev0`.
+
+Published artifact identity:
+
+- `miniverl-0.2.3-py3-none-any.whl`: SHA-256
+  `033e51bfbdae20a91d942ef7a5c22ef6c8a00317cc9b775b102d303f2e1a6619`
+- `miniverl-0.2.3.tar.gz`: SHA-256
+  `6f7d20fd4b4a90e6a3fe1e97c9ced26268e013bb87462ba75a7d09510bd2f011`
 
 ## Historical v0.2.2 record
 
