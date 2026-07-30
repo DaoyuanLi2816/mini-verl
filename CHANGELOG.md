@@ -365,7 +365,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.0...v0.2.1

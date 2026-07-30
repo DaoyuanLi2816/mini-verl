@@ -382,12 +382,14 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
         (REPO_ROOT / "docs" / "generated" / "quality.json").read_text(encoding="utf-8")
     )
     assert record["schema_version"] == 1
-    assert record["release"] == miniverl.__version__.split(".dev", 1)[0]
     assert record["quality_floor"] == "1,000+ tests and 86%+ branch coverage at v0.2.4"
     if ".dev" in miniverl.__version__:
-        assert record["status"] == "candidate"
+        assert record["status"] in {"candidate", "released"}
+        if record["status"] == "candidate":
+            assert record["release"] == miniverl.__version__.split(".dev", 1)[0]
     else:
-        assert record["status"] == "released"
+        assert record["release"] == miniverl.__version__
+        assert record["status"] == "validated"
         assert re.fullmatch(r"[0-9a-f]{40}", record["measured_commit"])
         for section in ("cpu_non_gpu_non_network", "gpu", "network"):
             assert isinstance(record[section]["passed"], int)
