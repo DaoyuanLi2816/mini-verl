@@ -104,7 +104,13 @@ def _verify_integrity_metadata(*, project: str, version: str, filenames: list[st
             raise RuntimeError(f"PyPI exposes no attestation for {filename}")
 
 
-def _verify_long_description_links(*, project: str, version: str, repository: str) -> None:
+def _verify_long_description_links(
+    *,
+    project: str,
+    version: str,
+    repository: str,
+    allow_rendered_page_challenge: bool = False,
+) -> None:
     metadata = _request_json(f"https://pypi.org/pypi/{project}/{version}/json")
     description = str((metadata.get("info") or {}).get("description") or "")
     tag = f"v{version}"
@@ -129,12 +135,6 @@ def _verify_long_description_links(*, project: str, version: str, repository: st
     if f"{github}/blob/main/" in description or f"{raw}/main/" in description:
         raise RuntimeError("stable PyPI long description still links repository files through main")
 
-    page = _request_text(f"https://pypi.org/project/{project}/{version}/")
-    if "<title>Client Challenge</title>" in page:
-        raise RuntimeError("PyPI rendered project page returned a client challenge")
-    absent_from_page = [url for url in required_file_urls if url not in page]
-    if absent_from_page:
-        raise RuntimeError(f"rendered PyPI project page is missing links: {absent_from_page}")
     image_matches = re.findall(
         rf"!\[([^\]]+)\]\({re.escape(required_image_url)}\)",
         description,
@@ -143,11 +143,6 @@ def _verify_long_description_links(*, project: str, version: str, repository: st
         raise RuntimeError(
             "PyPI long description does not use the release-pinned banner as an image"
         )
-    if "pypi-camo." not in page or not all(
-        html.escape(alt, quote=True) in page for alt in image_matches
-    ):
-        raise RuntimeError("rendered PyPI project page is missing the proxied release banner")
-
     project_links = sorted(
         set(
             re.findall(
@@ -163,6 +158,24 @@ def _verify_long_description_links(*, project: str, version: str, repository: st
     for url in project_links:
         _request_text(url)
 
+    page = _request_text(f"https://pypi.org/project/{project}/{version}/")
+    if "<title>Client Challenge</title>" in page:
+        if allow_rendered_page_challenge:
+            print(
+                "warning: PyPI rendered project page returned a client challenge; "
+                "release-pinned description links and their targets were verified through "
+                "the public JSON API, but rendered-page inspection requires a browser"
+            )
+            return
+        raise RuntimeError("PyPI rendered project page returned a client challenge")
+    absent_from_page = [url for url in required_file_urls if url not in page]
+    if absent_from_page:
+        raise RuntimeError(f"rendered PyPI project page is missing links: {absent_from_page}")
+    if "pypi-camo." not in page or not all(
+        html.escape(alt, quote=True) in page for alt in image_matches
+    ):
+        raise RuntimeError("rendered PyPI project page is missing the proxied release banner")
+
 
 def verify_release(
     *,
@@ -173,6 +186,7 @@ def verify_release(
     repository: str,
     attempts: int,
     delay: float,
+    allow_rendered_page_challenge: bool,
 ) -> None:
     expected = _expected_hashes(sums, artifact_root)
     last_error: Exception | None = None
@@ -189,6 +203,7 @@ def verify_release(
                 project=project,
                 version=version,
                 repository=repository,
+                allow_rendered_page_challenge=allow_rendered_page_challenge,
             )
             break
         except (RuntimeError, urllib.error.HTTPError, urllib.error.URLError) as exc:
@@ -222,6 +237,14 @@ def main() -> None:
     parser.add_argument("--repository", required=True)
     parser.add_argument("--attempts", type=int, default=12)
     parser.add_argument("--delay", type=float, default=10.0)
+    parser.add_argument(
+        "--allow-rendered-page-challenge",
+        action="store_true",
+        help=(
+            "accept PyPI's browser challenge only after public metadata and every "
+            "release-pinned repository target have been verified"
+        ),
+    )
     args = parser.parse_args()
     if args.attempts < 1:
         parser.error("--attempts must be at least 1")
@@ -233,6 +256,7 @@ def main() -> None:
         repository=args.repository,
         attempts=args.attempts,
         delay=args.delay,
+        allow_rendered_page_challenge=args.allow_rendered_page_challenge,
     )
 
 
