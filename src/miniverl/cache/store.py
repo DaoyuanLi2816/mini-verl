@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import struct
 import uuid
 from datetime import datetime, timezone
@@ -44,11 +45,13 @@ from miniverl.schemas.cache import (
     CacheShardMeta,
     TeacherTargetBatch,
 )
+from miniverl.utils.logging import get_logger
 from miniverl.utils.runs import write_json_atomic
 
 __all__ = ["TeacherCache", "read_safetensors_header", "sha256_file"]
 
 _INDEX_NAME = "index.json"
+_SHARD_NAME = re.compile(r"^shard-(\d+)\.safetensors$")
 _TENSOR_FIELDS = (
     "positions",
     "topk_indices",
@@ -57,10 +60,26 @@ _TENSOR_FIELDS = (
     "target_token_ids",
     "weights",
 )
+logger = get_logger("cache")
 
 
 def _replace_shard_file(source: Path, target: Path) -> None:
     source.replace(target)
+
+
+def _delete_shard_file(path: Path) -> None:
+    path.unlink()
+
+
+def _next_shard_id(path: Path, index: CacheIndex) -> int:
+    names = set(index.shards)
+    names.update(shard.filename for shard in index.shards.values())
+    if path.is_dir():
+        names.update(child.name for child in path.iterdir() if child.is_file())
+    suffixes = [
+        int(match.group(1)) for name in names if (match := _SHARD_NAME.fullmatch(name)) is not None
+    ]
+    return max(suffixes, default=-1) + 1
 
 
 def sha256_file(path: Path) -> tuple[str, int]:
@@ -108,13 +127,13 @@ def read_safetensors_header(path: Path) -> dict[str, Any]:
 class TeacherCache:
     """Append-only, shard-based store for compressed teacher targets."""
 
-    def __init__(self, path: str | Path, index: CacheIndex, *, entries_per_shard: int = 32) -> None:
+    def __init__(self, path: str | Path, index: CacheIndex) -> None:
         self.path = Path(path)
         self.index = index
-        self.entries_per_shard = entries_per_shard
+        self.entries_per_shard = index.entries_per_shard
         self._pending: dict[str, dict[str, Any]] = {}
         self._pending_order: list[str] = []
-        self._shard_counter = len(index.shards)
+        self._shard_counter = _next_shard_id(self.path, index)
         # Cumulative I/O accounting is intentionally independent of the current
         # footprint: pruning may shrink ``total_bytes()`` but cannot un-write the
         # shards that consumed bandwidth earlier in the run.
@@ -182,8 +201,9 @@ class TeacherCache:
             temperature=temperature,
             loss_mode=loss_mode,
             dtype=dtype,
+            entries_per_shard=entries_per_shard,
         )
-        cache = cls(target, index, entries_per_shard=entries_per_shard)
+        cache = cls(target, index)
         cache._write_index()
         return cache
 
@@ -567,25 +587,42 @@ class TeacherCache:
     def prune_before(self, policy_version: int) -> int:
         """Drop entries older than ``policy_version``; returns the number removed.
 
-        Whole shards are deleted only when every entry they hold is dropped, so
-        the index and the files stay consistent.
+        The next index is published before its now-unreferenced shards are
+        deleted.  An interrupted cleanup can therefore leave an inert orphan
+        shard, but never an index that points at a shard already removed.
         """
         stale = [
             traj_id
             for traj_id, entry in self.index.entries.items()
             if entry.policy_version < policy_version
         ]
+        if not stale:
+            return 0
+
+        next_index = self.index.model_copy(deep=True)
         for traj_id in stale:
-            del self.index.entries[traj_id]
-        live_shards = {e.shard for e in self.index.entries.values()}
-        for name in list(self.index.shards):
+            del next_index.entries[traj_id]
+        live_shards = {entry.shard for entry in next_index.entries.values()}
+        unreferenced_shards = []
+        for name in list(next_index.shards):
             if name not in live_shards:
-                shard_path = self.path / name
-                if shard_path.is_file():
-                    shard_path.unlink()
-                del self.index.shards[name]
-        if stale:
-            self._write_index()
+                unreferenced_shards.append(name)
+                del next_index.shards[name]
+
+        self._write_index(next_index)
+        self.index = next_index
+        for name in unreferenced_shards:
+            shard_path = self.path / name
+            if not shard_path.is_file():
+                continue
+            try:
+                _delete_shard_file(shard_path)
+            except OSError as exc:
+                logger.warning(
+                    "teacher-cache prune left unreferenced shard %s: %s",
+                    shard_path,
+                    exc,
+                )
         return len(stale)
 
 

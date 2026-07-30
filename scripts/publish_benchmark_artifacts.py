@@ -124,11 +124,11 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
     ):
         continuation_ratio = protocol_opd_row["seconds_mean"] / sft_row["seconds_mean"]
         title = (
-            "Same strict success; protocol OPD uses "
-            f"{continuation_ratio:.1f}× more continuation time"
+            "Saturated calculator task · same success, "
+            f"{continuation_ratio:.1f}× OPD continuation time"
         )
     else:
-        title = "Strict held-out success and continuation train time"
+        title = "Calculator task · strict success and continuation train time"
     trained_step_counts = {
         int(step)
         for row in rows
@@ -176,8 +176,8 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
     )
     svg += line('<title id="benchmark-title">miniVERL protocol-teacher benchmark</title>')
     desc = (
-        "Strict held-out success and continuation train time for equal-update arms "
-        f"over {len(result.seeds)} prespecified seeds."
+        "Strict success on the v0.2 calculator test set and continuation train time "
+        f"for equal-update arms over {len(result.seeds)} prespecified seeds."
     )
     if diagnostic_count:
         desc += (
@@ -238,7 +238,9 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
     svg += line(
         f'<rect class="panel" x="694" y="{panel_y}" width="390" height="{panel_h}" rx="14"/>'
     )
-    svg += line(f'<text class="head" x="{success_x}" y="123">Strict held-out success</text>')
+    svg += line(
+        f'<text class="head" x="{success_x}" y="123">Strict success on v0.2 test set</text>'
+    )
     svg += line(f'<text class="head" x="{time_x}" y="123">Continuation train time</text>')
     for fraction in (0.0, 0.5, 1.0):
         x = success_x + success_w * fraction
@@ -280,12 +282,12 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         svg += line(f'<text class="label" x="{label_x}" y="{label_y}">{display_name}</text>')
         if is_diagnostic:
             svg += line(
-                f'<rect class="pill" x="{label_x}" y="{y + 3}" width="232" '
+                f'<rect class="pill" x="{label_x}" y="{y + 3}" width="176" '
                 f'height="18" rx="9" stroke="{color}" stroke-opacity=".65"/>'
             )
             svg += line(
-                f'<text class="badge" x="{label_x + 116}" y="{y + 15.5}" '
-                'text-anchor="middle">NEGATIVE CONTROL · NO PROTOCOL GATE</text>'
+                f'<text class="badge" x="{label_x + 88}" y="{y + 15.5}" '
+                'text-anchor="middle">NEGATIVE CONTROL · UNGATED</text>'
             )
 
         success_end = success_x + success_w * row["success_mean"]
@@ -341,8 +343,8 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         svg += line("</g>")
 
     svg += line(
-        f'<text class="note" x="36" y="{height - 37}">Protocol-teacher preparation: '
-        "~555 s once, excluded from continuation bars.</text>"
+        f'<text class="note" x="36" y="{height - 37}">'
+        "Teacher preparation is not included in continuation bars.</text>"
     )
     svg += line(
         f'<text class="note" x="36" y="{height - 17}">Bars = seed means · dots = seeds '
