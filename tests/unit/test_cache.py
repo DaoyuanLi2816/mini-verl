@@ -281,6 +281,52 @@ def test_cache_identity_includes_teacher_adapter_provenance(tmp_path: Path) -> N
         )
 
 
+@pytest.mark.parametrize(
+    ("tokenizer_identity", "adapter_provenance", "unverified_component"),
+    [
+        ({"structural_digest_v2": "e" * 64}, None, "structural tokenizer identity"),
+        (
+            {},
+            {
+                "source": "hub",
+                "identity": "owner/adapter",
+                "revision": "a" * 40,
+            },
+            "teacher adapter provenance",
+        ),
+    ],
+)
+def test_schema_v1_cache_is_rejected_when_current_identity_cannot_be_verified(
+    tmp_path: Path,
+    tokenizer_identity: dict[str, object],
+    adapter_provenance: dict[str, object] | None,
+    unverified_component: str,
+) -> None:
+    cache_path = tmp_path / "tc"
+    _cache(cache_path)
+    index_path = cache_path / "index.json"
+    payload = json.loads(index_path.read_text(encoding="utf-8"))
+    payload["schema_version"] = 1
+    payload.pop("tokenizer_identity")
+    payload.pop("teacher_adapter_provenance")
+    index_path.write_text(json.dumps(payload), encoding="utf-8")
+    legacy_cache = TeacherCache.open(cache_path)
+
+    with pytest.raises(StaleCacheError, match=unverified_component):
+        legacy_cache.assert_compatible(
+            teacher_model_id="toy-teacher",
+            teacher_model_revision="rev-abc",
+            tokenizer_fingerprint="fp-1234",
+            tokenizer_identity=tokenizer_identity,
+            teacher_adapter_provenance=adapter_provenance,
+            vocab_size=VOCAB,
+            top_k=TOP_K,
+            temperature=1.0,
+            loss_mode="bucketed_topk_tail",
+            dtype="float32",
+        )
+
+
 def test_sharding_is_deterministic_and_index_stays_consistent(tmp_path: Path):
     cache = _cache(tmp_path / "tc", entries_per_shard=2)
     for i in range(5):
@@ -297,6 +343,107 @@ def test_sharding_is_deterministic_and_index_stays_consistent(tmp_path: Path):
     for entry in cache.index.entries.values():
         assert entry.shard in cache.index.shards
     assert cache.validate() == []
+
+
+def test_reopen_after_pruning_allocates_after_the_highest_surviving_shard(
+    tmp_path: Path,
+) -> None:
+    cache_path = tmp_path / "tc"
+    cache = _cache(cache_path, entries_per_shard=1)
+    for policy_version in range(4):
+        cache.write(
+            _batch(f"t{policy_version}", policy_version=policy_version),
+            selector="hybrid",
+        )
+
+    surviving_bytes = {
+        name: (cache_path / name).read_bytes()
+        for name in ("shard-00002.safetensors", "shard-00003.safetensors")
+    }
+    assert cache.prune_before(2) == 2
+
+    reopened = TeacherCache.open(cache_path)
+    assert reopened.entries_per_shard == 1
+    assert reopened.read("t2", expect_policy_version=2).trajectory_id == "t2"
+    assert reopened.read("t3", expect_policy_version=3).trajectory_id == "t3"
+
+    reopened.write(_batch("t4", policy_version=4), selector="hybrid")
+
+    assert sorted(reopened.index.shards) == [
+        "shard-00002.safetensors",
+        "shard-00003.safetensors",
+        "shard-00004.safetensors",
+    ]
+    assert reopened.read("t4", expect_policy_version=4).trajectory_id == "t4"
+    for name, original in surviving_bytes.items():
+        assert (cache_path / name).read_bytes() == original
+
+
+def test_reopen_allocates_after_the_highest_on_disk_orphan_shard(tmp_path: Path) -> None:
+    cache_path = tmp_path / "tc"
+    cache = _cache(cache_path, entries_per_shard=1)
+    cache.write(_batch("t0"), selector="hybrid")
+    (cache_path / "shard-00007.safetensors").write_bytes(
+        (cache_path / "shard-00000.safetensors").read_bytes()
+    )
+
+    reopened = TeacherCache.open(cache_path)
+    reopened.write(_batch("t1"), selector="hybrid")
+
+    assert reopened.index.entries["t1"].shard == "shard-00008.safetensors"
+    assert (cache_path / "shard-00007.safetensors").is_file()
+
+
+def test_shard_is_written_to_a_temporary_name_before_publication(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import safetensors.torch as safetensors_torch
+
+    cache = _cache(tmp_path / "tc", entries_per_shard=8)
+    cache.write(_batch("t0"), selector="hybrid")
+    real_save_file = safetensors_torch.save_file
+    save_targets: list[Path] = []
+
+    def tracking_save_file(tensors, filename, *, metadata):  # type: ignore[no-untyped-def]
+        save_targets.append(Path(filename))
+        return real_save_file(tensors, filename, metadata=metadata)
+
+    monkeypatch.setattr(safetensors_torch, "save_file", tracking_save_file)
+    cache.flush()
+
+    assert len(save_targets) == 1
+    assert save_targets[0].name.startswith(".shard-00000.safetensors.tmp-")
+    assert (tmp_path / "tc" / "shard-00000.safetensors").is_file()
+    assert not list((tmp_path / "tc").glob(".*.tmp-*"))
+
+
+def test_failed_atomic_index_publication_keeps_the_previous_index_retriable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import miniverl.cache.store as store_module
+
+    cache_path = tmp_path / "tc"
+    cache = _cache(cache_path, entries_per_shard=8)
+    cache.write(_batch("t0"), selector="hybrid")
+    index_path = cache_path / "index.json"
+    original_index = index_path.read_bytes()
+    real_write_json_atomic = store_module.write_json_atomic
+
+    def fail_index_publication(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise OSError("injected atomic index replacement failure")
+
+    monkeypatch.setattr(store_module, "write_json_atomic", fail_index_publication)
+    with pytest.raises(OSError, match="injected atomic index"):
+        cache.flush()
+
+    assert index_path.read_bytes() == original_index
+    assert cache._pending_order == ["t0"]
+    assert len(TeacherCache.open(cache_path)) == 0
+    assert not list(cache_path.glob(".*.tmp-*"))
+
+    monkeypatch.setattr(store_module, "write_json_atomic", real_write_json_atomic)
+    cache.flush()
+    assert len(TeacherCache.open(cache_path)) == 1
 
 
 def test_reopening_a_cache_validates_it(tmp_path: Path):
@@ -378,6 +525,68 @@ def test_prune_before_removes_old_policy_versions_and_their_shards(tmp_path: Pat
     assert removed == 1
     assert "old" not in cache
     assert "new" in cache
+
+
+def test_failed_prune_index_publication_preserves_old_index_and_shards(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import miniverl.cache.store as store_module
+
+    cache_path = tmp_path / "tc"
+    cache = _cache(cache_path, entries_per_shard=1)
+    cache.write(_batch("old", policy_version=1), selector="hybrid")
+    cache.write(_batch("new", policy_version=5), selector="hybrid")
+    index_path = cache_path / "index.json"
+    original_index_bytes = index_path.read_bytes()
+    original_index = cache.index.model_dump(mode="json")
+    original_shards = {
+        path.name: path.read_bytes() for path in cache_path.glob("shard-*.safetensors")
+    }
+
+    def fail_index_publication(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise OSError("injected prune index replacement failure")
+
+    monkeypatch.setattr(store_module, "write_json_atomic", fail_index_publication)
+    with pytest.raises(OSError, match="injected prune index"):
+        cache.prune_before(5)
+
+    assert cache.index.model_dump(mode="json") == original_index
+    assert index_path.read_bytes() == original_index_bytes
+    assert {
+        path.name: path.read_bytes() for path in cache_path.glob("shard-*.safetensors")
+    } == original_shards
+    assert cache.read("old", expect_policy_version=1).trajectory_id == "old"
+    assert cache.read("new", expect_policy_version=5).trajectory_id == "new"
+
+
+def test_prune_deletion_failure_leaves_a_harmless_orphan_after_index_publication(
+    tmp_path: Path, monkeypatch
+) -> None:
+    import miniverl.cache.store as store_module
+
+    cache_path = tmp_path / "tc"
+    cache = _cache(cache_path, entries_per_shard=1)
+    cache.write(_batch("old", policy_version=1), selector="hybrid")
+    cache.write(_batch("new", policy_version=5), selector="hybrid")
+    old_shard = cache.index.entries["old"].shard
+    deletion_attempts: list[Path] = []
+
+    def fail_deletion(path: Path) -> None:
+        published = json.loads((cache_path / "index.json").read_text(encoding="utf-8"))
+        assert old_shard not in published["shards"]
+        deletion_attempts.append(path)
+        raise OSError("injected orphan cleanup failure")
+
+    monkeypatch.setattr(store_module, "_delete_shard_file", fail_deletion, raising=False)
+    assert cache.prune_before(5) == 1
+
+    assert deletion_attempts == [cache_path / old_shard]
+    assert old_shard not in cache.index.shards
+    assert (cache_path / old_shard).is_file()
+    reopened = TeacherCache.open(cache_path)
+    assert "old" not in reopened
+    assert reopened.read("new", expect_policy_version=5).trajectory_id == "new"
+    assert reopened.validate() == []
 
 
 def test_pruning_does_not_reduce_cumulative_bytes_written(tmp_path: Path):

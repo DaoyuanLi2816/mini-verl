@@ -36,6 +36,7 @@ class _FakeTokenizer:
         vocab: dict[str, int] | None = None,
         added: dict[str, int] | None = None,
         normalizer: str = "NFC",
+        name_or_path: str = "same/repo",
     ) -> None:
         self._vocab = vocab or {
             "<pad>": 0,
@@ -46,6 +47,10 @@ class _FakeTokenizer:
         }
         self._added = added or {"<tool>": max(self._vocab.values()) + 1}
         self.backend_tokenizer = _BackendTokenizer(normalizer)
+        self.init_kwargs = {
+            "clean_up_tokenization_spaces": False,
+            "name_or_path": name_or_path,
+        }
 
     def __len__(self) -> int:
         return max([*self._vocab.values(), *self._added.values()]) + 1
@@ -91,6 +96,13 @@ def test_same_probe_but_different_structure_has_a_different_v2_digest(changed) -
 
 def test_identical_tokenizer_structure_has_identical_v2_identity() -> None:
     assert _adapter().identity == _adapter().identity
+
+
+def test_local_source_paths_do_not_change_structural_identity(tmp_path) -> None:
+    first = _adapter(name_or_path=str(tmp_path / "checkout-a" / "tokenizer"))
+    second = _adapter(name_or_path=str(tmp_path / "checkout-b" / "tokenizer"))
+
+    assert first.identity == second.identity
 
 
 def test_same_repo_with_different_revisions_is_loaded_and_compared(monkeypatch) -> None:

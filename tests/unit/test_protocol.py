@@ -24,6 +24,7 @@ Pure string invariants: no torch, no I/O, no randomness.
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 from typing import Any
 
@@ -827,30 +828,98 @@ def test_historical_v1_full_prompt_keeps_its_ambiguous_final_example() -> None:
     )
 
 
-@pytest.mark.parametrize("prompt_style", ["full", "compact"])
-def test_v2_prompt_examples_parse_as_the_intended_actions(prompt_style: str) -> None:
-    import re
-
-    from miniverl.agent.protocol import ActionKind, parse_assistant_text
+@pytest.mark.parametrize(
+    ("prompt_style", "expected_sha256"),
+    [
+        ("full", "cf668e51feb9f7b6dfea67683fda8e8fe93e51b6c379a244ece28a11f558641a"),
+        ("compact", "4f1a67077e93b27600892bf0a02d5b23441ab6f8b38be58846dc8af38709ba59"),
+    ],
+)
+def test_historical_v1_prompt_is_byte_frozen(prompt_style: str, expected_sha256: str) -> None:
     from miniverl.environments.registry import make_environment
 
     prompt = make_environment(
         "calculator",
         prompt_style=prompt_style,
-        protocol_version="v2",
+        protocol_version="v1",
     ).system_prompt()
+    assert hashlib.sha256(prompt.encode("utf-8")).hexdigest() == expected_sha256
+
+
+def _assert_v2_prompt_example_round_trips(environment) -> None:  # type: ignore[no-untyped-def]
+    import re
+
+    from miniverl.agent.protocol import ActionKind, parse_assistant_text
+
+    prompt = environment.system_prompt()
     tool_block = re.search(r"<tool_call>.*?</tool_call>", prompt, flags=re.DOTALL)
     final_block = re.search(r"<final>.*?</final>", prompt, flags=re.DOTALL)
     assert tool_block is not None
     assert final_block is not None
 
+    expected = environment.tool_specs()[0]
     tool = parse_assistant_text(tool_block.group(0))
     final = parse_assistant_text(final_block.group(0))
     assert tool.kind is ActionKind.TOOL_CALL
-    assert tool.tool_name == "calculator"
-    assert tool.arguments == {"expression": "2+2"}
+    assert tool.tool_name == expected.name
+    assert tool.arguments == expected.example
     assert final.kind is ActionKind.FINAL
-    assert final.final_answer == "4"
+    assert final.final_answer == "answer"
+
+
+@pytest.mark.parametrize("environment_name", ["calculator", "jsonnav", "sqlite"])
+@pytest.mark.parametrize("prompt_style", ["full", "compact"])
+def test_v2_builtin_prompt_examples_use_the_active_tool_spec(
+    environment_name: str, prompt_style: str
+) -> None:
+    from miniverl.environments.registry import make_environment
+
+    environment = make_environment(
+        environment_name,
+        prompt_style=prompt_style,
+        protocol_version="v2",
+    )
+    _assert_v2_prompt_example_round_trips(environment)
+
+
+@pytest.mark.parametrize("prompt_style", ["full", "compact"])
+def test_v2_custom_environment_prompt_example_uses_its_tool_spec(prompt_style: str) -> None:
+    from miniverl.environments.base import Task, ToolEnvironment, ToolSpec
+
+    class CustomEnvironment(ToolEnvironment):
+        name = "custom-test"
+
+        def tool_specs(self) -> list[ToolSpec]:
+            return [
+                ToolSpec(
+                    name="reverse",
+                    description="Reverse text.",
+                    parameters={"text": "string"},
+                    required=("text",),
+                    example={"text": "abc"},
+                )
+            ]
+
+        def generate_task(self, index: int, seed: int, *, difficulty: str, split: str) -> Task:
+            raise AssertionError("not used by this prompt-only test")
+
+        def reset(self, task: Task) -> Any:
+            raise AssertionError("not used by this prompt-only test")
+
+        def step(self, call: Any) -> Any:
+            raise AssertionError("not used by this prompt-only test")
+
+        def verify(self, answer: str) -> Any:
+            raise AssertionError("not used by this prompt-only test")
+
+        def oracle_actions(self, task: Task) -> list[Any]:
+            raise AssertionError("not used by this prompt-only test")
+
+    environment = CustomEnvironment(
+        prompt_style=prompt_style,
+        protocol_version="v2",
+    )
+    _assert_v2_prompt_example_round_trips(environment)
 
 
 def test_v2_render_parse_round_trips_unicode_and_escapes_closing_tag_injection() -> None:

@@ -87,7 +87,7 @@ keeps the whole lifecycle in one readable single-GPU process.
 | Compressed `top-k + tail` KL and JSD | yes; the unsmoothed coarse-graining has a proven lower-bound relationship to the exact loss |
 | Privileged-context teacher with an explicit alignment map | yes |
 | Frozen standard PEFT teacher adapters with provenance and competence gates | yes |
-| Single-GPU CUDA path with automatic bf16/fp16 selection | yes; model-agnostic code path, measured reference on an RTX 4080 |
+| Single-GPU CUDA path with automatic bf16/fp16 selection | yes; device-name-agnostic CUDA path, measured reference on an RTX 4080 |
 | `resident` and `swap` memory strategies, `auto` resolution | yes, with an equivalence test |
 | Versioned, checksummed, pickle-free teacher-target cache | yes |
 | SFT / offline KD / strict OPD / explicitly labeled replay behind one trainer | yes |
@@ -115,33 +115,39 @@ keeps the whole lifecycle in one readable single-GPU process.
 
 The [public, immutable protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
 is the default in the single-GPU recipe. It passed an independently
-prespecified policy-competence gate before this benchmark was inspected. The
-two controls intentionally remove that guarantee: their loss decreased
-normally, but they taught the student an incompatible tool policy. This is a
-measured teacher-competence failure, not a trainer crash.
+prespecified policy-competence gate before this benchmark was inspected. Both
+controls completed normally and measured 0% in both seeds; they were neither
+configuration failures nor crashes. Both used the ambiguous historical
+protocol-v1 prompt, so 0% cannot be attributed solely to intrinsic teacher
+behaviour; it diagnoses the missing qualification gate in that setup.
 
-The historical teacher-selection gate and the downstream benchmark both used
-the same 24-task v0.2 `test` set. Candidate A was prespecified and passed on the
-first attempt, so no fallback tuning occurred, but the final set was not a
-completely untouched test set. Future teacher selection uses `eval`; downstream
-reporting uses `test`. See [limitations](docs/limitations.md).
+The historical gate and benchmark reused the same 24-task v0.2 `test` set.
+Candidate A was prespecified and passed first try (no fallback tuning), but the
+set was not untouched. Future selection uses `eval`; reporting uses `test`.
+See [limitations](docs/limitations.md).
 
-OPD still only ties SFT and takes about 6x as much training time here
-(523.8 s versus 86.4 s on average). The task saturates; two seeds do not support
-a significance claim, and no general OPD advantage is claimed. See the
+OPD only ties SFT and takes 6.1× as much continuation time here (523.8 s versus
+86.4 s). The task saturates; two seeds support neither significance nor a
+general OPD advantage. See the
 [full result and legacy transcript diagnosis](docs/rtx4080-baselines.md).
 
 ![Two-seed protocol-teacher benchmark](docs/gpu-calc-hard-equal-update-v2.svg)
 
-An older RTX 4080 pipeline smoke run used the now-preserved
-[raw-teacher control recipe](recipes/qwen_consumer_gpu_calc_raw_teacher.yaml)
-to train **Qwen3-0.6B** from **Qwen3-1.7B** in **481 s / 16 optimizer steps**,
-peaking at **4.25 GiB
-allocated / 4.76 GiB reserved**, and moved held-out greedy success from
-**0.0% to 100.0%** on 12 tasks. The 8-cycle supervised cold start did most of
-that work: the first OPD rollout batch already scored 83.3%. It demonstrates
-the pipeline end to end, not an OPD-over-SFT result. Every number is traceable
-to [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md).
+| Artifact | Role |
+| --- | --- |
+| [Default recipe](recipes/qwen_consumer_gpu_calc.yaml) | protocol-qualified default |
+| [Schema-v2 benchmark](benchmarks/results/gpu-calc-hard-equal-update-v2.json) | frozen five-arm result |
+| [Raw-teacher recipe](recipes/qwen_consumer_gpu_calc_raw_teacher.yaml) | historical control; not default |
+
+<details>
+<summary>Historical 481-second raw-teacher smoke (schema v1)</summary>
+
+On RTX 4080, 16 updates took 481 s, peaked at **4.25/4.76 GiB
+allocated/reserved**, and moved 12-task success from **0% to 100%**. Cold start
+did most of it (first OPD batch: 83.3%); this proves the pipeline, not OPD over
+SFT. [Trace](docs/rtx4080-baselines.md).
+
+</details>
 
 ## Local toy demo
 
@@ -239,10 +245,10 @@ The recipe pins both revisions:
 | teacher | `Qwen/Qwen3-1.7B` | `70d244cc86ccca08cf5af4e1e306ecf908b1ad5e` | Apache-2.0 |
 
 Their `tokenizer.json` files are byte-identical
-(`sha256 aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`),
-which is what makes the same-tokenizer contract hold. miniVERL verifies it at
-load time by behavioural fingerprint and refuses to run otherwise. The recipe
-also pins the [protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
+(`sha256 aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`).
+New runs compare structural identity; old artifacts use the legacy fixed-probe
+behavioural fingerprint.
+The recipe also pins the [protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
 at revision `23323751318135484c06c043b1f9b9e7016dd89f` and requires its recorded
 strict policy success to be at least 50% before allocating the teacher.
 

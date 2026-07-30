@@ -75,6 +75,7 @@ class CacheIndex(BaseModel):
     temperature: float = Field(gt=0.0)
     loss_mode: str
     dtype: str = "float32"
+    entries_per_shard: int = Field(default=32, ge=1, le=4096)
     entries: dict[str, CacheEntryMeta] = Field(default_factory=dict)
     shards: dict[str, CacheShardMeta] = Field(default_factory=dict)
 

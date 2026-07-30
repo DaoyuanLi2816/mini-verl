@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import gc
+import json
 import weakref
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -52,6 +54,32 @@ def test_close_releases_owned_resources_once_and_is_idempotent(tmp_path) -> None
     assert trainer.optimizer is None
     assert trainer._cache is None
     assert trainer._offline_samples is None
+
+
+def test_model_construction_failure_never_leaves_an_orphan_run_directory(
+    tmp_path, monkeypatch
+) -> None:
+    import miniverl.training.trainer as trainer_module
+    from miniverl.trainer import OPDTrainer
+
+    config = _config(tmp_path)
+    run_id = "model-construction-failure"
+    run_directory = Path(config.run.output_dir) / run_id
+    monkeypatch.setattr(
+        trainer_module,
+        "build_student",
+        Mock(side_effect=RuntimeError("injected model construction failure")),
+    )
+
+    with pytest.raises(RuntimeError, match="injected model construction failure"):
+        OPDTrainer.from_config(config, run_id=run_id)
+
+    if run_directory.exists():
+        manifest_path = run_directory / "manifest.json"
+        assert manifest_path.is_file()
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["status"] == "failed_construction"
+        assert manifest["failure"]["type"] == "RuntimeError"
 
 
 def test_close_drops_model_optimizer_runner_scorer_and_target_provider_references(

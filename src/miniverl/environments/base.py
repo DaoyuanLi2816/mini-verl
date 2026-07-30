@@ -228,12 +228,14 @@ class ToolEnvironment(ABC):
                 f"- {spec.name}({', '.join(spec.parameters)})" for spec in self.tool_specs()
             )
             if self.protocol_version == "v2":
+                tool_example, final_example = self._protocol_v2_examples()
                 return (
                     "Use tools to solve the task.\n"
                     f"{tools}\n"
-                    "Reply with one block:\n<tool_call>\n"
-                    '{"name":"calculator","arguments":{"expression":"2+2"}}\n'
-                    "</tool_call>\nor\n<final>\n4\n</final>"
+                    "Reply with one block:\n"
+                    f"{tool_example}\n"
+                    "or\n"
+                    f"{final_example}"
                 )
             return (
                 "Use tools to solve the task.\n"
@@ -243,6 +245,7 @@ class ToolEnvironment(ABC):
             )
         tools = "\n".join(spec.render() for spec in self.tool_specs())
         if self.protocol_version == "v2":
+            tool_example, final_example = self._protocol_v2_examples()
             return (
                 "You are a tool-using assistant. Solve the task with the tools below.\n"
                 "\n"
@@ -251,10 +254,9 @@ class ToolEnvironment(ABC):
                 "\n"
                 "Reply with exactly one block per turn.\n"
                 "To call a tool:\n"
-                '<tool_call>\n{"name":"calculator","arguments":{"expression":"2+2"}}\n'
-                "</tool_call>\n"
+                f"{tool_example}\n"
                 "To answer:\n"
-                "<final>\n4\n</final>"
+                f"{final_example}"
             )
         return (
             "You are a tool-using assistant. Solve the task with the tools below.\n"
@@ -268,6 +270,16 @@ class ToolEnvironment(ABC):
             "To answer:\n"
             "<final>\n<answer>\n</final>"
         )
+
+    def _protocol_v2_examples(self) -> tuple[str, str]:
+        """Render parseable examples from this environment's active tool contract."""
+        from miniverl.agent.protocol import render_final, render_tool_call
+
+        specs = self.tool_specs()
+        if not specs:
+            raise ValueError(f"environment {self.name!r} does not declare any tools")
+        spec = specs[0]
+        return render_tool_call(spec.name, spec.example), render_final("answer")
 
     def user_prompt(self, task: Task) -> str:
         """Compatibility helper for built-ins constructing ``reset()`` output.
