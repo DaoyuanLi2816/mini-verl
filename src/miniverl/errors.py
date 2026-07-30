@@ -25,6 +25,7 @@ __all__ = [
     "GpuMemoryError",
     "LifecycleError",
     "RunLockedError",
+    "SerializationError",
     "CheckpointError",
     "ReportError",
     "RunNotFoundError",
@@ -115,6 +116,10 @@ class LifecycleError(MiniVerlError):
 
 class RunLockedError(LifecycleError):
     """Another process owns the exclusive mutation lock for a run."""
+
+
+class SerializationError(MiniVerlError):
+    """A value cannot be represented as standards-compliant machine JSON."""
 
 
 class CheckpointError(MiniVerlError):

@@ -56,6 +56,14 @@ jobs:
       - name: mypy
         run: mypy src/miniverl
 
+      - name: actionlint
+        if: matrix.python-version == '3.12'
+        run: |
+          curl -fsSLO https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint_1.7.12_linux_amd64.tar.gz" | sha256sum --check
+          tar -xzf actionlint_1.7.12_linux_amd64.tar.gz actionlint
+          ./actionlint
+
       - name: pytest (torch-free subset)
         run: pytest -q -m "not torch and not gpu and not network" -ra
 
@@ -69,6 +77,8 @@ jobs:
 
       - name: CLI smoke (base install)
         run: |
+          python scripts/build_pypi_readme.py --check
+          python scripts/check_markdown_links.py
           miniverl --help
           miniverl --version
           miniverl doctor --json > doctor.json

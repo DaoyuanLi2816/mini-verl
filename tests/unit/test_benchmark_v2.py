@@ -164,6 +164,31 @@ def test_published_provenance_replaces_machine_local_absolute_paths() -> None:
     assert "alice" not in json.dumps(portable).lower()
 
 
+@pytest.mark.parametrize(
+    "private_path",
+    [
+        r"C:\Users\Alice\OneDrive\private\adapter",
+        "/home/alice/private/adapter",
+        "/Users/alice/private/adapter",
+    ],
+)
+def test_portable_payload_redacts_cross_platform_paths_and_secrets(private_path: str) -> None:
+    portable = portable_payload(
+        {
+            "adapter": {"source": "local", "path": private_path},
+            "api_token": "secret-value",
+            "hostname": "alice-workstation",
+        }
+    )
+    rendered = json.dumps(portable, sort_keys=True)
+    assert private_path not in rendered
+    assert "alice" not in rendered.lower()
+    assert "secret-value" not in rendered
+    assert portable["adapter"]["path"].endswith("/adapter")
+    assert portable["api_token"] == "<redacted>"
+    assert portable["hostname"] == "<redacted>"
+
+
 @pytest.mark.torch
 def test_schema_v2_benchmark_runs_end_to_end_and_writes_provenance(tmp_path: Path) -> None:
     base = _base()

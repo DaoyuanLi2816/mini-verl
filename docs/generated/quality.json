@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "release": "0.2.4",
+  "status": "candidate",
+  "measured_commit": null,
+  "measured_at": null,
+  "cpu_non_gpu_non_network": {
+    "passed": null,
+    "deselected": null,
+    "branch_coverage_percent": null
+  },
+  "gpu": {
+    "passed": null,
+    "deselected": null,
+    "hardware": null
+  },
+  "network": {
+    "passed": null,
+    "deselected": null
+  },
+  "quality_floor": "1,000+ tests and 86%+ branch coverage at v0.2.4"
+}

@@ -27,6 +27,8 @@ from contextlib import contextmanager
 from typing import Any
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from miniverl.environments.base import (
     FailureCategory,
@@ -61,6 +63,17 @@ from miniverl.errors import ConfigError, ToolEnvironmentError
 ENV_NAMES = ("calculator", "jsonnav", "sqlite")
 DIFFICULTIES = ("easy", "medium", "hard")
 ALL_CASES = [(name, difficulty) for name in ENV_NAMES for difficulty in DIFFICULTIES]
+JSON_VALUE = st.recursive(
+    st.none()
+    | st.booleans()
+    | st.integers(min_value=-(10**100), max_value=10**100)
+    | st.floats(allow_nan=False, allow_infinity=False, width=64)
+    | st.text(max_size=80),
+    lambda children: (
+        st.lists(children, max_size=6) | st.dictionaries(st.text(max_size=20), children, max_size=6)
+    ),
+    max_leaves=20,
+)
 
 
 @contextmanager
@@ -757,6 +770,13 @@ def test_a_legitimate_aggregate_select_returns_parsed_json_rows(
         assert rows[0]["amount_total"] > 0
 
 
+def test_sqlite_non_finite_result_is_a_bounded_tool_error(sql_env: ToolEnvironment) -> None:
+    step = sql_env.step(ToolCall("query", {"sql": "SELECT 1e400 AS too_large"}))
+    assert not step.ok
+    assert step.failure_category is FailureCategory.TOOL_ERROR
+    assert step.error is not None and "finite JSON" in step.error
+
+
 def test_a_join_select_returns_column_named_rows(sql_env: ToolEnvironment) -> None:
     sql = (
         "SELECT c.city AS city, total(o.amount) AS total FROM orders o "
@@ -789,6 +809,35 @@ def test_the_schema_tool_returns_the_ddl(sql_env: ToolEnvironment) -> None:
 def test_sqlite_step_before_reset_is_rejected() -> None:
     with environment("sqlite") as env, pytest.raises(ToolEnvironmentError, match="before reset"):
         env.step(ToolCall("schema", {}))
+
+
+@settings(max_examples=50, deadline=None)
+@given(arguments=st.dictionaries(st.text(max_size=20), JSON_VALUE, max_size=8))
+@pytest.mark.parametrize(
+    ("environment_name", "tool_name"),
+    [
+        ("calculator", "calculator"),
+        ("calculator", "convert"),
+        ("jsonnav", "get"),
+        ("jsonnav", "keys"),
+        ("jsonnav", "find"),
+        ("sqlite", "schema"),
+        ("sqlite", "query"),
+    ],
+)
+def test_every_environment_contains_arbitrary_json_compatible_arguments(
+    environment_name: str,
+    tool_name: str,
+    arguments: dict[str, Any],
+) -> None:
+    """Untrusted model arguments always become a bounded ``StepResult``."""
+    with environment(environment_name) as env:
+        task = env.generate_task(0, 7, difficulty="easy", split="train")
+        env.reset(task)
+        result = env.step(ToolCall(tool_name, arguments))
+    assert isinstance(result.ok, bool)
+    assert len(result.result) <= 20_000
+    assert result.error is None or len(result.error) <= 2_000
 
 
 # -- I. registry ----------------------------------------------------------

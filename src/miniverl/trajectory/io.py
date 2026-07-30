@@ -26,7 +26,17 @@ def write_trajectories(path: str | Path, trajectories: Iterable[Trajectory]) -> 
     written = 0
     with p.open("w", encoding="utf-8", newline="\n") as fh:
         for traj in trajectories:
-            fh.write(json.dumps(traj.model_dump(mode="json"), ensure_ascii=False))
+            try:
+                serialized = json.dumps(
+                    traj.model_dump(mode="json"),
+                    ensure_ascii=False,
+                    allow_nan=False,
+                )
+            except (OverflowError, RecursionError, TypeError, ValueError) as exc:
+                raise SchemaValidationError(
+                    f"trajectory {traj.trajectory_id!r} is not finite JSON: {exc}"
+                ) from exc
+            fh.write(serialized)
             fh.write("\n")
             written += 1
     return written
@@ -39,7 +49,17 @@ def append_trajectories(path: str | Path, trajectories: Iterable[Trajectory]) ->
     written = 0
     with p.open("a", encoding="utf-8", newline="\n") as fh:
         for traj in trajectories:
-            fh.write(json.dumps(traj.model_dump(mode="json"), ensure_ascii=False))
+            try:
+                serialized = json.dumps(
+                    traj.model_dump(mode="json"),
+                    ensure_ascii=False,
+                    allow_nan=False,
+                )
+            except (OverflowError, RecursionError, TypeError, ValueError) as exc:
+                raise SchemaValidationError(
+                    f"trajectory {traj.trajectory_id!r} is not finite JSON: {exc}"
+                ) from exc
+            fh.write(serialized)
             fh.write("\n")
             written += 1
     return written

@@ -269,10 +269,20 @@ def save_checkpoint(
         state.optimizer_scalars = {key: _jsonable(value) for key, value in scalars.items()}
         state.optimizer_state_keys = keys
         state.rng = rng.to_dict()
-        write_text(
-            temporary / _STATE,
-            json.dumps(state.to_dict(), indent=2, sort_keys=True, default=_jsonable) + "\n",
-        )
+        try:
+            state_json = (
+                json.dumps(
+                    state.to_dict(),
+                    indent=2,
+                    sort_keys=True,
+                    allow_nan=False,
+                    default=_jsonable,
+                )
+                + "\n"
+            )
+        except (OverflowError, RecursionError, TypeError, ValueError) as exc:
+            raise CheckpointError(f"checkpoint state is not finite JSON: {exc}") from exc
+        write_text(temporary / _STATE, state_json)
 
         files = {
             path.name: _file_record(path) for path in sorted(temporary.iterdir()) if path.is_file()
@@ -306,10 +316,11 @@ def save_checkpoint(
                 identity=checkpoint_identity,
             ),
         }
-        write_text(
-            temporary / _MANIFEST,
-            json.dumps(manifest, indent=2, sort_keys=True) + "\n",
-        )
+        try:
+            manifest_json = json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False) + "\n"
+        except (OverflowError, RecursionError, TypeError, ValueError) as exc:
+            raise CheckpointError(f"checkpoint manifest is not finite JSON: {exc}") from exc
+        write_text(temporary / _MANIFEST, manifest_json)
         for path in temporary.iterdir():
             if path.is_file():
                 _sync_file(path)

@@ -244,11 +244,21 @@ class SqliteEnvironment(ToolEnvironment):
                     state_id=state_id,
                     failure_category=FailureCategory.TOOL_ERROR,
                 )
-            return StepResult(
-                ok=True,
-                result=json.dumps(rows, ensure_ascii=False, sort_keys=False),
-                state_id=state_id,
-            )
+            try:
+                result = json.dumps(
+                    rows,
+                    ensure_ascii=False,
+                    sort_keys=False,
+                    allow_nan=False,
+                )
+            except (OverflowError, RecursionError, TypeError, ValueError) as exc:
+                return StepResult(
+                    ok=False,
+                    error=f"query result is not finite JSON: {exc}",
+                    state_id=state_id,
+                    failure_category=FailureCategory.TOOL_ERROR,
+                )
+            return StepResult(ok=True, result=result, state_id=state_id)
         return StepResult(
             ok=False,
             error=f"unknown tool {call.name!r}; available tools: schema, query",

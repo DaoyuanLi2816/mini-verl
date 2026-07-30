@@ -596,6 +596,8 @@ class _RecordingWriter:
 
 
 _RUN_PATH_PROPERTIES = (
+    "config_submitted",
+    "config_validated",
     "config_original",
     "config_resolved",
     "manifest",
@@ -680,6 +682,21 @@ def test_jsonl_writer_serializes_unsupported_objects(tmp_path: Path) -> None:
     record = read_jsonl(path)[0]
     assert record["obj"] == {"kind": "dumpable"}
     assert record["path"] == str(tmp_path / "a" / "b")
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_machine_json_writers_reject_non_finite_values_without_partial_output(
+    tmp_path: Path, value: float
+) -> None:
+    from miniverl.errors import SerializationError
+    from miniverl.utils.runs import JsonlWriter, canonical_json
+
+    path = tmp_path / "metrics.jsonl"
+    with pytest.raises(SerializationError, match="finite"):
+        canonical_json({"loss": value})
+    with pytest.raises(SerializationError, match="finite"):
+        JsonlWriter(path).write({"loss": value})
+    assert not path.exists() or path.read_bytes() == b""
 
 
 def test_read_jsonl_returns_empty_for_a_missing_file(tmp_path: Path) -> None:

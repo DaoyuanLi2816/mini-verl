@@ -14,6 +14,7 @@ from typing import Any
 from miniverl.errors import ReportError
 from miniverl.schemas.trajectory import Trajectory
 from miniverl.trajectory.io import iter_trajectories
+from miniverl.utils.privacy import portable_payload, portable_text, portable_yaml
 from miniverl.utils.runs import RunPaths, read_json, read_jsonl
 
 __all__ = ["ReportData", "TrajectoryView"]
@@ -67,11 +68,13 @@ class ReportData:
     ) -> ReportData:
         """Read a run directory into a report model."""
         paths = RunPaths.open(run_dir)
-        manifest = read_json(paths.manifest)
-        environment = read_json(paths.environment) if paths.environment.is_file() else {}
-        summary = read_json(paths.eval_json) if paths.eval_json.is_file() else {}
-        metrics = read_jsonl(paths.metrics)
-        events = read_jsonl(paths.events)
+        manifest = portable_payload(read_json(paths.manifest))
+        environment = (
+            portable_payload(read_json(paths.environment)) if paths.environment.is_file() else {}
+        )
+        summary = portable_payload(read_json(paths.eval_json)) if paths.eval_json.is_file() else {}
+        metrics = portable_payload(read_jsonl(paths.metrics))
+        events = portable_payload(read_jsonl(paths.events))
 
         step_metrics = [
             m for m in metrics if m.get("phase") in {"sft", "offline_kd", "opd", "sft_warmup"}
@@ -89,13 +92,19 @@ class ReportData:
             from miniverl.cache.stats import compute_stats
 
             try:
-                cache_stats = compute_stats(paths.teacher_cache, verify_checksums=True)
+                cache_stats = portable_payload(
+                    compute_stats(paths.teacher_cache, verify_checksums=True)
+                )
             except Exception as exc:
-                cache_stats = {"error": str(exc)}
+                cache_stats = {"error": portable_text(str(exc))}
 
         benchmark = None
         if paths.benchmark_json.is_file():
-            benchmark = read_json(paths.benchmark_json)
+            benchmark = portable_payload(read_json(paths.benchmark_json))
+
+        validated_path = (
+            paths.config_validated if paths.config_validated.is_file() else paths.config_original
+        )
 
         return cls(
             run_id=str(manifest.get("run_id", paths.root.name)),
@@ -103,13 +112,13 @@ class ReportData:
             manifest=manifest,
             environment=environment,
             resolved_config=(
-                paths.config_resolved.read_text(encoding="utf-8")
+                portable_yaml(paths.config_resolved.read_text(encoding="utf-8"))
                 if paths.config_resolved.is_file()
                 else ""
             ),
             original_config=(
-                paths.config_original.read_text(encoding="utf-8")
-                if paths.config_original.is_file()
+                portable_yaml(validated_path.read_text(encoding="utf-8"))
+                if validated_path.is_file()
                 else ""
             ),
             summary=summary,
@@ -181,13 +190,13 @@ class ReportData:
                 "model_generated": span.is_model_generated,
                 "critical": span.is_critical,
                 "tool_name": span.tool_name,
-                "text": span.text,
+                "text": portable_text(span.text),
             }
             for span in traj.spans
         ]
         return TrajectoryView(
-            trajectory_id=traj.trajectory_id,
-            task_id=traj.task_id,
+            trajectory_id=portable_text(traj.trajectory_id),
+            task_id=portable_text(traj.task_id),
             termination_reason=traj.termination_reason.value,
             solved=(traj.verification.solved if traj.verification else None),
             reward=(traj.verification.reward if traj.verification else None),
@@ -197,8 +206,16 @@ class ReportData:
             critical_tokens=sum(traj.critical_mask),
             spans=spans,
             tokens_by_span_type=traj.token_counts_by_span_type(),
-            expected=(traj.verification.expected if traj.verification else None),
-            predicted=(traj.verification.predicted if traj.verification else None),
+            expected=(
+                portable_text(traj.verification.expected)
+                if traj.verification and traj.verification.expected is not None
+                else None
+            ),
+            predicted=(
+                portable_text(traj.verification.predicted)
+                if traj.verification and traj.verification.predicted is not None
+                else None
+            ),
             failure_category=(traj.verification.failure_category if traj.verification else None),
         )
 
@@ -208,6 +225,7 @@ class ReportData:
             return {}
         grouped: dict[str, list[dict[str, Any]]] = {}
         for record in read_jsonl(path):
+            record = portable_payload(record)
             key = str(record.get("trajectory_id", "?"))
             bucket = grouped.setdefault(key, [])
             if len(bucket) < max_tokens:

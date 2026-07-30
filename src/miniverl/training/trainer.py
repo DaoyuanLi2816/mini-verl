@@ -82,6 +82,7 @@ from miniverl.utils.runs import (
     RunPaths,
     make_run_id,
     utc_now,
+    write_bytes,
     write_json,
     write_json_atomic,
     write_text,
@@ -94,6 +95,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 __all__ = ["OPDTrainer", "TrainerState", "TrainResult", "TrainSample"]
 
 logger = get_logger("trainer")
+RUN_MANIFEST_SCHEMA_VERSION = 3
 
 
 class TrainerState(str, Enum):
@@ -161,6 +163,7 @@ class OPDTrainer:
         self,
         *,
         config: RunConfig,
+        validated_config: RunConfig,
         paths: RunPaths,
         run_id: str,
         environment: ToolEnvironment,
@@ -177,6 +180,7 @@ class OPDTrainer:
         self._state_guard = threading.Lock()
         self._run_lock: RunLock | None = run_lock
         self.config = config
+        self.validated_config = validated_config
         self.paths = paths
         self.run_id = run_id
         self.environment = environment
@@ -333,6 +337,9 @@ class OPDTrainer:
         if for_evaluation and resume_options:
             raise ConfigError("evaluation attachment cannot use training resume options")
 
+        validated_config = config
+        config = config.resolved_for_runtime()
+
         # bitsandbytes 4-bit parameters are pinned to the device they were
         # quantized on, so a quantized model cannot be moved off the GPU and
         # back. `swap` is therefore only available for unquantized pairs.
@@ -388,6 +395,9 @@ class OPDTrainer:
         trainer: OPDTrainer | None = None
         try:
             if write_artifacts and resume_options == 0:
+                if validated_config.submitted_bytes is not None:
+                    write_bytes(paths.config_submitted, validated_config.submitted_bytes)
+                write_text(paths.config_validated, validated_config.to_yaml())
                 write_text(paths.config_original, config.to_yaml())
             environment = make_environment(config.environment.name, **config.environment.params)
             splits = make_splits(
@@ -466,6 +476,7 @@ class OPDTrainer:
 
             trainer = cls(
                 config=config,
+                validated_config=validated_config,
                 paths=paths,
                 run_id=resolved_id,
                 environment=environment,
@@ -555,7 +566,7 @@ class OPDTrainer:
                         cleanup_error,
                     )
                     failed_manifest = {
-                        "manifest_schema_version": 2,
+                        "manifest_schema_version": RUN_MANIFEST_SCHEMA_VERSION,
                         "status": "failed_construction",
                         "run_id": resolved_id,
                         "failed_at": utc_now(),
@@ -592,7 +603,7 @@ class OPDTrainer:
         startup = self.build_manifest()
         startup.update(
             {
-                "manifest_schema_version": 2,
+                "manifest_schema_version": RUN_MANIFEST_SCHEMA_VERSION,
                 "status": "running",
                 "started_at": self._started_at,
                 "original_config_digest": hashlib.sha256(
@@ -601,6 +612,30 @@ class OPDTrainer:
                 "resolved_config_digest": hashlib.sha256(
                     self.paths.config_resolved.read_bytes()
                 ).hexdigest(),
+                "config_provenance": {
+                    "submitted": (
+                        "verbatim_file_bytes"
+                        if self.paths.config_submitted.is_file()
+                        else "generated_no_source_bytes"
+                    ),
+                    "validated": "canonical_logical_config",
+                    "legacy_original": "canonical_runtime_input_compatibility_alias",
+                    "resolved": "runtime_choices_and_auto_resolution",
+                },
+                "config_digests": {
+                    "submitted": (
+                        hashlib.sha256(self.paths.config_submitted.read_bytes()).hexdigest()
+                        if self.paths.config_submitted.is_file()
+                        else None
+                    ),
+                    "validated": hashlib.sha256(
+                        self.paths.config_validated.read_bytes()
+                    ).hexdigest(),
+                    "legacy_original": hashlib.sha256(
+                        self.paths.config_original.read_bytes()
+                    ).hexdigest(),
+                    "resolved": hashlib.sha256(self.paths.config_resolved.read_bytes()).hexdigest(),
+                },
                 "initial_memory": self.plan.to_dict(),
                 "global_step": 0,
                 "global_optimizer_step": 0,
@@ -755,7 +790,6 @@ class OPDTrainer:
         now = utc_now()
         manifest.update(
             {
-                "manifest_schema_version": 2,
                 "status": status,
                 "started_at": self._started_at,
                 "global_step": self.global_step,
@@ -815,6 +849,7 @@ class OPDTrainer:
 
         required = [
             self.paths.config_original,
+            self.paths.config_validated,
             self.paths.config_resolved,
             self.paths.environment,
             self.paths.manifest_start,
@@ -2010,7 +2045,8 @@ class OPDTrainer:
         if validated.state.config_digest and validated.state.config_digest != digest:
             raise ConfigError(
                 "the checkpoint was written by a different configuration",
-                hint="resume with the run's config.resolved.yaml, not a modified recipe",
+                hint="resume with the run's config.original.yaml compatibility layer, "
+                "not config.resolved.yaml or a modified recipe",
             )
         identity = self._checkpoint_identity()
         if validated.identity:

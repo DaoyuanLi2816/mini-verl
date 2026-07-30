@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filing, please run `miniverl doctor --json` and paste the output
-        below. It rules out half of the possible causes in one step.
+        Before filing, run `miniverl doctor --json`. Review every attachment:
+        do not paste tokens, home paths, proprietary prompts or model data.
 
   - type: textarea
     id: what-happened
@@ -38,10 +38,11 @@ body:
   - type: textarea
     id: manifest
     attributes:
-      label: Contents of `runs/<run-id>/manifest.json`
+      label: Sanitized config and manifest
       description: >-
-        Optional but very useful. It contains no personal data by design -- no
-        username, hostname or home path.
+        Optional but useful: config.validated.yaml and manifest.json with local
+        paths, model data and identifiers replaced. Do not paste raw private run
+        files merely because they are JSON/YAML.
       render: json
     validations:
       required: false

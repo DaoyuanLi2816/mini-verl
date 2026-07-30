@@ -340,3 +340,66 @@ def test_second_resume_loses_the_run_lock_before_model_loading(
     tokenizer_probe.assert_not_called()
     assert _artifact_bytes(owner.paths.root) == before
     owner.close()
+
+
+def test_overwrite_cannot_replace_a_run_while_its_owner_holds_the_lock(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import miniverl.training.trainer as trainer_module
+    from miniverl.errors import RunLockedError
+    from miniverl.trainer import OPDTrainer
+
+    config = _config(tmp_path)
+    owner = OPDTrainer.from_config(config, run_id="locked-overwrite")
+    before = _artifact_bytes(owner.paths.root)
+    tokenizer_probe = Mock(side_effect=AssertionError("model loading must not start"))
+    monkeypatch.setattr(trainer_module, "build_tokenizer", tokenizer_probe)
+
+    with pytest.raises(RunLockedError, match="locked-overwrite"):
+        OPDTrainer.from_config(config, run_id="locked-overwrite", overwrite=True)
+
+    tokenizer_probe.assert_not_called()
+    assert _artifact_bytes(owner.paths.root) == before
+    owner.close()
+
+
+def test_file_backed_recipe_writes_submitted_validated_legacy_and_resolved_layers(
+    tmp_path,
+) -> None:
+    from miniverl.config import RunConfig
+    from miniverl.trainer import OPDTrainer
+
+    programmatic = _config(tmp_path)
+    submitted = ("# submitted bytes remain exact\n" + programmatic.to_yaml()).encode()
+    recipe = tmp_path / "submitted.yaml"
+    recipe.write_bytes(submitted)
+    config = RunConfig.from_yaml(recipe)
+
+    trainer = OPDTrainer.from_config(config, run_id="config-layers")
+    paths = trainer.paths
+    assert paths.config_submitted.read_bytes() == submitted
+    assert paths.config_validated.read_text(encoding="utf-8") == config.to_yaml()
+    assert paths.config_original.read_bytes() == paths.config_validated.read_bytes()
+    assert paths.config_resolved.read_bytes() != paths.config_validated.read_bytes()
+    manifest = json.loads(paths.manifest.read_text(encoding="utf-8"))
+    assert manifest["manifest_schema_version"] == 3
+    assert manifest["config_provenance"]["submitted"] == "verbatim_file_bytes"
+    assert set(manifest["config_digests"]) == {
+        "submitted",
+        "validated",
+        "legacy_original",
+        "resolved",
+    }
+    trainer.close()
+
+
+def test_programmatic_recipe_marks_submitted_layer_as_generated(tmp_path) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    trainer = OPDTrainer.from_config(_config(tmp_path), run_id="generated-config")
+    assert not trainer.paths.config_submitted.exists()
+    assert trainer.paths.config_validated.is_file()
+    manifest = json.loads(trainer.paths.manifest.read_text(encoding="utf-8"))
+    assert manifest["config_provenance"]["submitted"] == "generated_no_source_bytes"
+    trainer.close()

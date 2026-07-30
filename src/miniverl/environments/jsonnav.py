@@ -154,7 +154,10 @@ def build_document(seed: int) -> dict[str, Any]:
 def _render(value: Any) -> str:
     if isinstance(value, str):
         return value
-    return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, allow_nan=False)
+    except (OverflowError, RecursionError, TypeError, ValueError) as exc:
+        raise ToolEnvironmentError(f"tool result is not finite JSON: {exc}") from exc
 
 
 class JsonNavEnvironment(ToolEnvironment):

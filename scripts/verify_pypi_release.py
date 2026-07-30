@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
+import re
 import shutil
 import subprocess
 import time
@@ -23,6 +25,15 @@ def _request_json(url: str, *, accept: str = "application/json") -> dict[str, An
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.load(response)
+
+
+def _request_text(url: str) -> str:
+    request = urllib.request.Request(
+        url,
+        headers={"User-Agent": "miniVERL-release-verifier/0.2"},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return response.read().decode("utf-8")
 
 
 def _expected_hashes(sums: Path, artifact_root: Path) -> dict[str, str]:
@@ -93,6 +104,66 @@ def _verify_integrity_metadata(*, project: str, version: str, filenames: list[st
             raise RuntimeError(f"PyPI exposes no attestation for {filename}")
 
 
+def _verify_long_description_links(*, project: str, version: str, repository: str) -> None:
+    metadata = _request_json(f"https://pypi.org/pypi/{project}/{version}/json")
+    description = str((metadata.get("info") or {}).get("description") or "")
+    tag = f"v{version}"
+    github = repository.rstrip("/")
+    raw = github.replace("https://github.com/", "https://raw.githubusercontent.com/")
+    required_paths = (
+        "docs/single-gpu-guide.md",
+        "recipes/qwen_consumer_gpu_calc.yaml",
+        "benchmarks/results/gpu-calc-hard-equal-update-v2.json",
+        "CHANGELOG.md",
+        "CITATION.cff",
+        "LICENSE",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+    )
+    required_file_urls = [f"{github}/blob/{tag}/{path}" for path in required_paths]
+    required_image_url = f"{raw}/{tag}/docs/banner.svg"
+    required_urls = [*required_file_urls, required_image_url]
+    missing = [url for url in required_urls if url not in description]
+    if missing:
+        raise RuntimeError(f"PyPI long description is missing release-pinned links: {missing}")
+    if f"{github}/blob/main/" in description or f"{raw}/main/" in description:
+        raise RuntimeError("stable PyPI long description still links repository files through main")
+
+    page = _request_text(f"https://pypi.org/project/{project}/{version}/")
+    if "<title>Client Challenge</title>" in page:
+        raise RuntimeError("PyPI rendered project page returned a client challenge")
+    absent_from_page = [url for url in required_file_urls if url not in page]
+    if absent_from_page:
+        raise RuntimeError(f"rendered PyPI project page is missing links: {absent_from_page}")
+    image_matches = re.findall(
+        rf"!\[([^\]]+)\]\({re.escape(required_image_url)}\)",
+        description,
+    )
+    if not image_matches:
+        raise RuntimeError(
+            "PyPI long description does not use the release-pinned banner as an image"
+        )
+    if "pypi-camo." not in page or not all(
+        html.escape(alt, quote=True) in page for alt in image_matches
+    ):
+        raise RuntimeError("rendered PyPI project page is missing the proxied release banner")
+
+    project_links = sorted(
+        set(
+            re.findall(
+                rf"https://(?:github\.com/{re.escape(github.removeprefix('https://github.com/'))}"
+                rf"/blob|raw\.githubusercontent\.com/"
+                rf"{re.escape(github.removeprefix('https://github.com/'))})/[^\s)\"<>]+",
+                description,
+            )
+        )
+    )
+    if not project_links:
+        raise RuntimeError("PyPI long description exposes no repository-file links")
+    for url in project_links:
+        _request_text(url)
+
+
 def verify_release(
     *,
     project: str,
@@ -113,6 +184,11 @@ def verify_release(
                 project=project,
                 version=version,
                 filenames=sorted(expected),
+            )
+            _verify_long_description_links(
+                project=project,
+                version=version,
+                repository=repository,
             )
             break
         except (RuntimeError, urllib.error.HTTPError, urllib.error.URLError) as exc:

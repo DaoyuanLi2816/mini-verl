@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "miniverl"
 dynamic = ["version"]
 description = "Auditable on-policy distillation for tool-using agents on one personal GPU."
-readme = "README.md"
+readme = "PYPI.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
 authors = [{ name = "Daoyuan Li", email = "lidaoyuan2816@gmail.com" }]
@@ -93,9 +93,16 @@ include = [
   "/examples",
   "/benchmarks",
   "/docs",
+  "/scripts",
+  "/.github",
   "/README.md",
   "/README.zh-CN.md",
+  "/PYPI.md",
   "/CHANGELOG.md",
+  "/CONTRIBUTING.md",
+  "/CODE_OF_CONDUCT.md",
+  "/SECURITY.md",
+  "/PROJECT_STATE.md",
   "/LICENSE",
   "/THIRD_PARTY_NOTICES.md",
   "/CITATION.cff",

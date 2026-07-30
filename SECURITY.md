@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-miniVERL is at `0.1.0`. Security fixes land on `main` and in the next release.
-There are no maintained older branches.
+The current supported stable line is `0.2.4`; security fixes land on `main` and
+in the next patch release. There are no separately maintained older branches.
 
 ## Reporting a vulnerability
 
@@ -29,10 +29,10 @@ the model weights you load. It does **not** assume you trust:
   anywhere in the project. A corrupted or truncated shard raises
   `CacheCorruptionError`.
 * **A checkpoint.** Checkpoints are safetensors plus JSON, for the same reason.
-* **Text produced by the model.** The tool-call parser is strict, bounded
-  (`MAX_TOOL_CALL_JSON_CHARS`), and never falls back to a permissive
-  interpretation. Rollouts are bounded in turns, tokens, parse errors and
-  repeated identical calls.
+* **Text produced by the model.** The tool-call parser uses bounded strict JSON:
+  duplicate keys, non-finite/pathological numbers, excessive depth or members,
+  invalid Unicode and trailing action blocks are rejected. Rollouts are bounded
+  in turns, tokens, parse errors and repeated identical calls.
 
 ## Environment sandboxing
 
@@ -60,12 +60,11 @@ If you add an environment, the same standard applies; see
 
 ## What miniVERL records
 
-Run manifests deliberately exclude usernames, hostnames, home directories, API
-keys and environment variables — apart from a short allowlist of variables that
-change numerical results (`CUBLAS_WORKSPACE_CONFIG`, `PYTORCH_CUDA_ALLOC_CONF`,
-`CUDA_VISIBLE_DEVICES`, `OMP_NUM_THREADS`, `TOKENIZERS_PARALLELISM`). A test
-asserts that the hostname, the current username and the home path do not appear
-anywhere in a manifest.
+Raw run configuration may contain a local adapter path needed for resume.
+Shareable HTML/Markdown reports and benchmark exports use one canonical
+portable view that removes home paths, host/user identity, environment
+references and credential-like values. Review any artifact before publishing
+it; never paste raw config or logs into an issue without checking them.
 
 There is no telemetry. miniVERL makes no network request except the Hugging Face
 downloads you ask for by naming a model, and `--offline` refuses even those.

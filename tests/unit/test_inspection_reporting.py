@@ -950,6 +950,57 @@ def test_render_summary_json_top_level_keys(report_data: ReportData) -> None:
     assert json.loads(json.dumps(payload))["run_id"] == RUN_ID
 
 
+@pytest.mark.parametrize(
+    "private_path",
+    [
+        r"C:\Users\Alice\OneDrive\private\adapter",
+        "/home/alice/private/adapter",
+        "/Users/alice/private/adapter",
+    ],
+)
+def test_shareable_report_formats_redact_private_paths_and_secrets(
+    synthetic_run: Path,
+    private_path: str,
+) -> None:
+    config = f"models:\n  teacher:\n    adapter:\n      path: {private_path!r}\n"
+    (synthetic_run / "config.original.yaml").write_text(config, encoding="utf-8")
+    (synthetic_run / "config.resolved.yaml").write_text(config, encoding="utf-8")
+    manifest = _manifest()
+    manifest["private_adapter_path"] = private_path
+    manifest["api_token"] = "secret-token-value"
+    manifest["diagnostic"] = (
+        f"path={private_path} api_key=plain-text-secret Authorization: Bearer abcdefghijklmnop"
+    )
+    write_json(synthetic_run / "manifest.json", manifest)
+    environment = _environment()
+    environment["hostname"] = "alice-workstation"
+    write_json(synthetic_run / "environment.json", environment)
+
+    data = ReportData.from_run(synthetic_run)
+    rendered = "\n".join(
+        [
+            render_html(data),
+            render_markdown(data),
+            json.dumps(render_summary_json(data), sort_keys=True),
+        ]
+    )
+    variants = {
+        private_path,
+        private_path.replace("\\", "/"),
+        private_path.replace("\\", "&#92;"),
+        "secret-token-value",
+        "plain-text-secret",
+        "abcdefghijklmnop",
+        "alice-workstation",
+        str(synthetic_run),
+    }
+    lowered = rendered.lower()
+    for value in variants:
+        assert value.lower() not in lowered
+    assert "alice" not in lowered
+    assert "<local>/adapter" in rendered or "&lt;local&gt;/adapter" in rendered
+
+
 # -- charts ---------------------------------------------------------------
 
 

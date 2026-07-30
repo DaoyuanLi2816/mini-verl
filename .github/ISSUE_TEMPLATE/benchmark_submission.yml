@@ -16,7 +16,10 @@ body:
         ```
 
         `export-benchmark` strips absolute paths and keeps only the GPU model,
-        VRAM, OS family and library versions. Please read it before posting.
+        VRAM, OS family and library versions. Validate it against
+        `benchmarks/schema/benchmark-result.schema.json`, compute its SHA-256,
+        and read it before posting. Never include tokens, private paths or
+        proprietary data.
 
   - type: input
     id: hardware
@@ -52,6 +55,23 @@ body:
     validations:
       required: false
 
+  - type: input
+    id: artifact_hash
+    attributes:
+      label: Exported JSON SHA-256
+      description: Hash the exact JSON attached to this submission.
+      placeholder: "64 lowercase hexadecimal characters"
+    validations:
+      required: true
+
+  - type: textarea
+    id: software
+    attributes:
+      label: Software provenance
+      description: miniVERL, Python, torch, CUDA and driver versions from the sanitized export.
+    validations:
+      required: true
+
   - type: checkboxes
     id: honesty
     attributes:
@@ -60,6 +80,10 @@ body:
         - label: These numbers were measured on the hardware named above, not estimated.
           required: true
         - label: I ran the recipe to completion and did not select the best of several runs without saying so.
+          required: true
+        - label: I validated the JSON against the committed schema and recorded the exact artifact SHA-256.
+          required: true
+        - label: I reviewed the export and attachments for tokens, private paths and proprietary data.
           required: true
         - label: I am willing to open a pull request adding this file under `benchmarks/results/`.
           required: false

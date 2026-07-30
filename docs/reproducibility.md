@@ -180,14 +180,19 @@ Two caveats worth knowing before you quote the manifest:
 - `gpu.driver_version` is read through `pynvml`, which is optional. It is
   `null` when `pynvml` is not installed.
 
-Also written, alongside the manifest: `config.original.yaml` and
-`config.resolved.yaml`. Neither is a byte copy of your recipe file. Both are
-`RunConfig.to_yaml()` output, which writes every field including defaults, so
-a recipe that omitted a key will show that key's default value here. The
-resolved file additionally has `run.run_id`, `memory.strategy`,
-`loss.chunk_size` and `models.device` replaced with the values actually used,
-and for the Hugging Face backend `loss.top_k` clamped to the student vocabulary
-size.
+The config layers have deliberately different meanings:
+
+| file | contract |
+| --- | --- |
+| `config.submitted.yaml` | exact UTF-8 bytes, comments and formatting from a file-backed recipe; absent for programmatic configs |
+| `config.validated.yaml` | canonical logical config after defaults and validation, before local-path and runtime resolution |
+| `config.original.yaml` | compatibility layer used by v0.2 checkpoint resume: canonical runtime input with local adapter paths resolved but `auto` choices still unresolved |
+| `config.resolved.yaml` | actual run id, device, memory strategy, chunk size and effective top-k used at runtime |
+
+`manifest.json` names each layer, records its SHA-256, and uses manifest schema
+3 for new v0.2.4 runs. Reports render a portable view of validated/resolved
+configuration by default; private run files may retain the local path needed
+for exact resume.
 
 ## Re-verifying the pinned model revisions
 
@@ -379,16 +384,16 @@ error the checkpoint was written by a different configuration
 hint  resume with the run's config.resolved.yaml, not a modified recipe
 ```
 
-The digest is computed over the config object the trainer was constructed with,
-which is `config.original.yaml`, not `config.resolved.yaml`. Because
+The digest is computed over the runtime-input config object,
+which is preserved as `config.original.yaml`, not `config.resolved.yaml`. Because
 `config.resolved.yaml` has `run.run_id` filled in (and `memory.strategy`,
 `loss.chunk_size` and `models.device` resolved), it usually hashes differently.
 Measured on a real run whose only original-versus-resolved difference was
 `run_id: null` becoming `run_id: docs-check`, resuming from
 `config.resolved.yaml` was refused and resuming from `config.original.yaml`
-succeeded. **Resume from `config.original.yaml`.** The hint in the error
-message is misleading whenever the recipe left `run.run_id` unset, which is the
-normal case.
+succeeded. **Resume from `config.original.yaml`.** Standalone evaluation uses
+`config.resolved.yaml`, because it must reproduce the actual device/memory
+choices without re-resolving `auto`.
 
 ### Resuming
 

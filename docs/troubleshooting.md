@@ -618,8 +618,8 @@ ls runs
 python -c "import pathlib;print([p.parent.name for p in pathlib.Path('runs').glob('*/manifest.json')])"
 ```
 
-A valid run directory contains `config.original.yaml`,
-`config.resolved.yaml`, `manifest.json`, `environment.json`, `metrics.jsonl`,
+A valid run directory contains `config.validated.yaml`,
+`config.original.yaml`, `config.resolved.yaml`, `manifest.json`, `environment.json`, `metrics.jsonl`,
 `events.jsonl`, `trajectories.jsonl`, `eval_trajectories.jsonl`, `eval.json`,
 `teacher-cache/` and `checkpoints/`.
 
@@ -636,7 +636,8 @@ hint  run `miniverl eval --run <run-dir>` first, or train with eval.enabled: tru
 
 ```
 error the checkpoint was written by a different configuration
-hint  resume with the run's config.resolved.yaml, not a modified recipe
+hint  resume with the run's config.original.yaml compatibility layer, not
+      config.resolved.yaml or a modified recipe
 ```
 
 **Cause.** `save_checkpoint` stores `config_digest = sha256(config.to_yaml())`
@@ -645,15 +646,16 @@ trainer's current config differs. The check exists because resuming under a
 changed learning rate, schedule, loss mode or model would silently produce a
 run that is neither the original nor a clean new one.
 
-**The trap.** The digest is computed over the config the trainer was
-constructed with, which is what `config.original.yaml` holds.
+**The trap.** The digest is computed over the canonical runtime-input config,
+which is what the compatibility file `config.original.yaml` holds.
 `config.resolved.yaml` additionally has `run.run_id` filled in, and
 `memory.strategy`, `loss.chunk_size` and `models.device` replaced with their
 resolved values, so it hashes differently. Measured on a run whose only
 difference was `run_id: null` becoming `run_id: docs-check`, resuming from
 `config.resolved.yaml` was refused and resuming from `config.original.yaml`
-succeeded. The hint quoted above is misleading whenever the recipe left
-`run.run_id` unset, which is the normal case.
+succeeded. `config.submitted.yaml` is the exact source and
+`config.validated.yaml` is the pre-runtime logical view, but neither is the
+checkpoint-resume contract.
 
 **Fix.** Resume from `config.original.yaml`, and give the resumed trainer a new
 run id so it does not append to the original run's logs:

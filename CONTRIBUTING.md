@@ -18,7 +18,8 @@ git clone https://github.com/DaoyuanLi2816/mini-verl
 cd mini-verl
 
 python -m venv .venv && . .venv/bin/activate       # or: uv venv
-pip install -e ".[dev,train]"                      # CPU torch is enough
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -e ".[dev,train]"                      # CPU test stack
 # optional, for the 4-bit path:
 pip install -e ".[cuda]"
 
@@ -35,6 +36,8 @@ ruff check .
 ruff format --check .
 mypy src/miniverl
 pytest -q -m "not gpu and not network"
+python -m build
+python -m twine check dist/*
 ```
 
 If you have a CUDA device:
@@ -42,6 +45,10 @@ If you have a CUDA device:
 ```bash
 pytest -q -m gpu
 ```
+
+Start with the focused test file for the code you changed, then run the full
+CPU gate above. Network and GPU tests are opt-in; state `not run` when the
+required hardware or credentials are unavailable.
 
 ## What a good change looks like
 
@@ -102,6 +109,12 @@ miniverl export-benchmark runs/<run-id> --out benchmarks/results/<gpu>-<recipe>.
 library versions, and drops absolute paths and anything identifying. Read the
 file before you post it. Open a pull request adding it under
 `benchmarks/results/`; `benchmarks/README.md` explains the schema.
+
+Good first contributions are bounded fixtures and compatibility checks:
+documentation corrections, a deterministic adversarial case for an existing
+environment, or an old-artifact reader regression. Changes to objectives,
+numerical reductions, cache transactions or checkpoint semantics need a
+maintainer-designed test plan first.
 
 ## Schema changes
 

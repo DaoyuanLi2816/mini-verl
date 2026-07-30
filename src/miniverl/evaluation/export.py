@@ -17,6 +17,7 @@ from miniverl import __version__
 from miniverl.errors import ReportError
 from miniverl.evaluation.schema import ArmResult, BenchmarkResult, finite_or_none
 from miniverl.reporting.data import ReportData
+from miniverl.utils.privacy import portable_text
 from miniverl.utils.runs import utc_now, write_json
 
 __all__ = ["export_run", "sanitize_hardware"]
@@ -170,7 +171,7 @@ def export_run(
             "seeds": [manifest.get("seed")],
         },
         arms=[arm],
-        notes=notes,
+        notes=portable_text(notes),
         seeds=[int(manifest.get("seed") or 0)],
     )
     payload = result.model_dump(mode="json")
