@@ -8,10 +8,10 @@ authorization.
 
 ## Version consistency
 
-- [x] `src/miniverl/__init__.py` is `0.2.4`.
+- [x] Tagged source `v0.2.4` declares package version `0.2.4`.
 - [x] `CHANGELOG.md` has a dated `## [0.2.4]` section.
 - [x] `CITATION.cff` version and release date match.
-- [x] The future annotated tag is exactly `v0.2.4`.
+- [x] The annotated tag is exactly `v0.2.4`.
 - [x] The package/project name remains `miniverl`.
 
 ## Correctness and lifecycle
@@ -102,26 +102,46 @@ authorization.
 
 ## Trusted publishing readiness
 
-- [x] PyPI reports project `miniverl` and current public version `0.2.3`.
+- [x] PyPI reports project `miniverl` and current public version `0.2.4`.
 - [x] GitHub environment `pypi` exists and has a deployment branch policy.
 - [x] `release.yml` requests `id-token: write`, uses the `pypi` environment and
       publishes only on a tag push.
 - [x] The maintainer registered the pending publisher for
       `DaoyuanLi2816/mini-verl`, workflow `release.yml`, environment `pypi`.
-- [x] The immutable `v0.2.0`, `v0.2.1`, `v0.2.2` and `v0.2.3` tags and public
-      artifacts are unchanged.
+- [x] The immutable `v0.2.0`, `v0.2.1`, `v0.2.2`, `v0.2.3` and `v0.2.4` tags
+      and public artifacts are unchanged.
 
 ## After the tag
 
 Complete only after the authorized public workflow:
 
-- [ ] Annotated tag `v0.2.4` resolves to the exact validated merge commit.
-- [ ] The release workflow passes metadata, tests, one-time build, OIDC
-      publication, public hashes/attestations, clean install and GitHub Release
-      creation.
-- [ ] Public PyPI and GitHub Release wheel/sdist hashes match the workflow
-      artifacts.
-- [ ] Development advances to `0.2.5.dev0` through a green state-sync PR.
+- [x] Annotated tag `v0.2.4` resolves to exact validated commit
+      `57dec193af88b462dcc41d82fc6fecb813e161fd`.
+- [x] Tag run
+      [`30522484949`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30522484949)
+      passed metadata, tests, one-time build, OIDC publication and attestation
+      generation. Recovery run
+      [`30524088015`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30524088015)
+      verified the original artifacts, public hashes/attestations and clean
+      install, then created the GitHub Release without rebuilding or uploading.
+- [x] Public PyPI and GitHub Release wheel/sdist hashes match the original
+      workflow artifacts.
+- [x] Development advances to `0.2.5.dev0` through a green state-sync PR.
+
+Publication completed on 2026-07-30:
+
+- [`miniVERL v0.2.4`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.4)
+  contains the byte-identical wheel, sdist and `SHA256SUMS`.
+- An independent no-cache Windows Python 3.10 install from the public PyPI
+  index reported `miniverl 0.2.4`, passed `doctor`, and kept torch,
+  Transformers, PEFT and bitsandbytes absent.
+
+Published artifact identity:
+
+- `miniverl-0.2.4-py3-none-any.whl`: SHA-256
+  `3f5a239bbbd2f85217cf11f691fbb63f647092f67b82da4de38bd6907c5ab0f1`
+- `miniverl-0.2.4.tar.gz`: SHA-256
+  `03f0e844df2c91deed5c211cdd2dd598d22f03d59d99cd8e792a58211c0b2296`
 
 ## Historical v0.2.3 record
 
