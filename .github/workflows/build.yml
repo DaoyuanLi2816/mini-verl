@@ -137,7 +137,7 @@ jobs:
           . /tmp/sdist-test/bin/activate
           python -m pip install --upgrade pip
           python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-          python -m pip install "$SDIST_ROOT[dev,train]"
+          python -m pip install "${SDIST_ROOT}[dev,train]"
           cd "$SDIST_ROOT"
           unset PYTHONPATH
           python -c "import miniverl, pathlib; assert pathlib.Path(miniverl.__file__).is_relative_to(pathlib.Path('/tmp/sdist-test'))"
