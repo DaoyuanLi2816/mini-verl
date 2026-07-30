@@ -699,7 +699,9 @@ class RunConfig(_Base):
     @property
     def submitted_bytes(self) -> bytes | None:
         """Exact source bytes for a file-backed recipe, otherwise ``None``."""
-        return self._submitted_bytes
+        private = getattr(self, "__pydantic_private__", None)
+        value = private.get("_submitted_bytes") if isinstance(private, dict) else None
+        return value if isinstance(value, bytes) else None
 
     def resolved_for_runtime(self) -> RunConfig:
         """Return a deep copy with local paths resolved, without mutating provenance."""
@@ -708,7 +710,9 @@ class RunConfig(_Base):
         if adapter is not None and adapter.source is AdapterSource.LOCAL:
             adapter_path = Path(adapter.path)
             if not adapter_path.is_absolute():
-                base = self._source_path.parent if self._source_path is not None else Path.cwd()
+                private = getattr(self, "__pydantic_private__", None)
+                source = private.get("_source_path") if isinstance(private, dict) else None
+                base = source.parent if isinstance(source, Path) else Path.cwd()
                 adapter.path = str((base / adapter_path).resolve())
         return runtime
 

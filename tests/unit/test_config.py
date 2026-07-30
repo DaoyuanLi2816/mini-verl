@@ -766,6 +766,27 @@ def test_programmatic_config_has_no_fabricated_submitted_bytes() -> None:
     assert config.resolved_for_runtime().model_dump() == config.model_dump()
 
 
+def test_missing_pydantic_private_storage_does_not_fabricate_provenance() -> None:
+    config = RunConfig.from_mapping(
+        _payload(
+            models={
+                "backend": "hf",
+                "student": {"model_id": "Qwen/student"},
+                "teacher": {
+                    "model_id": "Qwen/teacher",
+                    "adapter": {"source": "local", "path": "./private-adapter"},
+                },
+            }
+        )
+    )
+    object.__setattr__(config, "__pydantic_private__", {})
+
+    assert config.submitted_bytes is None
+    runtime = config.resolved_for_runtime()
+    assert runtime.models.teacher.adapter is not None
+    assert Path(runtime.models.teacher.adapter.path) == (Path.cwd() / "private-adapter").resolve()
+
+
 # -- convenience properties ----------------------------------------------------
 
 
