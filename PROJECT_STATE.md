@@ -18,7 +18,8 @@ Last updated: 2026-07-29.
 | focused evidence | regressions cover strict protocol/numerics, run locking, one-shot lifecycle, exact config layers, portable reports and wheel metadata; exact local CPU/GPU/network totals and branch coverage are recorded only in [`docs/generated/quality.json`](docs/generated/quality.json), bound to implementation commit `6911acf11978cfc5f6a99375cbe7a1666fcf7a85` |
 | packaging and provenance | PyPI markdown is generated with tag-stable links; the sdist carries its complete repository-test surface and self-tests outside the checkout; submitted/validated/legacy-runtime/resolved config layers have distinct bytes and digests; public reports use the canonical portable view |
 | local release gate | ruff, format, mypy, actionlint, Markdown/anchor checks, generated-file checks, full CPU coverage, available RTX 4080 GPU tests, network tests, wheel/sdist build plus twine, and the complete extracted-sdist CPU suite pass; the frozen benchmark hash remains exact |
-| remaining gate | complete the remote compatibility/build matrix on the finalized `0.2.4` metadata, merge only when green, then run the authorized tag-only public release and independent install/hash checks |
+| remote PR gate | implementation head `0cbfbad2ef5ac156a521e994a7c09ee1137a2665` passed CI run [`30521741083`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30521741083) and build run [`30521741098`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30521741098): all ten Python/dependency/Transformers/CPU and extracted-sdist jobs are green |
+| remaining gate | revalidate the checklist-only final head, merge only when green, then run the authorized tag-only public release and independent install/hash checks |
 | publication authorization | the maintainer requested completion and publication of v0.2.4; tagging remains gated on the exact merge commit and all applicable checks |
 
 ## v0.2.3 clarity and defensive-hardening release status

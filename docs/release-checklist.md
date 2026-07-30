@@ -44,12 +44,12 @@ authorization.
       the required 80%.
 - [x] All GPU tests pass on an NVIDIA GeForce RTX 4080.
 - [x] All opt-in network tests pass.
-- [ ] Transformers 4.51.x and 5.x compatibility checks pass on the PR head.
-- [ ] The declared minimum Python 3.10 training dependency bundle passes the
+- [x] Transformers 4.51.x and 5.x compatibility checks pass on the PR head.
+- [x] The declared minimum Python 3.10 training dependency bundle passes the
       no-network toy/HF contract.
-- [ ] The current Python 3.13 training dependency bundle passes the same
+- [x] The current Python 3.13 training dependency bundle passes the same
       contract.
-- [ ] Core Python 3.10, 3.11, 3.12 and 3.13 checks pass on the PR head.
+- [x] Core Python 3.10, 3.11, 3.12 and 3.13 checks pass on the PR head.
 - [x] `actionlint` passes with the repository's `cuda` self-hosted label
       declared in `.github/actionlint.yaml`.
 - [x] No unfinished implementation markers remain under `src`, `tests`,
