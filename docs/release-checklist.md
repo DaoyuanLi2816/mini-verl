@@ -1,6 +1,6 @@
 # Release checklist
 
-This is the release gate and publication record for `v0.2.2`. A checked item
+This is the release gate and publication record for `v0.2.3`. A checked item
 names an invariant that was exercised on the release source. The tag workflow
 repeated the mechanical gates and refused inconsistent metadata or an
 unchecked pre-tag item. Publication began only after explicit maintainer
@@ -8,10 +8,10 @@ authorization.
 
 ## Version consistency
 
-- [x] `src/miniverl/__init__.py` is `0.2.2`.
-- [x] `CHANGELOG.md` has a dated `## [0.2.2]` section.
+- [x] `src/miniverl/__init__.py` is `0.2.3`.
+- [x] `CHANGELOG.md` has a dated `## [0.2.3]` section.
 - [x] `CITATION.cff` version and release date match.
-- [x] The future annotated tag is exactly `v0.2.2`.
+- [x] The future annotated tag is exactly `v0.2.3`.
 - [x] The package/project name remains `miniverl`.
 
 ## Correctness and lifecycle
@@ -61,7 +61,7 @@ authorization.
 
 ## Packaging and clean installs
 
-- [x] A clean `python -m build` produces one `0.2.1` wheel and one sdist.
+- [x] A clean `python -m build` produces one `0.2.3` wheel and one sdist.
 - [x] `python -m twine check dist/*` passes.
 - [x] The wheel contains the report template and no tests.
 - [x] The sdist contains recipes, tests, docs, license and both READMEs.
@@ -100,15 +100,29 @@ authorization.
 
 ## Trusted publishing readiness
 
-- [x] PyPI reports project `miniverl` and current public version `0.2.1`.
+- [x] PyPI reports project `miniverl` and current public version `0.2.2`.
 - [x] GitHub environment `pypi` exists and has a deployment branch policy.
 - [x] `release.yml` requests `id-token: write`, uses the `pypi` environment and
       publishes only on a tag push.
 - [x] The maintainer registered the pending publisher for
       `DaoyuanLi2816/mini-verl`, workflow `release.yml`, environment `pypi`.
-- [x] The immutable `v0.2.0` and `v0.2.1` tags and public artifacts are unchanged.
+- [x] The immutable `v0.2.0`, `v0.2.1` and `v0.2.2` tags and public artifacts
+      are unchanged.
 
 ## After the tag
+
+To be completed from the public release workflow:
+
+- [ ] Annotated tag `v0.2.3` resolves to the exact validated release commit.
+- [ ] The tag workflow passes metadata, tests, build, OIDC publication, public
+      verification and GitHub Release creation.
+- [ ] Public PyPI hashes and Trusted Publishing attestations match the workflow
+      artifacts, and a clean public core install reports `miniverl 0.2.3`.
+- [ ] The `miniVERL v0.2.3` GitHub Release contains the byte-identical wheel,
+      sdist and `SHA256SUMS`.
+- [ ] Development advances to `0.2.4.dev0`.
+
+## Historical v0.2.2 record
 
 Publication completed on 2026-07-29:
 

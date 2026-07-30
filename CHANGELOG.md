@@ -6,11 +6,17 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-29
+
+Clarity and defensive-hardening release.
+
 ### Changed
 
 - The generated GPU benchmark figure now reports measured 0% negative controls,
-  separates protocol qualification from the quantitative axis, and distinguishes
-  continuation time from the reusable protocol-teacher preparation cost.
+  scopes its title and strict-success label to the saturated v0.2 calculator
+  task, separates protocol qualification from the quantitative axis, and keeps
+  continuation time distinct from teacher preparation without presenting an
+  unsourced preparation duration.
 - The banner and bilingual onboarding now describe the device-name-agnostic
   single-GPU CUDA path and install CUDA PyTorch before optional training extras.
 - Protocol-v2 prompt examples are generated from each environment's active
@@ -20,6 +26,9 @@ All notable changes to miniVERL are recorded here. The format follows
 
 - Legacy teacher caches can no longer bypass adapter or structural-tokenizer
   identity checks, and cache shard/index publication is crash-safe.
+- Teacher caches persist `entries_per_shard`, allocate after the highest
+  numeric indexed or on-disk shard suffix, and publish a copied pruned index
+  before best-effort orphan cleanup.
 - Tokenizer structural digests ignore source-location metadata, and failed
   model construction cannot leave an orphan partial run directory.
 
@@ -308,7 +317,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.3...HEAD
+[0.2.3]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/37781ef0b00f3346d4b7b40fbe4d1c0ce1355063...v0.2.0

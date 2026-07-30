@@ -6,6 +6,20 @@ and what it printed.
 
 Last updated: 2026-07-29.
 
+## v0.2.3 clarity and defensive-hardening release status
+
+| item | current state |
+| --- | --- |
+| integration source | PR [#15](https://github.com/DaoyuanLi2816/mini-verl/pull/15), squash-merged as `3e54ebf9a8501f58cb6a0901d827221aba8792e0` after all ten pull-request checks passed |
+| version transition | the release candidate identifies as `0.2.3`; `CHANGELOG.md`, `CITATION.cff` and the pre-tag checklist agree on `v0.2.3` |
+| cache safety | shard size survives reopen; allocation advances past the highest indexed or on-disk numeric suffix; pruning publishes a copied index before best-effort orphan cleanup, with fault-injection coverage on both failure boundaries |
+| protocol examples | schema-v2 examples come from each active environment `ToolSpec`; calculator, JSON navigation, SQLite and custom-environment round trips pass while protocol v1 remains byte-frozen |
+| presentation | the generated figure scopes claims to the saturated v0.2 calculator task, reports completed controls at 0%, omits the unsourced preparation duration and remains legible at native and README widths |
+| frozen scientific artifact | `benchmarks/results/gpu-calc-hard-equal-update-v2.json` remains byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
+| release gates | 1085 non-GPU/non-network tests passed at 87.30% branch coverage; 5 GPU and 3 network tests passed; ruff, mypy, build/twine, Markdown links and generated-artifact comparison passed; PR #15 is green |
+| publication authorization | granted on 2026-07-29; publication will use the tag-only Trusted Publishing workflow, not a long-lived PyPI token |
+| exact blocker | none; create and validate the focused release-metadata PR, then annotate and push `v0.2.3` from its exact merged commit |
+
 ## v0.2.2 single-GPU portability release status
 
 | item | current state |
