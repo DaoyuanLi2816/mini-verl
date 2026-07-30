@@ -6,6 +6,15 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Release verification accepts an exact, tag-pinned banner expressed as
+  Markdown or HTML while retaining source-URL and alt-text checks.
+- A browser-only PyPI challenge can be deferred after public metadata, every
+  pinned target, distribution hashes and attestations pass; a recovery workflow
+  binds already-published artifacts to their original tag run before creating a
+  GitHub Release.
+
 ## [0.2.4] - 2026-07-29
 
 Correctness, adversarial-input, concurrency, packaging and privacy hardening

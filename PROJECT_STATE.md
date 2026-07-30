@@ -4,23 +4,25 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-07-29.
+Last updated: 2026-07-30.
 
-## v0.2.4 final framework-hardening work in progress
+## v0.2.4 framework-hardening release status
 
 | item | current state |
 | --- | --- |
-| audited starting point | fetched local and public `main` both resolve to `ac047a6001ae0bc2935853fa4c35cedbcd9b9ee4`; working branch is `agent/v024-final-hardening` |
-| release-candidate version | metadata, generated PyPI description and clean wheel installs now identify as `0.2.4`; no tag exists and public PyPI remains `0.2.3` until the PR head and merge commit pass every remote gate |
-| immutable evidence | the v0.2 calculator benchmark must remain byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; release tags and the pinned protocol-teacher adapter are out of scope for mutation |
-| strict protocol and numerics | regressions first reproduced 33 failures: Python JSON accepted non-finite/duplicate/pathological values, calculator conversion leaked `ValueError`/`OverflowError`, and prefix-only verification accepted contradictory suffixes. A shared bounded strict decoder now rejects non-finite values, duplicate keys, 128+ digit integers, depth over 32, more than 256 members and invalid surrogates; renderers use `allow_nan=False` semantics, protocol-v2 uses complete numeric/unit verification, and historical protocol/verifier-v1 remains explicit |
-| lifecycle and locking | `TrainerState` enforces `ready -> running -> completed/failed/interrupted -> closed` with an atomic one-shot transition; a second call changes no bytes and concurrent threads cannot both enter. `filelock` backs stable `<output-root>/.miniverl-locks/<run-id>.lock` ownership acquired before run access/model loading and released after teardown; fail-fast, timeout, killed-owner and distinct-run multiprocessing cases pass on Windows |
-| focused evidence | regressions cover strict protocol/numerics, run locking, one-shot lifecycle, exact config layers, portable reports and wheel metadata; exact local CPU/GPU/network totals and branch coverage are recorded only in [`docs/generated/quality.json`](docs/generated/quality.json), bound to implementation commit `6911acf11978cfc5f6a99375cbe7a1666fcf7a85` |
-| packaging and provenance | PyPI markdown is generated with tag-stable links; the sdist carries its complete repository-test surface and self-tests outside the checkout; submitted/validated/legacy-runtime/resolved config layers have distinct bytes and digests; public reports use the canonical portable view |
-| local release gate | ruff, format, mypy, actionlint, Markdown/anchor checks, generated-file checks, full CPU coverage, available RTX 4080 GPU tests, network tests, wheel/sdist build plus twine, and the complete extracted-sdist CPU suite pass; the frozen benchmark hash remains exact |
-| remote PR gate | implementation head `0cbfbad2ef5ac156a521e994a7c09ee1137a2665` passed CI run [`30521741083`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30521741083) and build run [`30521741098`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30521741098): all ten Python/dependency/Transformers/CPU and extracted-sdist jobs are green |
-| remaining gate | revalidate the checklist-only final head, merge only when green, then run the authorized tag-only public release and independent install/hash checks |
-| publication authorization | the maintainer requested completion and publication of v0.2.4; tagging remains gated on the exact merge commit and all applicable checks |
+| integration source | PR [#18](https://github.com/DaoyuanLi2816/mini-verl/pull/18) was squash-merged as `57dec193af88b462dcc41d82fc6fecb813e161fd`; annotated tag `v0.2.4` resolves to that exact commit |
+| version transition | `v0.2.4` is immutable and public; post-release development identifies as `0.2.5.dev0` |
+| immutable evidence | the v0.2 calculator benchmark remains byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; earlier tags and the pinned protocol-teacher adapter are unchanged |
+| strict protocol and numerics | a shared bounded strict decoder rejects non-finite values, duplicate keys, 128+ digit integers, depth over 32, more than 256 members and invalid surrogates; protocol-v2 requires complete numeric/unit verification while historical protocol/verifier-v1 remains explicit |
+| lifecycle and locking | `TrainerState` has atomic one-shot entry and stable terminal behavior; `filelock` protects run construction, resume, overwrite, evaluation, report and export across processes before model loading |
+| packaging and provenance | tag-pinned PyPI documentation, self-testing sdist, lean wheel, exact submitted/validated/resolved configuration layers and canonical portable public artifacts passed the release gates; exact CPU/GPU/network evidence remains in [`docs/generated/quality.json`](docs/generated/quality.json), bound to implementation commit `6911acf11978cfc5f6a99375cbe7a1666fcf7a85` |
+| release execution | tag run [`30522484949`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30522484949) passed metadata, tests, one-time build, OIDC publication and attestation generation; it ended red only because urllib received PyPI's browser challenge before public install and GitHub Release creation |
+| verified recovery | PRs [#19](https://github.com/DaoyuanLi2816/mini-verl/pull/19) and [#20](https://github.com/DaoyuanLi2816/mini-verl/pull/20) hardened recovery and HTML-banner verification. Run [`30524088015`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30524088015) bound the original artifacts to the immutable tag, verified hashes, pinned links and Sigstore attestations, installed the exact public version, and created the GitHub Release without rebuilding or re-uploading |
+| published wheel | [`miniverl-0.2.4-py3-none-any.whl`](https://pypi.org/project/miniverl/0.2.4/), SHA-256 `3f5a239bbbd2f85217cf11f691fbb63f647092f67b82da4de38bd6907c5ab0f1` |
+| published sdist | [`miniverl-0.2.4.tar.gz`](https://pypi.org/project/miniverl/0.2.4/), SHA-256 `03f0e844df2c91deed5c211cdd2dd598d22f03d59d99cd8e792a58211c0b2296` |
+| independent verification | GitHub Release downloads reproduce both public hashes; a no-cache Python 3.10 install from `https://pypi.org/simple` reports `miniverl 0.2.4`, passes `doctor`, and keeps torch, Transformers, PEFT and bitsandbytes absent |
+| publication authorization | granted by the maintainer and completed through Trusted Publishing without a long-lived PyPI token |
+| exact blocker | none |
 
 ## v0.2.3 clarity and defensive-hardening release status
 
