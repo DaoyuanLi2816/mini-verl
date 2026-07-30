@@ -1,0 +1,130 @@
+name: verify existing release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Published version without the v prefix
+        required: true
+        type: string
+      source_run_id:
+        description: Tag release run that built and published the distributions
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  verify:
+    name: verify existing PyPI release and immutable artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Bind the source run to the immutable release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]
+          TAG="v$VERSION"
+          TAG_COMMIT="$(git rev-list -n 1 "$TAG")"
+          RUN_COMMIT="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" --jq .head_sha)"
+          RUN_EVENT="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" --jq .event)"
+          RUN_REF="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" --jq .head_branch)"
+          RUN_PATH="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID" --jq .path)"
+          test "$RUN_COMMIT" = "$TAG_COMMIT"
+          test "$RUN_EVENT" = "push"
+          test "$RUN_REF" = "$TAG"
+          test "$RUN_PATH" = ".github/workflows/release.yml"
+          echo "source run $SOURCE_RUN_ID is bound to $TAG at $TAG_COMMIT"
+
+      - name: Download the original release distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-distributions
+          path: release-artifacts
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Verify public files, hashes, links and attestations
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          (cd release-artifacts && sha256sum --check SHA256SUMS)
+          python -m pip install --upgrade pip pypi-attestations
+          python scripts/verify_pypi_release.py \
+            --project miniverl \
+            --version "$VERSION" \
+            --sums release-artifacts/SHA256SUMS \
+            --artifact-root release-artifacts \
+            --repository https://github.com/DaoyuanLi2816/mini-verl \
+            --attempts 12 \
+            --delay 10 \
+            --allow-rendered-page-challenge
+
+      - name: Install and exercise the exact public version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          python -m venv release-verify
+          release-verify/bin/python -m pip install --upgrade pip
+          release-verify/bin/python -m pip install \
+            --no-cache-dir --index-url https://pypi.org/simple \
+            "miniverl==$VERSION"
+          test "$(release-verify/bin/miniverl --version)" = "miniverl $VERSION"
+          release-verify/bin/miniverl doctor --json > doctor.json
+          release-verify/bin/python - <<'PY'
+          import json
+          import pathlib
+
+          payload = json.loads(pathlib.Path("doctor.json").read_text(encoding="utf-8"))
+          assert payload["verdict"]["core_commands"] is True
+          PY
+
+  create-github-release:
+    name: create GitHub Release from the verified original distributions
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download the verified original distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-distributions
+          path: release-artifacts
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.source_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Recheck hashes and create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          TAG="v$VERSION"
+          (cd release-artifacts && sha256sum --check SHA256SUMS)
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub Release $TAG already exists"
+            exit 0
+          fi
+          gh release create "$TAG" \
+            release-artifacts/dist/* \
+            release-artifacts/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "miniVERL $TAG" \
+            --generate-notes

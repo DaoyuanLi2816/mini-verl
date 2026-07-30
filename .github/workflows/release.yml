@@ -200,7 +200,8 @@ jobs:
             --artifact-root release-artifacts \
             --repository https://github.com/DaoyuanLi2816/mini-verl \
             --attempts 12 \
-            --delay 10
+            --delay 10 \
+            --allow-rendered-page-challenge
 
       - name: Install and exercise the exact public version
         env:
