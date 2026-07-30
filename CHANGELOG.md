@@ -6,6 +6,54 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-07-29
+
+Correctness, adversarial-input, concurrency, packaging and privacy hardening
+release. No training objective, environment, model family or scientific result
+changed.
+
+### Added
+
+- A bounded strict-JSON boundary for model-generated tool calls, including
+  duplicate-key, non-finite-number, oversized-integer, excessive-depth and
+  excessive-member rejection.
+- An explicit one-shot trainer lifecycle and cross-platform, process-safe run
+  ownership acquired before mutable resume, overwrite, evaluation, report or
+  export work.
+- Exact submitted, canonical validated and runtime-resolved configuration
+  provenance layers with checksums, plus a canonical portable redaction view
+  for shareable artifacts.
+- A generated PyPI long description with immutable release links, an
+  extracted-sdist self-test gate and a concise public compatibility policy.
+
+### Changed
+
+- Protocol-v2 numeric verification consumes a complete finite answer and
+  validates supported unit suffixes; protocol/verifier-v1 remains explicitly
+  historical so existing artifacts are not reinterpreted.
+- Calculator, JSON-navigation and SQLite boundaries now convert adversarial
+  model inputs into bounded parse, tool or verification failures instead of
+  leaking built-in numeric/serialization exceptions.
+- Machine JSON and JSONL writers reject non-finite values before publication.
+  Shareable reports, summaries and benchmark exports redact paths, identities,
+  secrets and environment references by default.
+- The source distribution now includes the repository fixtures required by its
+  shipped tests, while the wheel remains runtime-only.
+- Exact release-quality evidence has one generated machine-readable record;
+  other documentation uses a stable floor or links to that record.
+
+### Fixed
+
+- A trainer instance can no longer train twice or admit two threads into
+  training, and a failed second call mutates no run artifact.
+- Competing processes can no longer mutate the same run or overwrite a run
+  while another writer owns it; abandoned OS locks do not permanently block a
+  later process.
+- File-backed recipes preserve their submitted UTF-8 bytes and comments instead
+  of labeling a normalized, path-resolved reserialization as verbatim input.
+- PyPI documentation links and images no longer depend on relative repository
+  paths or a moving branch for stable releases.
+
 ## [0.2.3] - 2026-07-29
 
 Clarity and defensive-hardening release.
@@ -317,7 +365,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.3...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.4...HEAD
+[0.2.4]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.0...v0.2.1

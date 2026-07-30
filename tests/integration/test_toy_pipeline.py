@@ -128,6 +128,7 @@ def test_opd_completes_and_produces_every_documented_artifact(tmp_path: Path):
     root = trainer.paths.root
     for name in (
         "config.original.yaml",
+        "config.validated.yaml",
         "config.resolved.yaml",
         "manifest.json",
         "environment.json",

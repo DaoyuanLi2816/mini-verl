@@ -25,8 +25,10 @@ import gc
 import hashlib
 import random
 import shutil
+import threading
 import time
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -73,12 +75,14 @@ from miniverl.trajectory.alignment import build_alignment_map
 from miniverl.trajectory.io import append_trajectories
 from miniverl.utils import gpu
 from miniverl.utils.env import collect_environment
+from miniverl.utils.locking import RunLock
 from miniverl.utils.logging import EventLog, get_logger
 from miniverl.utils.runs import (
     JsonlWriter,
     RunPaths,
     make_run_id,
     utc_now,
+    write_bytes,
     write_json,
     write_json_atomic,
     write_text,
@@ -88,9 +92,21 @@ from miniverl.utils.seeding import capture_rng, restore_rng, seed_everything
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from miniverl.teachers.base import TeacherScoreResult
 
-__all__ = ["OPDTrainer", "TrainResult", "TrainSample"]
+__all__ = ["OPDTrainer", "TrainerState", "TrainResult", "TrainSample"]
 
 logger = get_logger("trainer")
+RUN_MANIFEST_SCHEMA_VERSION = 3
+
+
+class TrainerState(str, Enum):
+    """One-shot lifecycle of an :class:`OPDTrainer` instance."""
+
+    READY = "ready"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    INTERRUPTED = "interrupted"
+    CLOSED = "closed"
 
 
 @dataclass
@@ -147,6 +163,7 @@ class OPDTrainer:
         self,
         *,
         config: RunConfig,
+        validated_config: RunConfig,
         paths: RunPaths,
         run_id: str,
         environment: ToolEnvironment,
@@ -155,10 +172,15 @@ class OPDTrainer:
         student: Any,
         teacher: Any | None,
         plan: MemoryPlan,
+        run_lock: RunLock,
         evaluation_only: bool = False,
     ) -> None:
         self._closed = False
+        self._state = TrainerState.READY
+        self._state_guard = threading.Lock()
+        self._run_lock: RunLock | None = run_lock
         self.config = config
+        self.validated_config = validated_config
         self.paths = paths
         self.run_id = run_id
         self.environment = environment
@@ -241,6 +263,12 @@ class OPDTrainer:
         return max(1, (rollouts + accum - 1) // accum)
 
     @property
+    def state(self) -> TrainerState:
+        """Current one-shot lifecycle state."""
+        with self._state_guard:
+            return self._state
+
+    @property
     def policy_version(self) -> int:
         """Deprecated alias for the exact student parameter version."""
         return self.parameter_version
@@ -285,6 +313,7 @@ class OPDTrainer:
         resume: str | Path | None = None,
         resume_from: str | Path | None = None,
         for_evaluation: bool = False,
+        lock_timeout: float = 0.0,
     ) -> OPDTrainer:
         """Validate, seed, load models and create the run directory.
 
@@ -307,6 +336,9 @@ class OPDTrainer:
             raise ConfigError("for_evaluation=True requires write_artifacts=False")
         if for_evaluation and resume_options:
             raise ConfigError("evaluation attachment cannot use training resume options")
+
+        validated_config = config
+        config = config.resolved_for_runtime()
 
         # bitsandbytes 4-bit parameters are pinned to the device they were
         # quantized on, so a quantized model cannot be moved off the GPU and
@@ -332,22 +364,29 @@ class OPDTrainer:
         resolved_id = make_run_id(config.run.name, explicit=run_id or config.run.run_id)
         resume_checkpoint: Path | None = None
         if resume is not None:
-            paths = RunPaths.open(resume)
-            resolved_id = paths.root.name
+            target_root = Path(resume).resolve()
+            resolved_id = target_root.name
         elif resume_from is not None:
             resume_checkpoint = Path(resume_from).resolve()
-            paths = RunPaths.open(resume_checkpoint.parent.parent)
-            resolved_id = paths.root.name
-        elif write_artifacts:
-            paths = RunPaths.create(
-                output_dir or config.run.output_dir,
-                resolved_id,
-                overwrite=overwrite,
-            )
+            target_root = resume_checkpoint.parent.parent
+            resolved_id = target_root.name
         else:
-            paths = RunPaths.open(Path(output_dir or config.run.output_dir) / resolved_id)
-        if write_artifacts and resume_options == 0:
-            write_text(paths.config_original, config.to_yaml())
+            target_root = Path(output_dir or config.run.output_dir).resolve() / resolved_id
+
+        run_lock = RunLock(target_root.parent, resolved_id, timeout=lock_timeout)
+        run_lock.acquire()
+        try:
+            if resume is not None or resume_from is not None or not write_artifacts:
+                paths = RunPaths.open(target_root)
+            else:
+                paths = RunPaths.create(
+                    target_root.parent,
+                    resolved_id,
+                    overwrite=overwrite,
+                )
+        except BaseException:
+            run_lock.release()
+            raise
 
         environment: ToolEnvironment | None = None
         student: Any | None = None
@@ -355,6 +394,11 @@ class OPDTrainer:
         loaded_teachers: list[Any] = []
         trainer: OPDTrainer | None = None
         try:
+            if write_artifacts and resume_options == 0:
+                if validated_config.submitted_bytes is not None:
+                    write_bytes(paths.config_submitted, validated_config.submitted_bytes)
+                write_text(paths.config_validated, validated_config.to_yaml())
+                write_text(paths.config_original, config.to_yaml())
             environment = make_environment(config.environment.name, **config.environment.params)
             splits = make_splits(
                 environment,
@@ -432,6 +476,7 @@ class OPDTrainer:
 
             trainer = cls(
                 config=config,
+                validated_config=validated_config,
                 paths=paths,
                 run_id=resolved_id,
                 environment=environment,
@@ -440,6 +485,7 @@ class OPDTrainer:
                 student=student,
                 teacher=teacher,
                 plan=plan,
+                run_lock=run_lock,
                 evaluation_only=for_evaluation,
             )
             if write_artifacts and resume_options == 0:
@@ -467,6 +513,7 @@ class OPDTrainer:
             # are logged because the construction failure is the actionable root
             # cause and must retain its original traceback.
             if trainer is not None:
+                trainer._run_lock = None
                 try:
                     trainer.close()
                 except LifecycleError as cleanup_error:
@@ -519,7 +566,7 @@ class OPDTrainer:
                         cleanup_error,
                     )
                     failed_manifest = {
-                        "manifest_schema_version": 2,
+                        "manifest_schema_version": RUN_MANIFEST_SCHEMA_VERSION,
                         "status": "failed_construction",
                         "run_id": resolved_id,
                         "failed_at": utc_now(),
@@ -539,6 +586,7 @@ class OPDTrainer:
                             "failed-construction manifest cleanup fallback failed: %s",
                             manifest_error,
                         )
+            run_lock.release()
             raise
 
     def _write_startup_artifacts(self) -> None:
@@ -555,7 +603,7 @@ class OPDTrainer:
         startup = self.build_manifest()
         startup.update(
             {
-                "manifest_schema_version": 2,
+                "manifest_schema_version": RUN_MANIFEST_SCHEMA_VERSION,
                 "status": "running",
                 "started_at": self._started_at,
                 "original_config_digest": hashlib.sha256(
@@ -564,6 +612,30 @@ class OPDTrainer:
                 "resolved_config_digest": hashlib.sha256(
                     self.paths.config_resolved.read_bytes()
                 ).hexdigest(),
+                "config_provenance": {
+                    "submitted": (
+                        "verbatim_file_bytes"
+                        if self.paths.config_submitted.is_file()
+                        else "generated_no_source_bytes"
+                    ),
+                    "validated": "canonical_logical_config",
+                    "legacy_original": "canonical_runtime_input_compatibility_alias",
+                    "resolved": "runtime_choices_and_auto_resolution",
+                },
+                "config_digests": {
+                    "submitted": (
+                        hashlib.sha256(self.paths.config_submitted.read_bytes()).hexdigest()
+                        if self.paths.config_submitted.is_file()
+                        else None
+                    ),
+                    "validated": hashlib.sha256(
+                        self.paths.config_validated.read_bytes()
+                    ).hexdigest(),
+                    "legacy_original": hashlib.sha256(
+                        self.paths.config_original.read_bytes()
+                    ).hexdigest(),
+                    "resolved": hashlib.sha256(self.paths.config_resolved.read_bytes()).hexdigest(),
+                },
                 "initial_memory": self.plan.to_dict(),
                 "global_step": 0,
                 "global_optimizer_step": 0,
@@ -718,7 +790,6 @@ class OPDTrainer:
         now = utc_now()
         manifest.update(
             {
-                "manifest_schema_version": 2,
                 "status": status,
                 "started_at": self._started_at,
                 "global_step": self.global_step,
@@ -778,6 +849,7 @@ class OPDTrainer:
 
         required = [
             self.paths.config_original,
+            self.paths.config_validated,
             self.paths.config_resolved,
             self.paths.environment,
             self.paths.manifest_start,
@@ -1387,8 +1459,17 @@ class OPDTrainer:
     # -- public API -----------------------------------------------------------------
 
     def train(self) -> TrainResult:
-        """Run training and finalize the public manifest for every exit state."""
-        self._ensure_open("train")
+        """Run once from ``ready`` and enter one terminal lifecycle state."""
+        with self._state_guard:
+            if self._state is not TrainerState.READY:
+                raise LifecycleError(
+                    f"cannot train: this OPDTrainer is {self._state.value}",
+                    hint=(
+                        "construct a fresh trainer and use explicit resume/checkpoint "
+                        "semantics for additional work"
+                    ),
+                )
+            self._state = TrainerState.RUNNING
         try:
             result = self._train_impl()
         except KeyboardInterrupt as exc:
@@ -1399,6 +1480,8 @@ class OPDTrainer:
                     "manifest finalization failed while preserving KeyboardInterrupt: %s",
                     manifest_error,
                 )
+            with self._state_guard:
+                self._state = TrainerState.INTERRUPTED
             raise
         except BaseException as exc:
             try:
@@ -1409,8 +1492,17 @@ class OPDTrainer:
                     type(exc).__name__,
                     manifest_error,
                 )
+            with self._state_guard:
+                self._state = TrainerState.FAILED
             raise
-        self._finalize_manifest(status="completed", result=result)
+        try:
+            self._finalize_manifest(status="completed", result=result)
+        except BaseException:
+            with self._state_guard:
+                self._state = TrainerState.FAILED
+            raise
+        with self._state_guard:
+            self._state = TrainerState.COMPLETED
         return result
 
     def _train_impl(self) -> TrainResult:
@@ -1785,7 +1877,12 @@ class OPDTrainer:
         write: bool = True,
     ) -> dict[str, Any]:
         """Deterministic greedy evaluation on a held-out split."""
-        self._ensure_open("evaluate")
+        self._ensure_state(
+            "evaluate",
+            TrainerState.READY,
+            TrainerState.RUNNING,
+            TrainerState.COMPLETED,
+        )
         config = self.config
         chosen_split = split or config.eval.split
         pool = tasks if tasks is not None else self.splits.get(chosen_split, [])
@@ -1904,8 +2001,13 @@ class OPDTrainer:
         }
 
     def save_checkpoint(self, *, name: str | None = None) -> Path:
-        """Write a resumable checkpoint."""
-        self._ensure_open("save_checkpoint")
+        """Write a resumable checkpoint from ready, running, or completed."""
+        self._ensure_state(
+            "save_checkpoint",
+            TrainerState.READY,
+            TrainerState.RUNNING,
+            TrainerState.COMPLETED,
+        )
         label = name or f"step-{self.global_step:06d}"
         target = self.paths.checkpoints / label
         state = CheckpointState(
@@ -1934,8 +2036,8 @@ class OPDTrainer:
         return target
 
     def load_from_checkpoint(self, directory: str | Path) -> CheckpointState:
-        """Restore a checkpoint into this trainer."""
-        self._ensure_open("load_from_checkpoint")
+        """Restore a checkpoint only while the trainer is ready."""
+        self._ensure_state("load_from_checkpoint", TrainerState.READY)
         from miniverl.training.checkpoint import validate_checkpoint
 
         validated = validate_checkpoint(directory)
@@ -1943,7 +2045,8 @@ class OPDTrainer:
         if validated.state.config_digest and validated.state.config_digest != digest:
             raise ConfigError(
                 "the checkpoint was written by a different configuration",
-                hint="resume with the run's config.resolved.yaml, not a modified recipe",
+                hint="resume with the run's config.original.yaml compatibility layer, "
+                "not config.resolved.yaml or a modified recipe",
             )
         identity = self._checkpoint_identity()
         if validated.identity:
@@ -1996,9 +2099,16 @@ class OPDTrainer:
         calls are no-ops. Core provenance such as ``config`` and ``paths`` stays
         readable, while runtime objects are deliberately unusable.
         """
-        if self._closed:
-            return
-        self._closed = True
+        with self._state_guard:
+            if self._state is TrainerState.CLOSED:
+                return
+            if self._state is TrainerState.RUNNING:
+                raise LifecycleError(
+                    "cannot close: this OPDTrainer is running",
+                    hint="wait for train() to reach a terminal state before closing",
+                )
+            self._state = TrainerState.CLOSED
+            self._closed = True
         failures: list[tuple[str, BaseException]] = []
 
         def cleanup(stage: str, action: Any) -> None:
@@ -2071,6 +2181,10 @@ class OPDTrainer:
         self._teacher_on_device = False
         cleanup("Python garbage collection", gc.collect)
         cleanup("CUDA allocator release", gpu.empty_cache)
+        run_lock = self._run_lock
+        self._run_lock = None
+        if run_lock is not None:
+            cleanup("run lock release", run_lock.release)
 
         if failures:
             details = "; ".join(f"{stage}: {type(exc).__name__}: {exc}" for stage, exc in failures)
@@ -2082,15 +2196,20 @@ class OPDTrainer:
                 ),
             )
 
-    def _ensure_open(self, operation: str) -> None:
-        if self._closed:
+    def _ensure_state(self, operation: str, *allowed: TrainerState) -> None:
+        with self._state_guard:
+            state = self._state
+        if state not in allowed:
             raise LifecycleError(
-                f"cannot {operation}: this OPDTrainer is closed",
-                hint="construct a fresh trainer with OPDTrainer.from_config(...)",
+                f"cannot {operation}: this OPDTrainer is {state.value}",
+                hint=(
+                    "construct a fresh trainer with OPDTrainer.from_config(...) "
+                    "or use an operation allowed by the current lifecycle state"
+                ),
             )
 
     def __enter__(self) -> OPDTrainer:
-        self._ensure_open("enter")
+        self._ensure_state("enter", TrainerState.READY)
         return self
 
     def __exit__(

@@ -7,7 +7,7 @@ import gc
 import hashlib
 import sys
 import time
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from typing import Any
 
 from miniverl import __version__
@@ -18,6 +18,7 @@ from miniverl.evaluation.schema import ArmResult, BenchmarkConfig, BenchmarkResu
 from miniverl.utils import gpu
 from miniverl.utils.env import collect_environment
 from miniverl.utils.logging import get_logger
+from miniverl.utils.privacy import portable_payload as _portable_payload
 from miniverl.utils.runs import canonical_json, read_jsonl, utc_now, write_json, write_text
 
 __all__ = [
@@ -93,18 +94,8 @@ def _digest_payload(payload: Any) -> str:
 
 
 def portable_payload(value: Any) -> Any:
-    """Replace machine-local absolute paths before hashing or publishing provenance."""
-    if isinstance(value, dict):
-        return {key: portable_payload(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [portable_payload(item) for item in value]
-    if isinstance(value, str):
-        windows = PureWindowsPath(value)
-        posix = PurePosixPath(value)
-        if windows.is_absolute() or posix.is_absolute():
-            name = windows.name if windows.is_absolute() else posix.name
-            return f"<local>/{name or 'path'}"
-    return value
+    """Return the canonical privacy-safe view used by every public artifact."""
+    return _portable_payload(value)
 
 
 def _load_base(config: BenchmarkConfig) -> dict[str, Any]:

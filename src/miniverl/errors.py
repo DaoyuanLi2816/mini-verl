@@ -24,6 +24,8 @@ __all__ = [
     "MemoryStrategyError",
     "GpuMemoryError",
     "LifecycleError",
+    "RunLockedError",
+    "SerializationError",
     "CheckpointError",
     "ReportError",
     "RunNotFoundError",
@@ -110,6 +112,14 @@ class GpuMemoryError(MiniVerlError):
 
 class LifecycleError(MiniVerlError):
     """An operation used a closed object or resource teardown failed."""
+
+
+class RunLockedError(LifecycleError):
+    """Another process owns the exclusive mutation lock for a run."""
+
+
+class SerializationError(MiniVerlError):
+    """A value cannot be represented as standards-compliant machine JSON."""
 
 
 class CheckpointError(MiniVerlError):

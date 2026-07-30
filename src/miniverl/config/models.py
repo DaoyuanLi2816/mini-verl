@@ -1,9 +1,9 @@
 """Pydantic v2 models describing a miniVERL run.
 
-A :class:`RunConfig` is the single source of truth for a run.  It is validated
-before anything is downloaded or allocated, written verbatim to
-``config.original.yaml``, and written again -- with every ``auto`` resolved --
-to ``config.resolved.yaml``.
+A :class:`RunConfig` is validated before anything is downloaded or allocated.
+File-backed recipes retain exact source bytes in ``config.submitted.yaml``;
+canonical validated, compatibility and runtime-resolved layers are written
+separately so no normalized file is mislabeled as verbatim input.
 
 Cross-field validation lives here on purpose: it is cheaper and far friendlier
 to reject ``exact_full_vocab`` + ``top_k: 64`` at parse time than to discover
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
 from miniverl.errors import ConfigError
 from miniverl.utils.runs import write_text
@@ -488,6 +488,9 @@ class RunMeta(_Base):
 class RunConfig(_Base):
     """Top-level miniVERL run configuration."""
 
+    _submitted_bytes: bytes | None = PrivateAttr(default=None)
+    _source_path: Path | None = PrivateAttr(default=None)
+
     schema_version: int = CONFIG_SCHEMA_VERSION
     run: RunMeta = Field(default_factory=RunMeta)
     models: ModelsConfig
@@ -670,29 +673,48 @@ class RunConfig(_Base):
                 hint="run `miniverl validate <path>` with an existing YAML recipe, "
                 "or copy one from the recipes/ directory",
             )
+        submitted = p.read_bytes()
         try:
-            raw = yaml.safe_load(p.read_text(encoding="utf-8"))
+            text = submitted.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ConfigError(f"{p} is not valid UTF-8: {exc}") from exc
+        try:
+            raw = yaml.safe_load(text)
         except yaml.YAMLError as exc:
             raise ConfigError(f"{p} is not valid YAML: {exc}") from exc
         if raw is None:
             raise ConfigError(f"{p} is empty")
         if not isinstance(raw, dict):
             raise ConfigError(f"{p} must contain a YAML mapping at the top level")
-        adapter = ((raw.get("models") or {}).get("teacher") or {}).get("adapter")
-        if (
-            isinstance(adapter, dict)
-            and adapter.get("source", AdapterSource.LOCAL.value) == AdapterSource.LOCAL.value
-            and isinstance(adapter.get("path"), str)
-        ):
-            adapter_path = Path(adapter["path"])
-            if not adapter_path.is_absolute():
-                adapter["path"] = str((p.parent / adapter_path).resolve())
-        return cls.model_validate(raw)
+        config = cls.model_validate(raw)
+        config._submitted_bytes = submitted
+        config._source_path = p.resolve()
+        return config
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any]) -> RunConfig:
         """Validate a already-parsed mapping."""
         return cls.model_validate(data)
+
+    @property
+    def submitted_bytes(self) -> bytes | None:
+        """Exact source bytes for a file-backed recipe, otherwise ``None``."""
+        private = getattr(self, "__pydantic_private__", None)
+        value = private.get("_submitted_bytes") if isinstance(private, dict) else None
+        return value if isinstance(value, bytes) else None
+
+    def resolved_for_runtime(self) -> RunConfig:
+        """Return a deep copy with local paths resolved, without mutating provenance."""
+        runtime = self.model_copy(deep=True)
+        adapter = runtime.models.teacher.adapter
+        if adapter is not None and adapter.source is AdapterSource.LOCAL:
+            adapter_path = Path(adapter.path)
+            if not adapter_path.is_absolute():
+                private = getattr(self, "__pydantic_private__", None)
+                source = private.get("_source_path") if isinstance(private, dict) else None
+                base = source.parent if isinstance(source, Path) else Path.cwd()
+                adapter.path = str((base / adapter_path).resolve())
+        return runtime
 
     def to_yaml(self) -> str:
         """Serialize to canonical YAML (enums as their string values)."""

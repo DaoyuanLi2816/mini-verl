@@ -6,7 +6,8 @@
 
 <!--
 Paste the actual output, not a description of it. A claim without a command is
-not evidence.
+not evidence. Sanitize commands and output first: do not paste tokens, home
+paths, proprietary prompts or model data.
 -->
 
 ```text
@@ -31,6 +32,8 @@ pytest -q -m "not gpu and not network"
       `schema_version` was bumped and the reader rejects the old version.
 - [ ] If this changes what a user sees, the README and the relevant `docs/` page
       were updated in the same commit.
+- [ ] Configs, manifests, reports and logs pasted here were reviewed for tokens,
+      private paths and proprietary data.
 
 ## If this touches the objective, the masks, or the cache
 

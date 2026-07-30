@@ -27,6 +27,8 @@ from contextlib import contextmanager
 from typing import Any
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from miniverl.environments.base import (
     FailureCategory,
@@ -61,6 +63,17 @@ from miniverl.errors import ConfigError, ToolEnvironmentError
 ENV_NAMES = ("calculator", "jsonnav", "sqlite")
 DIFFICULTIES = ("easy", "medium", "hard")
 ALL_CASES = [(name, difficulty) for name in ENV_NAMES for difficulty in DIFFICULTIES]
+JSON_VALUE = st.recursive(
+    st.none()
+    | st.booleans()
+    | st.integers(min_value=-(10**100), max_value=10**100)
+    | st.floats(allow_nan=False, allow_infinity=False, width=64)
+    | st.text(max_size=80),
+    lambda children: (
+        st.lists(children, max_size=6) | st.dictionaries(st.text(max_size=20), children, max_size=6)
+    ),
+    max_leaves=20,
+)
 
 
 @contextmanager
@@ -448,6 +461,78 @@ def test_convert_tool_rejects_a_boolean_value(value: bool) -> None:
     assert step.error is not None and "must be a number" in step.error
 
 
+@pytest.mark.parametrize(
+    "value",
+    [float("nan"), float("inf"), float("-inf"), "nan", "inf", "-inf"],
+)
+def test_convert_tool_rejects_non_finite_values_without_crashing(value: object) -> None:
+    with environment("calculator") as env:
+        env.reset(env.generate_task(0, 1, difficulty="easy", split="train"))
+        step = env.step(ToolCall("convert", {"value": value, "from_unit": "km", "to_unit": "mi"}))
+    assert not step.ok
+    assert step.failure_category in {
+        FailureCategory.INVALID_TOOL_CALL,
+        FailureCategory.TOOL_ERROR,
+    }
+
+
+def test_convert_tool_rejects_an_integer_too_large_for_float_without_crashing() -> None:
+    with environment("calculator") as env:
+        env.reset(env.generate_task(0, 1, difficulty="easy", split="train"))
+        step = env.step(
+            ToolCall("convert", {"value": 10**10_000, "from_unit": "km", "to_unit": "mi"})
+        )
+    assert not step.ok
+    assert step.failure_category is FailureCategory.INVALID_TOOL_CALL
+
+
+@pytest.mark.parametrize("text", ["nan", "inf", "-inf", "1e9999"])
+def test_normalize_number_rejects_non_finite_values(text: str) -> None:
+    assert normalize_number(text) is None
+
+
+@pytest.mark.parametrize(
+    ("answer", "solved", "category"),
+    [
+        ("14", True, FailureCategory.SOLVED),
+        ("14.0", True, FailureCategory.SOLVED),
+        ("1.4e1", True, FailureCategory.SOLVED),
+        ("14 meters", True, FailureCategory.SOLVED),
+        ("14 m", True, FailureCategory.SOLVED),
+        ("14 miles", False, FailureCategory.WRONG_ANSWER),
+        ("14 arbitrary text", False, FailureCategory.MALFORMED_ANSWER),
+        ("nan", False, FailureCategory.MALFORMED_ANSWER),
+        ("inf", False, FailureCategory.MALFORMED_ANSWER),
+        ("-inf", False, FailureCategory.MALFORMED_ANSWER),
+    ],
+)
+def test_calculator_verifier_v2_requires_a_complete_number_and_compatible_unit(
+    answer: str,
+    solved: bool,
+    category: FailureCategory,
+) -> None:
+    env = CalculatorEnvironment(protocol_version="v2")
+    env.reset(
+        Task(
+            task_id="conversion",
+            prompt="Convert.",
+            answer="14",
+            metadata={"kind": "conversion", "from_unit": "ft", "to_unit": "m"},
+        )
+    )
+    result = env.verify(answer)
+    assert result.solved is solved
+    assert result.failure_category is category
+
+
+def test_calculator_verifier_v1_remains_historically_prefix_tolerant() -> None:
+    env = CalculatorEnvironment(protocol_version="v1")
+    env.reset(
+        Task(task_id="legacy", prompt="Compute.", answer="14", metadata={"kind": "arithmetic"})
+    )
+    assert env.verify("14 historical trailing prose").solved
+
+
 def test_convert_tool_identity_returns_the_input() -> None:
     with environment("calculator") as env:
         env.reset(env.generate_task(0, 1, difficulty="easy", split="train"))
@@ -685,6 +770,13 @@ def test_a_legitimate_aggregate_select_returns_parsed_json_rows(
         assert rows[0]["amount_total"] > 0
 
 
+def test_sqlite_non_finite_result_is_a_bounded_tool_error(sql_env: ToolEnvironment) -> None:
+    step = sql_env.step(ToolCall("query", {"sql": "SELECT 1e400 AS too_large"}))
+    assert not step.ok
+    assert step.failure_category is FailureCategory.TOOL_ERROR
+    assert step.error is not None and "finite JSON" in step.error
+
+
 def test_a_join_select_returns_column_named_rows(sql_env: ToolEnvironment) -> None:
     sql = (
         "SELECT c.city AS city, total(o.amount) AS total FROM orders o "
@@ -719,6 +811,35 @@ def test_sqlite_step_before_reset_is_rejected() -> None:
         env.step(ToolCall("schema", {}))
 
 
+@settings(max_examples=50, deadline=None)
+@given(arguments=st.dictionaries(st.text(max_size=20), JSON_VALUE, max_size=8))
+@pytest.mark.parametrize(
+    ("environment_name", "tool_name"),
+    [
+        ("calculator", "calculator"),
+        ("calculator", "convert"),
+        ("jsonnav", "get"),
+        ("jsonnav", "keys"),
+        ("jsonnav", "find"),
+        ("sqlite", "schema"),
+        ("sqlite", "query"),
+    ],
+)
+def test_every_environment_contains_arbitrary_json_compatible_arguments(
+    environment_name: str,
+    tool_name: str,
+    arguments: dict[str, Any],
+) -> None:
+    """Untrusted model arguments always become a bounded ``StepResult``."""
+    with environment(environment_name) as env:
+        task = env.generate_task(0, 7, difficulty="easy", split="train")
+        env.reset(task)
+        result = env.step(ToolCall(tool_name, arguments))
+    assert isinstance(result.ok, bool)
+    assert len(result.result) <= 20_000
+    assert result.error is None or len(result.error) <= 2_000
+
+
 # -- I. registry ----------------------------------------------------------
 
 
@@ -744,7 +865,11 @@ def test_make_environment_passes_params_through(name: str) -> None:
         assert env.params["tolerance"] == pytest.approx(0.25)
         assert env.describe() == {
             "name": name,
-            "params": {"tolerance": 0.25, "protocol_version": "v1"},
+            "params": {
+                "tolerance": 0.25,
+                "protocol_version": "v1",
+                "verifier_version": "v1",
+            },
         }
 
 

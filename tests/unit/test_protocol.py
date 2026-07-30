@@ -4,8 +4,8 @@ The whole trajectory pipeline (span provenance, loss masks, oracle traces, the
 generation stop condition) is pinned to exactly one surface syntax, so this file
 nails that surface down:
 
-* the parser recognises the **first** of the two action markers and reports the
-  recognised block as exact character offsets, so ``prefix_text`` /
+* the parser recognises the **first** of the two action markers, rejects any
+  non-whitespace suffix, and reports a valid block as exact offsets, so ``prefix_text`` /
   ``block_start`` / ``block_end`` can be trusted to slice the raw generation;
 * it fails loudly with a specific, model-readable message instead of guessing
   (unclosed tag, non-JSON, non-object payload, missing/blank/non-string
@@ -45,6 +45,7 @@ from miniverl.agent.protocol import (
     render_tool_result,
     stop_sequences,
 )
+from miniverl.errors import ToolCallParseError
 
 PROSE = "I should use the calculator here.\n"
 CALL_BLOCK = (
@@ -148,7 +149,7 @@ def test_clean_final_answer() -> None:
 
 
 def test_prose_before_a_tool_call_is_split_at_exact_offsets() -> None:
-    text = f"{PROSE}{CALL_BLOCK}\nand some trailing chatter"
+    text = f"{PROSE}{CALL_BLOCK}"
     action = parse_assistant_text(text)
     assert action.kind is ActionKind.TOOL_CALL
     assert action.prefix_text == PROSE
@@ -160,7 +161,7 @@ def test_prose_before_a_tool_call_is_split_at_exact_offsets() -> None:
 
 def test_prose_before_a_final_answer_is_split_at_exact_offsets() -> None:
     prose = "Adding them up now.\n\n"
-    text = f"{prose}{FINAL_BLOCK} ignored tail"
+    text = f"{prose}{FINAL_BLOCK}"
     action = parse_assistant_text(text)
     assert action.kind is ActionKind.FINAL
     assert action.prefix_text == prose
@@ -171,10 +172,10 @@ def test_prose_before_a_final_answer_is_split_at_exact_offsets() -> None:
 
 
 def test_prefix_and_block_partition_the_text_without_overlap() -> None:
-    text = f"{PROSE}{CALL_BLOCK}tail"
+    text = f"{PROSE}{CALL_BLOCK}"
     action = parse_assistant_text(text)
     assert text[: action.block_start] == action.prefix_text
-    assert text == action.prefix_text + text[action.block_start : action.block_end] + "tail"
+    assert text == action.prefix_text + text[action.block_start : action.block_end]
 
 
 @pytest.mark.parametrize(
@@ -182,9 +183,7 @@ def test_prefix_and_block_partition_the_text_without_overlap() -> None:
     [
         (CALL_BLOCK, TOOL_CALL_CLOSE),
         (PROSE + CALL_BLOCK, TOOL_CALL_CLOSE),
-        (PROSE + CALL_BLOCK + "\nchatter", TOOL_CALL_CLOSE),
         (FINAL_BLOCK, FINAL_CLOSE),
-        ("prose\n" + FINAL_BLOCK + "\nchatter", FINAL_CLOSE),
         (f"{FINAL_OPEN}\n{CALL_BLOCK}\n{FINAL_CLOSE}", FINAL_CLOSE),
     ],
 )
@@ -207,21 +206,15 @@ def test_block_end_lands_just_past_the_first_closing_tag(text: str, close_tag: s
 def test_tool_call_wins_when_it_appears_first() -> None:
     text = f"{CALL_BLOCK}\n{FINAL_BLOCK}"
     action = parse_assistant_text(text)
-    assert action.kind is ActionKind.TOOL_CALL
-    assert action.tool_name == "calculator"
-    assert action.final_answer is None
-    assert action.block_start == 0
-    assert action.block_end == len(CALL_BLOCK)
+    assert action.kind is ActionKind.PARSE_ERROR
+    assert action.error is not None and "after" in action.error
 
 
 def test_final_wins_when_it_appears_first() -> None:
     text = f"{FINAL_BLOCK}\n{CALL_BLOCK}"
     action = parse_assistant_text(text)
-    assert action.kind is ActionKind.FINAL
-    assert action.final_answer == "14"
-    assert action.tool_name is None
-    assert action.block_start == 0
-    assert action.block_end == len(FINAL_BLOCK)
+    assert action.kind is ActionKind.PARSE_ERROR
+    assert action.error is not None and "after" in action.error
 
 
 def test_a_tool_call_nested_inside_a_final_block_stays_part_of_the_answer() -> None:
@@ -331,7 +324,7 @@ def test_non_json_payload_is_a_parse_error(payload: str) -> None:
     action = parse_assistant_text(_wrap_call(payload))
     assert action.kind is ActionKind.PARSE_ERROR
     assert action.error is not None
-    assert action.error.startswith("tool call payload is not valid JSON (")
+    assert action.error.startswith("tool call payload is not valid JSON under strict rules (")
     assert action.error.endswith(").")
     assert "at column " in action.error
 
@@ -424,6 +417,82 @@ def test_payload_one_char_over_the_limit_is_rejected() -> None:
     assert action.error == (
         f"tool call JSON is {over} characters, over the {MAX_TOOL_CALL_JSON_CHARS} character limit."
     )
+
+
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity", "1e9999"])
+def test_non_finite_json_numbers_are_rejected(literal: str) -> None:
+    action = parse_assistant_text(
+        _wrap_call(f'{{"name":"convert","arguments":{{"value":{literal}}}}}')
+    )
+    assert action.kind is ActionKind.PARSE_ERROR
+    assert action.error is not None and "finite" in action.error.lower()
+
+
+def test_duplicate_json_keys_are_rejected() -> None:
+    action = parse_assistant_text(_wrap_call('{"name":"first","name":"second","arguments":{}}'))
+    assert action.kind is ActionKind.PARSE_ERROR
+    assert action.error is not None and "duplicate" in action.error.lower()
+
+
+def test_huge_integer_literal_is_rejected_before_environment_execution() -> None:
+    action = parse_assistant_text(
+        _wrap_call('{"name":"convert","arguments":{"value":' + ("9" * 512) + "}}")
+    )
+    assert action.kind is ActionKind.PARSE_ERROR
+    assert action.error is not None and "integer" in action.error.lower()
+
+
+def test_deep_json_container_is_rejected() -> None:
+    nested = "[" * 64 + "0" + "]" * 64
+    action = parse_assistant_text(
+        _wrap_call(f'{{"name":"convert","arguments":{{"value":{nested}}}}}')
+    )
+    assert action.kind is ActionKind.PARSE_ERROR
+    assert action.error is not None and "depth" in action.error.lower()
+
+
+def test_excessive_json_member_count_is_rejected() -> None:
+    members = ",".join(f'"k{i}":0' for i in range(300))
+    action = parse_assistant_text(_wrap_call(f'{{"name":"tool","arguments":{{{members}}}}}'))
+    assert action.kind is ActionKind.PARSE_ERROR
+    assert action.error is not None and "member" in action.error.lower()
+
+
+def test_lone_unicode_surrogate_escape_is_rejected() -> None:
+    action = parse_assistant_text(_wrap_call(r'{"name":"tool","arguments":{"value":"\ud800"}}'))
+    assert action.kind is ActionKind.PARSE_ERROR
+    assert action.error is not None and "unicode" in action.error.lower()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        f"{CALL_BLOCK}\n{FINAL_BLOCK}",
+        f"{FINAL_BLOCK}\n{CALL_BLOCK}",
+        f"{CALL_BLOCK}\ntrailing prose",
+        f"{FINAL_BLOCK}\ntrailing prose",
+        f"{CALL_BLOCK}\n{CALL_BLOCK}",
+    ],
+)
+def test_exactly_one_action_block_allows_no_non_whitespace_suffix(text: str) -> None:
+    action = parse_assistant_text(text)
+    assert action.kind is ActionKind.PARSE_ERROR
+    assert action.error is not None and "after" in action.error.lower()
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"value": float("nan")},
+        {"value": float("inf")},
+        {"value": float("-inf")},
+    ],
+)
+def test_tool_call_renderer_wraps_non_finite_serialization_errors(
+    arguments: dict[str, float],
+) -> None:
+    with pytest.raises(ToolCallParseError, match="finite"):
+        render_tool_call("convert", arguments)
 
 
 def test_the_size_guard_runs_before_json_parsing() -> None:

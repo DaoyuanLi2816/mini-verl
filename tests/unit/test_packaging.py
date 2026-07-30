@@ -14,11 +14,14 @@ import hashlib
 import importlib
 import json
 import pkgutil
+import re
 import subprocess
 import sys
 import textwrap
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 import pytest
 
@@ -330,6 +333,108 @@ def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
         text = (REPO_ROOT / readme).read_text(encoding="utf-8")
         assert text.count(pypi_url) >= 2
         assert "docs/single-gpu-guide.md" in text
+
+
+def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_links() -> None:
+    from scripts.build_pypi_readme import build_pypi_readme, release_ref
+
+    generated = build_pypi_readme(REPO_ROOT)
+    committed = (REPO_ROOT / "PYPI.md").read_text(encoding="utf-8")
+    ref = release_ref(miniverl.__version__)
+    assert committed == generated
+    assert "C:\\Users\\" not in committed
+    assert "/home/" not in committed
+    assert not re.search(r"!?\[[^]]*]\((?!https?://|#|mailto:)[^)]+\)", committed)
+    assert not re.search(r'(?:src|href)="(?!https?://|#|mailto:)[^"]+"', committed)
+    assert f"https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/{ref}/docs/banner.svg" in (
+        committed
+    )
+    for path in (
+        "docs/single-gpu-guide.md",
+        "recipes/qwen_consumer_gpu_calc.yaml",
+        "benchmarks/results/gpu-calc-hard-equal-update-v2.json",
+        "CHANGELOG.md",
+        "CITATION.cff",
+        "LICENSE",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+    ):
+        assert f"https://github.com/DaoyuanLi2816/mini-verl/blob/{ref}/{path}" in committed
+
+
+def test_project_metadata_and_sdist_policy_use_generated_long_description() -> None:
+    pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert 'readme = "PYPI.md"' in pyproject
+    for entry in (
+        '"/scripts"',
+        '"/.github"',
+        '"/PYPI.md"',
+        '"/CONTRIBUTING.md"',
+        '"/CODE_OF_CONDUCT.md"',
+        '"/SECURITY.md"',
+        '"/PROJECT_STATE.md"',
+    ):
+        assert entry in pyproject
+
+
+def test_release_quality_has_one_version_bound_machine_readable_record() -> None:
+    record = json.loads(
+        (REPO_ROOT / "docs" / "generated" / "quality.json").read_text(encoding="utf-8")
+    )
+    assert record["schema_version"] == 1
+    assert record["quality_floor"] == "1,000+ tests and 86%+ branch coverage at v0.2.4"
+    if ".dev" in miniverl.__version__:
+        assert record["status"] in {"candidate", "released"}
+        if record["status"] == "candidate":
+            assert record["release"] == miniverl.__version__.split(".dev", 1)[0]
+    else:
+        assert record["release"] == miniverl.__version__
+        assert record["status"] == "validated"
+        assert re.fullmatch(r"[0-9a-f]{40}", record["measured_commit"])
+        for section in ("cpu_non_gpu_non_network", "gpu", "network"):
+            assert isinstance(record[section]["passed"], int)
+
+
+def test_repository_markdown_links_and_anchors_are_navigable() -> None:
+    from scripts.check_markdown_links import check_markdown_links
+
+    assert check_markdown_links(REPO_ROOT) == []
+
+
+def test_built_wheel_metadata_uses_generated_readme_and_valid_project_links(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("build")
+    completed = subprocess.run(
+        [sys.executable, "-m", "build", "--wheel", "--outdir", str(tmp_path)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        timeout=180,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    [wheel] = tmp_path.glob("*.whl")
+    with zipfile.ZipFile(wheel) as archive:
+        [metadata_name] = [name for name in archive.namelist() if name.endswith("/METADATA")]
+        metadata = archive.read(metadata_name).decode("utf-8")
+    _headers, separator, description = metadata.partition("\n\n")
+    assert separator
+    assert description == (REPO_ROOT / "PYPI.md").read_text(encoding="utf-8")
+
+    project_file_urls = re.findall(
+        r"https://(?:github\.com/DaoyuanLi2816/mini-verl/blob|"
+        r"raw\.githubusercontent\.com/DaoyuanLi2816/mini-verl)/[^)\s\"<>]+",
+        description,
+    )
+    assert project_file_urls
+    for url in project_file_urls:
+        path = unquote(urlsplit(url).path)
+        if url.startswith("https://github.com/"):
+            relative = path.split("/blob/", 1)[1].split("/", 1)[1]
+        else:
+            relative = path.removeprefix("/DaoyuanLi2816/mini-verl/").split("/", 1)[1]
+        relative = relative.split("#", 1)[0]
+        assert (REPO_ROOT / relative).is_file(), f"wheel METADATA has a broken link: {url}"
 
 
 def test_the_committed_json_schema_matches_the_pydantic_model():

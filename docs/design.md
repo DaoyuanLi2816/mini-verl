@@ -494,7 +494,9 @@ the same as a real run's):
 
 ```
 <dir>/
-  config.original.yaml                     the recipe exactly as written
+  config.submitted.yaml                    exact file bytes (file-backed recipes only)
+  config.validated.yaml                    defaults + validation, before runtime resolution
+  config.original.yaml                     legacy runtime-input resume compatibility layer
   config.resolved.yaml                     every `auto` replaced by its decision
   manifest.json                            identity, hardware, objective, provenance
   environment.json                         machine and package description
@@ -523,9 +525,12 @@ harness wrote into the directory.
 
 Paths are defined once, in `RunPaths` (`src/miniverl/utils/runs.py`).
 
-### 5.1 Two configs, on purpose
+### 5.1 Explicit config provenance
 
-`config.original.yaml` is written verbatim at startup.
+`config.submitted.yaml` preserves exact source bytes when a recipe came from a
+file. `config.validated.yaml` is canonical validated logic before path/runtime
+resolution. The retained `config.original.yaml` name is a v0.2 compatibility
+layer for checkpoint resume, not a verbatim source claim.
 `config.resolved.yaml` is written after model loading with `memory.strategy`,
 `loss.chunk_size`, `models.device` and (for the `hf` backend) `loss.top_k`
 replaced by what was actually used. `miniverl eval --run <dir>` rebuilds the

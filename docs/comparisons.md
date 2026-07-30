@@ -5,8 +5,10 @@ tool for your problem. For most serious distillation work it is.
 
 Every cell below is either something read out of the relevant source tree, a
 value returned by the GitHub or arXiv API, or the literal string `not verified`.
-Nothing here is inferred from a project's marketing copy. Checks were performed
-on 2026-07-27; upstream projects move, so re-check before relying on a row.
+Nothing here is inferred from a project's marketing copy. Repository/API and
+official-documentation checks were refreshed on 2026-07-29; upstream projects
+move, so re-check the primary sources in [references](references.md) before
+relying on a row.
 
 ## Feature table
 
@@ -18,7 +20,7 @@ on 2026-07-27; upstream projects move, so re-check before relying on a row.
 | **On-policy rollouts** | Yes. `run.mode: opd` samples from the current student every cycle, and the config validator forces `cache.strict_policy_version: true`, so a target produced at policy version *v* cannot be consumed at *v+1* | Yes | Configurable, not the default. `lmbda` defaults to `0.5`, so on average half the batches use student-generated sequences | Yes | Yes | No. The trajectory set is fixed before training starts |
 | **Multi-turn tool use with environment execution** | Yes. `RolloutRunner` interleaves real tool execution (calculator, JSON navigation, read-only SQLite) with generation, bounded by `max_turns`, `max_new_tokens_per_turn`, `max_total_tokens`, `max_parse_errors` and `max_repeated_calls` | Yes. `verl/experimental/agent_loop/` contains `tool_agent_loop.py` and `tool_parser.py` | No tool environment in the distillation trainers | None found. A code search over the repository for `tool_call` and for `agent` returns 0 results | Yes. The README describes multi-turn agent-loop rollouts with tool and environment tokens excluded from the loss | No |
 | **Teacher-target compression / cache** | `bucketed_topk_tail` (teacher top-k log-probs plus one aggregated tail bucket) or `exact_full_vocab`. Bucketed targets persist to a sharded safetensors cache with a SHA-256 per shard and a recorded teacher revision, tokenizer fingerprint, temperature and `top_k` | not verified | `GKDTrainer` recomputes full-vocabulary teacher logits under `no_grad` every step and keeps no cache. Separately, `ServerDistillationTrainer` exposes `loss_top_k` (default `1`) and `loss_add_tail` (default `True`) | not verified | Chunked divergence computation rather than a persistent cache; the README states it processes tokens in chunks instead of materializing full-vocabulary tensors for the whole batch | Not applicable; the targets are the tokens |
-| **Packaging and tests** | hatchling wheel and sdist, `miniverl` console script, 933 tests (929 run in CPU CI, 4 marked `gpu`), all passing, at 85% total branch coverage; ruff, ruff format and mypy clean | Published on PyPI as `verl`; 51 workflow files under `.github/workflows` | Published on PyPI as `trl`; tests in-repo, including `tests/experimental/test_server_distillation_trainer.py` | Has a `pyproject.toml`, but no PyPI release under the name `kdflow` (404), no `tests/` directory and no `.github/workflows` | The repository root holds only `README.md`, `scripts/` and `src/`: no `pyproject.toml`, no `tests/`, no `.github/workflows` | Not applicable |
+| **Packaging and tests** | Published hatchling wheel plus self-testing sdist, `miniverl` console script, 1,000+ tests and 86%+ branch coverage; exact release evidence is in the [quality record](generated/quality.json) | Published on PyPI as `verl`; workflow inventory checked on the date above | Published on PyPI as `trl`; tests in-repo, including `tests/experimental/test_server_distillation_trainer.py` | Has a `pyproject.toml`; package/repository surfaces were checked on the date above | Repository package/test/workflow surfaces were checked on the date above | Not applicable |
 | **License** | Apache-2.0 (`LICENSE` in the repository root) | Apache-2.0 | Apache-2.0 | MIT | No `LICENSE` file; the GitHub API reports no license, so the code is all-rights-reserved and cannot be reused | Not applicable |
 
 One more research codebase is worth naming even though it does not get a column:
@@ -57,8 +59,8 @@ trajectory per forward pass with no padded batching, so
 PPO, no GRPO and no reward model. The three environments are synthetic and
 generated in-process; there is no dataset loader, no containerized or networked
 tool sandbox, and no support for vision-language models. Capability results in
-this repository come from one calculator task family on one consumer GPU at one
-seed, which is enough to show the pipeline runs and is not enough to establish
+this repository come from one calculator task family on one consumer GPU at two
+prespecified seeds, which is enough to show the pipeline runs and is not enough to establish
 that any objective beats any other.
 
 It is a single-GPU teaching and experimentation lab: a readable implementation
@@ -74,19 +76,17 @@ Use verl, not miniVERL, if any of the following is true:
 
 - You have more than one GPU, or more than one node. verl was built for this;
   miniVERL has no code path for it at all.
-- Your student is larger than roughly a 1B-parameter model, or your teacher does
-  not fit in the memory left over after the student, its LoRA adapters and its
-  optimizer state. miniVERL's `swap` strategy exists for that case but is
-  unavailable when either model is quantized, which is exactly the configuration
-  a 16 GB card pushes you toward.
+- Your chosen student/teacher pair and token budget do not fit on one device.
+  miniVERL's `swap` strategy can help for unquantized pairs, but is unavailable
+  when either model is quantized.
 - You need rollout throughput. verl drives vLLM or SGLang; miniVERL decodes one
   sequence at a time, and on the machine used here that is kernel-launch bound
   rather than compute bound.
 - You want on-policy distillation combined with RL objectives, a reward model,
   or an advantage estimator. verl has the PPO and GRPO machinery and a
   distillation trainer that plugs into it.
-- You want something with a maintainer community, a release cadence and 51 CI
-  workflows behind it.
+- You need the broader maintainer community and release surface of an upstream
+  scaling framework.
 
 miniVERL is a reasonable choice when you have exactly one personal NVIDIA GPU, you want
 to read and modify the loss, and you care more about being able to audit which

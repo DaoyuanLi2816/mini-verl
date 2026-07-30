@@ -55,6 +55,7 @@ EXPECTED_COMMANDS = {
 #: What a finished run must contain, relative to the run directory.
 DEMO_ARTIFACTS = (
     "config.original.yaml",
+    "config.validated.yaml",
     "config.resolved.yaml",
     "manifest.json",
     "environment.json",
@@ -566,6 +567,31 @@ def test_export_benchmark_matches_the_published_schema(demo_run: Path) -> None:
     serialized = json.dumps(payload["result"])
     assert str(demo_run) not in serialized, "the submission leaks a local path"
     assert demo_run.as_posix() not in serialized
+
+
+@requires_torch
+@pytest.mark.torch
+@pytest.mark.parametrize("command", ["report", "export-benchmark"])
+def test_shareable_writers_refuse_a_run_owned_by_training_without_mutation(
+    demo_run: Path, command: str
+) -> None:
+    from miniverl.utils.locking import RunLock
+
+    before = {
+        path.relative_to(demo_run).as_posix(): path.read_bytes()
+        for path in demo_run.rglob("*")
+        if path.is_file()
+    }
+    with RunLock(demo_run.parent, demo_run.name):
+        result = _invoke(command, str(demo_run))
+    assert result.exit_code != 0
+    assert "locked" in _collapse(result.output).lower()
+    after = {
+        path.relative_to(demo_run).as_posix(): path.read_bytes()
+        for path in demo_run.rglob("*")
+        if path.is_file()
+    }
+    assert after == before
 
 
 @requires_torch

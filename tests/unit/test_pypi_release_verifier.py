@@ -123,3 +123,105 @@ def test_hash_mismatch_fails_before_attestation_verification(monkeypatch) -> Non
                 "miniverl-0.2.0.tar.gz": "a" * 64,
             },
         )
+
+
+def test_long_description_requires_tag_pinned_links_on_the_rendered_page(monkeypatch) -> None:
+    verifier = _module()
+    repository = "https://github.com/DaoyuanLi2816/mini-verl"
+    tag = "v0.2.4"
+    paths = (
+        "docs/single-gpu-guide.md",
+        "recipes/qwen_consumer_gpu_calc.yaml",
+        "benchmarks/results/gpu-calc-hard-equal-update-v2.json",
+        "CHANGELOG.md",
+        "CITATION.cff",
+        "LICENSE",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+    )
+    links = [f"{repository}/blob/{tag}/{path}" for path in paths]
+    banner = f"https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/{tag}/docs/banner.svg"
+    links.append(banner)
+    description = "\n".join([*links[:-1], f"![release banner]({banner})"])
+
+    monkeypatch.setattr(
+        verifier,
+        "_request_json",
+        lambda *_args, **_kwargs: {"info": {"description": description}},
+    )
+    requested: list[str] = []
+
+    def request_text(url: str) -> str:
+        requested.append(url)
+        if url == "https://pypi.org/project/miniverl/0.2.4/":
+            return "\n".join(
+                [*links[:-1], '<img src="https://pypi-camo.example/banner" alt="release banner">']
+            )
+        return "ok"
+
+    monkeypatch.setattr(verifier, "_request_text", request_text)
+    verifier._verify_long_description_links(
+        project="miniverl",
+        version="0.2.4",
+        repository=repository,
+    )
+    assert set(links) <= set(requested)
+
+
+def test_long_description_retries_a_pypi_client_challenge(monkeypatch) -> None:
+    verifier = _module()
+    repository = "https://github.com/DaoyuanLi2816/mini-verl"
+    tag = "v0.2.4"
+    paths = (
+        "docs/single-gpu-guide.md",
+        "recipes/qwen_consumer_gpu_calc.yaml",
+        "benchmarks/results/gpu-calc-hard-equal-update-v2.json",
+        "CHANGELOG.md",
+        "CITATION.cff",
+        "LICENSE",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
+    )
+    banner = f"https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/{tag}/docs/banner.svg"
+    description = "\n".join(
+        [
+            *(f"{repository}/blob/{tag}/{path}" for path in paths),
+            f"![release banner]({banner})",
+        ]
+    )
+    monkeypatch.setattr(
+        verifier,
+        "_request_json",
+        lambda *_args, **_kwargs: {"info": {"description": description}},
+    )
+    monkeypatch.setattr(
+        verifier,
+        "_request_text",
+        lambda *_args, **_kwargs: "<title>Client Challenge</title>",
+    )
+
+    with pytest.raises(RuntimeError, match="client challenge"):
+        verifier._verify_long_description_links(
+            project="miniverl",
+            version="0.2.4",
+            repository=repository,
+        )
+
+
+def test_long_description_rejects_main_drift_for_a_stable_release(monkeypatch) -> None:
+    verifier = _module()
+    monkeypatch.setattr(
+        verifier,
+        "_request_json",
+        lambda *_args, **_kwargs: {
+            "info": {
+                "description": ("https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md")
+            }
+        },
+    )
+    with pytest.raises(RuntimeError, match="missing release-pinned"):
+        verifier._verify_long_description_links(
+            project="miniverl",
+            version="0.2.4",
+            repository="https://github.com/DaoyuanLi2816/mini-verl",
+        )

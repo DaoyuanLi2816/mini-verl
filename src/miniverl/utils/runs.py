@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from miniverl.errors import RunDirectoryError, RunNotFoundError
+from miniverl.errors import RunDirectoryError, RunNotFoundError, SerializationError
 
 __all__ = [
     "RunPaths",
@@ -21,6 +21,7 @@ __all__ = [
     "read_jsonl",
     "canonical_json",
     "write_text",
+    "write_bytes",
     "write_json",
     "write_json_atomic",
     "read_json",
@@ -139,8 +140,18 @@ class RunPaths:
 
     @property
     def config_original(self) -> Path:
-        """The recipe exactly as the user wrote it."""
+        """Legacy canonical runtime-input config; never claimed as verbatim."""
         return self.root / "config.original.yaml"
+
+    @property
+    def config_submitted(self) -> Path:
+        """Exact submitted bytes when the run came from a recipe file."""
+        return self.root / "config.submitted.yaml"
+
+    @property
+    def config_validated(self) -> Path:
+        """Canonical logical config after validation and before path/runtime resolution."""
+        return self.root / "config.validated.yaml"
 
     @property
     def config_resolved(self) -> Path:
@@ -238,8 +249,19 @@ class JsonlWriter:
 
     def write(self, record: dict[str, Any]) -> None:
         """Append one record."""
+        try:
+            serialized = json.dumps(
+                record,
+                ensure_ascii=False,
+                allow_nan=False,
+                default=_fallback,
+            )
+        except (OverflowError, RecursionError, TypeError, ValueError) as exc:
+            raise SerializationError(
+                f"machine-readable JSON must contain only finite, serializable values: {exc}"
+            ) from exc
         with self.path.open("a", encoding="utf-8", newline="\n") as fh:
-            fh.write(json.dumps(record, ensure_ascii=False, default=_fallback))
+            fh.write(serialized)
             fh.write("\n")
         self._count += 1
 
@@ -284,9 +306,22 @@ def canonical_json(payload: Any) -> str:
     path -- is byte-identical. Anything that is diffed or checksummed must go
     through here rather than calling :func:`json.dumps` with its own options.
     """
-    return (
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False, default=_fallback) + "\n"
-    )
+    try:
+        return (
+            json.dumps(
+                payload,
+                indent=2,
+                sort_keys=True,
+                ensure_ascii=False,
+                allow_nan=False,
+                default=_fallback,
+            )
+            + "\n"
+        )
+    except (OverflowError, RecursionError, TypeError, ValueError) as exc:
+        raise SerializationError(
+            f"machine-readable JSON must contain only finite, serializable values: {exc}"
+        ) from exc
 
 
 def write_text(path: str | Path, text: str) -> Path:
@@ -302,6 +337,15 @@ def write_text(path: str | Path, text: str) -> Path:
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
+    return p
+
+
+def write_bytes(path: str | Path, payload: bytes) -> Path:
+    """Write exact bytes without newline, encoding, or formatting changes."""
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    with p.open("wb") as handle:
+        handle.write(payload)
     return p
 
 

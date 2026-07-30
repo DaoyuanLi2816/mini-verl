@@ -733,6 +733,60 @@ def test_write_yaml_overwrites_an_existing_file(tmp_path: Path) -> None:
     assert RunConfig.from_yaml(target).run.name == original.run.name
 
 
+def test_file_backed_config_preserves_submitted_bytes_without_mutating_local_paths(
+    tmp_path: Path,
+) -> None:
+    submitted = (
+        b"# exact comment and formatting must survive\n"
+        b"models:\n"
+        b"  backend: hf\n"
+        b"  student: {model_id: Qwen/student}\n"
+        b"  teacher:\n"
+        b"    model_id: Qwen/teacher\n"
+        b"    adapter: {source: local, path: ./private-adapter}\n"
+        b"environment: {name: calculator}\n"
+    )
+    recipe = tmp_path / "recipe.yaml"
+    recipe.write_bytes(submitted)
+
+    config = RunConfig.from_yaml(recipe)
+
+    assert config.submitted_bytes == submitted
+    assert config.models.teacher.adapter is not None
+    assert config.models.teacher.adapter.path == "./private-adapter"
+    runtime = config.resolved_for_runtime()
+    assert runtime.models.teacher.adapter is not None
+    assert Path(runtime.models.teacher.adapter.path) == (tmp_path / "private-adapter").resolve()
+    assert config.models.teacher.adapter.path == "./private-adapter"
+
+
+def test_programmatic_config_has_no_fabricated_submitted_bytes() -> None:
+    config = RunConfig.from_mapping(_payload())
+    assert config.submitted_bytes is None
+    assert config.resolved_for_runtime().model_dump() == config.model_dump()
+
+
+def test_missing_pydantic_private_storage_does_not_fabricate_provenance() -> None:
+    config = RunConfig.from_mapping(
+        _payload(
+            models={
+                "backend": "hf",
+                "student": {"model_id": "Qwen/student"},
+                "teacher": {
+                    "model_id": "Qwen/teacher",
+                    "adapter": {"source": "local", "path": "./private-adapter"},
+                },
+            }
+        )
+    )
+    object.__setattr__(config, "__pydantic_private__", {})
+
+    assert config.submitted_bytes is None
+    runtime = config.resolved_for_runtime()
+    assert runtime.models.teacher.adapter is not None
+    assert Path(runtime.models.teacher.adapter.path) == (Path.cwd() / "private-adapter").resolve()
+
+
 # -- convenience properties ----------------------------------------------------
 
 

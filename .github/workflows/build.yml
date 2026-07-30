@@ -26,14 +26,26 @@ jobs:
           python -m twine check dist/*
           ls -la dist/
 
-      - name: The sdist must contain the recipes and the tests
+      - name: The sdist must contain every reproducibility surface
         run: |
           python - <<'PY'
           import glob, tarfile
           [path] = glob.glob("dist/*.tar.gz")
           with tarfile.open(path) as archive:
               names = archive.getnames()
-          for needed in ("recipes/toy_cpu.yaml", "tests/conftest.py", "LICENSE", "README.md"):
+          for needed in (
+              "recipes/toy_cpu.yaml",
+              "tests/conftest.py",
+              "scripts/build_pypi_readme.py",
+              ".github/workflows/ci.yml",
+              "PYPI.md",
+              "CONTRIBUTING.md",
+              "CODE_OF_CONDUCT.md",
+              "SECURITY.md",
+              "PROJECT_STATE.md",
+              "LICENSE",
+              "README.md",
+          ):
               assert any(n.endswith(needed) for n in names), f"{needed} missing from the sdist"
           print("sdist contents look right")
           PY
@@ -107,6 +119,62 @@ jobs:
           python -c "import json; d=json.load(open('/tmp/demo.json')); assert d['cycles_completed'] >= 1"
           test -f /tmp/wheel-demo/report.html
           deactivate
+
+      - name: Reproduce tests and wheel from the extracted sdist
+        run: |
+          python - <<'PY'
+          import glob, pathlib, tarfile
+          [archive_path] = glob.glob("dist/*.tar.gz")
+          destination = pathlib.Path("/tmp/miniverl-sdist-source")
+          destination.mkdir()
+          with tarfile.open(archive_path) as archive:
+              archive.extractall(destination, filter="data")
+          [root] = destination.iterdir()
+          pathlib.Path("/tmp/miniverl-sdist-root.txt").write_text(str(root))
+          PY
+          SDIST_ROOT="$(cat /tmp/miniverl-sdist-root.txt)"
+          python -m venv /tmp/sdist-test
+          . /tmp/sdist-test/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install "${SDIST_ROOT}[dev,train]"
+          cd "$SDIST_ROOT"
+          unset PYTHONPATH
+          python -c "import miniverl, pathlib; assert pathlib.Path(miniverl.__file__).is_relative_to(pathlib.Path('/tmp/sdist-test'))"
+          python scripts/build_pypi_readme.py --check
+          ruff check .
+          ruff format --check .
+          mypy src/miniverl
+          pytest -q -m "not gpu and not network"
+          python -m build --wheel --outdir /tmp/sdist-wheel
+          cd "$GITHUB_WORKSPACE"
+          deactivate
+
+      - name: The sdist-built wheel must match the repository wheel inventory
+        run: |
+          python - <<'PY'
+          import glob, zipfile
+
+          [repository_wheel] = glob.glob("dist/*.whl")
+          [sdist_wheel] = glob.glob("/tmp/sdist-wheel/*.whl")
+
+          def package_inventory(path):
+              with zipfile.ZipFile(path) as archive:
+                  return {
+                      name
+                      for name in archive.namelist()
+                      if name.startswith("miniverl/")
+                  }
+
+          repository = package_inventory(repository_wheel)
+          from_sdist = package_inventory(sdist_wheel)
+          assert repository == from_sdist, (
+              f"repository-only={sorted(repository - from_sdist)}; "
+              f"sdist-only={sorted(from_sdist - repository)}"
+          )
+          assert not any(name.startswith(("tests/", "scripts/")) for name in repository)
+          print(f"both wheels contain the same {len(repository)} package files")
+          PY
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

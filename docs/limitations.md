@@ -417,18 +417,10 @@ real numerical defect and it was fixed" is more informative than silence.
 
 ## Gate results
 
-All run on 2026-07-27, on the machine described at the top of this page:
-
-| gate | result |
-| --- | --- |
-| `ruff check .` | clean |
-| `ruff format --check .` | clean, 134 files |
-| `mypy src/miniverl` | clean, 71 source files |
-| `pytest -q -m "not gpu and not network" --cov=miniverl` | **929 passed**, 4 deselected, **85%** total branch coverage over 5854 statements |
-
-The 4 GPU-marked tests are deselected by that command and are not included in
-the coverage figure; they require CUDA and a network download of the pinned
-Qwen3 pair.
+The release has 1,000+ tests and 86%+ branch coverage. Exact current counts,
+commit identity, date and opt-in GPU/network status live in the single
+machine-readable [release-quality record](generated/quality.json), so this page
+does not drift when tests are added.
 
 ## Roadmap (not implemented)
 

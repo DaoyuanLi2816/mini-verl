@@ -5,8 +5,9 @@ compared against. Each entry is tagged `[primary]` for a peer-reviewed paper,
 preprint or source repository, or `[blog]` for an informal write-up.
 
 Every arXiv identifier below was resolved on 2026-07-27 and the title, author
-list and version dates were read off the abstract page. Repository facts came
-from the GitHub API on the same date.
+list and version dates were read off the abstract page. Mutable repository and
+official-documentation facts were refreshed through the GitHub API and project
+documentation on 2026-07-29.
 
 ## The framework miniVERL is named after
 

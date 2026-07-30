@@ -29,8 +29,8 @@ app = typer.Typer(
     name="miniverl",
     help=(
         "On-policy distillation for tool-using agents on one GPU.\n\n"
-        "A readable, reproducible, 16GB-first post-training lab for exact and "
-        "budgeted on-policy distillation."
+        "A readable single-CUDA-GPU post-training lab for exact and budgeted "
+        "on-policy distillation."
     ),
     add_completion=False,
     no_args_is_help=True,
@@ -46,7 +46,14 @@ _STATUS_STYLE = {"ok": "green", "warn": "yellow", "missing": "yellow", "fail": "
 
 
 def _emit_json(payload: Any) -> None:
-    console.print_json(json.dumps(payload, default=str))
+    try:
+        serialized = json.dumps(payload, default=str, allow_nan=False)
+    except (OverflowError, RecursionError, TypeError, ValueError) as exc:
+        from miniverl.errors import SerializationError
+
+        _fail(SerializationError(f"command result is not finite JSON: {exc}"))
+        return
+    console.print_json(serialized)
 
 
 def _esc(value: object) -> str:
@@ -851,6 +858,12 @@ def report(
     json_out: Optional[Path] = typer.Option(None, "--json-out", help="JSON summary output path."),
     max_trajectories: int = typer.Option(5, "--max-trajectories", help="Trajectories to render."),
     max_tokens: int = typer.Option(400, "--max-tokens", help="Tokens per trajectory to render."),
+    lock_timeout: float = typer.Option(
+        0.0,
+        "--lock-timeout",
+        min=0.0,
+        help="Seconds to wait if the run is being mutated (default: fail fast).",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON to stdout."),
 ) -> None:
     """Render a self-contained offline HTML report from a run directory."""
@@ -861,16 +874,27 @@ def report(
             write_markdown,
             write_report,
         )
+        from miniverl.utils.locking import RunLock
 
-        data = ReportData.from_run(run, max_trajectories=max_trajectories, max_tokens=max_tokens)
-        html_path = write_report(run, out, max_trajectories=max_trajectories, max_tokens=max_tokens)
-        markdown_path = write_markdown(data, markdown or Path(run) / "summary.md")
-        summary = render_summary_json(data)
-        json_path = None
-        if json_out is not None:
-            from miniverl.utils.runs import write_json
+        with RunLock(run.parent, run.name, timeout=lock_timeout):
+            data = ReportData.from_run(
+                run,
+                max_trajectories=max_trajectories,
+                max_tokens=max_tokens,
+            )
+            html_path = write_report(
+                run,
+                out,
+                max_trajectories=max_trajectories,
+                max_tokens=max_tokens,
+            )
+            markdown_path = write_markdown(data, markdown or Path(run) / "summary.md")
+            summary = render_summary_json(data)
+            json_path = None
+            if json_out is not None:
+                from miniverl.utils.runs import write_json
 
-            json_path = write_json(json_out, summary)
+                json_path = write_json(json_out, summary)
     except MiniVerlError as exc:
         _fail(exc)
         return
@@ -1009,13 +1033,21 @@ def export_benchmark(
     run: Path = typer.Argument(..., help="Run directory to export."),
     out: Optional[Path] = typer.Option(None, "--out", help="Output JSON path."),
     notes: str = typer.Option("", "--notes", help="Free-text notes for the submission."),
+    lock_timeout: float = typer.Option(
+        0.0,
+        "--lock-timeout",
+        min=0.0,
+        help="Seconds to wait if the run is being mutated (default: fail fast).",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Export a schema-validated, sanitized hardware result for a pull request."""
     try:
         from miniverl.evaluation.export import export_run
+        from miniverl.utils.locking import RunLock
 
-        payload, destination = export_run(run, out=out, notes=notes)
+        with RunLock(run.parent, run.name, timeout=lock_timeout):
+            payload, destination = export_run(run, out=out, notes=notes)
     except MiniVerlError as exc:
         _fail(exc)
         return

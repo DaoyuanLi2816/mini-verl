@@ -1,6 +1,6 @@
 # Release checklist
 
-This is the release gate and publication record for `v0.2.3`. A checked item
+This is the release gate and publication record for `v0.2.4`. A checked item
 names an invariant that was exercised on the release source. The tag workflow
 repeated the mechanical gates and refused inconsistent metadata or an
 unchecked pre-tag item. Publication began only after explicit maintainer
@@ -8,36 +8,31 @@ authorization.
 
 ## Version consistency
 
-- [x] `src/miniverl/__init__.py` is `0.2.3`.
-- [x] `CHANGELOG.md` has a dated `## [0.2.3]` section.
+- [x] `src/miniverl/__init__.py` is `0.2.4`.
+- [x] `CHANGELOG.md` has a dated `## [0.2.4]` section.
 - [x] `CITATION.cff` version and release date match.
-- [x] The future annotated tag is exactly `v0.2.3`.
+- [x] The future annotated tag is exactly `v0.2.4`.
 - [x] The package/project name remains `miniverl`.
 
 ## Correctness and lifecycle
 
-- [x] New-run, collision, concurrent creation, overwrite, resume and stale
-      JSONL-append regressions pass.
-- [x] Atomic checkpoint save, state-based selection, checksum corruption,
-      missing weights, identity mismatch, legacy v0.2 reads and weights-only
-      standalone evaluation regressions pass.
-- [x] Exact uninterrupted/resumed OPD and offline-KD tests pass; offline resume
-      reuses the persisted dataset, order and teacher cache.
-- [x] Completed, failed and interrupted manifest tests pass with actual progress
-      and OOM state.
-- [x] RNG-restored gradient OOM retry, dropout equivalence, single optimizer
-      commit, optimizer-OOM and non-OOM propagation tests pass.
-- [x] Protocol v1 byte stability, parser-valid v2 examples, render/parse
-      round-trips and protocol-aware adapter competence gates pass.
-- [x] Per-token objective/CE/divergence accounting and precise emitted,
-      parsed, executed, error and final-answer metric tests pass.
-- [x] Exact-zero tails, ordered span types, checksum policy, adapter identity,
-      full-vocabulary exactness and lossy-dtype rejection tests pass.
-- [x] Structural/revision tokenizer identity, output-vocabulary compatibility,
-      padded vocabulary and fail-before-mutation model-state tests pass.
-- [x] No-op, success, failure, replay and resume parameter-version tests pass.
-- [x] Dynamic reset observation/state provenance and exactly-once reset tests
-      pass.
+- [x] Strict model-output JSON rejects non-finite values, duplicate keys,
+      oversized integers, excessive depth/members and invalid surrogates before
+      environment execution; protocol-v1 byte fixtures remain unchanged.
+- [x] Calculator verifier-v2 requires a complete finite answer and compatible
+      units while verifier-v1 remains identifiable for historical artifacts.
+- [x] Calculator, JSON-navigation and SQLite property tests turn arbitrary
+      bounded JSON-compatible inputs into bounded environment results.
+- [x] Trainer lifecycle regressions prove one-shot entry, byte-stable rejected
+      second calls, thread exclusion, terminal states and idempotent close.
+- [x] Windows multiprocessing regressions prove same-run exclusion before model
+      loading, bounded timeout, killed-owner recovery, different-run progress,
+      benchmark/eval/report/export ownership and overwrite exclusion.
+- [x] Checkpoint, cache, JSONL and manifest fault-injection regressions accept a
+      valid old/new state or explicitly reject an incomplete state.
+- [x] Numerical property tests for exact/bucketed objectives, weighted
+      reductions, chunking, finite gradients, zero tails and OOM RNG
+      equivalence remain green.
 
 ## Quality gates
 
@@ -49,11 +44,12 @@ authorization.
       the required 80%.
 - [x] All GPU tests pass on an NVIDIA GeForce RTX 4080.
 - [x] All opt-in network tests pass.
-- [x] Transformers 4.51.x and 5.x compatibility tests pass.
+- [x] Transformers 4.51.x and 5.x compatibility checks pass on the PR head.
 - [x] The declared minimum Python 3.10 training dependency bundle passes the
       no-network toy/HF contract.
 - [x] The current Python 3.13 training dependency bundle passes the same
       contract.
+- [x] Core Python 3.10, 3.11, 3.12 and 3.13 checks pass on the PR head.
 - [x] `actionlint` passes with the repository's `cuda` self-hosted label
       declared in `.github/actionlint.yaml`.
 - [x] No unfinished implementation markers remain under `src`, `tests`,
@@ -61,10 +57,14 @@ authorization.
 
 ## Packaging and clean installs
 
-- [x] A clean `python -m build` produces one `0.2.3` wheel and one sdist.
+- [x] A clean `python -m build` produces one `0.2.4` wheel and one sdist.
 - [x] `python -m twine check dist/*` passes.
 - [x] The wheel contains the report template and no tests.
-- [x] The sdist contains recipes, tests, docs, license and both READMEs.
+- [x] The sdist contains the full shipped test surface, including scripts and
+      workflow fixtures, and its complete non-GPU/non-network suite passes from
+      an extracted directory outside the checkout.
+- [x] A wheel rebuilt from the extracted sdist has the same runtime-package
+      inventory as the repository wheel.
 - [x] A clean core-only wheel install runs `--help`, `--version` and
       `doctor --json` with torch, Transformers, PEFT and bitsandbytes absent
       and unimported.
@@ -84,6 +84,8 @@ authorization.
 - [x] The benchmark SVG remains generated from and bound to that exact JSON.
 - [x] All tracked JSON/JSONL parses strictly.
 - [x] README and documentation Markdown links pass link checking.
+- [x] `PYPI.md` byte-matches its generator, stable repository links use
+      `v0.2.4`, and built wheel metadata contains no relative or local links.
 - [x] Public artifacts contain no real absolute user path, username, hostname
       or secret.
 - [x] No model weights, checkpoints, caches or databases are tracked.
@@ -94,22 +96,34 @@ authorization.
       carries no GPU model or VRAM-tier tag.
 - [x] The base-vs-`[train]` installation split and v1 scientific confound are
       stated explicitly.
-- [x] `TODO.md`, `PROJECT_STATE.md`, support claims and dependency boundaries
-      describe the release-candidate implementation.
+- [x] `PROJECT_STATE.md`, the compatibility policy, support claims and
+      dependency boundaries describe the validated implementation.
 - [x] No RecoveryBench or unrelated feature expansion was added.
 
 ## Trusted publishing readiness
 
-- [x] PyPI reports project `miniverl` and current public version `0.2.2`.
+- [x] PyPI reports project `miniverl` and current public version `0.2.3`.
 - [x] GitHub environment `pypi` exists and has a deployment branch policy.
 - [x] `release.yml` requests `id-token: write`, uses the `pypi` environment and
       publishes only on a tag push.
 - [x] The maintainer registered the pending publisher for
       `DaoyuanLi2816/mini-verl`, workflow `release.yml`, environment `pypi`.
-- [x] The immutable `v0.2.0`, `v0.2.1` and `v0.2.2` tags and public artifacts
-      are unchanged.
+- [x] The immutable `v0.2.0`, `v0.2.1`, `v0.2.2` and `v0.2.3` tags and public
+      artifacts are unchanged.
 
 ## After the tag
+
+Complete only after the authorized public workflow:
+
+- [ ] Annotated tag `v0.2.4` resolves to the exact validated merge commit.
+- [ ] The release workflow passes metadata, tests, one-time build, OIDC
+      publication, public hashes/attestations, clean install and GitHub Release
+      creation.
+- [ ] Public PyPI and GitHub Release wheel/sdist hashes match the workflow
+      artifacts.
+- [ ] Development advances to `0.2.5.dev0` through a green state-sync PR.
+
+## Historical v0.2.3 record
 
 Publication completed on 2026-07-29:
 

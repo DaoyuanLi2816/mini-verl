@@ -23,6 +23,8 @@
 
 **面向个人单卡、紧凑且可审计的工具调用智能体训练栈。**
 
+PyPI 是稳定发布渠道；`main` 是开发分支，可能领先于已发布版本。
+
 miniVERL 是一个紧凑、可审计的训练实验室，让小型语言模型从**它自己生成的
 多轮工具轨迹**中学习。它会真实执行工具、显式记录 token 来源，并且只在正确
 的位置使用教师分布目标——不需要 Ray 或 GPU 集群。代码没有显卡型号白名单：
@@ -307,8 +309,11 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 每次运行都会写出 `manifest.json`，记录 miniVERL 版本、git commit、Python 与操作系统、torch/CUDA/驱动版本、GPU 型号与显存、模型 id **及解析后的 revision**、分词器指纹、随机种子、精度、量化、显存策略、损失模式、top-k、策略版本，以及一个 `measurement_status` 块，说明每项结果是实测、模拟还是未运行。
 
 它**不**记录用户名、主机名、家目录，也不记录白名单之外的任何环境变量（白名单只包含会影响数值结果的少数几个）——这一点有测试断言。
+来自文件的运行还会分别保存原始提交字节、规范化验证配置、v0.2
+续训兼容层和运行时解析后的选择。
 
-详见 [`docs/reproducibility.md`](docs/reproducibility.md)。
+详见 [`docs/reproducibility.md`](docs/reproducibility.md) 和
+[`兼容性策略`](docs/compatibility.md)。
 
 ## 路线图
 

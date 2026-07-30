@@ -15,6 +15,7 @@ from __future__ import annotations
 import ast
 import math
 import random
+import re
 from typing import Any
 
 from miniverl.environments.base import (
@@ -78,6 +79,52 @@ _UNIT_NAMES = {
     "f": "degrees Fahrenheit",
 }
 
+_UNIT_ALIASES = {
+    "km": "km",
+    "kilometer": "km",
+    "kilometers": "km",
+    "mi": "mi",
+    "mile": "mi",
+    "miles": "mi",
+    "m": "m",
+    "meter": "m",
+    "meters": "m",
+    "ft": "ft",
+    "foot": "ft",
+    "feet": "ft",
+    "kg": "kg",
+    "kilogram": "kg",
+    "kilograms": "kg",
+    "lb": "lb",
+    "pound": "lb",
+    "pounds": "lb",
+    "g": "g",
+    "gram": "g",
+    "grams": "g",
+    "oz": "oz",
+    "ounce": "oz",
+    "ounces": "oz",
+    "l": "l",
+    "liter": "l",
+    "liters": "l",
+    "gal": "gal",
+    "gallon": "gal",
+    "gallons": "gal",
+    "c": "c",
+    "celsius": "c",
+    "degree celsius": "c",
+    "degrees celsius": "c",
+    "f": "f",
+    "fahrenheit": "f",
+    "degree fahrenheit": "f",
+    "degrees fahrenheit": "f",
+}
+
+_NUMBER_AND_UNIT = re.compile(
+    r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)"
+    r"(?:\s+([A-Za-z]+(?:\s+[A-Za-z]+)?))?\s*$"
+)
+
 
 def normalize_number(text: str) -> float | None:
     """Parse a numeric answer, tolerating whitespace, commas and a unit suffix."""
@@ -86,9 +133,27 @@ def normalize_number(text: str) -> float | None:
         return None
     head = cleaned.split()[0]
     try:
-        return float(head)
-    except ValueError:
+        value = float(head)
+    except (OverflowError, ValueError):
         return None
+    return value if math.isfinite(value) else None
+
+
+def _parse_number_and_unit(text: str) -> tuple[float | None, str | None, str]:
+    match = _NUMBER_AND_UNIT.fullmatch(text)
+    if match is None:
+        return (
+            None,
+            None,
+            "answer must be one complete finite numeric literal with an optional unit",
+        )
+    try:
+        value = float(match.group(1))
+    except (OverflowError, ValueError):
+        return None, None, "answer contains an invalid numeric literal"
+    if not math.isfinite(value):
+        return None, None, "answer must be finite"
+    return value, match.group(2), ""
 
 
 def _check_value(value: float | int) -> float:
@@ -162,6 +227,8 @@ def safe_eval(expression: str) -> float:
 
 
 def _format_number(value: float) -> str:
+    if not math.isfinite(value):
+        raise ToolEnvironmentError("cannot format a non-finite number")
     if abs(value - round(value)) < 1e-9 and abs(value) < 1e12:
         return str(round(value))
     return f"{value:.4f}".rstrip("0").rstrip(".")
@@ -245,7 +312,11 @@ class CalculatorEnvironment(ToolEnvironment):
             if isinstance(raw_value, str):
                 parsed = normalize_number(raw_value)
             elif isinstance(raw_value, (int, float)) and not isinstance(raw_value, bool):
-                parsed = float(raw_value)
+                try:
+                    candidate = float(raw_value)
+                except (OverflowError, ValueError):
+                    candidate = math.nan
+                parsed = candidate if math.isfinite(candidate) else None
             else:
                 parsed = None
             if parsed is None:
@@ -275,12 +346,18 @@ class CalculatorEnvironment(ToolEnvironment):
 
     @staticmethod
     def _convert(value: float, from_unit: str, to_unit: str) -> float:
+        if not math.isfinite(value):
+            raise ToolEnvironmentError("conversion input must be finite")
+        if abs(value) > MAX_ABS_VALUE:
+            raise ToolEnvironmentError(
+                f"conversion input exceeds the magnitude limit {MAX_ABS_VALUE:.0e}"
+            )
         if from_unit == to_unit:
-            return value
+            return _check_value(value)
         if (from_unit, to_unit) == ("c", "f"):
-            return value * 9.0 / 5.0 + 32.0
+            return _check_value(value * 9.0 / 5.0 + 32.0)
         if (from_unit, to_unit) == ("f", "c"):
-            return (value - 32.0) * 5.0 / 9.0
+            return _check_value((value - 32.0) * 5.0 / 9.0)
         factor = UNIT_CONVERSIONS.get((from_unit, to_unit))
         if factor is None:
             raise ToolEnvironmentError(
@@ -288,7 +365,7 @@ class CalculatorEnvironment(ToolEnvironment):
                 + ", ".join(f"{a}->{b}" for a, b in sorted(UNIT_CONVERSIONS))
                 + ", c->f, f->c"
             )
-        return value * factor
+        return _check_value(value * factor)
 
     def verify(self, answer: str) -> VerificationResult:
         """Compare against the exact reference value."""
@@ -297,7 +374,12 @@ class CalculatorEnvironment(ToolEnvironment):
         expected = self._task.answer
         predicted = answer.strip()
         expected_value = normalize_number(expected)
-        predicted_value = normalize_number(predicted)
+        if self.verifier_version == "v1":
+            predicted_value = normalize_number(predicted)
+            predicted_unit = None
+            malformed_detail = "answer is not a number"
+        else:
+            predicted_value, predicted_unit, malformed_detail = _parse_number_and_unit(predicted)
         if predicted_value is None:
             return VerificationResult(
                 solved=False,
@@ -305,9 +387,37 @@ class CalculatorEnvironment(ToolEnvironment):
                 expected=expected,
                 predicted=predicted,
                 failure_category=FailureCategory.MALFORMED_ANSWER,
-                detail="answer is not a number",
+                detail=malformed_detail,
             )
         assert expected_value is not None
+        if self.verifier_version == "v2" and predicted_unit is not None:
+            expected_unit = (
+                str(self._task.metadata.get("to_unit", "")).lower()
+                if self._task.metadata.get("kind") in {"conversion", "chained"}
+                else ""
+            )
+            normalized_unit = _UNIT_ALIASES.get(predicted_unit.lower())
+            if not expected_unit or normalized_unit is None:
+                return VerificationResult(
+                    solved=False,
+                    reward=0.0,
+                    expected=expected,
+                    predicted=predicted,
+                    failure_category=FailureCategory.MALFORMED_ANSWER,
+                    detail=f"unsupported or unexpected unit suffix {predicted_unit!r}",
+                )
+            if normalized_unit != expected_unit:
+                return VerificationResult(
+                    solved=False,
+                    reward=0.0,
+                    expected=expected,
+                    predicted=predicted,
+                    failure_category=FailureCategory.WRONG_ANSWER,
+                    detail=(
+                        f"answer unit {predicted_unit!r} contradicts the expected "
+                        f"{_UNIT_NAMES[expected_unit]}"
+                    ),
+                )
         scale = max(1.0, abs(expected_value))
         if abs(predicted_value - expected_value) <= self.tolerance * scale:
             return VerificationResult(
