@@ -61,15 +61,23 @@ class ToolSpec:
 
     def render(self) -> str:
         """One-tool block for the system prompt."""
-        import json
+        from miniverl.errors import ToolEnvironmentError
+        from miniverl.utils.strict_json import StrictJSONError, strict_json_dumps
 
         params = ", ".join(
             f"{name} ({'required' if name in self.required else 'optional'}): {desc}"
             for name, desc in self.parameters.items()
         )
-        example = json.dumps(
-            {"name": self.name, "arguments": self.example}, ensure_ascii=False, sort_keys=True
-        )
+        try:
+            example = strict_json_dumps(
+                {"name": self.name, "arguments": self.example},
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        except StrictJSONError as exc:
+            raise ToolEnvironmentError(
+                f"tool specification {self.name!r} has an invalid strict-JSON example: {exc}"
+            ) from exc
         return f"- {self.name}: {self.description}\n  parameters: {params}\n  example: {example}"
 
 
@@ -221,6 +229,19 @@ class ToolEnvironment(ABC):
             raise ValueError(f"protocol_version must be 'v1' or 'v2', got {version!r}")
         return version
 
+    @property
+    def verifier_version(self) -> str:
+        """Answer contract; historical protocol-v1 runs retain verifier-v1."""
+        version = str(
+            self.params.get(
+                "verifier_version",
+                "v1" if self.protocol_version == "v1" else "v2",
+            )
+        )
+        if version not in ("v1", "v2"):
+            raise ValueError(f"verifier_version must be 'v1' or 'v2', got {version!r}")
+        return version
+
     def system_prompt(self) -> str:
         """System message describing the protocol and the available tools."""
         if self.prompt_style == "compact":
@@ -298,6 +319,7 @@ class ToolEnvironment(ABC):
             "params": {
                 **dict(self.params),
                 "protocol_version": self.protocol_version,
+                "verifier_version": self.verifier_version,
             },
         }
 

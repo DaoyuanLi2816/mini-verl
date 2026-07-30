@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import gc
 import json
+import threading
 import weakref
 from pathlib import Path
 from types import SimpleNamespace
@@ -200,3 +201,142 @@ def test_from_config_releases_partial_construction_when_startup_artifacts_fail(
     student_release.assert_called_once_with()
     teacher_release.assert_called_once_with()
     environment_close.assert_called_once_with()
+
+
+def _artifact_bytes(root: Path) -> dict[str, bytes]:
+    return {
+        str(path.relative_to(root)): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def test_train_is_one_shot_and_rejection_changes_no_artifact(tmp_path) -> None:
+    from miniverl.errors import LifecycleError
+    from miniverl.trainer import OPDTrainer, TrainerState
+
+    trainer = OPDTrainer.from_config(_config(tmp_path), run_id="one-shot")
+    trainer.train()
+    assert trainer.state is TrainerState.COMPLETED
+    before = _artifact_bytes(trainer.paths.root)
+
+    with pytest.raises(LifecycleError, match="completed"):
+        trainer.train()
+
+    assert _artifact_bytes(trainer.paths.root) == before
+    trainer.close()
+    assert trainer.state is TrainerState.CLOSED
+
+
+def test_two_threads_cannot_both_enter_train(tmp_path, monkeypatch) -> None:
+    from miniverl.errors import LifecycleError
+    from miniverl.trainer import OPDTrainer, TrainerState
+
+    trainer = OPDTrainer.from_config(_config(tmp_path), run_id="thread-one-shot")
+    entered = threading.Event()
+    release = threading.Event()
+    real_train_impl = trainer._train_impl
+
+    def blocked_train_impl():  # type: ignore[no-untyped-def]
+        entered.set()
+        assert release.wait(timeout=10)
+        return real_train_impl()
+
+    monkeypatch.setattr(trainer, "_train_impl", blocked_train_impl)
+    failures: list[BaseException] = []
+
+    def run_training() -> None:
+        try:
+            trainer.train()
+        except BaseException as exc:  # pragma: no cover - diagnostic capture
+            failures.append(exc)
+
+    thread = threading.Thread(target=run_training)
+    thread.start()
+    assert entered.wait(timeout=10)
+    assert trainer.state is TrainerState.RUNNING
+
+    with pytest.raises(LifecycleError, match="running"):
+        trainer.train()
+
+    release.set()
+    thread.join(timeout=30)
+    assert not thread.is_alive()
+    assert failures == []
+    assert trainer.state is TrainerState.COMPLETED
+    trainer.close()
+
+
+@pytest.mark.parametrize(
+    ("exception", "expected_state"),
+    [
+        (RuntimeError("boom"), "failed"),
+        (KeyboardInterrupt(), "interrupted"),
+    ],
+)
+def test_train_failure_sets_an_explicit_terminal_state(
+    tmp_path,
+    monkeypatch,
+    exception: BaseException,
+    expected_state: str,
+) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    trainer = OPDTrainer.from_config(_config(tmp_path), run_id=f"terminal-{expected_state}")
+    monkeypatch.setattr(trainer, "_train_impl", Mock(side_effect=exception))
+    with pytest.raises(
+        type(exception),
+        match="boom" if expected_state == "failed" else None,
+    ):
+        trainer.train()
+    assert trainer.state.value == expected_state
+    trainer.close()
+    assert trainer.state.value == "closed"
+
+
+def test_close_refuses_to_tear_down_a_running_trainer(tmp_path, monkeypatch) -> None:
+    from miniverl.errors import LifecycleError
+    from miniverl.trainer import OPDTrainer
+
+    trainer = OPDTrainer.from_config(_config(tmp_path), run_id="close-running")
+    entered = threading.Event()
+    release = threading.Event()
+    real_train_impl = trainer._train_impl
+
+    def blocked_train_impl():  # type: ignore[no-untyped-def]
+        entered.set()
+        assert release.wait(timeout=10)
+        return real_train_impl()
+
+    monkeypatch.setattr(trainer, "_train_impl", blocked_train_impl)
+    thread = threading.Thread(target=trainer.train)
+    thread.start()
+    assert entered.wait(timeout=10)
+    with pytest.raises(LifecycleError, match="running"):
+        trainer.close()
+    release.set()
+    thread.join(timeout=30)
+    assert not thread.is_alive()
+    trainer.close()
+
+
+def test_second_resume_loses_the_run_lock_before_model_loading(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import miniverl.training.trainer as trainer_module
+    from miniverl.errors import RunLockedError
+    from miniverl.trainer import OPDTrainer
+
+    config = _config(tmp_path)
+    owner = OPDTrainer.from_config(config, run_id="locked-resume")
+    before = _artifact_bytes(owner.paths.root)
+    tokenizer_probe = Mock(side_effect=AssertionError("model loading must not start"))
+    monkeypatch.setattr(trainer_module, "build_tokenizer", tokenizer_probe)
+
+    with pytest.raises(RunLockedError, match="locked-resume"):
+        OPDTrainer.from_config(config, resume=owner.paths.root)
+
+    tokenizer_probe.assert_not_called()
+    assert _artifact_bytes(owner.paths.root) == before
+    owner.close()

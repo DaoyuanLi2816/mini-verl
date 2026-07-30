@@ -30,12 +30,12 @@ model-readable message rather than a silent fallback.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
 from miniverl.errors import ToolCallParseError
+from miniverl.utils.strict_json import StrictJSONError, strict_json_dumps, strict_json_loads
 
 __all__ = [
     "TOOL_CALL_OPEN",
@@ -112,7 +112,11 @@ def _parse_error(text: str, message: str) -> ParsedAction:
 
 
 def parse_assistant_text(text: str) -> ParsedAction:
-    """Parse one assistant turn into a tool call, a final answer, or an error."""
+    """Parse one assistant turn into a tool call, a final answer, or an error.
+
+    Optional reasoning may precede the action. After the first complete action
+    block only whitespace is accepted, matching the one-block prompt contract.
+    """
     call_at = text.find(TOOL_CALL_OPEN)
     final_at = text.find(FINAL_OPEN)
 
@@ -137,10 +141,11 @@ def parse_assistant_text(text: str) -> ParsedAction:
                 f"{MAX_TOOL_CALL_JSON_CHARS} character limit.",
             )
         try:
-            data = json.loads(payload)
-        except json.JSONDecodeError as exc:
+            data = strict_json_loads(payload)
+        except StrictJSONError as exc:
             return _parse_error(
-                text, f"tool call payload is not valid JSON ({exc.msg} at column {exc.colno})."
+                text,
+                f"tool call payload is not valid JSON under strict rules ({exc}).",
             )
         if not isinstance(data, dict):
             return _parse_error(text, "tool call payload must be a JSON object.")
@@ -152,11 +157,18 @@ def parse_assistant_text(text: str) -> ParsedAction:
             arguments = {}
         if not isinstance(arguments, dict):
             return _parse_error(text, "tool call 'arguments' must be a JSON object.")
+        block_end = close_at + len(TOOL_CALL_CLOSE)
+        if text[block_end:].strip():
+            return _parse_error(
+                text,
+                "non-whitespace text appears after the first action block; "
+                "emit exactly one block per turn.",
+            )
         return ParsedAction(
             kind=ActionKind.TOOL_CALL,
             prefix_text=text[:call_at],
             block_start=call_at,
-            block_end=close_at + len(TOOL_CALL_CLOSE),
+            block_end=block_end,
             tool_name=name,
             arguments=arguments,
         )
@@ -165,12 +177,19 @@ def parse_assistant_text(text: str) -> ParsedAction:
     close_at = text.find(FINAL_CLOSE, body_start)
     if close_at < 0:
         return _parse_error(text, f"{FINAL_OPEN} was never closed with {FINAL_CLOSE}.")
+    block_end = close_at + len(FINAL_CLOSE)
+    if text[block_end:].strip():
+        return _parse_error(
+            text,
+            "non-whitespace text appears after the first action block; "
+            "emit exactly one block per turn.",
+        )
     answer = text[body_start:close_at].strip()
     return ParsedAction(
         kind=ActionKind.FINAL,
         prefix_text=text[:final_at],
         block_start=final_at,
-        block_end=close_at + len(FINAL_CLOSE),
+        block_end=block_end,
         final_answer=answer,
     )
 
@@ -188,7 +207,16 @@ def _escape_closing_tags(payload: str) -> str:
 
 def render_tool_call(name: str, arguments: dict[str, Any]) -> str:
     """Render a canonical tool-call block (used by oracle traces)."""
-    payload = json.dumps({"name": name, "arguments": arguments}, ensure_ascii=False, sort_keys=True)
+    try:
+        payload = strict_json_dumps(
+            {"name": name, "arguments": arguments},
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    except StrictJSONError as exc:
+        raise ToolCallParseError(
+            f"tool call cannot be rendered as finite strict JSON: {exc}"
+        ) from exc
     return f"{TOOL_CALL_OPEN}\n{_escape_closing_tags(payload)}\n{TOOL_CALL_CLOSE}"
 
 
@@ -216,5 +244,10 @@ def render_tool_result(ok: bool, result: str = "", error: str | None = None) -> 
         payload["result"] = result
     else:
         payload["error"] = error or "unknown error"
-    body = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    try:
+        body = strict_json_dumps(payload, ensure_ascii=False, sort_keys=True)
+    except StrictJSONError as exc:
+        raise ToolCallParseError(
+            f"tool result cannot be rendered as finite strict JSON: {exc}"
+        ) from exc
     return f"{TOOL_RESULT_OPEN}\n{_escape_closing_tags(body)}\n{TOOL_RESULT_CLOSE}"

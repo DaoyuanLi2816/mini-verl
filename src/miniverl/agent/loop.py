@@ -23,7 +23,6 @@ termination reason so the failure taxonomy in reports is exact.
 
 from __future__ import annotations
 
-import json
 from collections import Counter
 from dataclasses import dataclass
 from typing import Any
@@ -65,6 +64,7 @@ from miniverl.schemas.trajectory import (
     Turn,
     VerificationRecord,
 )
+from miniverl.utils.strict_json import strict_json_dumps
 
 __all__ = ["RolloutRunner", "RolloutStats"]
 
@@ -255,7 +255,11 @@ class RolloutStats:
 
 
 def _canonical_call(name: str, arguments: dict[str, Any]) -> str:
-    return json.dumps({"name": name, "arguments": arguments}, sort_keys=True, ensure_ascii=False)
+    return strict_json_dumps(
+        {"name": name, "arguments": arguments},
+        sort_keys=True,
+        ensure_ascii=False,
+    )
 
 
 class RolloutRunner:

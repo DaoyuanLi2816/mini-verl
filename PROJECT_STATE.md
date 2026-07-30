@@ -6,6 +6,20 @@ and what it printed.
 
 Last updated: 2026-07-29.
 
+## v0.2.4 final framework-hardening work in progress
+
+| item | current state |
+| --- | --- |
+| audited starting point | fetched local and public `main` both resolve to `ac047a6001ae0bc2935853fa4c35cedbcd9b9ee4`; working branch is `agent/v024-final-hardening` |
+| development version | `0.2.4.dev0` until the complete release gate is green |
+| immutable evidence | the v0.2 calculator benchmark must remain byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; release tags and the pinned protocol-teacher adapter are out of scope for mutation |
+| strict protocol and numerics | regressions first reproduced 33 failures: Python JSON accepted non-finite/duplicate/pathological values, calculator conversion leaked `ValueError`/`OverflowError`, and prefix-only verification accepted contradictory suffixes. A shared bounded strict decoder now rejects non-finite values, duplicate keys, 128+ digit integers, depth over 32, more than 256 members and invalid surrogates; renderers use `allow_nan=False` semantics, protocol-v2 uses complete numeric/unit verification, and historical protocol/verifier-v1 remains explicit |
+| lifecycle and locking | `TrainerState` enforces `ready -> running -> completed/failed/interrupted -> closed` with an atomic one-shot transition; a second call changes no bytes and concurrent threads cannot both enter. `filelock` backs stable `<output-root>/.miniverl-locks/<run-id>.lock` ownership acquired before run access/model loading and released after teardown; fail-fast, timeout, killed-owner and distinct-run multiprocessing cases pass on Windows |
+| focused evidence | `pytest` over protocol, environments, run locking, trainer/manifest lifecycle and the toy pipeline: **477 passed**; focused mypy covers the changed source; Ruff passes |
+| currently failing contracts | incomplete source-distribution fixtures, relative PyPI links, ambiguous submitted/resolved config provenance, path leakage in portable reports, duplicated quality claims and the remaining independent adversarial audit still require executable evidence |
+| next concrete actions | complete packaging, generated PyPI README, provenance/redaction and documentation work; then execute the extracted-sdist, privacy, compatibility, full CI and release gates |
+| publication authorization | the maintainer requested completion and publication of v0.2.4; tagging remains gated on the exact merge commit and all applicable checks |
+
 ## v0.2.3 clarity and defensive-hardening release status
 
 | item | current state |
