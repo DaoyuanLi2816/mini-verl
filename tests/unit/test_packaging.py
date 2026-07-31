@@ -336,7 +336,11 @@ def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
 
 
 def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_links() -> None:
-    from scripts.build_pypi_readme import build_pypi_readme, release_ref
+    from scripts.build_pypi_readme import (
+        build_pypi_readme,
+        relative_project_targets,
+        release_ref,
+    )
 
     generated = build_pypi_readme(REPO_ROOT)
     committed = (REPO_ROOT / "PYPI.md").read_text(encoding="utf-8")
@@ -346,6 +350,7 @@ def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_link
     assert "/home/" not in committed
     assert not re.search(r"!?\[[^]]*]\((?!https?://|#|mailto:)[^)]+\)", committed)
     assert not re.search(r'(?:src|href)="(?!https?://|#|mailto:)[^"]+"', committed)
+    assert relative_project_targets(committed) == []
     assert f"https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/{ref}/docs/banner.svg" in (
         committed
     )
@@ -360,6 +365,48 @@ def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_link
         "SECURITY.md",
     ):
         assert f"https://github.com/DaoyuanLi2816/mini-verl/blob/{ref}/{path}" in committed
+
+
+@pytest.mark.parametrize(
+    ("version", "ref"),
+    [("0.2.5", "v0.2.5"), ("0.2.6.dev0", "main")],
+)
+def test_pypi_generator_rewrites_nested_images_and_every_project_target(
+    tmp_path: Path,
+    version: str,
+    ref: str,
+) -> None:
+    from scripts.build_pypi_readme import build_pypi_readme, relative_project_targets
+
+    (tmp_path / "README.md").write_text(
+        "\n".join(
+            [
+                "[![License](docs/license.svg)](LICENSE)",
+                "![Hero](docs/hero.svg)",
+                "[Guide](docs/guide.md)",
+                '<img src="docs/html.svg"><a href="docs/html.md">HTML</a>',
+                "[Anchor](#local-section) [Mail](mailto:user@example.com)",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    rendered = build_pypi_readme(tmp_path, version=version)
+
+    assert relative_project_targets(rendered) == []
+    assert (
+        f"[![License](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/{ref}/"
+        "docs/license.svg)]"
+        f"(https://github.com/DaoyuanLi2816/mini-verl/blob/{ref}/LICENSE)"
+    ) in rendered
+    assert (
+        f'<img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/{ref}/docs/html.svg">'
+    ) in rendered
+    assert (
+        f'<a href="https://github.com/DaoyuanLi2816/mini-verl/blob/{ref}/docs/html.md">'
+    ) in rendered
+    assert "[Anchor](#local-section)" in rendered
+    assert "[Mail](mailto:user@example.com)" in rendered
 
 
 def test_project_metadata_and_sdist_policy_use_generated_long_description() -> None:
@@ -420,6 +467,9 @@ def test_built_wheel_metadata_uses_generated_readme_and_valid_project_links(
     _headers, separator, description = metadata.partition("\n\n")
     assert separator
     assert description == (REPO_ROOT / "PYPI.md").read_text(encoding="utf-8")
+    from scripts.build_pypi_readme import relative_project_targets
+
+    assert relative_project_targets(description) == []
 
     project_file_urls = re.findall(
         r"https://(?:github\.com/DaoyuanLi2816/mini-verl/blob|"

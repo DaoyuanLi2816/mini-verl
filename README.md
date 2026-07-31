@@ -21,7 +21,7 @@
 
 **A compact, auditable training stack for tool-using agents on one personal GPU.**
 
-PyPI is the stable release channel; `main` is development and may be ahead.
+PyPI `v0.2.5` is the stable release; `main` is development and may be ahead.
 
 miniVERL is a compact, auditable training lab for teaching a small language
 model from its own multi-turn tool trajectories. It runs real tools, keeps
@@ -481,6 +481,19 @@ usernames, hostnames, home paths, or environment variables beyond a short
 allowlist of ones that change numerics — asserted by a test.
 File-backed runs also separate exact submitted bytes, canonical validated
 logic, the v0.2 resume compatibility layer, and runtime-resolved choices.
+
+Writable runs move atomically through `ready`, `running`, and one terminal
+status (`completed`, `failed`, `interrupted`, or `closed_before_training`).
+One process lock covers construction, training/resume, standalone checkpoint
+selection and evaluation, and automatic report generation. Public evaluation
+and checkpoint calls cannot enter while training owns the model.
+
+After `reset`, every built-in verifier maps arbitrary strings to a bounded
+result rather than leaking parser/numeric exceptions; protocol-v2 prompts use
+environment-specific, verifier-format-valid final examples. Shareable reports,
+summaries, benchmark exports and portable manifests redact semantic secret
+keys, URL credentials and private cross-platform paths; private run artifacts
+still retain the local state required for exact resume.
 
 See [`docs/reproducibility.md`](docs/reproducibility.md) and the concise
 [`compatibility policy`](docs/compatibility.md).

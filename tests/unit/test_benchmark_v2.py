@@ -9,6 +9,8 @@ from typing import Any
 
 import pytest
 import yaml
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from miniverl.config import TrainingMode
 from miniverl.errors import ConfigError, RunDirectoryError
@@ -187,6 +189,96 @@ def test_portable_payload_redacts_cross_platform_paths_and_secrets(private_path:
     assert portable["adapter"]["path"].endswith("/adapter")
     assert portable["api_token"] == "<redacted>"
     assert portable["hostname"] == "<redacted>"
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "github_token",
+        "hf_token",
+        "wandb_api_key",
+        "authorization",
+        "cookie",
+        "session",
+        "session_token",
+        "nested-client-secret",
+        "databasePassword",
+        "private_key",
+        "accessKey",
+    ],
+)
+def test_portable_payload_redacts_semantic_secret_keys(key: str) -> None:
+    portable = portable_payload({key: "unique-sensitive-value", "tokenizer_id": "public/tokenizer"})
+
+    assert portable[key] == "<redacted>"
+    assert portable["tokenizer_id"] == "public/tokenizer"
+    assert "unique-sensitive-value" not in json.dumps(portable)
+
+
+@pytest.mark.parametrize(
+    ("raw", "public_fragment"),
+    [
+        (
+            r"failed at C:\Users\Alice Smith\OneDrive\private\adapter",
+            "<local>/adapter",
+        ),
+        (r"failed at \\server\share\private\adapter", "<local>/adapter"),
+        (
+            "download https://user:password@example.com/path?q=public",
+            "https://<redacted>@example.com/path?q=public",
+        ),
+        (
+            r"path=C:&#92;Users&#92;Alice Smith&#92;private&#92;adapter",
+            "<local>/adapter",
+        ),
+        (
+            "path=C:/Users/Alice Smith/private/adapter",
+            "<local>/adapter",
+        ),
+    ],
+)
+def test_portable_payload_redacts_credentials_and_embedded_private_paths(
+    raw: str,
+    public_fragment: str,
+) -> None:
+    rendered = json.dumps(portable_payload({"details": raw}), sort_keys=True)
+
+    assert public_fragment in rendered
+    for sensitive in ("Alice Smith", "user:password", r"\\server\share"):
+        assert sensitive not in rendered
+
+
+def test_portable_payload_redacts_nested_secret_values_without_touching_tokenizer() -> None:
+    payload = {
+        "outer": [
+            {"github_token": "github-private-value"},
+            {"metadata": {"authorization": "Basic private-auth-value"}},
+            {"tokenizer_id": "owner/tokenizer", "revision": "immutable-revision"},
+        ]
+    }
+
+    rendered = json.dumps(portable_payload(payload), sort_keys=True)
+
+    assert "github-private-value" not in rendered
+    assert "private-auth-value" not in rendered
+    assert "owner/tokenizer" in rendered
+    assert "immutable-revision" in rendered
+
+
+@given(
+    prefix=st.text(alphabet=st.characters(categories=("Ll", "Lu")), min_size=1, max_size=20),
+    secret=st.text(min_size=1, max_size=80),
+)
+@settings(max_examples=75)
+def test_semantic_secret_suffixes_are_redacted_in_arbitrary_nested_payloads(
+    prefix: str,
+    secret: str,
+) -> None:
+    payload = [{"nested": [{f"{prefix}_token": secret}]}]
+
+    portable = portable_payload(payload)
+
+    assert portable == [{"nested": [{f"{prefix}_token": "<redacted>"}]}]
 
 
 @pytest.mark.torch

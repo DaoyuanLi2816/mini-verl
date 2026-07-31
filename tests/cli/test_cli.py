@@ -13,9 +13,11 @@ the artifact contract fails here instead of in a user's first session.
 from __future__ import annotations
 
 import json
+import multiprocessing
 import re
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +75,18 @@ _STATUSES = {"ok", "warn", "missing", "fail"}
 def _invoke(*args: str) -> Result:
     """Run the CLI in-process with a fresh runner."""
     return CliRunner().invoke(app, list(args))
+
+
+def _probe_run_lock(output_root: str, run_id: str, result_queue) -> None:  # type: ignore[no-untyped-def]
+    """Spawn-safe probe used to prove an automatic report retains ownership."""
+    from miniverl.errors import RunLockedError
+    from miniverl.utils.locking import RunLock
+
+    try:
+        with RunLock(Path(output_root), run_id):
+            result_queue.put("acquired")
+    except RunLockedError:
+        result_queue.put("locked")
 
 
 def _payload(result: Result) -> Any:
@@ -457,6 +471,79 @@ def test_demo_writes_every_documented_artifact(demo_run: Path) -> None:
     checkpoints = demo_run / "checkpoints"
     assert checkpoints.is_dir()
     assert any(checkpoints.iterdir()), "no checkpoint was written"
+
+
+@requires_torch
+@pytest.mark.torch
+def test_automatic_report_remains_under_the_training_run_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import miniverl.reporting as reporting
+
+    target = tmp_path / "automatic-report-lock"
+    report_entered = threading.Event()
+    release_report = threading.Event()
+    real_write_report = reporting.write_report
+
+    def blocked_write_report(*args, **kwargs):  # type: ignore[no-untyped-def]
+        report_entered.set()
+        assert release_report.wait(timeout=30)
+        return real_write_report(*args, **kwargs)
+
+    monkeypatch.setattr(reporting, "write_report", blocked_write_report)
+    result_holder: list[Result] = []
+    cli_thread = threading.Thread(
+        target=lambda: result_holder.append(
+            _invoke("demo", "--output", str(target), "--fast", "--json")
+        )
+    )
+    cli_thread.start()
+    assert report_entered.wait(timeout=30)
+
+    context = multiprocessing.get_context("spawn")
+    result_queue = context.Queue()
+    probe = context.Process(
+        target=_probe_run_lock,
+        args=(str(target.parent), target.name, result_queue),
+    )
+    probe.start()
+    probe.join(timeout=30)
+    assert not probe.is_alive()
+    assert result_queue.get(timeout=5) == "locked"
+
+    release_report.set()
+    cli_thread.join(timeout=60)
+    assert not cli_thread.is_alive()
+    assert result_holder and result_holder[0].exit_code == 0, (
+        result_holder[0].output if result_holder else "CLI returned no result"
+    )
+
+
+@requires_torch
+@pytest.mark.torch
+def test_automatic_report_failure_preserves_completed_manifest_and_releases_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import miniverl.reporting as reporting
+    from miniverl.utils.locking import RunLock
+
+    target = tmp_path / "report-write-failure"
+    monkeypatch.setattr(
+        reporting,
+        "write_report",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError("injected report write failure")),
+    )
+
+    result = _invoke("demo", "--output", str(target), "--fast", "--json")
+
+    assert result.exit_code != 0
+    assert isinstance(result.exception, OSError)
+    manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "completed"
+    with RunLock(target.parent, target.name):
+        pass
 
 
 @requires_torch

@@ -1001,6 +1001,46 @@ def test_shareable_report_formats_redact_private_paths_and_secrets(
     assert "<local>/adapter" in rendered or "&lt;local&gt;/adapter" in rendered
 
 
+def test_shareable_formats_redact_composite_credentials_and_paths(synthetic_run: Path) -> None:
+    private_values = {
+        "github_token": "github-unique-secret",
+        "authorization": "Basic unique-auth-secret",
+        "cookie": "session=unique-cookie-secret",
+        "session": "unique-session-secret",
+        "diagnostic": (
+            r"failed at C:\Users\Alice Smith\OneDrive\private\adapter; "
+            r"fallback \\server\share\private\adapter; "
+            "source https://user:password@example.com/public/model"
+        ),
+    }
+    manifest = _manifest()
+    manifest["privacy_regression"] = private_values
+    write_json(synthetic_run / "manifest.json", manifest)
+    serialized = json.dumps({"privacy_regression": private_values}, indent=2)
+    (synthetic_run / "config.original.yaml").write_text(serialized, encoding="utf-8")
+    (synthetic_run / "config.resolved.yaml").write_text(serialized, encoding="utf-8")
+
+    data = ReportData.from_run(synthetic_run)
+    payloads = [
+        render_html(data),
+        render_markdown(data),
+        json.dumps(render_summary_json(data), sort_keys=True),
+    ]
+
+    for rendered in payloads:
+        for private in (
+            "github-unique-secret",
+            "unique-auth-secret",
+            "unique-cookie-secret",
+            "unique-session-secret",
+            "Alice Smith",
+            "user:password",
+            "server",
+            "share",
+        ):
+            assert private.lower() not in rendered.lower()
+
+
 # -- charts ---------------------------------------------------------------
 
 

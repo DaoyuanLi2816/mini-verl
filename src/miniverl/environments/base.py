@@ -205,6 +205,10 @@ class ToolEnvironment(ABC):
         """
         return None
 
+    def final_answer_example(self) -> str:
+        """Verifier-format-valid final answer used by protocol-v2 prompts."""
+        return "answer"
+
     # -- prompt rendering ------------------------------------------------
 
     @property
@@ -300,7 +304,7 @@ class ToolEnvironment(ABC):
         if not specs:
             raise ValueError(f"environment {self.name!r} does not declare any tools")
         spec = specs[0]
-        return render_tool_call(spec.name, spec.example), render_final("answer")
+        return render_tool_call(spec.name, spec.example), render_final(self.final_answer_example())
 
     def user_prompt(self, task: Task) -> str:
         """Compatibility helper for built-ins constructing ``reset()`` output.

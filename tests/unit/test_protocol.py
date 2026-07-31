@@ -915,7 +915,7 @@ def test_historical_v1_prompt_is_byte_frozen(prompt_style: str, expected_sha256:
     assert hashlib.sha256(prompt.encode("utf-8")).hexdigest() == expected_sha256
 
 
-def _assert_v2_prompt_example_round_trips(environment) -> None:  # type: ignore[no-untyped-def]
+def _assert_v2_prompt_example_round_trips(environment) -> str:  # type: ignore[no-untyped-def]
     import re
 
     from miniverl.agent.protocol import ActionKind, parse_assistant_text
@@ -933,14 +933,19 @@ def _assert_v2_prompt_example_round_trips(environment) -> None:  # type: ignore[
     assert tool.tool_name == expected.name
     assert tool.arguments == expected.example
     assert final.kind is ActionKind.FINAL
-    assert final.final_answer == "answer"
+    assert final.final_answer is not None
+    return final.final_answer
 
 
-@pytest.mark.parametrize("environment_name", ["calculator", "jsonnav", "sqlite"])
+@pytest.mark.parametrize(
+    ("environment_name", "expected_final"),
+    [("calculator", "4"), ("jsonnav", '"Lyon"'), ("sqlite", "4")],
+)
 @pytest.mark.parametrize("prompt_style", ["full", "compact"])
 def test_v2_builtin_prompt_examples_use_the_active_tool_spec(
-    environment_name: str, prompt_style: str
+    environment_name: str, expected_final: str, prompt_style: str
 ) -> None:
+    from miniverl.environments.base import FailureCategory
     from miniverl.environments.registry import make_environment
 
     environment = make_environment(
@@ -948,7 +953,19 @@ def test_v2_builtin_prompt_examples_use_the_active_tool_spec(
         prompt_style=prompt_style,
         protocol_version="v2",
     )
-    _assert_v2_prompt_example_round_trips(environment)
+    try:
+        final_answer = _assert_v2_prompt_example_round_trips(environment)
+        assert final_answer == expected_final
+        task = environment.generate_task(0, 7, difficulty="easy", split="eval")
+        environment.reset(task)
+        assert (
+            environment.verify(final_answer).failure_category
+            is not FailureCategory.MALFORMED_ANSWER
+        )
+    finally:
+        closer = getattr(environment, "close", None)
+        if callable(closer):
+            closer()
 
 
 @pytest.mark.parametrize("prompt_style", ["full", "compact"])
@@ -988,7 +1005,7 @@ def test_v2_custom_environment_prompt_example_uses_its_tool_spec(prompt_style: s
         prompt_style=prompt_style,
         protocol_version="v2",
     )
-    _assert_v2_prompt_example_round_trips(environment)
+    assert _assert_v2_prompt_example_round_trips(environment) == "answer"
 
 
 def test_v2_render_parse_round_trips_unicode_and_escapes_closing_tag_injection() -> None:

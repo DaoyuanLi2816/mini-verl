@@ -273,6 +273,10 @@ class CalculatorEnvironment(ToolEnvironment):
             ),
         ]
 
+    def final_answer_example(self) -> str:
+        """Return a numeric example accepted by the calculator verifier."""
+        return "4"
+
     # -- episode --------------------------------------------------------
 
     def reset(self, task: Task) -> Observation:

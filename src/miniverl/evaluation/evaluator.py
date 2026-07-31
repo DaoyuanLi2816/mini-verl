@@ -15,6 +15,7 @@ from typing import Any
 
 from miniverl.config.models import RunConfig
 from miniverl.errors import CheckpointError, RunNotFoundError
+from miniverl.utils.locking import RunLock
 from miniverl.utils.logging import get_logger
 from miniverl.utils.runs import RunPaths, write_json
 
@@ -41,41 +42,50 @@ def evaluate_run(
         validate_checkpoint,
     )
 
-    paths = RunPaths.open(run_dir)
-    if not paths.config_resolved.is_file():
-        raise RunNotFoundError(
-            f"{paths.root} has no config.resolved.yaml",
-            hint="only runs created by `miniverl train` can be re-evaluated",
-        )
-    config = RunConfig.from_yaml(paths.config_resolved)
-    if tasks is not None:
-        config = config.model_copy(update={"eval": config.eval.model_copy(update={"tasks": tasks})})
-
-    target_checkpoint = Path(checkpoint) if checkpoint else latest_checkpoint(paths.checkpoints)
-    if target_checkpoint is None:
-        raise CheckpointError(
-            f"no checkpoint found under {paths.checkpoints}",
-            hint="finish training or pass --checkpoint with a complete checkpoint directory",
-        )
-    validated = validate_checkpoint(target_checkpoint)
-    resolved_digest = hashlib.sha256(paths.config_resolved.read_bytes()).hexdigest()
-    if (
-        validated.state.resolved_config_digest
-        and validated.state.resolved_config_digest != resolved_digest
-    ):
-        raise CheckpointError(
-            "the checkpoint does not belong to this resolved run configuration",
-            hint="evaluate the run directory that originally produced this checkpoint",
-        )
-    trainer = OPDTrainer.from_config(
-        config,
-        output_dir=paths.root.parent,
-        run_id=paths.root.name,
-        local_files_only=local_files_only,
-        write_artifacts=False,
-        for_evaluation=True,
-    )
+    run_root = Path(run_dir).resolve()
+    acquired_lock = RunLock(run_root.parent, run_root.name)
+    acquired_lock.acquire()
+    run_lock: RunLock | None = acquired_lock
+    trainer: OPDTrainer | None = None
     try:
+        paths = RunPaths.open(run_root)
+        if not paths.config_resolved.is_file():
+            raise RunNotFoundError(
+                f"{paths.root} has no config.resolved.yaml",
+                hint="only runs created by `miniverl train` can be re-evaluated",
+            )
+        config = RunConfig.from_yaml(paths.config_resolved)
+        if tasks is not None:
+            config = config.model_copy(
+                update={"eval": config.eval.model_copy(update={"tasks": tasks})}
+            )
+
+        target_checkpoint = Path(checkpoint) if checkpoint else latest_checkpoint(paths.checkpoints)
+        if target_checkpoint is None:
+            raise CheckpointError(
+                f"no checkpoint found under {paths.checkpoints}",
+                hint="finish training or pass --checkpoint with a complete checkpoint directory",
+            )
+        validated = validate_checkpoint(target_checkpoint)
+        resolved_digest = hashlib.sha256(paths.config_resolved.read_bytes()).hexdigest()
+        if (
+            validated.state.resolved_config_digest
+            and validated.state.resolved_config_digest != resolved_digest
+        ):
+            raise CheckpointError(
+                "the checkpoint does not belong to this resolved run configuration",
+                hint="evaluate the run directory that originally produced this checkpoint",
+            )
+        trainer = OPDTrainer.from_config(
+            config,
+            output_dir=paths.root.parent,
+            run_id=paths.root.name,
+            local_files_only=local_files_only,
+            write_artifacts=False,
+            for_evaluation=True,
+            already_acquired_lock=run_lock,
+        )
+        run_lock = None
         state = load_checkpoint(
             target_checkpoint,
             backend=trainer.student,
@@ -98,4 +108,7 @@ def evaluate_run(
         payload["written_to"] = str(destination)
         return payload
     finally:
-        trainer.close()
+        if trainer is not None:
+            trainer.close()
+        elif run_lock is not None:
+            run_lock.release()

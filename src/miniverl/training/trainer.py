@@ -178,7 +178,9 @@ class OPDTrainer:
         self._closed = False
         self._state = TrainerState.READY
         self._state_guard = threading.Lock()
+        self._operation_guard = threading.Lock()
         self._run_lock: RunLock | None = run_lock
+        self._evaluation_only = evaluation_only
         self.config = config
         self.validated_config = validated_config
         self.paths = paths
@@ -314,6 +316,7 @@ class OPDTrainer:
         resume_from: str | Path | None = None,
         for_evaluation: bool = False,
         lock_timeout: float = 0.0,
+        already_acquired_lock: RunLock | None = None,
     ) -> OPDTrainer:
         """Validate, seed, load models and create the run directory.
 
@@ -336,6 +339,12 @@ class OPDTrainer:
             raise ConfigError("for_evaluation=True requires write_artifacts=False")
         if for_evaluation and resume_options:
             raise ConfigError("evaluation attachment cannot use training resume options")
+        if already_acquired_lock is not None and not (for_evaluation and not write_artifacts):
+            raise ConfigError(
+                "already_acquired_lock is reserved for read/write evaluation attachments"
+            )
+        if already_acquired_lock is not None and not already_acquired_lock.acquired:
+            raise ConfigError("already_acquired_lock must already own the run lock")
 
         validated_config = config
         config = config.resolved_for_runtime()
@@ -373,8 +382,17 @@ class OPDTrainer:
         else:
             target_root = Path(output_dir or config.run.output_dir).resolve() / resolved_id
 
-        run_lock = RunLock(target_root.parent, resolved_id, timeout=lock_timeout)
-        run_lock.acquire()
+        external_run_lock = already_acquired_lock is not None
+        if already_acquired_lock is not None:
+            run_lock = already_acquired_lock
+            if (
+                run_lock.output_root != target_root.parent.resolve()
+                or run_lock.run_id != resolved_id
+            ):
+                raise ConfigError("already_acquired_lock does not own the requested run directory")
+        else:
+            run_lock = RunLock(target_root.parent, resolved_id, timeout=lock_timeout)
+            run_lock.acquire()
         try:
             if resume is not None or resume_from is not None or not write_artifacts:
                 paths = RunPaths.open(target_root)
@@ -385,7 +403,8 @@ class OPDTrainer:
                     overwrite=overwrite,
                 )
         except BaseException:
-            run_lock.release()
+            if not external_run_lock:
+                run_lock.release()
             raise
 
         environment: ToolEnvironment | None = None
@@ -586,7 +605,8 @@ class OPDTrainer:
                             "failed-construction manifest cleanup fallback failed: %s",
                             manifest_error,
                         )
-            run_lock.release()
+            if not external_run_lock:
+                run_lock.release()
             raise
 
     def _write_startup_artifacts(self) -> None:
@@ -604,7 +624,7 @@ class OPDTrainer:
         startup.update(
             {
                 "manifest_schema_version": RUN_MANIFEST_SCHEMA_VERSION,
-                "status": "running",
+                "status": "ready",
                 "started_at": self._started_at,
                 "original_config_digest": hashlib.sha256(
                     self.paths.config_original.read_bytes()
@@ -647,6 +667,23 @@ class OPDTrainer:
         )
         write_json_atomic(self.paths.manifest_start, startup)
         write_json_atomic(self.paths.manifest, startup)
+
+    def _transition_manifest_to_running(self) -> None:
+        """Atomically publish RUNNING immediately before training emits events."""
+        import json
+
+        manifest = json.loads(self.paths.manifest.read_text(encoding="utf-8"))
+        manifest["status"] = "running"
+        manifest["started_at"] = self._started_at
+        for key in (
+            "completed_at",
+            "failed_at",
+            "interrupted_at",
+            "closed_at",
+            "failure",
+        ):
+            manifest.pop(key, None)
+        write_json_atomic(self.paths.manifest, manifest)
 
     def build_manifest(self) -> dict[str, Any]:
         """Full provenance record for the run."""
@@ -1460,50 +1497,61 @@ class OPDTrainer:
 
     def train(self) -> TrainResult:
         """Run once from ``ready`` and enter one terminal lifecycle state."""
-        with self._state_guard:
-            if self._state is not TrainerState.READY:
-                raise LifecycleError(
-                    f"cannot train: this OPDTrainer is {self._state.value}",
-                    hint=(
-                        "construct a fresh trainer and use explicit resume/checkpoint "
-                        "semantics for additional work"
-                    ),
-                )
-            self._state = TrainerState.RUNNING
+        if not self._operation_guard.acquire(blocking=False):
+            with self._state_guard:
+                state = self._state
+            raise LifecycleError(
+                f"cannot train: this OPDTrainer is {state.value}",
+                hint="wait for the active trainer operation to finish",
+            )
         try:
-            result = self._train_impl()
-        except KeyboardInterrupt as exc:
+            with self._state_guard:
+                if self._state is not TrainerState.READY:
+                    raise LifecycleError(
+                        f"cannot train: this OPDTrainer is {self._state.value}",
+                        hint=(
+                            "construct a fresh trainer and use explicit resume/checkpoint "
+                            "semantics for additional work"
+                        ),
+                    )
+                self._state = TrainerState.RUNNING
             try:
-                self._finalize_manifest(status="interrupted", error=exc)
-            except BaseException as manifest_error:
-                logger.warning(
-                    "manifest finalization failed while preserving KeyboardInterrupt: %s",
-                    manifest_error,
-                )
-            with self._state_guard:
-                self._state = TrainerState.INTERRUPTED
-            raise
-        except BaseException as exc:
+                self._transition_manifest_to_running()
+                result = self._train_impl()
+            except KeyboardInterrupt as exc:
+                try:
+                    self._finalize_manifest(status="interrupted", error=exc)
+                except BaseException as manifest_error:
+                    logger.warning(
+                        "manifest finalization failed while preserving KeyboardInterrupt: %s",
+                        manifest_error,
+                    )
+                with self._state_guard:
+                    self._state = TrainerState.INTERRUPTED
+                raise
+            except BaseException as exc:
+                try:
+                    self._finalize_manifest(status="failed", error=exc)
+                except BaseException as manifest_error:
+                    logger.warning(
+                        "manifest finalization failed while preserving %s: %s",
+                        type(exc).__name__,
+                        manifest_error,
+                    )
+                with self._state_guard:
+                    self._state = TrainerState.FAILED
+                raise
             try:
-                self._finalize_manifest(status="failed", error=exc)
-            except BaseException as manifest_error:
-                logger.warning(
-                    "manifest finalization failed while preserving %s: %s",
-                    type(exc).__name__,
-                    manifest_error,
-                )
+                self._finalize_manifest(status="completed", result=result)
+            except BaseException:
+                with self._state_guard:
+                    self._state = TrainerState.FAILED
+                raise
             with self._state_guard:
-                self._state = TrainerState.FAILED
-            raise
-        try:
-            self._finalize_manifest(status="completed", result=result)
-        except BaseException:
-            with self._state_guard:
-                self._state = TrainerState.FAILED
-            raise
-        with self._state_guard:
-            self._state = TrainerState.COMPLETED
-        return result
+                self._state = TrainerState.COMPLETED
+            return result
+        finally:
+            self._operation_guard.release()
 
     def _train_impl(self) -> TrainResult:
         """Run the configured schedule and return a summary."""
@@ -1551,7 +1599,7 @@ class OPDTrainer:
             )
         else:
             if config.eval.enabled:
-                baseline = self.evaluate(tag="baseline")
+                baseline = self._evaluate_impl(tag="baseline")
             if config.train.sft_warmup_cycles > 0 and config.run.mode is not TrainingMode.SFT:
                 self._run_sft_warmup(config.train.sft_warmup_cycles)
 
@@ -1566,16 +1614,16 @@ class OPDTrainer:
                 and (cycle + 1) % config.train.eval_every_cycles == 0
                 and cycle + 1 < config.train.cycles
             ):
-                self.evaluate(tag=f"cycle{cycle + 1}")
+                self._evaluate_impl(tag=f"cycle{cycle + 1}")
             if (
                 config.train.save_every_cycles
                 and (cycle + 1) % config.train.save_every_cycles == 0
                 and cycle + 1 < config.train.cycles
             ):
-                self.save_checkpoint()
+                self._save_checkpoint_impl()
 
-        final_eval = self.evaluate(tag="final") if config.eval.enabled else None
-        self.save_checkpoint(name="final")
+        final_eval = self._evaluate_impl(tag="final") if config.eval.enabled else None
+        self._save_checkpoint_impl(name="final")
         duration = time.perf_counter() - started
 
         result = TrainResult(
@@ -1876,13 +1924,38 @@ class OPDTrainer:
         tag: str = "eval",
         write: bool = True,
     ) -> dict[str, Any]:
-        """Deterministic greedy evaluation on a held-out split."""
+        """Run an evaluation only when no training operation owns the model."""
         self._ensure_state(
             "evaluate",
             TrainerState.READY,
-            TrainerState.RUNNING,
             TrainerState.COMPLETED,
         )
+        if not self._operation_guard.acquire(blocking=False):
+            with self._state_guard:
+                state = self._state
+            raise LifecycleError(
+                f"cannot evaluate: this OPDTrainer is {state.value}",
+                hint="wait for the active trainer operation to finish",
+            )
+        try:
+            self._ensure_state(
+                "evaluate",
+                TrainerState.READY,
+                TrainerState.COMPLETED,
+            )
+            return self._evaluate_impl(split=split, tasks=tasks, tag=tag, write=write)
+        finally:
+            self._operation_guard.release()
+
+    def _evaluate_impl(
+        self,
+        *,
+        split: str | None = None,
+        tasks: list[Task] | None = None,
+        tag: str = "eval",
+        write: bool = True,
+    ) -> dict[str, Any]:
+        """Deterministic greedy evaluation owned by the current operation."""
         config = self.config
         chosen_split = split or config.eval.split
         pool = tasks if tasks is not None else self.splits.get(chosen_split, [])
@@ -2001,13 +2074,31 @@ class OPDTrainer:
         }
 
     def save_checkpoint(self, *, name: str | None = None) -> Path:
-        """Write a resumable checkpoint from ready, running, or completed."""
+        """Write a resumable checkpoint when training does not own the model."""
         self._ensure_state(
             "save_checkpoint",
             TrainerState.READY,
-            TrainerState.RUNNING,
             TrainerState.COMPLETED,
         )
+        if not self._operation_guard.acquire(blocking=False):
+            with self._state_guard:
+                state = self._state
+            raise LifecycleError(
+                f"cannot save_checkpoint: this OPDTrainer is {state.value}",
+                hint="wait for the active trainer operation to finish",
+            )
+        try:
+            self._ensure_state(
+                "save_checkpoint",
+                TrainerState.READY,
+                TrainerState.COMPLETED,
+            )
+            return self._save_checkpoint_impl(name=name)
+        finally:
+            self._operation_guard.release()
+
+    def _save_checkpoint_impl(self, *, name: str | None = None) -> Path:
+        """Write a checkpoint while the caller owns the trainer operation."""
         label = name or f"step-{self.global_step:06d}"
         target = self.paths.checkpoints / label
         state = CheckpointState(
@@ -2107,6 +2198,7 @@ class OPDTrainer:
                     "cannot close: this OPDTrainer is running",
                     hint="wait for train() to reach a terminal state before closing",
                 )
+            previous_state = self._state
             self._state = TrainerState.CLOSED
             self._closed = True
         failures: list[tuple[str, BaseException]] = []
@@ -2116,6 +2208,22 @@ class OPDTrainer:
                 action()
             except BaseException as exc:
                 failures.append((stage, exc))
+
+        if previous_state is TrainerState.READY and not self._evaluation_only:
+
+            def close_ready_manifest() -> None:
+                import json
+
+                if not self.paths.manifest.is_file():
+                    return
+                manifest = json.loads(self.paths.manifest.read_text(encoding="utf-8"))
+                if manifest.get("status") != "ready":
+                    return
+                manifest["status"] = "closed_before_training"
+                manifest["closed_at"] = utc_now()
+                write_json_atomic(self.paths.manifest, manifest)
+
+            cleanup("ready manifest finalization", close_ready_manifest)
 
         cache = self._cache
         self._cache = None

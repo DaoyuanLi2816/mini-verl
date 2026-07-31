@@ -6,6 +6,19 @@ and what it printed.
 
 Last updated: 2026-07-30.
 
+## v0.2.5 final correctness work in progress
+
+| item | current state |
+| --- | --- |
+| audited baseline | fetched all remotes and started `v0.2.5-final-correctness` from clean public `main` at `3d3d59993a99bb1a7c1225f970a3e052a43e4dc1` (`0.2.5.dev0`) |
+| regression-first evidence | the focused pre-fix run reproduced 23 failures and 472 passes: SQLite raised `ValueError`/`OverflowError` for `nan`, infinities, overflow notation and a huge integer through both direct verification and the real rollout path; every built-in protocol-v2 final example remained the placeholder `answer` |
+| focused correctness pass | `python -m pytest` over the changed verifier, protocol, privacy, lifecycle, locking, packaging, CLI and standalone-eval surfaces passed **798 tests**; the old implementation had separately reproduced 23 verifier/protocol failures, 16 privacy failures, 5 lifecycle/concurrency failures, the report-lock race, two eval-lock races and the nested-link defect |
+| static gates | `git diff --check`, `ruff check .`, `ruff format --check .`, `mypy src/miniverl` and cached `actionlint` all pass |
+| lifecycle and ownership | new writable manifests start `ready`, transition atomically to `running`, and close-before-train as `closed_before_training`; training-private eval/checkpoint implementations are separated from public calls, automatic reports remain under the writer lock, and standalone eval transfers one pre-acquired lock before reading mutable state |
+| privacy and packaging | semantic secret suffixes, authorization/cookie/session fields, URL userinfo, paths with spaces, UNC and HTML-escaped variants are redacted; the PyPI generator rewrites nested linked images and both generated `PYPI.md` and built wheel `METADATA` reject all remaining relative project targets |
+| immutable evidence | no frozen tag, adapter revision, or benchmark result was changed; the required benchmark SHA-256 remains `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
+| release state | implementation and validation are in progress; no v0.2.5 tag or public artifact exists yet |
+
 ## v0.2.4 framework-hardening release status
 
 | item | current state |
