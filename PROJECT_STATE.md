@@ -4,25 +4,31 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-07-30.
+Last updated: 2026-07-31.
 
-## v0.2.5 final correctness work in progress
+## v0.2.5 final correctness release status
 
 | item | current state |
 | --- | --- |
 | audited baseline | fetched all remotes and started `v0.2.5-final-correctness` from clean public `main` at `3d3d59993a99bb1a7c1225f970a3e052a43e4dc1` (`0.2.5.dev0`) |
+| integration source | PR [#22](https://github.com/DaoyuanLi2816/mini-verl/pull/22) was squash-merged as `a9a84510741b4ade8a405c100affdf1caed55ae6`; annotated tag `v0.2.5` resolves to that exact commit |
+| version transition | `v0.2.5` is immutable and public; this state-sync change identifies subsequent development as `0.2.6.dev0` |
 | regression-first evidence | the focused pre-fix run reproduced 23 failures and 472 passes: SQLite raised `ValueError`/`OverflowError` for `nan`, infinities, overflow notation and a huge integer through both direct verification and the real rollout path; every built-in protocol-v2 final example remained the placeholder `answer` |
 | focused correctness pass | `python -m pytest` over the changed verifier, protocol, privacy, lifecycle, locking, packaging, CLI and standalone-eval surfaces passed **798 tests**; the old implementation had separately reproduced 23 verifier/protocol failures, 16 privacy failures, 5 lifecycle/concurrency failures, the report-lock race, two eval-lock races and the nested-link defect |
 | static gates | `git diff --check`, `ruff check .`, `ruff format --check .`, `mypy src/miniverl` and cached `actionlint` all pass |
 | complete local suite | after refreshing stale editable metadata from `0.2.4` to source `0.2.5.dev0`, the full non-GPU/non-network gate passed **1278** tests with **87.37%** branch coverage; the available RTX 4080 gate passed **5**, and the network gate passed **3** |
 | compatibility evidence | torch-free core passed **1021** tests on each of Python 3.10, 3.11, 3.12 and 3.13; the minimum bundle (torch 2.3.1, Transformers 4.51.3, PEFT 0.12.0, Accelerate 0.33.0, NumPy 1.24.4, bitsandbytes 0.43.3) and latest bundle (torch 2.13.0, Transformers 5.14.1, PEFT 0.20.0, Accelerate 1.14.0, NumPy 2.5.1, bitsandbytes 0.50.0) each passed both no-network training smokes; Transformers 4.51.3 and 5.14.1 each passed the **133-test** HF/config compatibility suite |
-| multiprocessing platforms | the complete Windows suite includes the new spawn-based report/eval/run-lock races and passed; a local WSL launch was unavailable because its VHDX returned `ERROR_SHARING_VIOLATION`, so the Linux multiprocessing result remains an applicable PR CI gate rather than a local claim |
+| multiprocessing platforms | the complete Windows suite includes the new spawn-based report/eval/run-lock races and passed; a local WSL launch was unavailable because its VHDX returned `ERROR_SHARING_VIOLATION`, while the PR and post-merge Ubuntu CI gates passed |
 | lifecycle and ownership | new writable manifests start `ready`, transition atomically to `running`, and close-before-train as `closed_before_training`; training-private eval/checkpoint implementations are separated from public calls, automatic reports remain under the writer lock, and standalone eval transfers one pre-acquired lock before reading mutable state |
 | privacy and packaging | semantic secret suffixes, authorization/cookie/session fields, URL userinfo, paths with spaces, UNC and HTML-escaped variants are redacted; the PyPI generator rewrites nested linked images and both generated `PYPI.md` and built wheel `METADATA` reject all remaining relative project targets |
 | final-version packaging gate | an isolated `0.2.5` build produced one wheel and one sdist and passed Twine; the extracted sdist passed Ruff, format, mypy and **1278** non-GPU/non-network tests, rebuilt a wheel with the same **78-file** runtime inventory, and exposed zero relative metadata targets |
 | clean-install gate | a clean Python 3.10 core wheel install reported `0.2.5`, passed `doctor`, and kept torch/Transformers/PEFT/bitsandbytes absent; a clean Python 3.12 wheel + `[train]` install ran `demo`, `inspect`, `report`, and weights-only standalone `eval` |
 | immutable evidence | no frozen tag, adapter revision, or benchmark result was changed; the required benchmark SHA-256 remains `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
-| release state | local release-source gates are complete at version `0.2.5`; no tag or public artifact exists yet, pending one focused PR and green GitHub CI/build |
+| release execution | tag run [`30611603505`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30611603505) passed metadata, full tests, one-time build, OIDC publication, public hashes and attestations, clean public install, and GitHub Release creation |
+| published wheel | [`miniverl-0.2.5-py3-none-any.whl`](https://pypi.org/project/miniverl/0.2.5/), SHA-256 `70c98284bce151fc74b508047b354929846efb71c3fe8f451c0d0ba1bec48e9d` |
+| published sdist | [`miniverl-0.2.5.tar.gz`](https://pypi.org/project/miniverl/0.2.5/), SHA-256 `d30bb07ebca676a3960d4b5c46075a8a2e13e58629b96984e30f8f7bab67dce0` |
+| independent public verification | a no-cache Windows Python 3.10 install from `https://pypi.org/simple` reported `miniverl 0.2.5`, passed `doctor`, and kept torch, Transformers, PEFT and bitsandbytes absent; the public simple index exposes provenance links for both distributions |
+| release state | complete; PyPI and [`miniVERL v0.2.5`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.5) expose the same verified wheel and sdist |
 
 ## v0.2.4 framework-hardening release status
 
