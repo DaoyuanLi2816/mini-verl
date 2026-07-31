@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import math
 import random
 import sqlite3
 from typing import Any
@@ -160,6 +161,10 @@ class SqliteEnvironment(ToolEnvironment):
                 example={"sql": "SELECT count(*) FROM orders WHERE status = 'shipped'"},
             ),
         ]
+
+    def final_answer_example(self) -> str:
+        """Return a finite numeric example accepted by the SQLite verifier."""
+        return "4"
 
     # -- episode ---------------------------------------------------------
 
@@ -307,7 +312,31 @@ class SqliteEnvironment(ToolEnvironment):
             raise ToolEnvironmentError("verify() called before reset()")
         expected = self._task.answer
         predicted = answer.strip().strip('"').strip()
-        if _normalize(predicted) == _normalize(expected):
+        normalized_predicted = _normalize(predicted)
+        normalized_expected = _normalize(expected)
+        if normalized_predicted is None:
+            return VerificationResult(
+                solved=False,
+                reward=0.0,
+                expected=expected,
+                predicted=predicted,
+                failure_category=FailureCategory.MALFORMED_ANSWER,
+                detail="answer is not a finite number",
+            )
+        if (
+            self.verifier_version == "v2"
+            and _finite_number(expected) is not None
+            and _finite_number(predicted) is None
+        ):
+            return VerificationResult(
+                solved=False,
+                reward=0.0,
+                expected=expected,
+                predicted=predicted,
+                failure_category=FailureCategory.MALFORMED_ANSWER,
+                detail="answer is not a finite number",
+            )
+        if normalized_predicted == normalized_expected:
             return VerificationResult(
                 solved=True, reward=1.0, expected=expected, predicted=predicted
             )
@@ -407,12 +436,38 @@ class SqliteEnvironment(ToolEnvironment):
         )
 
 
-def _normalize(text: str) -> str:
-    """Case- and format-insensitive comparison key for answers."""
+def _finite_number(text: str) -> float | None:
+    """Parse a complete finite numeric answer, returning ``None`` otherwise."""
     cleaned = text.strip().lower().replace(",", "")
     try:
         value = float(cleaned)
-    except ValueError:
+    except (OverflowError, ValueError):
+        return None
+    return value if math.isfinite(value) else None
+
+
+def _normalize(text: str) -> str | None:
+    """Case- and format-insensitive comparison key for answers."""
+    cleaned = text.strip().lower().replace(",", "")
+    value = _finite_number(text)
+    if value is None:
+        if cleaned in {
+            "nan",
+            "+nan",
+            "-nan",
+            "inf",
+            "+inf",
+            "-inf",
+            "infinity",
+            "+infinity",
+            "-infinity",
+        }:
+            return None
+        try:
+            if math.isinf(float(cleaned)):
+                return None
+        except (OverflowError, ValueError):
+            pass
         return cleaned
     if abs(value - round(value)) < 1e-9:
         return str(round(value))

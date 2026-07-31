@@ -262,6 +262,58 @@ def test_verify_before_reset_is_rejected(name: str) -> None:
         env.verify("1")
 
 
+@pytest.mark.parametrize("answer", ["nan", "NaN", "inf", "Infinity", "-inf", "1e9999"])
+def test_sqlite_non_finite_final_answers_are_malformed(answer: str) -> None:
+    with environment("sqlite", protocol_version="v2") as env:
+        task = env.generate_task(0, 7, difficulty="easy", split="eval")
+        env.reset(task)
+        result = env.verify(answer)
+    assert result.failure_category is FailureCategory.MALFORMED_ANSWER
+    assert not result.solved
+
+
+VERIFY_EDGE_CASES = (
+    "nan",
+    "NaN",
+    "inf",
+    "Infinity",
+    "-inf",
+    "1e9999",
+    "9" * 10_000,
+    "",
+    "   ",
+    "日本語 λ 🚀",
+    "the answer is probably four",
+)
+
+
+@pytest.mark.parametrize("name", ENV_NAMES)
+@pytest.mark.parametrize("answer", VERIFY_EDGE_CASES)
+@pytest.mark.parametrize("protocol_version", ["v1", "v2"])
+def test_builtin_verifiers_are_total_for_adversarial_strings(
+    name: str,
+    answer: str,
+    protocol_version: str,
+) -> None:
+    with environment(name, protocol_version=protocol_version) as env:
+        task = env.generate_task(0, 11, difficulty="easy", split="eval")
+        env.reset(task)
+        result = env.verify(answer)
+    assert isinstance(result, VerificationResult)
+
+
+@settings(max_examples=100, deadline=None)
+@given(answer=st.text(max_size=500))
+@pytest.mark.parametrize("name", ENV_NAMES)
+def test_builtin_verifiers_are_total_for_arbitrary_strings(name: str, answer: str) -> None:
+    for protocol_version in ("v1", "v2"):
+        with environment(name, protocol_version=protocol_version) as env:
+            task = env.generate_task(0, 13, difficulty="easy", split="eval")
+            env.reset(task)
+            result = env.verify(answer)
+        assert isinstance(result, VerificationResult)
+
+
 # -- D. privileged context ------------------------------------------------
 
 

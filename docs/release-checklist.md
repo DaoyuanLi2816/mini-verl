@@ -1,6 +1,6 @@
 # Release checklist
 
-This is the release gate and publication record for `v0.2.4`. A checked item
+This is the release gate and publication record for `v0.2.5`. A checked item
 names an invariant that was exercised on the release source. The tag workflow
 repeated the mechanical gates and refused inconsistent metadata or an
 unchecked pre-tag item. Publication began only after explicit maintainer
@@ -8,10 +8,10 @@ authorization.
 
 ## Version consistency
 
-- [x] Tagged source `v0.2.4` declares package version `0.2.4`.
-- [x] `CHANGELOG.md` has a dated `## [0.2.4]` section.
+- [x] Tagged source `v0.2.5` declares package version `0.2.5`.
+- [x] `CHANGELOG.md` has a dated `## [0.2.5]` section.
 - [x] `CITATION.cff` version and release date match.
-- [x] The annotated tag is exactly `v0.2.4`.
+- [x] The intended annotated tag is exactly `v0.2.5`.
 - [x] The package/project name remains `miniverl`.
 
 ## Correctness and lifecycle
@@ -21,13 +21,15 @@ authorization.
       environment execution; protocol-v1 byte fixtures remain unchanged.
 - [x] Calculator verifier-v2 requires a complete finite answer and compatible
       units while verifier-v1 remains identifiable for historical artifacts.
-- [x] Calculator, JSON-navigation and SQLite property tests turn arbitrary
-      bounded JSON-compatible inputs into bounded environment results.
-- [x] Trainer lifecycle regressions prove one-shot entry, byte-stable rejected
-      second calls, thread exclusion, terminal states and idempotent close.
+- [x] Calculator, JSON-navigation and SQLite direct/rollout/property tests turn
+      arbitrary strings into bounded verification results; non-finite SQLite
+      answers are malformed rather than process exceptions.
+- [x] Trainer lifecycle regressions prove `ready`/`running`/terminal manifest
+      transitions, close-before-training, one-shot entry, thread exclusion and
+      evaluation-only non-mutation.
 - [x] Windows multiprocessing regressions prove same-run exclusion before model
-      loading, bounded timeout, killed-owner recovery, different-run progress,
-      benchmark/eval/report/export ownership and overwrite exclusion.
+      loading, report completion under lock, checkpoint selection under lock,
+      bounded timeout, killed-owner recovery and different-run progress.
 - [x] Checkpoint, cache, JSONL and manifest fault-injection regressions accept a
       valid old/new state or explicitly reject an incomplete state.
 - [x] Numerical property tests for exact/bucketed objectives, weighted
@@ -57,7 +59,7 @@ authorization.
 
 ## Packaging and clean installs
 
-- [x] A clean `python -m build` produces one `0.2.4` wheel and one sdist.
+- [x] A clean `python -m build` produces one `0.2.5` wheel and one sdist.
 - [x] `python -m twine check dist/*` passes.
 - [x] The wheel contains the report template and no tests.
 - [x] The sdist contains the full shipped test surface, including scripts and
@@ -85,7 +87,7 @@ authorization.
 - [x] All tracked JSON/JSONL parses strictly.
 - [x] README and documentation Markdown links pass link checking.
 - [x] `PYPI.md` byte-matches its generator, stable repository links use
-      `v0.2.4`, and built wheel metadata contains no relative or local links.
+      `v0.2.5`, and built wheel metadata contains no relative or local links.
 - [x] Public artifacts contain no real absolute user path, username, hostname
       or secret.
 - [x] No model weights, checkpoints, caches or databases are tracked.
@@ -102,7 +104,8 @@ authorization.
 
 ## Trusted publishing readiness
 
-- [x] PyPI reports project `miniverl` and current public version `0.2.4`.
+- [x] PyPI reports project `miniverl`; `v0.2.4` remains the current public
+      version until this authorized release workflow completes.
 - [x] GitHub environment `pypi` exists and has a deployment branch policy.
 - [x] `release.yml` requests `id-token: write`, uses the `pypi` environment and
       publishes only on a tag push.
@@ -114,6 +117,15 @@ authorization.
 ## After the tag
 
 Complete only after the authorized public workflow:
+
+- [ ] Annotated tag `v0.2.5` resolves to the exact validated merge commit.
+- [ ] The tag workflow passes metadata, tests, one-time build, OIDC
+      publication, attestations, public verification and GitHub Release.
+- [ ] Public PyPI and GitHub Release wheel/sdist hashes match workflow
+      artifacts.
+- [ ] Development advances to `0.2.6.dev0` through a green state-sync PR.
+
+## Historical v0.2.4 record
 
 - [x] Annotated tag `v0.2.4` resolves to exact validated commit
       `57dec193af88b462dcc41d82fc6fecb813e161fd`.

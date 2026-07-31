@@ -130,6 +130,22 @@ memory, miniverl_version, mode, models, objective, os, os_release, packages,
 platform, policy_version, python_version, run_id, run_name, seed
 ```
 
+For writable runs, `manifest.json` is an atomic lifecycle record:
+
+| status | meaning |
+| --- | --- |
+| `ready` | construction and startup provenance completed; `train()` has not begun |
+| `running` | `train()` owns the operation and published this state before `run_start` |
+| `completed` / `failed` / `interrupted` | terminal training outcomes |
+| `closed_before_training` | a newly constructed writable run was closed from `ready` |
+
+Evaluation-only attachment and terminal close do not rewrite the training
+manifest. One OS-backed run lock is acquired before mutable run state and spans
+training/resume, standalone checkpoint selection/validation/load/output, and
+automatic HTML/Markdown report generation. Public evaluation and checkpoint
+methods are serialized against training; the training loop uses private
+owner-only implementations for its periodic work.
+
 The load-bearing sub-objects:
 
 - `environment` - environment `name` and construction `params`, plus
@@ -167,7 +183,11 @@ installed from a wheel). That is recorded honestly rather than faked.
 
 Deliberately excluded, because a run directory is meant to be shareable:
 hostname, username, home directory, absolute paths outside the run, and every
-environment variable outside the allowlist.
+environment variable outside the allowlist. Canonical portable views also
+redact semantic secret suffixes (`*_token`, `*_secret`, `*_password`,
+`*_credential`, `*_api_key`), authorization/cookie/session fields, URL
+userinfo, Windows/UNC paths and private POSIX/macOS paths. The private run
+files may retain values required for exact local resume.
 
 Two caveats worth knowing before you quote the manifest:
 
@@ -190,7 +210,7 @@ The config layers have deliberately different meanings:
 | `config.resolved.yaml` | actual run id, device, memory strategy, chunk size and effective top-k used at runtime |
 
 `manifest.json` names each layer, records its SHA-256, and uses manifest schema
-3 for new v0.2.4 runs. Reports render a portable view of validated/resolved
+3 for new v0.2.5 runs. Reports render a portable view of validated/resolved
 configuration by default; private run files may retain the local path needed
 for exact resume.
 

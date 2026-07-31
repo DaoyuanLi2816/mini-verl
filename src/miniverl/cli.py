@@ -338,13 +338,13 @@ def demo(
         ) as trainer:
             result = trainer.train()
             paths = trainer.paths
-        report_path: Path | None = None
-        if report_html:
-            from miniverl.reporting import ReportData, write_markdown, write_report
+            report_path: Path | None = None
+            if report_html:
+                from miniverl.reporting import ReportData, write_markdown, write_report
 
-            report_path = write_report(paths.root, paths.report_html)
-            write_markdown(ReportData.from_run(paths.root), paths.summary_md)
-        artifacts = _artifact_listing(paths.root)
+                report_path = write_report(paths.root, paths.report_html)
+                write_markdown(ReportData.from_run(paths.root), paths.summary_md)
+            artifacts = _artifact_listing(paths.root)
     except MiniVerlError as exc:
         _fail(exc)
         return
@@ -584,17 +584,17 @@ def train(
         ) as trainer:
             result = trainer.train()
             paths = trainer.paths
-        report_path: Path | None = None
-        if make_report and config.report.enabled:
-            from miniverl.reporting import ReportData, write_markdown, write_report
+            report_path: Path | None = None
+            if make_report and config.report.enabled:
+                from miniverl.reporting import ReportData, write_markdown, write_report
 
-            report_path = write_report(
-                paths.root,
-                paths.report_html,
-                max_trajectories=config.report.max_trajectories,
-                max_tokens=config.report.max_tokens_per_trajectory,
-            )
-            write_markdown(ReportData.from_run(paths.root), paths.summary_md)
+                report_path = write_report(
+                    paths.root,
+                    paths.report_html,
+                    max_trajectories=config.report.max_trajectories,
+                    max_tokens=config.report.max_tokens_per_trajectory,
+                )
+                write_markdown(ReportData.from_run(paths.root), paths.summary_md)
     except (MiniVerlError, ModuleNotFoundError) as exc:
         _fail(exc)
         return

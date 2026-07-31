@@ -199,6 +199,10 @@ class JsonNavEnvironment(ToolEnvironment):
             ),
         ]
 
+    def final_answer_example(self) -> str:
+        """Return a JSON-string example accepted by the navigation verifier."""
+        return '"Lyon"'
+
     def reset(self, task: Task) -> Observation:
         """Load the document described by the task."""
         self._task = task

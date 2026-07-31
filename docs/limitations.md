@@ -228,7 +228,9 @@ The v0.2 tool prompt is now named protocol `v1` and remains byte-stable for
 historical artifacts. Its full and compact prompt examples were ambiguous:
 the final-answer placeholder looked like a literal wrapper even though the
 calculator verifier expects the numeric payload inside `<final>`. Protocol
-`v2` corrects the examples and round-trips them through the parser. Existing
+`v2` derives tool examples from the active `ToolSpec` and uses an
+environment-specific final example whose format is accepted by that
+environment's verifier; both examples round-trip through the parser. Existing
 adapters and recipes stay on explicit `v1`; miniVERL refuses to use a
 competence-gated adapter under a different requested protocol. This versioning
 fix prevents silent reinterpretation, but it does not rewrite the frozen v0.2

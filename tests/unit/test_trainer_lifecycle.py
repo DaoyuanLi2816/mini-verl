@@ -211,6 +211,132 @@ def _artifact_bytes(root: Path) -> dict[str, bytes]:
     }
 
 
+def _manifest_status(trainer) -> str:  # type: ignore[no-untyped-def]
+    return json.loads(trainer.paths.manifest.read_text(encoding="utf-8"))["status"]
+
+
+def test_new_trainer_manifest_is_ready_and_close_is_terminal(tmp_path) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    trainer = OPDTrainer.from_config(_config(tmp_path), run_id="ready-close")
+
+    assert _manifest_status(trainer) == "ready"
+    trainer.close()
+
+    assert _manifest_status(trainer) == "closed_before_training"
+
+
+def test_context_exit_without_training_closes_ready_manifest(tmp_path) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    with OPDTrainer.from_config(_config(tmp_path), run_id="ready-context") as trainer:
+        assert _manifest_status(trainer) == "ready"
+
+    assert _manifest_status(trainer) == "closed_before_training"
+
+
+def test_evaluation_only_attachment_close_does_not_change_training_manifest(tmp_path) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    config = _config(tmp_path)
+    with OPDTrainer.from_config(config, run_id="evaluation-attachment") as trainer:
+        trainer.train()
+        run_root = trainer.paths.root
+    before = (run_root / "manifest.json").read_bytes()
+
+    attachment = OPDTrainer.from_config(
+        config,
+        output_dir=run_root.parent,
+        run_id=run_root.name,
+        write_artifacts=False,
+        for_evaluation=True,
+    )
+    attachment.close()
+
+    assert (run_root / "manifest.json").read_bytes() == before
+
+
+def test_manifest_transition_failure_emits_no_run_start_and_is_not_stale_running(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from miniverl.trainer import OPDTrainer, TrainerState
+
+    trainer = OPDTrainer.from_config(_config(tmp_path), run_id="transition-failure")
+    monkeypatch.setattr(
+        trainer,
+        "_transition_manifest_to_running",
+        Mock(side_effect=OSError("injected transition failure")),
+        raising=False,
+    )
+
+    with pytest.raises(OSError, match="injected transition failure"):
+        trainer.train()
+
+    assert trainer.state is TrainerState.FAILED
+    assert _manifest_status(trainer) != "running"
+    events = (
+        trainer.paths.events.read_text(encoding="utf-8") if trainer.paths.events.exists() else ""
+    )
+    assert '"event":"run_start"' not in events.replace(" ", "")
+    trainer.close()
+
+
+@pytest.mark.parametrize("operation", ["evaluate", "save_checkpoint"])
+def test_external_operations_are_rejected_while_training(
+    tmp_path,
+    monkeypatch,
+    operation: str,
+) -> None:
+    from miniverl.errors import LifecycleError
+    from miniverl.trainer import OPDTrainer
+
+    trainer = OPDTrainer.from_config(_config(tmp_path), run_id=f"external-{operation}")
+    entered = threading.Event()
+    release = threading.Event()
+    real_train_impl = trainer._train_impl
+
+    def blocked_train_impl():  # type: ignore[no-untyped-def]
+        entered.set()
+        assert release.wait(timeout=10)
+        return real_train_impl()
+
+    monkeypatch.setattr(trainer, "_train_impl", blocked_train_impl)
+    failures: list[BaseException] = []
+
+    def run_training() -> None:
+        try:
+            trainer.train()
+        except BaseException as exc:  # pragma: no cover - diagnostic capture
+            failures.append(exc)
+
+    thread = threading.Thread(target=run_training)
+    thread.start()
+    assert entered.wait(timeout=10)
+    before = _artifact_bytes(trainer.paths.root)
+
+    with pytest.raises(LifecycleError, match=rf"cannot {operation}.*running"):
+        getattr(trainer, operation)()
+
+    assert _artifact_bytes(trainer.paths.root) == before
+    release.set()
+    thread.join(timeout=30)
+    assert not thread.is_alive()
+    assert failures == []
+    trainer.close()
+
+
+def test_public_evaluation_works_in_ready_and_completed_states(tmp_path) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    trainer = OPDTrainer.from_config(_config(tmp_path), run_id="public-evaluation")
+
+    assert trainer.evaluate(write=False)["tasks"] == 1
+    trainer.train()
+    assert trainer.evaluate(write=False)["tasks"] == 1
+    trainer.close()
+
+
 def test_train_is_one_shot_and_rejection_changes_no_artifact(tmp_path) -> None:
     from miniverl.errors import LifecycleError
     from miniverl.trainer import OPDTrainer, TrainerState

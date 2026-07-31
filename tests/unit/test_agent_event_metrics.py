@@ -10,8 +10,9 @@ import pytest
 from miniverl.agent.loop import RolloutRunner, RolloutStats
 from miniverl.agent.protocol import render_final, render_tool_call
 from miniverl.config.models import RolloutConfig
-from miniverl.environments.base import Observation, StepResult, Task, ToolCall
+from miniverl.environments.base import FailureCategory, Observation, StepResult, Task, ToolCall
 from miniverl.environments.calculator import CalculatorEnvironment
+from miniverl.environments.sqlite_env import SqliteEnvironment
 from miniverl.errors import ToolEnvironmentError
 from miniverl.models.base import GenerationOutput
 from miniverl.models.tokenizers import ToyTokenizer
@@ -106,6 +107,27 @@ def test_no_final_and_verifier_exception_do_not_claim_format_validity() -> None:
     assert verifier_error.final_answers_emitted == 1
     assert verifier_error.final_answers_verified == 0
     assert verifier_error.final_answers_format_valid == 0
+
+
+@pytest.mark.parametrize("answer", ["nan", "inf", "-inf", "1e9999"])
+def test_sqlite_non_finite_answer_is_bounded_through_real_rollout(answer: str) -> None:
+    environment = SqliteEnvironment(prompt_style="compact", protocol_version="v2")
+    backend = _ScriptedBackend([(render_final(answer), "stop_sequence")])
+    runner = RolloutRunner(
+        backend=backend,
+        environment=environment,
+        config=RolloutConfig(max_turns=1, max_new_tokens_per_turn=512, max_total_tokens=1600),
+    )
+    task = environment.generate_task(0, 7, difficulty="easy", split="eval")
+    try:
+        trajectory = runner.rollout(task, policy_version=0, seed=0)
+    finally:
+        environment.close()
+
+    assert trajectory.verification is not None
+    assert trajectory.verification.failure_category == FailureCategory.MALFORMED_ANSWER.value
+    assert trajectory.final_answers_verified == 1
+    assert trajectory.final_answers_format_valid == 0
 
 
 @pytest.mark.parametrize(
