@@ -104,8 +104,8 @@ authorization.
 
 ## Trusted publishing readiness
 
-- [x] PyPI reports project `miniverl`; `v0.2.4` remains the current public
-      version until this authorized release workflow completes.
+- [x] PyPI reported project `miniverl`; `v0.2.4` remained the current public
+      version until this authorized release workflow completed.
 - [x] GitHub environment `pypi` exists and has a deployment branch policy.
 - [x] `release.yml` requests `id-token: write`, uses the `pypi` environment and
       publishes only on a tag push.
@@ -118,12 +118,33 @@ authorization.
 
 Complete only after the authorized public workflow:
 
-- [ ] Annotated tag `v0.2.5` resolves to the exact validated merge commit.
-- [ ] The tag workflow passes metadata, tests, one-time build, OIDC
-      publication, attestations, public verification and GitHub Release.
-- [ ] Public PyPI and GitHub Release wheel/sdist hashes match workflow
+- [x] Annotated tag `v0.2.5` resolves to exact validated merge commit
+      `a9a84510741b4ade8a405c100affdf1caed55ae6`.
+- [x] Tag workflow
+      [`30611603505`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30611603505)
+      passed metadata, tests, one-time build, OIDC publication, attestations,
+      public verification and GitHub Release creation.
+- [x] Public PyPI and GitHub Release wheel/sdist hashes match workflow
       artifacts.
-- [ ] Development advances to `0.2.6.dev0` through a green state-sync PR.
+- [x] This green-gated state-sync change advances development to
+      `0.2.6.dev0`.
+
+Publication completed on 2026-07-31 UTC:
+
+- [`miniverl 0.2.5`](https://pypi.org/project/miniverl/0.2.5/) exposes Trusted
+  Publishing provenance for both distributions.
+- [`miniVERL v0.2.5`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.5)
+  contains the byte-identical wheel, sdist and `SHA256SUMS`.
+- An independent no-cache Windows Python 3.10 install from the public PyPI
+  index reported `miniverl 0.2.5`, passed `doctor`, and kept torch,
+  Transformers, PEFT and bitsandbytes absent.
+
+Published artifact identity:
+
+- `miniverl-0.2.5-py3-none-any.whl`: SHA-256
+  `70c98284bce151fc74b508047b354929846efb71c3fe8f451c0d0ba1bec48e9d`
+- `miniverl-0.2.5.tar.gz`: SHA-256
+  `d30bb07ebca676a3960d4b5c46075a8a2e13e58629b96984e30f8f7bab67dce0`
 
 ## Historical v0.2.4 record
 
