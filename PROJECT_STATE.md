@@ -19,8 +19,10 @@ Last updated: 2026-07-30.
 | multiprocessing platforms | the complete Windows suite includes the new spawn-based report/eval/run-lock races and passed; a local WSL launch was unavailable because its VHDX returned `ERROR_SHARING_VIOLATION`, so the Linux multiprocessing result remains an applicable PR CI gate rather than a local claim |
 | lifecycle and ownership | new writable manifests start `ready`, transition atomically to `running`, and close-before-train as `closed_before_training`; training-private eval/checkpoint implementations are separated from public calls, automatic reports remain under the writer lock, and standalone eval transfers one pre-acquired lock before reading mutable state |
 | privacy and packaging | semantic secret suffixes, authorization/cookie/session fields, URL userinfo, paths with spaces, UNC and HTML-escaped variants are redacted; the PyPI generator rewrites nested linked images and both generated `PYPI.md` and built wheel `METADATA` reject all remaining relative project targets |
+| final-version packaging gate | an isolated `0.2.5` build produced one wheel and one sdist and passed Twine; the extracted sdist passed Ruff, format, mypy and **1278** non-GPU/non-network tests, rebuilt a wheel with the same **78-file** runtime inventory, and exposed zero relative metadata targets |
+| clean-install gate | a clean Python 3.10 core wheel install reported `0.2.5`, passed `doctor`, and kept torch/Transformers/PEFT/bitsandbytes absent; a clean Python 3.12 wheel + `[train]` install ran `demo`, `inspect`, `report`, and weights-only standalone `eval` |
 | immutable evidence | no frozen tag, adapter revision, or benchmark result was changed; the required benchmark SHA-256 remains `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
-| release state | implementation and validation are in progress; no v0.2.5 tag or public artifact exists yet |
+| release state | local release-source gates are complete at version `0.2.5`; no tag or public artifact exists yet, pending one focused PR and green GitHub CI/build |
 
 ## v0.2.4 framework-hardening release status
 

@@ -6,8 +6,35 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-07-30
+
+Focused correctness release. No training objective, environment, benchmark,
+model family, adapter revision or frozen scientific result changed.
+
+### Changed
+
+- Writable manifests now publish `ready` at construction, transition atomically
+  to `running` immediately before training, and record
+  `closed_before_training` when a new trainer is closed unused.
+- Training owns private evaluation/checkpoint implementations; public calls
+  cannot switch model mode or snapshot parameters during an optimizer update.
+- Protocol-v2 final examples are environment-specific and verifier-format
+  valid, while protocol-v1 remains byte-frozen.
+- Automatic reports remain under the training run lock, and standalone
+  evaluation acquires and transfers one lock before reading configuration or
+  selecting, validating and loading a checkpoint.
+
 ### Fixed
 
+- SQLite verification classifies non-finite and overflowing numeric strings as
+  malformed instead of leaking `ValueError` or `OverflowError`; all built-in
+  verifiers are fuzzed as total functions after reset.
+- Portable artifacts redact semantic secret suffixes, authorization/cookie/
+  session fields, URL userinfo, Windows paths with spaces, UNC paths and
+  private POSIX/macOS paths without hiding useful immutable provenance.
+- The PyPI-description generator rewrites both targets of nested linked images
+  and rejects every remaining relative project target in generated Markdown
+  and built wheel metadata.
 - Release verification accepts an exact, tag-pinned banner expressed as
   Markdown or HTML while retaining source-URL and alt-text checks.
 - A browser-only PyPI challenge can be deferred after public metadata, every
@@ -374,7 +401,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.4...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.5...HEAD
+[0.2.5]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.1...v0.2.2
