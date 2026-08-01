@@ -1041,6 +1041,63 @@ def test_shareable_formats_redact_composite_credentials_and_paths(synthetic_run:
             assert private.lower() not in rendered.lower()
 
 
+def test_every_shareable_report_view_redacts_remaining_cross_platform_sentinels(
+    synthetic_run: Path,
+) -> None:
+    private_values = {
+        "authorization_header": "auth-header-private-sentinel",
+        "proxyAuthorization": "proxy-auth-private-sentinel",
+        "set_cookie": "cookie-private-sentinel",
+        "session_id": "session-private-sentinel",
+        "client_secret_key": "client-private-sentinel",
+        "auth_token_value": "token-private-sentinel",
+        "diagnostic": (
+            "linux=/mnt/data/Alice/private/model; workspace=/workspace/Alice/private/model; "
+            "opt=/opt/project/private/file; "
+            "ssh=ssh://user:password@example.com/repo; "
+            "db=postgresql://user:password@example.com/database; "
+            r"windows=C:\Users\Alice Smith\private\model; "
+            r"unc=\\server\share\Alice\private\model"
+        ),
+        "tokenizer_id": "public/tokenizer",
+        "token_count": 17,
+        "session_count": 3,
+    }
+    manifest = _manifest()
+    manifest["adversarial_privacy"] = private_values
+    write_json(synthetic_run / "manifest.json", manifest)
+    serialized = json.dumps({"adversarial_privacy": private_values}, indent=2)
+    (synthetic_run / "config.original.yaml").write_text(serialized, encoding="utf-8")
+    (synthetic_run / "config.resolved.yaml").write_text(serialized, encoding="utf-8")
+
+    data = ReportData.from_run(synthetic_run)
+    payloads = [
+        render_html(data),
+        render_markdown(data),
+        json.dumps(render_summary_json(data), sort_keys=True),
+        data.original_config,
+        data.resolved_config,
+        json.dumps(data.manifest, sort_keys=True),
+    ]
+
+    for rendered in payloads:
+        for sentinel in (
+            "auth-header-private-sentinel",
+            "proxy-auth-private-sentinel",
+            "cookie-private-sentinel",
+            "session-private-sentinel",
+            "client-private-sentinel",
+            "token-private-sentinel",
+            "Alice",
+            "user:password",
+            "server\\share",
+        ):
+            assert sentinel.lower() not in rendered.lower()
+    assert data.manifest["adversarial_privacy"]["tokenizer_id"] == "public/tokenizer"
+    assert data.manifest["adversarial_privacy"]["token_count"] == 17
+    assert data.manifest["adversarial_privacy"]["session_count"] == 3
+
+
 # -- charts ---------------------------------------------------------------
 
 

@@ -231,3 +231,43 @@ def test_eval_write_failure_preserves_manifest_and_releases_transferred_lock(
     assert (run_dir / "manifest.json").read_bytes() == before
     with RunLock(run_dir.parent, run_dir.name):
         pass
+
+
+@pytest.mark.parametrize("was_training", [False, True])
+def test_evaluation_attachment_restores_mode_and_manifest_after_rollout_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    was_training: bool,
+) -> None:
+    from miniverl.trainer import OPDTrainer, TrainerState
+
+    config = _config(tmp_path, train={"cycles": 1})
+    owner = OPDTrainer.from_config(config, run_id="attachment-mode-failure")
+    owner.train()
+    run_dir = owner.paths.root
+    owner.close()
+    before = (run_dir / "manifest.json").read_bytes()
+
+    attachment = OPDTrainer.from_config(
+        config,
+        output_dir=run_dir.parent,
+        run_id=run_dir.name,
+        write_artifacts=False,
+        for_evaluation=True,
+    )
+    attachment.student.set_train(was_training)
+    injected = RuntimeError("injected attachment rollout failure")
+    monkeypatch.setattr(
+        attachment.runner, "rollout", lambda *_a, **_k: (_ for _ in ()).throw(injected)
+    )
+
+    with pytest.raises(RuntimeError, match="injected attachment rollout failure") as caught:
+        attachment.evaluate(write=False)
+
+    assert caught.value is injected
+    assert attachment.student.model.training is was_training
+    assert attachment.state is TrainerState.READY
+    assert attachment._operation_guard.acquire(blocking=False)
+    attachment._operation_guard.release()
+    attachment.close()
+    assert (run_dir / "manifest.json").read_bytes() == before

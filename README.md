@@ -485,15 +485,19 @@ logic, the v0.2 resume compatibility layer, and runtime-resolved choices.
 Writable runs move atomically through `ready`, `running`, and one terminal
 status (`completed`, `failed`, `interrupted`, or `closed_before_training`).
 One process lock covers construction, training/resume, standalone checkpoint
-selection and evaluation, and automatic report generation. Public evaluation
-and checkpoint calls cannot enter while training owns the model.
+selection and evaluation, and automatic report generation. Within one trainer,
+training, evaluation, checkpoint save/load and destructive close are mutually
+exclusive; load is READY-only, close mutates nothing unless it obtains
+ownership, and evaluation restores the exact prior model mode even on failure.
 
 After `reset`, every built-in verifier maps arbitrary strings to a bounded
 result rather than leaking parser/numeric exceptions; protocol-v2 prompts use
 environment-specific, verifier-format-valid final examples. Shareable reports,
 summaries, benchmark exports and portable manifests redact semantic secret
 keys, URL credentials and private cross-platform paths; private run artifacts
-still retain the local state required for exact resume.
+still retain the local state required for exact resume. Redaction is a
+best-effort sharing defense, not permission to place real credentials in any
+config, run artifact or report.
 
 See [`docs/reproducibility.md`](docs/reproducibility.md) and the concise
 [`compatibility policy`](docs/compatibility.md).

@@ -308,9 +308,9 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 
 每次运行都会写出 `manifest.json`，记录 miniVERL 版本、git commit、Python 与操作系统、torch/CUDA/驱动版本、GPU 型号与显存、模型 id **及解析后的 revision**、分词器指纹、随机种子、精度、量化、显存策略、损失模式、top-k、策略版本，以及一个 `measurement_status` 块，说明每项结果是实测、模拟还是未运行。
 
-可写运行会原子地经过 `ready`、`running`，再进入 `completed`、`failed`、`interrupted` 或 `closed_before_training` 终态。同一把跨进程锁覆盖构造、训练/续训、独立评估的 checkpoint 选择与加载，以及自动报告；训练持有模型时，外部评估和 checkpoint 调用会被拒绝。
+可写运行会原子地经过 `ready`、`running`，再进入 `completed`、`failed`、`interrupted` 或 `closed_before_training` 终态。同一把跨进程锁覆盖构造、训练/续训、独立评估的 checkpoint 选择与加载，以及自动报告。在同一个 trainer 内，训练、评估、checkpoint 保存/加载和破坏性关闭互斥；加载仅允许在 READY 状态执行，`close()` 只有取得操作所有权后才会修改资源，评估即使失败也会恢复此前的精确模型模式。
 
-每个内置环境在 `reset` 后都会把任意字符串变成有界验证结果，不向外泄漏解析或数值异常；protocol-v2 使用各环境可被验证器接受的 final 格式示例。可分享的 HTML、Markdown、JSON、benchmark 导出和 portable manifest 会遮蔽语义化密钥、URL 凭证及跨平台私有路径，而私有运行目录仍保留精确续训所需的本地状态。
+每个内置环境在 `reset` 后都会把任意字符串变成有界验证结果，不向外泄漏解析或数值异常；protocol-v2 使用各环境可被验证器接受的 final 格式示例。可分享的 HTML、Markdown、JSON、benchmark 导出和 portable manifest 会遮蔽语义化密钥、URL 凭证及跨平台私有路径，而私有运行目录仍保留精确续训所需的本地状态。脱敏只是尽力而为的分享防线，不代表可以把真实凭据写进配置、运行产物或报告。
 
 它**不**记录用户名、主机名、家目录，也不记录白名单之外的任何环境变量（白名单只包含会影响数值结果的少数几个）——这一点有测试断言。
 来自文件的运行还会分别保存原始提交字节、规范化验证配置、v0.2

@@ -6,6 +6,19 @@ and what it printed.
 
 Last updated: 2026-07-31.
 
+## v0.2.6 concurrency, lifecycle and privacy correctness release
+
+| item | current state |
+| --- | --- |
+| audited baseline | fetched all remotes and started `v0.2.6-final-concurrency` from clean public `main` at `ba0cbc33d731936dcb0e44fc42e29cae2f1c803d` (`0.2.6.dev0`) |
+| regression-first evidence | isolated pre-fix runs reproduced a real `close()` teardown race, six checkpoint-load overlap failures, six evaluation-mode restoration failures, and 22 semantic-key/URL/path privacy failures; deterministic concurrency tests use `threading.Event`, never timing sleeps |
+| ownership and mode | `close()` owns the same non-blocking operation guard as train/evaluate/checkpoint work before changing state or releasing resources; public checkpoint load checks READY before and after ownership and delegates to an owner-only implementation; evaluation restores the exact prior model mode in `finally` |
+| privacy | semantic components cover snake/kebab/camel/Pascal keys with explicit benign metadata exceptions; supported URL schemes retain public structure while removing userinfo; arbitrary embedded absolute Windows/UNC/POSIX paths are reduced to portable basenames without rewriting URLs, relative paths or mathematical slash expressions |
+| focused adversarial pass | lifecycle, checkpoint-resume, standalone-evaluation, benchmark privacy and all shareable report-format tests pass **209 tests**, including generated semantic keys, credentialed URLs and POSIX paths; an added false-positive probe found and fixed mid-field matching in `loss/token = 0.5` |
+| pre-release complete-suite probe | **1347 tests passed** at **87.46%** branch coverage; its only failure was the expected stale generated `PYPI.md` immediately after README editing, which was regenerated before the implementation checkpoint |
+| immutable evidence | the frozen calculator JSON, all existing tags, and `DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher@23323751318135484c06c043b1f9b9e7016dd89f` remain unchanged; final SHA/tag verification is pending the complete gate |
+| release status | implementation is still `0.2.6.dev0`; full gates, PR, merge, tag publication and public verification remain pending |
+
 ## v0.2.5 final correctness release status
 
 | item | current state |
