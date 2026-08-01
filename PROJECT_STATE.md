@@ -4,7 +4,7 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-07-31.
+Last updated: 2026-08-01.
 
 ## v0.2.6 concurrency, lifecycle and privacy correctness release
 
@@ -15,9 +15,13 @@ Last updated: 2026-07-31.
 | ownership and mode | `close()` owns the same non-blocking operation guard as train/evaluate/checkpoint work before changing state or releasing resources; public checkpoint load checks READY before and after ownership and delegates to an owner-only implementation; evaluation restores the exact prior model mode in `finally` |
 | privacy | semantic components cover snake/kebab/camel/Pascal keys with explicit benign metadata exceptions; supported URL schemes retain public structure while removing userinfo; arbitrary embedded absolute Windows/UNC/POSIX paths are reduced to portable basenames without rewriting URLs, relative paths or mathematical slash expressions |
 | focused adversarial pass | lifecycle, checkpoint-resume, standalone-evaluation, benchmark privacy and all shareable report-format tests pass **209 tests**, including generated semantic keys, credentialed URLs and POSIX paths; an added false-positive probe found and fixed mid-field matching in `loss/token = 0.5` |
-| pre-release complete-suite probe | **1347 tests passed** at **87.46%** branch coverage; its only failure was the expected stale generated `PYPI.md` immediately after README editing, which was regenerated before the implementation checkpoint |
-| immutable evidence | the frozen calculator JSON, all existing tags, and `DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher@23323751318135484c06c043b1f9b9e7016dd89f` remain unchanged; final SHA/tag verification is pending the complete gate |
-| release status | implementation is still `0.2.6.dev0`; full gates, PR, merge, tag publication and public verification remain pending |
+| static and documentation gates | `git diff --check`, Ruff check/format, mypy over 77 source files, actionlint 1.7.12 with verified upstream checksum, tag-pinned `PYPI.md`, Markdown links, generated schema and generated benchmark-SVG byte comparison all pass |
+| complete local suite | after refreshing editable distribution metadata from `0.2.6.dev0` to source `0.2.6`, the full non-GPU/non-network gate passed **1348 tests**, 6 deselected, at **87.46%** branch coverage; the available RTX 4080 gate passed **5** and the network gate passed **3** |
+| compatibility evidence | torch-free core passed **1058 tests** on each of Python 3.10, 3.11, 3.12 and 3.13; the minimum bundle (Torch 2.3.1, Transformers 4.51.3, PEFT 0.12.0, Accelerate 0.33.0, NumPy 1.24.4, bitsandbytes 0.43.3) and latest bundle (Torch 2.13.0, Transformers 5.14.1, PEFT 0.20.0, Accelerate 1.14.0, NumPy 2.5.1, bitsandbytes 0.50.0) each passed 2 no-network training smokes and the **133-test** HF/config suite |
+| platform concurrency | the Windows complete suite includes the deterministic operation matrix; a fresh WSL2/Linux Python 3.12 environment at implementation commit `7410674802fa178fdde1ed5064c17608cd3fa806` passed **76** lifecycle, standalone-evaluation and resume/concurrency tests; final Ubuntu PR CI remains required |
+| packaging and installs | one `0.2.6` wheel and one sdist pass Twine; the extracted sdist passes Ruff, format, mypy and **1348** CPU tests, rebuilds a wheel with the same **78-file** runtime inventory, and clean Python 3.10 core plus Python 3.12 `[train]` installs pass version/doctor and demo/inspect/report/standalone-eval smokes |
+| immutable evidence | the frozen calculator JSON remains byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; all existing tags and `DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher@23323751318135484c06c043b1f9b9e7016dd89f` remain unchanged |
+| release status | metadata now identifies the validated candidate as `0.2.6`; final gates, PR, merge, tag publication and public verification remain pending |
 
 ## v0.2.5 final correctness release status
 

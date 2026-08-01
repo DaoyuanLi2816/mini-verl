@@ -21,7 +21,7 @@
 
 **A compact, auditable training stack for tool-using agents on one personal GPU.**
 
-PyPI `v0.2.5` is the stable release; `main` is development and may be ahead.
+PyPI `v0.2.6` is the stable release; `main` is development and may be ahead.
 
 miniVERL is a compact, auditable training lab for teaching a small language
 model from its own multi-turn tool trajectories. It runs real tools, keeps

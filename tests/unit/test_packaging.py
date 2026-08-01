@@ -369,7 +369,7 @@ def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_link
 
 @pytest.mark.parametrize(
     ("version", "ref"),
-    [("0.2.5", "v0.2.5"), ("0.2.6.dev0", "main")],
+    [("0.2.6", "v0.2.6"), ("0.2.7.dev0", "main")],
 )
 def test_pypi_generator_rewrites_nested_images_and_every_project_target(
     tmp_path: Path,
@@ -429,7 +429,7 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
         (REPO_ROOT / "docs" / "generated" / "quality.json").read_text(encoding="utf-8")
     )
     assert record["schema_version"] == 1
-    assert record["quality_floor"] == "1,200+ tests and 87%+ branch coverage at v0.2.5"
+    assert record["quality_floor"] == "1,300+ tests and 87%+ branch coverage at v0.2.6"
     if ".dev" in miniverl.__version__:
         assert record["status"] in {"candidate", "released"}
         if record["status"] == "candidate":
