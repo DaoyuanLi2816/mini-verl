@@ -107,21 +107,44 @@ authorization.
 
 ## Trusted publishing readiness
 
-- [x] PyPI reports project `miniverl`; `v0.2.5` remains the current public
-      version until this authorized release workflow completes.
+- [x] PyPI reports project `miniverl`; `v0.2.6` is the current public version.
 - [x] GitHub environment `pypi` exists and has a deployment branch policy.
 - [x] `release.yml` requests `id-token: write`, uses the `pypi` environment and
       publishes only on a tag push.
 - [x] The maintainer registered the pending publisher for
       `DaoyuanLi2816/mini-verl`, workflow `release.yml`, environment `pypi`.
-- [x] The immutable `v0.2.0` through `v0.2.5` tags, frozen calculator JSON and
+- [x] The immutable `v0.2.0` through `v0.2.6` tags, frozen calculator JSON and
       pinned public protocol-teacher adapter are unchanged.
 
 ## After the tag
 
-The state-sync PR records the exact `v0.2.6` tag commit, workflow URL,
-distribution hashes, public-install result and transition to `0.2.7.dev0` only
-after the authorized workflow completes.
+- [x] Annotated tag `v0.2.6` resolves to exact validated merge commit
+      `59fe738709526a13f354a744ab763f13530de4d1`.
+- [x] Tag workflow
+      [`30722451004`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30722451004)
+      passed metadata, tests, one-time build, OIDC publication, attestations,
+      public verification and GitHub Release creation.
+- [x] Public PyPI and GitHub Release wheel/sdist hashes match workflow
+      artifacts.
+- [x] This green-gated state-sync change advances development to
+      `0.2.7.dev0`.
+
+Publication completed on 2026-08-01 UTC:
+
+- [`miniverl 0.2.6`](https://pypi.org/project/miniverl/0.2.6/) exposes Trusted
+  Publishing provenance for both distributions.
+- [`miniVERL v0.2.6`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.2.6)
+  contains the byte-identical wheel, sdist and `SHA256SUMS`.
+- An independent no-cache Windows Python 3.10 install from the public PyPI
+  index reported `miniverl 0.2.6`, passed `doctor`, and kept torch,
+  Transformers, PEFT and bitsandbytes absent.
+
+Published artifact identity:
+
+- `miniverl-0.2.6-py3-none-any.whl`: SHA-256
+  `11d6b001752c41a0100f12c29b125a9dc082703dbeadc6b0317a88ac818d8695`
+- `miniverl-0.2.6.tar.gz`: SHA-256
+  `91e7b2918286c342cacaf2582dbed57c1e7a1bf4e1064d327e349b1d77c28886`
 
 ## Historical v0.2.5 record
 
