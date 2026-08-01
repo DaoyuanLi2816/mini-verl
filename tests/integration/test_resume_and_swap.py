@@ -360,6 +360,9 @@ def test_resuming_a_checkpoint_from_a_different_config_is_refused(tmp_path: Path
     after = other.student.trainable_state_dict()
     assert set(after) == set(before)
     assert all(torch.equal(before[name], after[name]) for name in before)
+    assert other.state.value == "ready"
+    assert other._operation_guard.acquire(blocking=False)
+    other._operation_guard.release()
     other.close()
 
 

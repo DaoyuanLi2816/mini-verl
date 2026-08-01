@@ -6,6 +6,31 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-08-01
+
+Small concurrency, lifecycle and privacy correctness release. No training
+objective, environment, benchmark, model family, adapter revision or frozen
+scientific result changed.
+
+### Changed
+
+- Training, evaluation, checkpoint save/load and destructive close now share
+  one non-blocking trainer-operation ownership contract. Checkpoint loading is
+  READY-only both before and after ownership acquisition.
+- Evaluation records the actual prior model mode and restores it in `finally`
+  after success or any rollout, serialization, diagnostics, metrics or event
+  failure.
+
+### Fixed
+
+- `close()` can no longer release or null resources while evaluation,
+  checkpoint save/load or training owns them; failed ownership attempts mutate
+  no state or artifact, while later and repeated close remain safe.
+- Portable artifacts recognize credential semantics across common key styles,
+  structurally redact userinfo in HTTP/SSH/database URLs, and sanitize embedded
+  absolute Windows, UNC and POSIX paths without rewriting public URLs,
+  relative paths or mathematical slash expressions.
+
 ## [0.2.5] - 2026-07-30
 
 Focused correctness release. No training objective, environment, benchmark,
@@ -401,7 +426,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.5...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.6...HEAD
+[0.2.6]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.4...v0.2.5
 [0.2.4]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.3...v0.2.4
 [0.2.3]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.2...v0.2.3

@@ -1,6 +1,6 @@
 # Release checklist
 
-This is the release gate and publication record for `v0.2.5`. A checked item
+This is the release gate and publication record for `v0.2.6`. A checked item
 names an invariant that was exercised on the release source. The tag workflow
 repeated the mechanical gates and refused inconsistent metadata or an
 unchecked pre-tag item. Publication began only after explicit maintainer
@@ -8,10 +8,10 @@ authorization.
 
 ## Version consistency
 
-- [x] Tagged source `v0.2.5` declares package version `0.2.5`.
-- [x] `CHANGELOG.md` has a dated `## [0.2.5]` section.
+- [x] Tagged source `v0.2.6` declares package version `0.2.6`.
+- [x] `CHANGELOG.md` has a dated `## [0.2.6]` section.
 - [x] `CITATION.cff` version and release date match.
-- [x] The intended annotated tag is exactly `v0.2.5`.
+- [x] The intended annotated tag is exactly `v0.2.6`.
 - [x] The package/project name remains `miniverl`.
 
 ## Correctness and lifecycle
@@ -24,14 +24,17 @@ authorization.
 - [x] Calculator, JSON-navigation and SQLite direct/rollout/property tests turn
       arbitrary strings into bounded verification results; non-finite SQLite
       answers are malformed rather than process exceptions.
-- [x] Trainer lifecycle regressions prove `ready`/`running`/terminal manifest
-      transitions, close-before-training, one-shot entry, thread exclusion and
-      evaluation-only non-mutation.
+- [x] Deterministic Event-based regressions prove train/evaluate/checkpoint
+      save/load/close exclusion, no-mutation losing operations, later and
+      repeated close, and READY/terminal/evaluation-only lifecycle behavior.
 - [x] Windows multiprocessing regressions prove same-run exclusion before model
       loading, report completion under lock, checkpoint selection under lock,
       bounded timeout, killed-owner recovery and different-run progress.
-- [x] Checkpoint, cache, JSONL and manifest fault-injection regressions accept a
-      valid old/new state or explicitly reject an incomplete state.
+- [x] Public checkpoint load checks READY before and after exclusive ownership;
+      load validation failure preserves model/progress/state and releases the
+      guard, while exact resume behavior remains unchanged.
+- [x] Evaluation restores the exact prior model mode after success and injected
+      failures in rollout, trajectory write, diagnostics, metrics and events.
 - [x] Numerical property tests for exact/bucketed objectives, weighted
       reductions, chunking, finite gradients, zero tails and OOM RNG
       equivalence remain green.
@@ -59,7 +62,7 @@ authorization.
 
 ## Packaging and clean installs
 
-- [x] A clean `python -m build` produces one `0.2.5` wheel and one sdist.
+- [x] A clean `python -m build` produces one `0.2.6` wheel and one sdist.
 - [x] `python -m twine check dist/*` passes.
 - [x] The wheel contains the report template and no tests.
 - [x] The sdist contains the full shipped test surface, including scripts and
@@ -87,9 +90,9 @@ authorization.
 - [x] All tracked JSON/JSONL parses strictly.
 - [x] README and documentation Markdown links pass link checking.
 - [x] `PYPI.md` byte-matches its generator, stable repository links use
-      `v0.2.5`, and built wheel metadata contains no relative or local links.
-- [x] Public artifacts contain no real absolute user path, username, hostname
-      or secret.
+      `v0.2.6`, and built wheel metadata contains no relative or local links.
+- [x] Shareable HTML/Markdown/JSON/YAML and benchmark exports contain no fake
+      credential/path sentinel; benign tokenizer/count metadata remains intact.
 - [x] No model weights, checkpoints, caches or databases are tracked.
 - [x] The banner and benchmark SVG were rendered and visually inspected.
 - [x] Benchmark grids begin below their tick labels; the generated dark SVG is
@@ -104,19 +107,23 @@ authorization.
 
 ## Trusted publishing readiness
 
-- [x] PyPI reported project `miniverl`; `v0.2.4` remained the current public
-      version until this authorized release workflow completed.
+- [x] PyPI reports project `miniverl`; `v0.2.5` remains the current public
+      version until this authorized release workflow completes.
 - [x] GitHub environment `pypi` exists and has a deployment branch policy.
 - [x] `release.yml` requests `id-token: write`, uses the `pypi` environment and
       publishes only on a tag push.
 - [x] The maintainer registered the pending publisher for
       `DaoyuanLi2816/mini-verl`, workflow `release.yml`, environment `pypi`.
-- [x] The immutable `v0.2.0`, `v0.2.1`, `v0.2.2`, `v0.2.3` and `v0.2.4` tags
-      and public artifacts are unchanged.
+- [x] The immutable `v0.2.0` through `v0.2.5` tags, frozen calculator JSON and
+      pinned public protocol-teacher adapter are unchanged.
 
 ## After the tag
 
-Complete only after the authorized public workflow:
+The state-sync PR records the exact `v0.2.6` tag commit, workflow URL,
+distribution hashes, public-install result and transition to `0.2.7.dev0` only
+after the authorized workflow completes.
+
+## Historical v0.2.5 record
 
 - [x] Annotated tag `v0.2.5` resolves to exact validated merge commit
       `a9a84510741b4ade8a405c100affdf1caed55ae6`.

@@ -518,7 +518,12 @@ class OPDTrainer:
                         f"cannot resume {paths.root}: no valid checkpoint was found",
                         hint="pass --resume-from <checkpoint-dir> or start a new run",
                     )
-                state = trainer.load_from_checkpoint(selected)
+                if not trainer._operation_guard.acquire(blocking=False):  # pragma: no cover
+                    raise LifecycleError("trainer construction could not own checkpoint loading")
+                try:
+                    state = trainer._load_from_checkpoint_impl(selected)
+                finally:
+                    trainer._operation_guard.release()
                 trainer.events.emit(
                     "resume_start",
                     checkpoint=str(selected),
@@ -1975,82 +1980,95 @@ class OPDTrainer:
                 "note": "no eval tasks",
             }
 
-        self.student.set_train(False)
-        gpu.reset_peak_stats()
-        started = time.perf_counter()
-        stats = RolloutStats()
-        trajectories: list[Trajectory] = []
-        by_difficulty: dict[str, list[int]] = {}
-        for offset, task in enumerate(pool):
-            traj = self.runner.rollout(
-                task,
-                policy_version=self.policy_version,
-                seed=config.eval.seed + offset,
-                temperature=config.eval.temperature,
-                max_turns=config.eval.max_turns,
-                trajectory_id=f"{task.task_id}:{tag}:v{self.policy_version}",
+        model = getattr(self.student, "model", None)
+        was_training = getattr(model, "training", None)
+        if not isinstance(was_training, bool):
+            raise BackendError(
+                "the student backend does not expose its current train/eval mode",
+                hint="use a built-in miniVERL backend whose model has a boolean training flag",
             )
-            trajectories.append(traj)
-            stats.observe(traj)
-            solved = int(bool(traj.verification and traj.verification.solved))
-            by_difficulty.setdefault(task.difficulty, []).append(solved)
-        elapsed = max(time.perf_counter() - started, 1e-9)
-        append_trajectories(self.paths.eval_trajectories, trajectories)
-        self.student.set_train(True)
+        self.student.set_train(False)
+        try:
+            gpu.reset_peak_stats()
+            started = time.perf_counter()
+            stats = RolloutStats()
+            trajectories: list[Trajectory] = []
+            by_difficulty: dict[str, list[int]] = {}
+            for offset, task in enumerate(pool):
+                traj = self.runner.rollout(
+                    task,
+                    policy_version=self.policy_version,
+                    seed=config.eval.seed + offset,
+                    temperature=config.eval.temperature,
+                    max_turns=config.eval.max_turns,
+                    trajectory_id=f"{task.task_id}:{tag}:v{self.policy_version}",
+                )
+                trajectories.append(traj)
+                stats.observe(traj)
+                solved = int(bool(traj.verification and traj.verification.solved))
+                by_difficulty.setdefault(task.difficulty, []).append(solved)
+            elapsed = max(time.perf_counter() - started, 1e-9)
+            append_trajectories(self.paths.eval_trajectories, trajectories)
 
-        from miniverl.evaluation.diagnostics import lenient_diagnostic_success_rate
+            from miniverl.evaluation.diagnostics import lenient_diagnostic_success_rate
 
-        payload = {
-            "tag": tag,
-            "split": chosen_split,
-            "tasks": len(pool),
-            "policy_version": self.policy_version,
-            "parameter_version": self.parameter_version,
-            "global_step": self.global_step,
-            "global_optimizer_step": self.global_step,
-            "rollout_iteration": self._cycles_completed,
-            "rollout_policy_version": self._last_rollout_policy_version,
-            "temperature": config.eval.temperature,
-            "seconds": round(elapsed, 3),
-            "rollout_tokens_per_second": round(stats.generated_tokens / elapsed, 2),
-            "success_by_difficulty": {k: sum(v) / len(v) for k, v in sorted(by_difficulty.items())},
-            "memory": gpu.snapshot().to_dict(),
-            **stats.to_dict(),
-            "lenient_diagnostic_success_rate": lenient_diagnostic_success_rate(trajectories),
-            "protocol_token_accuracy": None,
-            "policy_competence_measurement_status": {
-                "strict_task_success_rate": "measured_primary",
-                "lenient_diagnostic_success_rate": (
-                    "measured_diagnostic_not_a_replacement_for_strict"
-                ),
-                "valid_tool_call_rate": (
-                    "measured" if stats.tool_calls + stats.invalid_tool_calls else "not_observed"
-                ),
-                "parse_valid_tool_call_rate": (
-                    "measured" if stats.emitted_tool_calls else "not_observed"
-                ),
-                "tool_execution_success_rate": (
-                    "measured" if stats.parsed_tool_calls else "not_observed"
-                ),
-                "tool_execution_error_rate": (
-                    "measured" if stats.parsed_tool_calls else "not_observed"
-                ),
-                "final_answer_format_validity_rate": "measured",
-                "protocol_token_accuracy": (
-                    "not_applicable_free_running_trajectories_have_no_aligned_token_target"
-                ),
-            },
-        }
-        if write:
-            self.metrics_log.write({"phase": "eval", **payload, "ts": utc_now()})
-        self.events.emit(
-            "eval",
-            tag=tag,
-            tasks=len(pool),
-            success_rate=round(payload["success_rate"], 4),
-            avg_turns=round(payload["avg_turns"], 2),
-        )
-        return payload
+            payload = {
+                "tag": tag,
+                "split": chosen_split,
+                "tasks": len(pool),
+                "policy_version": self.policy_version,
+                "parameter_version": self.parameter_version,
+                "global_step": self.global_step,
+                "global_optimizer_step": self.global_step,
+                "rollout_iteration": self._cycles_completed,
+                "rollout_policy_version": self._last_rollout_policy_version,
+                "temperature": config.eval.temperature,
+                "seconds": round(elapsed, 3),
+                "rollout_tokens_per_second": round(stats.generated_tokens / elapsed, 2),
+                "success_by_difficulty": {
+                    k: sum(v) / len(v) for k, v in sorted(by_difficulty.items())
+                },
+                "memory": gpu.snapshot().to_dict(),
+                **stats.to_dict(),
+                "lenient_diagnostic_success_rate": lenient_diagnostic_success_rate(trajectories),
+                "protocol_token_accuracy": None,
+                "policy_competence_measurement_status": {
+                    "strict_task_success_rate": "measured_primary",
+                    "lenient_diagnostic_success_rate": (
+                        "measured_diagnostic_not_a_replacement_for_strict"
+                    ),
+                    "valid_tool_call_rate": (
+                        "measured"
+                        if stats.tool_calls + stats.invalid_tool_calls
+                        else "not_observed"
+                    ),
+                    "parse_valid_tool_call_rate": (
+                        "measured" if stats.emitted_tool_calls else "not_observed"
+                    ),
+                    "tool_execution_success_rate": (
+                        "measured" if stats.parsed_tool_calls else "not_observed"
+                    ),
+                    "tool_execution_error_rate": (
+                        "measured" if stats.parsed_tool_calls else "not_observed"
+                    ),
+                    "final_answer_format_validity_rate": "measured",
+                    "protocol_token_accuracy": (
+                        "not_applicable_free_running_trajectories_have_no_aligned_token_target"
+                    ),
+                },
+            }
+            if write:
+                self.metrics_log.write({"phase": "eval", **payload, "ts": utc_now()})
+            self.events.emit(
+                "eval",
+                tag=tag,
+                tasks=len(pool),
+                success_rate=round(payload["success_rate"], 4),
+                avg_turns=round(payload["avg_turns"], 2),
+            )
+            return payload
+        finally:
+            self.student.set_train(was_training)
 
     # -- checkpointing -----------------------------------------------------------
 
@@ -2129,6 +2147,21 @@ class OPDTrainer:
     def load_from_checkpoint(self, directory: str | Path) -> CheckpointState:
         """Restore a checkpoint only while the trainer is ready."""
         self._ensure_state("load_from_checkpoint", TrainerState.READY)
+        if not self._operation_guard.acquire(blocking=False):
+            with self._state_guard:
+                state = self._state
+            raise LifecycleError(
+                f"cannot load_from_checkpoint: this OPDTrainer is {state.value}",
+                hint="wait for the active trainer operation to finish",
+            )
+        try:
+            self._ensure_state("load_from_checkpoint", TrainerState.READY)
+            return self._load_from_checkpoint_impl(directory)
+        finally:
+            self._operation_guard.release()
+
+    def _load_from_checkpoint_impl(self, directory: str | Path) -> CheckpointState:
+        """Restore a checkpoint while the caller owns the trainer operation."""
         from miniverl.training.checkpoint import validate_checkpoint
 
         validated = validate_checkpoint(directory)
@@ -2190,6 +2223,18 @@ class OPDTrainer:
         calls are no-ops. Core provenance such as ``config`` and ``paths`` stays
         readable, while runtime objects are deliberately unusable.
         """
+        if not self._operation_guard.acquire(blocking=False):
+            raise LifecycleError(
+                "cannot close while another trainer operation is active",
+                hint=("wait for the active evaluate/checkpoint/load/train operation to finish"),
+            )
+        try:
+            self._close_impl()
+        finally:
+            self._operation_guard.release()
+
+    def _close_impl(self) -> None:
+        """Release resources while the caller owns the trainer operation."""
         with self._state_guard:
             if self._state is TrainerState.CLOSED:
                 return

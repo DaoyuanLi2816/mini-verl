@@ -6,15 +6,78 @@ import html
 import re
 from pathlib import PurePosixPath, PureWindowsPath
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import yaml
 
 __all__ = ["portable_payload", "portable_text", "portable_yaml"]
 
 _KEY_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9]+")
-_SECRET_SUFFIXES = {"token", "secret", "password", "credential"}
-_SECRET_KEY_PAIRS = {("api", "key"), ("access", "key"), ("private", "key")}
-_SENSITIVE_WHOLE_KEYS = {"authorization", "cookie", "session"}
+_SECRET_COMPONENTS = {"token", "secret", "password", "credential"}
+_SECRET_KEY_PAIRS = {
+    ("api", "key"),
+    ("access", "key"),
+    ("access", "token"),
+    ("private", "key"),
+    ("client", "secret"),
+}
+_BENIGN_KEY_COMPONENTS = {
+    ("tokenizer",),
+    ("tokenizer", "id"),
+    ("tokenizer", "revision"),
+    ("tokenizer", "fingerprint"),
+    ("tokenizer", "fingerprints"),
+    ("tokenizer", "identity"),
+    ("token", "count"),
+    ("token", "budget"),
+    ("token", "type"),
+    ("token", "id"),
+    ("token", "ids"),
+    ("token", "piece"),
+    ("token", "loss"),
+    ("token", "weights"),
+    ("token", "analysis"),
+    ("tokens",),
+    ("tokens", "by", "span", "type"),
+    ("selected", "tokens"),
+    ("selected", "critical", "tokens"),
+    ("selected", "model", "tokens"),
+    ("selected", "training", "tokens", "total"),
+    ("total", "critical", "tokens"),
+    ("total", "model", "tokens"),
+    ("generated", "tokens"),
+    ("generated", "token", "count"),
+    ("generated", "tokens", "per", "task"),
+    ("generated", "training", "tokens", "total"),
+    ("model", "generated", "training", "tokens", "total"),
+    ("context", "tokens"),
+    ("critical", "tokens"),
+    ("model", "tokens"),
+    ("max", "tokens"),
+    ("max", "new", "tokens"),
+    ("max", "new", "tokens", "per", "turn"),
+    ("max", "tokens", "per", "trajectory"),
+    ("max", "total", "tokens"),
+    ("target", "token", "ids"),
+    ("prefix", "token", "ids"),
+    ("bos", "token", "id"),
+    ("eos", "token", "id"),
+    ("teacher", "token"),
+    ("teacher", "top", "token"),
+    ("student", "top", "token"),
+    ("per", "token"),
+    ("per", "token", "ce"),
+    ("per", "token", "divergence"),
+    ("per", "token", "objective"),
+    ("sampled", "token", "nll", "weight"),
+    ("model", "token", "mask"),
+    ("protocol", "token", "accuracy"),
+    ("tokens", "per", "solved", "task"),
+    ("is", "pretokenized"),
+    ("session", "length"),
+    ("session", "count"),
+    ("cookie", "count"),
+}
 _IDENTITY_KEYS = {
     "hostname",
     "host_name",
@@ -26,22 +89,21 @@ _IDENTITY_KEYS = {
 _CREDENTIAL_VALUE = re.compile(
     r"\b(?:gh[oprsu]_[A-Za-z0-9_]{20,}|hf_[A-Za-z0-9]{20,}|pypi-[A-Za-z0-9_-]{20,})\b"
 )
-_ASSIGNED_SECRET = re.compile(
-    r"(?i)\b("
-    r"(?:[A-Za-z][A-Za-z0-9_-]*)?(?:token|secret|password|credential|api[_-]?key)"
-    r"|authorization|cookie|session"
-    r")\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)"
+_ASSIGNED_FIELD = re.compile(
+    r"(?i)(?<![A-Za-z0-9_./-])(?P<key>[A-Za-z][A-Za-z0-9_.-]{0,100})"
+    r"(?P<separator>\s*[:=]\s*)"
+    r"(?P<value>\"[^\"]*\"|'[^']*'|[^\s,;]+)"
 )
 _BEARER_SECRET = re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}")
-_URL_USERINFO = re.compile(r"(?i)\b(https?://)[^/@\s]+@")
+_SUPPORTED_URL = re.compile(
+    r"(?i)\b(?:https?|ssh|git\+ssh|postgresql|postgres|mysql|mongodb|redis)://[^\s<>\"']+"
+)
 _PATH_END = r"(?=$|[\r\n\t\"'<>|;,)]|\s+(?:https?://|[A-Za-z_][\w-]*\s*[:=]))"
 _WINDOWS_PATH = re.compile(
     rf"(?i)(?<![A-Za-z0-9])"
     rf"(?:[A-Z]:[\\/]|(?:\\\\|//)[^\\/\s]+[\\/][^\\/\s]+[\\/]).+?{_PATH_END}"
 )
-_POSIX_PRIVATE_PATH = re.compile(
-    rf"(?<![A-Za-z0-9])/(?:Users|home|tmp|private|var/tmp)/.+?{_PATH_END}"
-)
+_POSIX_ABSOLUTE_PATH = re.compile(rf"(?<![A-Za-z0-9:/])/(?:[^/\s<>\"']+)/.+?{_PATH_END}")
 _ENV_REFERENCE = re.compile(r"^(?:%[A-Za-z_][A-Za-z0-9_]*%|\$\{?[A-Za-z_][A-Za-z0-9_]*\}?)$")
 
 
@@ -55,21 +117,60 @@ def _portable_path(value: str) -> str | None:
 
 
 def _is_sensitive_key(key: str) -> bool:
-    """Recognize semantic secret suffixes without matching ``tokenizer_id``."""
-    components = [component.lower() for component in _KEY_BOUNDARY.split(key) if component]
+    """Recognize semantic credential components with a narrow metadata allowlist."""
+    components = tuple(component.lower() for component in _KEY_BOUNDARY.split(key) if component)
     if not components:
         return False
-    if len(components) == 1 and components[0] in _SENSITIVE_WHOLE_KEYS:
+    if components in _BENIGN_KEY_COMPONENTS:
+        return False
+    component_set = set(components)
+    if "authorization" in component_set or "cookie" in component_set:
         return True
-    if components[-1] in _SECRET_SUFFIXES:
+    if "session" in component_set and (
+        len(components) == 1
+        or component_set.intersection({"id", "key", "token", "secret", "cookie"})
+    ):
         return True
-    return len(components) >= 2 and tuple(components[-2:]) in _SECRET_KEY_PAIRS
+    if component_set.intersection(_SECRET_COMPONENTS):
+        return True
+    return any(set(pair).issubset(component_set) for pair in _SECRET_KEY_PAIRS)
 
 
 def _replace_path(match: re.Match[str]) -> str:
     path = match.group(0).rstrip()
     trailing = match.group(0)[len(path) :]
     return (_portable_path(path) or "<local>/path") + trailing
+
+
+def _replace_assigned_field(match: re.Match[str]) -> str:
+    if not _is_sensitive_key(match.group("key")):
+        return match.group(0)
+    return f"{match.group('key')}=<redacted>"
+
+
+def _sanitize_url(match: re.Match[str]) -> str:
+    raw = match.group(0)
+    trailing = ""
+    while raw and raw[-1] in ".,;)]}":
+        trailing = raw[-1] + trailing
+        raw = raw[:-1]
+    try:
+        parsed = urlsplit(raw)
+        if parsed.username is None and parsed.password is None:
+            return raw + trailing
+        hostname = parsed.hostname
+        if not hostname:
+            return f"{parsed.scheme}://<redacted>@" + trailing
+        host = f"[{hostname}]" if ":" in hostname and not hostname.startswith("[") else hostname
+        port = f":{parsed.port}" if parsed.port is not None else ""
+        sanitized = urlunsplit(
+            (parsed.scheme, f"<redacted>@{host}{port}", parsed.path, parsed.query, parsed.fragment)
+        )
+        return sanitized + trailing
+    except ValueError:
+        scheme, separator, remainder = raw.partition("://")
+        _userinfo, at, host_and_path = remainder.rpartition("@")
+        return (f"{scheme}{separator}<redacted>@{host_and_path}" if at else raw) + trailing
 
 
 def portable_text(value: str) -> str:
@@ -80,12 +181,20 @@ def portable_text(value: str) -> str:
         return exact_path
     if _ENV_REFERENCE.fullmatch(value.strip()):
         return "<environment-variable>"
-    redacted = _CREDENTIAL_VALUE.sub("<redacted>", value)
+    protected_urls: list[str] = []
+
+    def protect_url(match: re.Match[str]) -> str:
+        protected_urls.append(_sanitize_url(match))
+        return f"MINIVERLPROTECTEDURL{len(protected_urls) - 1}END"
+
+    redacted = _SUPPORTED_URL.sub(protect_url, value)
+    redacted = _CREDENTIAL_VALUE.sub("<redacted>", redacted)
     redacted = _BEARER_SECRET.sub("Bearer <redacted>", redacted)
-    redacted = _ASSIGNED_SECRET.sub(lambda match: f"{match.group(1)}=<redacted>", redacted)
-    redacted = _URL_USERINFO.sub(r"\1<redacted>@", redacted)
+    redacted = _ASSIGNED_FIELD.sub(_replace_assigned_field, redacted)
     redacted = _WINDOWS_PATH.sub(_replace_path, redacted)
-    redacted = _POSIX_PRIVATE_PATH.sub(_replace_path, redacted)
+    redacted = _POSIX_ABSOLUTE_PATH.sub(_replace_path, redacted)
+    for index, sanitized_url in enumerate(protected_urls):
+        redacted = redacted.replace(f"MINIVERLPROTECTEDURL{index}END", sanitized_url)
     return redacted
 
 

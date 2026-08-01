@@ -216,6 +216,49 @@ def test_portable_payload_redacts_semantic_secret_keys(key: str) -> None:
 
 
 @pytest.mark.parametrize(
+    "key",
+    [
+        "authorization_header",
+        "proxy_authorization",
+        "set_cookie",
+        "session_id",
+        "session_key",
+        "client_secret_key",
+        "auth_token_value",
+        "oauth_access_token_value",
+        "database_password_file",
+        "proxyAuthorization",
+        "ClientSecretKey",
+    ],
+)
+def test_portable_payload_redacts_secret_components_anywhere_in_key(key: str) -> None:
+    sentinel = "recognizable-private-sentinel"
+
+    portable = portable_payload({key: sentinel})
+
+    assert portable[key] == "<redacted>"
+    assert sentinel not in json.dumps(portable)
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "tokenizer",
+        "tokenizer_id",
+        "token_count",
+        "token_budget",
+        "token_type",
+        "selected_tokens",
+        "session_length",
+        "session_count",
+        "cookie_count",
+    ],
+)
+def test_portable_payload_preserves_explicit_benign_token_session_and_cookie_keys(key: str) -> None:
+    assert portable_payload({key: "public-metadata"})[key] == "public-metadata"
+
+
+@pytest.mark.parametrize(
     ("raw", "public_fragment"),
     [
         (
@@ -246,6 +289,131 @@ def test_portable_payload_redacts_credentials_and_embedded_private_paths(
     assert public_fragment in rendered
     for sensitive in ("Alice Smith", "user:password", r"\\server\share"):
         assert sensitive not in rendered
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (
+            "ssh://user:password@example.com/repo",
+            "ssh://<redacted>@example.com/repo",
+        ),
+        (
+            "git+ssh://user:password@example.com/repo",
+            "git+ssh://<redacted>@example.com/repo",
+        ),
+        (
+            "postgresql://user:password@example.com/database",
+            "postgresql://<redacted>@example.com/database",
+        ),
+        (
+            "redis://user:password@example.com:6379/cache",
+            "redis://<redacted>@example.com:6379/cache",
+        ),
+    ],
+)
+def test_portable_text_structurally_redacts_credentialed_urls(raw: str, expected: str) -> None:
+    assert portable_payload({"source": raw})["source"] == expected
+
+
+@given(
+    scheme=st.sampled_from(
+        ["http", "https", "ssh", "git+ssh", "postgresql", "postgres", "mysql", "mongodb", "redis"]
+    ),
+    username=st.text(
+        alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd")), min_size=1, max_size=12
+    ),
+    password=st.text(
+        alphabet=st.characters(whitelist_categories=("Ll", "Lu", "Nd")), min_size=1, max_size=18
+    ),
+    port=st.one_of(st.none(), st.integers(min_value=1, max_value=65535)),
+)
+@settings(max_examples=80)
+def test_generated_credentialed_urls_preserve_public_structure_only(
+    scheme: str,
+    username: str,
+    password: str,
+    port: int | None,
+) -> None:
+    authority = f"example.com:{port}" if port is not None else "example.com"
+    raw = f"{scheme}://{username}:{password}@{authority}/public/path?q=value#fragment"
+
+    portable = portable_payload({"source": raw})["source"]
+
+    assert portable == f"{scheme}://<redacted>@{authority}/public/path?q=value#fragment"
+    assert f"{username}:{password}" not in portable
+
+
+@pytest.mark.parametrize(
+    "private_path",
+    [
+        "/mnt/data/alice/private/model",
+        "/workspace/alice/private/model",
+        "/opt/project/private/file",
+        "/srv/build user/private/checkpoint",
+        "/custom-root/alice/private/model",
+    ],
+)
+def test_portable_text_redacts_embedded_absolute_posix_paths_under_arbitrary_roots(
+    private_path: str,
+) -> None:
+    rendered = portable_payload({"error": f"construction failed at {private_path}; retry"})["error"]
+
+    assert private_path not in rendered
+    assert "alice" not in rendered
+    assert "<local>/" in rendered
+
+
+@given(
+    root=st.text(alphabet=st.characters(whitelist_categories=("Ll",)), min_size=1, max_size=12),
+    owner=st.text(alphabet=st.characters(whitelist_categories=("Ll",)), min_size=1, max_size=12),
+    filename=st.text(
+        alphabet=st.characters(whitelist_categories=("Ll", "Nd")), min_size=1, max_size=12
+    ),
+)
+@settings(max_examples=80)
+def test_generated_embedded_posix_paths_never_expose_parent_segments(
+    root: str,
+    owner: str,
+    filename: str,
+) -> None:
+    private_path = f"/{root}/{owner}/private/{filename}.bin"
+
+    portable = portable_payload({"error": f"failed at {private_path}; retry"})["error"]
+
+    assert private_path not in portable
+    assert f"/{root}/" not in portable
+    assert portable == f"failed at <local>/{filename}.bin; retry"
+
+
+@pytest.mark.parametrize(
+    "public_text",
+    [
+        "ratio = 1 / 2 and loss/token = 0.5",
+        "https://example.com/public/model?q=a/b#docs",
+        "Qwen/Qwen3-0.6B",
+        "docs/reproducibility.md",
+    ],
+)
+def test_portable_text_does_not_rewrite_relative_or_public_slash_text(public_text: str) -> None:
+    assert portable_payload({"note": public_text})["note"] == public_text
+
+
+@given(
+    prefix=st.sampled_from(["auth", "oauth_access", "client", "database", "proxy"]),
+    secret_component=st.sampled_from(["token", "secret", "password", "credential"]),
+    suffix=st.sampled_from(["value", "file", "header", "key"]),
+    separator=st.sampled_from(["_", "-"]),
+)
+@settings(max_examples=60)
+def test_generated_semantic_secret_key_components_are_always_redacted(
+    prefix: str,
+    secret_component: str,
+    suffix: str,
+    separator: str,
+) -> None:
+    key = separator.join((prefix, secret_component, suffix))
+    assert portable_payload({key: "generated-private-sentinel"})[key] == "<redacted>"
 
 
 def test_portable_payload_redacts_nested_secret_values_without_touching_tokenizer() -> None:

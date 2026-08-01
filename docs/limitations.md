@@ -389,6 +389,14 @@ call.
 implement `privileged_context()`. All three built-in environments do;
 `miniverl validate` warns if you point it at one that does not.
 
+### Portable redaction is not a secret store
+
+Shareable views structurally redact credential-like keys, URL userinfo and
+embedded absolute paths across the supported report and export formats. That is
+a best-effort defense against accidental disclosure, not a guarantee over every
+possible encoding or future field name. Do not place real credentials in
+configs, run directories, exception messages or reports.
+
 ### Cache precision
 
 `cache.dtype: float16` (used by the 16 GB recipe) halves the log-probability

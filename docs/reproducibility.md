@@ -142,9 +142,13 @@ For writable runs, `manifest.json` is an atomic lifecycle record:
 Evaluation-only attachment and terminal close do not rewrite the training
 manifest. One OS-backed run lock is acquired before mutable run state and spans
 training/resume, standalone checkpoint selection/validation/load/output, and
-automatic HTML/Markdown report generation. Public evaluation and checkpoint
-methods are serialized against training; the training loop uses private
-owner-only implementations for its periodic work.
+automatic HTML/Markdown report generation. Separately, one non-blocking
+operation guard serializes every mutable-resource operation on an `OPDTrainer`:
+training, evaluation, checkpoint save/load and destructive close. A failed
+ownership attempt changes no lifecycle state or artifact. Loading checks READY
+both before and after acquisition; evaluation restores the exact prior model
+train/eval mode in `finally`; the training loop uses private owner-only
+implementations for periodic work.
 
 The load-bearing sub-objects:
 
@@ -184,10 +188,12 @@ installed from a wheel). That is recorded honestly rather than faked.
 Deliberately excluded, because a run directory is meant to be shareable:
 hostname, username, home directory, absolute paths outside the run, and every
 environment variable outside the allowlist. Canonical portable views also
-redact semantic secret suffixes (`*_token`, `*_secret`, `*_password`,
-`*_credential`, `*_api_key`), authorization/cookie/session fields, URL
-userinfo, Windows/UNC paths and private POSIX/macOS paths. The private run
-files may retain values required for exact local resume.
+redact semantic credential components across snake/kebab/camel/Pascal keys,
+authorization/cookie/session fields, structured URL userinfo, and embedded
+Windows/UNC/POSIX absolute paths. Explicit tokenizer/token-count/session-count
+metadata remains readable. The private run files may retain values required
+for exact local resume, and redaction remains best-effort: never put real
+credentials in configs, run artifacts or reports.
 
 Two caveats worth knowing before you quote the manifest:
 
