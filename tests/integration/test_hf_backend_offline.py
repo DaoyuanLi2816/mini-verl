@@ -466,8 +466,7 @@ def test_v2_teacher_competence_requires_precise_tool_event_metrics(
     with pytest.raises(
         BackendError,
         match=(
-            "policy evaluation is incomplete: recovery_after_error_rate, "
-            "parse_valid_tool_call_rate"
+            "policy evaluation is incomplete: recovery_after_error_rate, parse_valid_tool_call_rate"
         ),
     ):
         validate_teacher_adapter(
