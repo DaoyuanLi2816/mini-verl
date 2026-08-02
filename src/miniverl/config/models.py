@@ -502,6 +502,7 @@ class EvalConfig(_Base):
     """Deterministic evaluation settings."""
 
     enabled: bool = True
+    baseline_enabled: bool = True
     tasks: int | None = Field(default=None, ge=1)
     split: str = Field(default="eval", pattern="^(train|eval|test)$")
     temperature: float = Field(default=0.0, ge=0.0, le=5.0)

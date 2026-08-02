@@ -1760,7 +1760,7 @@ class OPDTrainer:
                 note="skipping the baseline evaluation and the SFT cold start",
             )
         else:
-            if config.eval.enabled:
+            if config.eval.enabled and config.eval.baseline_enabled:
                 baseline = self._evaluate_impl(tag="baseline")
             if config.train.sft_warmup_cycles > 0 and config.run.mode is not TrainingMode.SFT:
                 self._run_sft_warmup(config.train.sft_warmup_cycles)

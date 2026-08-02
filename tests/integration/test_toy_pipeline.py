@@ -176,6 +176,25 @@ def test_eval_disabled_suppresses_periodic_evaluations(tmp_path: Path):
     assert not [record for record in metrics if record.get("phase") == "eval"]
 
 
+def test_baseline_can_be_disabled_without_disabling_final_eval(tmp_path: Path) -> None:
+    trainer, result = _train(
+        _config(
+            tmp_path,
+            run={"mode": "sft"},
+            train={"cycles": 1},
+            eval={"enabled": True, "baseline_enabled": False},
+        ),
+        "no-baseline",
+    )
+    assert result.baseline_eval is None
+    assert result.eval is not None
+    metrics = [
+        json.loads(line) for line in trainer.paths.metrics.read_text(encoding="utf-8").splitlines()
+    ]
+    eval_tags = [record["tag"] for record in metrics if record.get("phase") == "eval"]
+    assert eval_tags == ["final"]
+
+
 def test_offline_kd_reuses_one_frozen_cache_and_labels_itself(tmp_path: Path):
     config = _config(
         tmp_path,

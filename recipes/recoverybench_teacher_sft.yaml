@@ -102,6 +102,7 @@ cache:
 
 eval:
   enabled: true
+  baseline_enabled: false
   split: eval
   tasks: 96
   temperature: 0.0
