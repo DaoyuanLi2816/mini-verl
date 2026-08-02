@@ -1,6 +1,6 @@
 schema_version: 1
 name: recoverybench-v1
-preregistration_revision: 1.1
+preregistration_revision: 1.2
 status: preregistered_before_final_test
 research_question: >-
   Does supervision on fresh states visited by the current student improve
@@ -105,6 +105,32 @@ amendments:
       The candidate gate uses the already shared eval-only decoding contract;
       the separately declared 64/896 rollout budget remains the student-arm
       training and final-test contract.
+  - id: eval-calibrated-secondary-budgets
+    revision: 1.2
+    timing: before_any_final_test
+    scope: equal_selected_training_tokens_and_equal_gpu_wall_time
+    calibration_result:
+      path: artifacts/recoverybench-v1-calibration/recoverybench-v1-calibration.json
+      sha256: af0cb73c60655c37c4bafba6ea7893e4bb7260e82c6b2915bb646b8872cbe35e
+      split: eval
+      seeds: [1234]
+      test_tasks_generated: 0
+      completed_selected_positions:
+        continued_sft: 6675
+        offline_kd_frozen_student: 6467
+        strict_opd_fresh: 6224
+      completed_continuation_seconds:
+        continued_sft: 50.55608949996531
+        offline_kd_frozen_student: 52.075989600038156
+        strict_opd_fresh: 650.9775520999683
+    locked_values:
+      selected_training_tokens: 6224
+      gpu_wall_seconds: 50
+    rationale: >-
+      The selected-position target is the minimum completed total. The wall
+      target is the largest whole second not exceeding the minimum measured
+      continuation training time. Arm wall time including evaluation was not
+      used.
 
 task_generation:
   environment: sqlite_recovery
@@ -202,7 +228,7 @@ budgets:
       Use the largest common selected-position target not exceeding the minimum
       completed total among the three calibration arms; stop only after an
       optimizer-step boundary and record nonnegative overshoot.
-    final_numeric_value: pending_eval_calibration_before_test
+    final_numeric_value: 6224
   equal_gpu_wall_time:
     role: secondary
     arms: [continued-sft, offline-kd-frozen-student, strict-opd-fresh]
@@ -213,7 +239,7 @@ budgets:
       Use the largest whole-second common budget not exceeding the minimum
       completed continuation time among the three calibration arms; stop only
       after an optimizer-step boundary and record nonnegative overshoot.
-    final_numeric_seconds: pending_eval_calibration_before_test
+    final_numeric_seconds: 50
   teacher_preparation_reporting:
     - one_shot_total
     - amortized_over_5_students

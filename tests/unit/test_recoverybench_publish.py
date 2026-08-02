@@ -1,0 +1,59 @@
+"""Frozen RecoveryBench publication and analysis contracts."""
+
+from __future__ import annotations
+
+import hashlib
+import importlib.util
+from pathlib import Path
+from types import ModuleType
+
+from miniverl.evaluation.benchmark import resolve_benchmark_configs
+from miniverl.evaluation.schema import BenchmarkConfig
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def _script() -> ModuleType:
+    path = ROOT / "scripts" / "publish_recoverybench_artifacts.py"
+    spec = importlib.util.spec_from_file_location("publish_recoverybench_artifacts", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_final_recoverybench_configs_are_frozen_and_preflight_clean() -> None:
+    preregistration = ROOT / "benchmarks/preregistration/recoverybench-v1.yaml"
+    expected_digest = "b43f67903ff3e9c00527dbe5432098da6d5c29f8867722d3cccabbe5695b58b1"
+    assert hashlib.sha256(preregistration.read_bytes()).hexdigest() == expected_digest
+
+    expected = {
+        "recoverybench_v1_equal_updates.yaml": ("equal_optimizer_updates", 8),
+        "recoverybench_v1_equal_selected_tokens.yaml": (
+            "equal_selected_training_tokens",
+            6224,
+        ),
+        "recoverybench_v1_equal_wall_time.yaml": ("equal_gpu_wall_time", 50),
+    }
+    for name, (view, target) in expected.items():
+        config = BenchmarkConfig.from_yaml(ROOT / "benchmarks/configs" / name)
+        assert config.preregistration_digest == expected_digest
+        assert config.preregistration_sha == "7087b3a333463b88a62ffed73daee2c85d039145"
+        assert config.eval_split == "test"
+        assert config.seeds == [1234, 20260727, 20260801]
+        assert config.budget_view == view
+        assert target in config.stop_criterion.values()
+        for seed in config.seeds:
+            resolve_benchmark_configs(config, seed=seed)
+
+
+def test_paired_bootstrap_is_deterministic_and_svg_never_has_negative_width() -> None:
+    script = _script()
+    first = script._paired_interval([-1.0, 0.0, 1.0])
+    second = script._paired_interval([-1.0, 0.0, 1.0])
+    assert first == second
+    assert first["replicates"] == 10_000
+
+    svg = script._svg("title", "subtitle", [("negative", -0.25, 0.5)], x_label="rate")
+    assert 'width="-' not in svg
+    assert "-0.250" in svg

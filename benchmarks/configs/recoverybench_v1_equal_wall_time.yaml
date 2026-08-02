@@ -1,0 +1,40 @@
+# Frozen RecoveryBench v1 final-test continuation-wall-time secondary view.
+schema_version: 3
+name: recoverybench-v1-equal-wall-time
+description: Core methods stopped after the first step boundary at or beyond 50 seconds.
+base: ../../recipes/recoverybench_student.yaml
+common_overrides:
+  rollout: {max_turns: 5, max_new_tokens_per_turn: 64, max_total_tokens: 896, temperature: 1.0, top_p: 0.95}
+  train: {cycles: 8, rollouts_per_cycle: 8, gradient_accumulation_steps: 8, max_wall_seconds: 50, sft_warmup_cycles: 0, eval_every_cycles: 0, save_every_cycles: 0}
+  eval: {enabled: false, split: test, tasks: 128, temperature: 0.0, max_turns: 5, seed: 20260801}
+  report: {enabled: false}
+cold_start_cycles: 24
+cold_start_checkpoint_template: ../../artifacts/recoverybench-v1-equal-updates/recoverybench-v1-equal-updates-coldstart-s{seed}/checkpoints/final
+frozen_dataset_template: ../../artifacts/recoverybench-v1-final-frozen-s{seed}
+frozen_dataset_seed_from_run: true
+allowed_differences: [run.mode, cache.reuse_across_policy_versions, offline_kd.*]
+budget_axis: wall_time
+eval_split: test
+seeds: [1234, 20260727, 20260801]
+output_dir: runs/recoverybench-v1-equal-wall-time
+preregistration_sha: 7087b3a333463b88a62ffed73daee2c85d039145
+preregistration_digest: b43f67903ff3e9c00527dbe5432098da6d5c29f8867722d3cccabbe5695b58b1
+hypothesis_ids: [H1, H2, H3]
+task_schedule_digest: 0d937493eea9daadc36e7d29c7c4dace6e35b80a43e27e8af3b038b465f9a806
+template_registry_version: 1
+template_registry_digest: 396c49c14641f8a282706e635f164ac72aa6f42d5c5b0fe2abd0c8f667168242
+selected_teacher_candidate: {id: sqlite-recovery-candidate-a, adapter_repo: DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher, adapter_revision: eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d, adapter_weights_sha256: 5355f7007efb904d1b45a1aeb9b73b479b6f52025ab92502ab7895706155b2ba}
+teacher_gate_results:
+  - {candidate: existing-calculator-protocol-teacher, passed: false, artifact_sha256: 7bec9d1977c93ba77345bae42eeb02ba58be39684f008a989ee08141f1a41b92}
+  - {candidate: sqlite-recovery-candidate-a-nf4, passed: true, artifact_sha256: 8ed18b0de8d36bd976de3c99859a046cc1e0fb59d63c2dc2addbbbb2a8f96f56}
+teacher_preparation_cost: {one_shot_seconds: 2310.746512599977, amortized_over_5_students_seconds: 462.1493025199954, amortized_over_10_students_seconds: 231.0746512599977, excluded_diagnostic_seconds: 687.0495032999897}
+budget_view: equal_gpu_wall_time
+stop_criterion: {kind: wall_time, target_seconds: 50, boundary: optimizer_step}
+result_analysis_version: recoverybench-analysis-v1
+invalidation_status: {valid: true, reasons: []}
+arms:
+  - {name: continued-sft, description: Oracle-SFT continuation., overrides: {run: {mode: sft}}}
+  - name: offline-kd-frozen-student
+    description: Immutable cold-student states and teacher targets.
+    overrides: {run: {mode: offline_kd}, cache: {reuse_across_policy_versions: true}, offline_kd: {trajectory_source: frozen_student, collection_seed: 0, collection_tasks: 64}}
+  - {name: strict-opd-fresh, description: Strict fresh-state OPD., overrides: {run: {mode: opd}}}

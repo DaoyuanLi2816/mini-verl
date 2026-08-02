@@ -51,12 +51,13 @@ def trajectory_recovery_metrics(trajectory: Trajectory) -> TrajectoryRecoveryMet
         if turn.tool_call is not None and turn.tool_result is not None
     ]
     failed = [turn for turn in result_turns if not turn.tool_result.ok]  # type: ignore[union-attr]
+    failed_results = [turn.tool_result for turn in failed if turn.tool_result is not None]
     query_turns = [turn for turn in result_turns if turn.tool_call.name == "query"]  # type: ignore[union-attr]
     first_query_failed = bool(query_turns and not query_turns[0].tool_result.ok)  # type: ignore[union-attr]
-    injected = any(turn.tool_result.intervention for turn in failed)  # type: ignore[union-attr]
+    injected = any(result.intervention for result in failed_results)
     natural = any(
-        not turn.tool_result.intervention and turn.tool_result.error_code == "SQL_EXECUTION_ERROR"
-        for turn in failed
+        not result.intervention and result.error_code == "SQL_EXECUTION_ERROR"
+        for result in failed_results
     )
     solved = bool(trajectory.verification and trajectory.verification.solved)
     first_error_turn = failed[0].turn_id if failed else None
@@ -73,8 +74,7 @@ def trajectory_recovery_metrics(trajectory: Trajectory) -> TrajectoryRecoveryMet
         for turn in failed
     ]
     errors = {
-        turn.tool_result.error_code or f"unstructured:{turn.tool_result.error or ''}"
-        for turn in failed
+        result.error_code or f"unstructured:{result.error or ''}" for result in failed_results
     }
     valid_queries = sum(bool(turn.tool_result.ok) for turn in query_turns)  # type: ignore[union-attr]
     tokens_after = 0

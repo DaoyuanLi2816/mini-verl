@@ -31,9 +31,12 @@ RecoveryBench arm.
   frozen-student offline KD, strict fresh-state OPD, and a strict OPD arm capped
   at 50% of full model-generated teacher-query positions.
 
-The two secondary numeric budgets are deliberately not guessed. They are
-derived once from eval-only calibration by the exact rules in the YAML, then
-committed before any final test run. Step-boundary overshoot is retained.
+Revision 1.2 freezes the two secondary budgets from the completed eval-only
+calibration: 6,224 selected positions and 50 continuation-training seconds.
+The latter is the whole-second floor of the fastest completed continuation
+training time (50.556 s); evaluation time is excluded. The calibration artifact
+SHA-256 is `af0cb73c60655c37c4bafba6ea7893e4bb7260e82c6b2915bb646b8872cbe35e`.
+Step-boundary overshoot is retained.
 
 ## Teacher gate
 

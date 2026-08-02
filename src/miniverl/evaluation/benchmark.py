@@ -519,7 +519,9 @@ def _run_one_arm(
             runtime_arm_config=runtime_config,
         )
         if checkpoint is not None and checkpoint.is_dir():
-            checkpoint_digest = _checkpoint_digest(checkpoint)
+            from miniverl.training.checkpoint import validate_checkpoint
+
+            checkpoint_digest = validate_checkpoint(checkpoint).content_digest
             load_checkpoint(
                 checkpoint,
                 backend=trainer.student,

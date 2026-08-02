@@ -1207,6 +1207,13 @@ class OPDTrainer:
         import json
 
         manifest = json.loads((dataset / "manifest.json").read_text(encoding="utf-8"))
+        dataset_checkpoint_digest = manifest.get("cold_start_checkpoint_digest")
+        expected_checkpoint_digest = self._offline_collection_checkpoint_digest
+        if expected_checkpoint_digest and dataset_checkpoint_digest != expected_checkpoint_digest:
+            raise CheckpointError(
+                "persisted offline dataset cold-start checkpoint digest does not match "
+                "the loaded checkpoint"
+            )
         expected_schedule = self.config.offline_kd.task_schedule_digest
         if expected_schedule and manifest.get("task_schedule_digest") != expected_schedule:
             raise CheckpointError(
@@ -1214,7 +1221,7 @@ class OPDTrainer:
             )
         shutil.copytree(dataset, self.paths.offline_dataset)
         shutil.copytree(cache, self.paths.teacher_cache, dirs_exist_ok=True)
-        self._offline_collection_checkpoint_digest = manifest.get("cold_start_checkpoint_digest")
+        self._offline_collection_checkpoint_digest = dataset_checkpoint_digest
         self._load_offline_dataset(expected_digest=str(manifest.get("dataset_digest") or ""))
         self.task_cursor = len(self._offline_samples or [])
         self.events.emit(

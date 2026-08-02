@@ -312,6 +312,54 @@ def test_persisted_offline_kd_reuses_the_prepared_bundle_without_mutating_it(
     consumer.close()
 
 
+def test_persisted_offline_kd_rejects_a_different_cold_start_checkpoint(
+    tmp_path: Path,
+) -> None:
+    from miniverl.errors import CheckpointError
+    from miniverl.trainer import OPDTrainer
+
+    common = {
+        "run": {"mode": "offline_kd"},
+        "cache": {"reuse_across_policy_versions": True, "strict_policy_version": False},
+        "train": {"cycles": 1, "rollouts_per_cycle": 2, "gradient_accumulation_steps": 2},
+        "eval": {"enabled": False},
+    }
+    prepared = OPDTrainer.from_config(
+        _config(
+            tmp_path,
+            **common,
+            offline_kd={
+                "trajectory_source": "frozen_student",
+                "collection_seed": 17,
+                "collection_tasks": 2,
+            },
+        ),
+        run_id="prepared-cold-start-bound-bundle",
+    )
+    prepared.set_offline_collection_checkpoint_digest("b" * 64)
+    summary = prepared.prepare_offline_dataset()
+    source_root = prepared.paths.root
+    prepared.close()
+
+    consumer = OPDTrainer.from_config(
+        _config(
+            tmp_path,
+            **common,
+            offline_kd={
+                "trajectory_source": "persisted",
+                "dataset_path": str(source_root),
+                "task_schedule_digest": summary["manifest"]["task_schedule_digest"],
+            },
+        ),
+        run_id="mismatched-cold-start-consumer",
+    )
+    consumer.set_offline_collection_checkpoint_digest("c" * 64)
+    with pytest.raises(CheckpointError, match="cold-start checkpoint digest"):
+        consumer.train()
+    assert not consumer.paths.offline_dataset.exists()
+    consumer.close()
+
+
 def test_selected_token_budget_stops_only_after_an_optimizer_step_and_records_overshoot(
     tmp_path: Path,
 ) -> None:

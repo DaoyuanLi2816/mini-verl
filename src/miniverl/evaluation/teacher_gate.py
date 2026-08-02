@@ -175,5 +175,7 @@ def evaluate_teacher_candidate(
     finally:
         if teacher is not None:
             teacher.release()
-        environment.close()
+        closer = getattr(environment, "close", None)
+        if callable(closer):
+            closer()
         gpu.empty_cache()
