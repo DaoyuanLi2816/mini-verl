@@ -24,7 +24,6 @@ from miniverl.evaluation.recovery import (
     trajectory_recovery_metrics,
 )
 from miniverl.models.tokenizers import ToyTokenizer
-from miniverl.models.toy import ToyBackend
 from miniverl.trajectory.io import read_trajectories, write_trajectories
 from miniverl.utils.runs import canonical_json
 
@@ -32,6 +31,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _runner(environment: SqliteRecoveryEnvironment) -> RolloutRunner:
+    from miniverl.models.toy import ToyBackend
+
     backend = ToyBackend(
         tokenizer=ToyTokenizer(),
         model_id="toy-recovery-oracle",
@@ -232,6 +233,7 @@ def test_recovery_environment_retains_sqlite_sandbox(sql: str) -> None:
 
 
 @pytest.mark.parametrize("index", [0, 1, 2, 3, 4, 5])
+@pytest.mark.torch
 def test_oracle_executes_and_records_real_recovery(index: int) -> None:
     env = SqliteRecoveryEnvironment(protocol_version="v2")
     task = env.generate_task(index, 8128, difficulty="hard", split="train")
@@ -262,6 +264,7 @@ def test_oracle_executes_and_records_real_recovery(index: int) -> None:
         )
 
 
+@pytest.mark.torch
 def test_structured_recovery_provenance_round_trips_and_reads_v1(tmp_path: Path) -> None:
     env = SqliteRecoveryEnvironment(protocol_version="v2")
     task = env.generate_task(0, 8128, difficulty="hard", split="train")
@@ -297,6 +300,7 @@ def test_structured_recovery_provenance_round_trips_and_reads_v1(tmp_path: Path)
     )
 
 
+@pytest.mark.torch
 def test_recovery_metrics_are_derived_from_structured_turns() -> None:
     env = SqliteRecoveryEnvironment(protocol_version="v2")
     task = env.generate_task(0, 8128, difficulty="hard", split="train")
