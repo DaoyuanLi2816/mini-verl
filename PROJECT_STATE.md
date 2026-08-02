@@ -14,7 +14,12 @@ Last updated: 2026-08-01.
 | available execution environment | Windows checkout with Python 3.12, Torch 2.13.0+cu130 and an NVIDIA GeForce RTX 4080 (16376 MiB); GitHub and Hugging Face access are available and publication remains restricted to exact validated tags |
 | immutable baseline | calculator benchmark SHA-256 is `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; calculator protocol-teacher HEAD is `23323751318135484c06c043b1f9b9e7016dd89f`; existing tags remain untouched |
 | phase boundary | RecoveryBench must be preregistered, fully measured with the sequential engine, frozen, merged, released as `v0.3.0`, publicly verified and state-synced to `0.4.0.dev0` before padded batching begins |
-| current highest-risk work | define deterministic, structurally disjoint SQLite recovery tasks and structured error provenance, then build frozen-student KD identity and fail-closed reuse before any final-test run |
+| current highest-risk work | finish eval-only selection of an immutable SQLite-recovery teacher, then calibrate and freeze the secondary budgets before any final-test run |
+| RecoveryBench environment | `sqlite_recovery` has 12 structurally disjoint versioned templates, deterministic controlled/natural/no-intervention subsets, structured tool-error provenance, executable recovery oracles, and exact recovery metrics; focused environment and backward-read tests pass |
+| preregistration | public commit `04fb44b9890596ea6e7ec0527e150c805b784798` predates all final-test work; revision 1.1, also before final test, explicitly locks QLoRA candidate inference and downstream teacher use to NF4 after a portability check exposed that full-precision adapter reapplication changes the deployed policy |
+| teacher selection so far | the historical calculator teacher completed 96 eval tasks and failed the gate at 25.0% strict, 10.7% recovery, 95.8% parse validity and 14.4% tool execution; candidate A trained for 64 QLoRA SFT updates and its in-process NF4 eval measured 86.5%, 78.1%, 100% and 87.5%; a separately loaded full-precision reapplication failed at 65.6%, 65.6%, 100% and 62.7% and is retained as a noncanonical diagnostic |
+| portable adapters | a regression reproduced PEFT exporting a machine-local snapshot path as the base identity; export now rewrites the configured model ID and immutable revision before checksumming, and the portable export reload test passes |
+| shared frozen data | schema-v3 benchmark execution prepares one frozen-student dataset per seed, reuses it across consumers and budget views, and can reuse the exact primary-view cold-start checkpoint; the two-consumer/two-view regression and all 80 v2/v3 benchmark tests pass |
 
 ## v0.2.6 concurrency, lifecycle and privacy correctness release
 

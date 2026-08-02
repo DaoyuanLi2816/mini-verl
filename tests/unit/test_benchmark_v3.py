@@ -211,6 +211,116 @@ def test_schema_v3_benchmark_binds_runtime_task_artifact(tmp_path: Path) -> None
     assert result.invalidation_status == {"valid": True, "reasons": []}
 
 
+@pytest.mark.torch
+def test_v3_benchmark_prepares_one_frozen_dataset_per_seed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    calls = 0
+    original_prepare = OPDTrainer.prepare_offline_dataset
+
+    def counted_prepare(self: OPDTrainer) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        return original_prepare(self)
+
+    monkeypatch.setattr(OPDTrainer, "prepare_offline_dataset", counted_prepare)
+    base = {
+        "run": {"mode": "sft"},
+        "models": {
+            "student": {"model_id": "toy-student"},
+            "teacher": {"model_id": "toy-teacher", "toy_pretrain_steps": 0},
+        },
+        "environment": {
+            "name": "calculator",
+            "difficulty": "easy",
+            "train_tasks": 4,
+            "eval_tasks": 1,
+            "test_tasks": 1,
+        },
+        "train": {"cycles": 1, "rollouts_per_cycle": 1},
+        "eval": {"enabled": False, "tasks": 1, "split": "test"},
+        "report": {"enabled": False},
+    }
+    frozen = {
+        "run": {"mode": "offline_kd"},
+        "cache": {"reuse_across_policy_versions": True},
+        "offline_kd": {
+            "trajectory_source": "frozen_student",
+            "collection_seed": 7,
+            "collection_tasks": 2,
+        },
+    }
+    metadata = _v3_result()
+    spec = BenchmarkConfig.model_validate(
+        {
+            "schema_version": 3,
+            "name": "tiny-shared-frozen-v3",
+            "base": base,
+            "cold_start_cycles": 1,
+            "frozen_dataset_template": str(tmp_path / "frozen-s{seed}"),
+            "allowed_differences": [
+                "run.mode",
+                "cache.reuse_across_policy_versions",
+                "offline_kd.*",
+            ],
+            "budget_axis": "optimizer_steps",
+            "seeds": [7],
+            "arms": [
+                {"name": "frozen-a", "overrides": frozen},
+                {"name": "frozen-b", "overrides": frozen},
+            ],
+            **{
+                name: metadata[name]
+                for name in (
+                    "preregistration_sha",
+                    "preregistration_digest",
+                    "hypothesis_ids",
+                    "task_schedule_digest",
+                    "template_registry_version",
+                    "template_registry_digest",
+                    "selected_teacher_candidate",
+                    "teacher_gate_results",
+                    "teacher_preparation_cost",
+                    "budget_view",
+                    "stop_criterion",
+                    "result_analysis_version",
+                    "invalidation_status",
+                )
+            },
+        }
+    )
+
+    result = run_benchmark(spec, output_dir=tmp_path / "runs")
+
+    assert calls == 1
+    identities = [arm.frozen_dataset_identity for arm in result.arms]
+    assert identities[0] is not None
+    assert identities[1] is not None
+    assert identities[0]["dataset_digest"] == identities[1]["dataset_digest"]
+    assert identities[0]["manifest"]["sha256"] == identities[1]["manifest"]["sha256"]
+    assert (tmp_path / "frozen-s7" / "offline-dataset" / "manifest.json").is_file()
+
+    second_payload = spec.model_dump(mode="json")
+    second_payload["name"] = "tiny-shared-frozen-secondary-v3"
+    second_payload["cold_start_checkpoint_template"] = str(
+        tmp_path / "runs" / "tiny-shared-frozen-v3-coldstart-s7" / "checkpoints" / "final"
+    )
+    second = run_benchmark(
+        BenchmarkConfig.model_validate(second_payload),
+        output_dir=tmp_path / "secondary-runs",
+    )
+
+    assert calls == 1
+    assert second.cold_start is not None
+    assert second.cold_start["checkpoints"][0]["reused"] is True
+    assert {arm.frozen_dataset_identity["dataset_digest"] for arm in second.arms} == {
+        identities[0]["dataset_digest"]
+    }
+
+
 @pytest.mark.parametrize(
     "path",
     [

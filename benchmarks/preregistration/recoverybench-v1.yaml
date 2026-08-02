@@ -1,5 +1,6 @@
 schema_version: 1
 name: recoverybench-v1
+preregistration_revision: 1.1
 status: preregistered_before_final_test
 research_question: >-
   Does supervision on fresh states visited by the current student improve
@@ -50,6 +51,7 @@ models:
 
 teacher_qualification:
   split: eval
+  inference_quantization: nf4
   candidate_order:
     - id: existing-calculator-protocol-teacher
       adapter_repo: DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher
@@ -70,6 +72,21 @@ teacher_qualification:
     tool_execution_success_rate: {operator: greater_than_or_equal, value: 0.70}
   failed_candidates_are_retained: true
   test_split_forbidden: true
+
+amendments:
+  - id: teacher-inference-quantization
+    revision: 1.1
+    timing: before_any_final_test
+    scope: teacher_eval_and_all_kd_opd_arms
+    locked_value: nf4
+    rationale: >-
+      Candidate adapters are trained by QLoRA on an NF4 base. A portability
+      check showed that applying the adapter to an unquantized base changes the
+      deployed policy, so qualification and downstream supervision must reload
+      the same NF4 base representation.
+    preserved_diagnostic: >-
+      The completed candidate-A full-precision reapplication is retained as a
+      failed noncanonical deployment diagnostic; it is not silently discarded.
 
 task_generation:
   environment: sqlite_recovery

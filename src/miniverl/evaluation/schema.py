@@ -84,6 +84,8 @@ class BenchmarkConfig(BaseModel):
     common_overrides: dict[str, Any] = Field(default_factory=dict)
     cold_start_overrides: dict[str, Any] = Field(default_factory=dict)
     cold_start_cycles: int = Field(default=0, ge=0, le=100000)
+    cold_start_checkpoint_template: str | None = None
+    frozen_dataset_template: str | None = None
     allowed_differences: list[str] = Field(default_factory=list)
     budget_axis: Literal["optimizer_steps", "selected_training_tokens", "wall_time"] = (
         "optimizer_steps"
@@ -121,6 +123,16 @@ class BenchmarkConfig(BaseModel):
             for path in self.allowed_differences
         ):
             raise ValueError("allowed_differences entries must be non-empty dotted config paths")
+        for field_name in ("cold_start_checkpoint_template", "frozen_dataset_template"):
+            template = getattr(self, field_name)
+            if template is None:
+                continue
+            try:
+                template.format(seed=self.seeds[0])
+            except (KeyError, ValueError) as exc:
+                raise ValueError(f"{field_name} may contain only the {{seed}} placeholder") from exc
+            if len(self.seeds) > 1 and "{seed}" not in template:
+                raise ValueError(f"{field_name} must contain {{seed}} for a multi-seed benchmark")
         if self.schema_version == RECOVERY_BENCHMARK_SCHEMA_VERSION:
             required = {
                 "preregistration_sha": self.preregistration_sha,
@@ -154,6 +166,10 @@ class BenchmarkConfig(BaseModel):
         raw = yaml.safe_load(p.read_text(encoding="utf-8"))
         if not isinstance(raw, dict):
             raise ConfigError(f"{p} must contain a YAML mapping at the top level")
+        for key in ("cold_start_checkpoint_template", "frozen_dataset_template"):
+            template = raw.get(key)
+            if isinstance(template, str) and template and not Path(template).is_absolute():
+                raw[key] = str((p.parent / template).resolve())
         for key in ("common_overrides", "cold_start_overrides"):
             overrides = raw.get(key)
             if isinstance(overrides, dict):

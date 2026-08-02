@@ -42,6 +42,12 @@ with at least 80% strict success, 75% recovery after error, 95% parse-valid tool
 calls, and 70% successful tool execution is frozen at an immutable Hub revision.
 Failed candidates and their costs remain part of the record.
 
+Revision 1.1, still before any final-test run, locks candidate inference and
+all downstream teacher use to an NF4 base. Candidate adapters are trained by
+QLoRA; a portability check showed that applying the same adapter to an
+unquantized base deploys a different policy. The completed full-precision
+candidate-A reapplication is retained as a failed, noncanonical diagnostic.
+
 ## Analysis and invalidation
 
 Every arm runs all three seeds. Reports retain per-seed values, mean, range, and
