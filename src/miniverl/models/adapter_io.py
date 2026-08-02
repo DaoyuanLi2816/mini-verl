@@ -115,6 +115,24 @@ def _same_model_identity(expected: str, actual: str) -> bool:
     return False
 
 
+def _normalize_exported_adapter_config(
+    path: Path,
+    *,
+    model_id: str,
+    revision: str | None,
+) -> None:
+    """Replace PEFT's machine-local snapshot path with the configured identity."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BackendError(f"cannot normalize exported adapter config {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise BackendError(f"exported adapter config is not an object: {path}")
+    payload["base_model_name_or_path"] = model_id
+    payload["revision"] = revision
+    write_json(path, payload)
+
+
 def _read_local_adapter(path: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Path]]:
     if not path.is_dir():
         raise BackendError(
@@ -418,6 +436,12 @@ def export_adapter(
     ]
     if missing:
         raise BackendError("PEFT export did not produce required files: " + ", ".join(missing))
+
+    _normalize_exported_adapter_config(
+        target / _ADAPTER_CONFIG,
+        model_id=config.models.student.model_id,
+        revision=config.models.student.revision,
+    )
 
     checksums = {
         name: sha256_file(target / name)[0] for name in (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS)
