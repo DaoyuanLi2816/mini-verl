@@ -375,7 +375,7 @@ def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_link
 
 @pytest.mark.parametrize(
     ("version", "ref"),
-    [("0.2.6", "v0.2.6"), ("0.2.7.dev0", "main")],
+    [("0.3.0", "v0.3.0"), ("0.4.0.dev0", "main")],
 )
 def test_pypi_generator_rewrites_nested_images_and_every_project_target(
     tmp_path: Path,
