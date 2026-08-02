@@ -73,3 +73,21 @@ templates, schedule, hyperparameters, budgets, plots, and analysis code are
 frozen, or if any declared provenance check fails. Completed negative or failed
 arms are never removed. A correction creates a new versioned artifact rather
 than rewriting the original.
+
+## Post-run preservation record
+
+The complete revision-1.3 experiment is the publication source. Its nominal
+50-second view revealed that SFT and frozen KD reached the configured
+eight-cycle ceiling before their internal continuation timers crossed the
+target, while fresh OPD crossed it in one indivisible update. The artifact is
+therefore reported as a cycle-capped wall diagnostic rather than exact
+equal-time evidence.
+
+A later public attempt to amend that secondary budget was reverted after the
+steering amendment explicitly required the already-complete experiment to be
+preserved. The replacement process was stopped, its partial files were retained
+under `artifacts/superseded/recoverybench-v1.4-aborted-by-steering/`, and none
+of them enters any result, figure or report. The immutable publication hashes
+and the full chronology are recorded in
+[`recoverybench-v1.md`](recoverybench-v1.md) and
+[`PROJECT_STATE.md`](../../PROJECT_STATE.md).

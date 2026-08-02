@@ -215,7 +215,13 @@ def test_every_published_benchmark_result_validates_against_the_schema():
     jsonschema.Draft202012Validator.check_schema(schema)
     validator = jsonschema.Draft202012Validator(schema)
 
-    results = sorted((root / "benchmarks" / "results").glob("*.json"))
+    # RecoveryBench's paired analysis has its own exact, data-binding contract
+    # in test_recoverybench_publish; it is not a BenchmarkResult document.
+    results = sorted(
+        path
+        for path in (root / "benchmarks" / "results").glob("*.json")
+        if path.name != "recoverybench-v1-analysis.json"
+    )
     assert results, "benchmarks/results/ has no published result to validate"
     for path in results:
         document = json.loads(path.read_text(encoding="utf-8"))

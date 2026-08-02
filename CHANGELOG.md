@@ -6,6 +6,44 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-01
+
+RecoveryBench release. The experiment is a scoped mechanism study of fresh
+student-visited states, not an alignment benchmark and not evidence that OPD
+replaces SFT.
+
+### Added
+
+- A deterministic SQLite recovery environment with structured retryable errors,
+  executable recovery oracles, disjoint template splits and exact recovery
+  metrics.
+- Schema-v3 benchmark provenance for preregistration, teacher gates, frozen
+  datasets, task-level artifacts, selected-position and wall-time budget views.
+- A public, immutable NF4-qualified SQLite recovery teacher adapter plus
+  recorded failed teacher candidates and preparation cost.
+- Frozen three-seed RecoveryBench results, task-paired bootstrap analysis,
+  data-bound SVGs and a deterministic six-page technical report.
+
+### Changed
+
+- Public positioning now distinguishes SFT competence-building from OPD as an
+  online teacher-student mechanism whose transferred behavior depends on the
+  teacher.
+- Frozen-student offline KD records and validates the exact cold checkpoint,
+  task schedule, adapter and tokenizer identities reused across budget views.
+
+### Results
+
+- Under eight equal continuation updates, frozen-student KD reached 23.2%
+  strict success and 22.8% recovery after error, versus 10.9% and 9.1% for
+  strict fresh-state OPD. The fresh-minus-frozen paired differences were
+  -12.24 and -13.79 percentage points.
+- Fresh OPD averaged 686.8 continuation seconds versus 52.1 for frozen KD.
+  Querying 49.77% of model-generated positions did not reduce teacher backbone
+  forwards or wall time.
+- The nominal 50-second result is retained and explicitly labeled a
+  cycle-capped wall diagnostic, not exact equal-time evidence.
+
 ## [0.2.6] - 2026-08-01
 
 Small concurrency, lifecycle and privacy correctness release. No training

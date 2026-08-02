@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 from types import ModuleType
 
 from miniverl.evaluation.benchmark import resolve_benchmark_configs
-from miniverl.evaluation.schema import BenchmarkConfig
+from miniverl.evaluation.schema import BenchmarkConfig, BenchmarkResult
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -63,3 +64,66 @@ def test_paired_bootstrap_is_deterministic_and_svg_never_has_negative_width() ->
     svg = script._svg("title", "subtitle", [("negative", -0.25, 0.5)], x_label="rate")
     assert 'width="-' not in svg
     assert "-0.250" in svg
+
+
+def test_published_recoverybench_artifacts_are_exact_and_data_bound() -> None:
+    expected = {
+        "benchmarks/results/recoverybench-v1-equal-updates.json": (
+            "6ce2e6837e12b99ebc4fad6d27ce3e69c92e295ff3b9b60e0f68c2d308022384"
+        ),
+        "benchmarks/results/recoverybench-v1-equal-selected-tokens.json": (
+            "fe4c9afc799724dfe7a32e631676a1e5177c44559a7374d2ea31da135354f137"
+        ),
+        "benchmarks/results/recoverybench-v1-equal-wall-time.json": (
+            "425b0fa568f37b09e61af731d3da5009bd3833bddde6efaf2c66e9dba8355cbe"
+        ),
+        "benchmarks/results/recoverybench-v1-task-results.jsonl": (
+            "76ab53202f8ad1eb332b056c9c840eb34816986883a568813edc0e0f502d3086"
+        ),
+        "benchmarks/results/recoverybench-v1-analysis.json": (
+            "c0e7b8c9e8da9a0d0a5d64a17a688c45e3dbbd1c3b68074249b31fc10f0baeca"
+        ),
+        "docs/recoverybench/recovery-success.svg": (
+            "0deab77a739cb27bd76f7399297231ebe7bf323a04026d43a1b5af78ace42dad"
+        ),
+        "docs/recoverybench/cost-quality-pareto.svg": (
+            "865725bded3982ecf3bf0e3582342cf23e123a8d50269e8779336a54c453afcc"
+        ),
+        "docs/recoverybench/fresh-vs-frozen.svg": (
+            "54ce1275ce1f828eb22ec2f518b227f7bf8a175bfcea93c8b8e3a063e0f05897"
+        ),
+        "paper/recoverybench-v1/recoverybench-v1.pdf": (
+            "b6000a9e0d1c665382cebd39ad99dd3de2176ca89a3845db7bb2516a68adaefb"
+        ),
+    }
+    for relative, digest in expected.items():
+        assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == digest
+
+    result_paths = {
+        "equal_optimizer_updates": ROOT / "benchmarks/results/recoverybench-v1-equal-updates.json",
+        "equal_selected_training_tokens": ROOT
+        / "benchmarks/results/recoverybench-v1-equal-selected-tokens.json",
+        "equal_gpu_wall_time": ROOT / "benchmarks/results/recoverybench-v1-equal-wall-time.json",
+    }
+    results = {
+        view: BenchmarkResult.model_validate_json(path.read_text(encoding="utf-8"))
+        for view, path in result_paths.items()
+    }
+    assert all(result.schema_version == 3 for result in results.values())
+    assert all(
+        result.invalidation_status == {"valid": True, "reasons": []} for result in results.values()
+    )
+
+    analysis = json.loads(
+        (ROOT / "benchmarks/results/recoverybench-v1-analysis.json").read_text(encoding="utf-8")
+    )
+    assert analysis["source_result_sha256"] == {
+        view: hashlib.sha256(path.read_bytes()).hexdigest() for view, path in result_paths.items()
+    }
+    rendered = _script().render_figures(
+        results["equal_optimizer_updates"],
+        analysis,
+        analysis["source_result_sha256"]["equal_optimizer_updates"],
+    )
+    for name, content in rendered.items():
+        assert (ROOT / "docs/recoverybench" / name).read_text(encoding="utf-8") == content

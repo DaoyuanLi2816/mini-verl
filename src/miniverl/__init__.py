@@ -1,4 +1,4 @@
-"""miniVERL -- on-policy distillation for tool-using agents on one GPU.
+"""miniVERL -- auditable online post-training on one GPU.
 
 The top-level package is intentionally lightweight: importing ``miniverl`` must
 not import :mod:`torch`, :mod:`transformers` or any CUDA runtime.  Heavy
