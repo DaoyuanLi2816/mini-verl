@@ -41,7 +41,11 @@ __all__ = [
     "TRAJECTORY_SCHEMA_VERSION",
 ]
 
-TRAJECTORY_SCHEMA_VERSION = 1
+LEGACY_TRAJECTORY_SCHEMA_VERSION = 1
+TRAJECTORY_SCHEMA_VERSION = 2
+READABLE_TRAJECTORY_SCHEMA_VERSIONS = frozenset(
+    {LEGACY_TRAJECTORY_SCHEMA_VERSION, TRAJECTORY_SCHEMA_VERSION}
+)
 
 
 class SpanType(str, Enum):
@@ -148,6 +152,10 @@ class ToolResultRecord(BaseModel):
     error: str | None = None
     env_state_id: str | None = None
     duration_ms: float | None = None
+    error_code: str | None = None
+    retryable: bool | None = None
+    intervention: bool = False
+    tool_result_metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class VerificationRecord(BaseModel):

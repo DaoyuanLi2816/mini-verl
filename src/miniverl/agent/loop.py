@@ -24,7 +24,7 @@ termination reason so the failure taxonomy in reports is exact.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from miniverl.agent.protocol import (
@@ -95,6 +95,7 @@ class RolloutStats:
     generated_tokens: int = 0
     termination_reasons: dict[str, int] | None = None
     failure_categories: dict[str, int] | None = None
+    recovery_trajectories: list[Trajectory] = field(default_factory=list, repr=False)
 
     def __post_init__(self) -> None:
         if self.termination_reasons is None:
@@ -175,6 +176,8 @@ class RolloutStats:
         self.tool_calls += parsed_tool_calls
         self.invalid_tool_calls += trajectory.invalid_tool_calls
         self.generated_tokens += trajectory.generated_token_count
+        if trajectory.environment == "sqlite_recovery":
+            self.recovery_trajectories.append(trajectory)
         reason = trajectory.termination_reason.value
         self.termination_reasons[reason] = self.termination_reasons.get(reason, 0) + 1
         if trajectory.verification is not None:
@@ -207,7 +210,7 @@ class RolloutStats:
             if tool_execution_attempts
             else None
         )
-        return {
+        payload: dict[str, Any] = {
             "rollouts": self.rollouts,
             "solved": self.solved,
             "success_rate": self.solved / n,
@@ -252,6 +255,22 @@ class RolloutStats:
             "termination_reasons": dict(self.termination_reasons),
             "failure_categories": dict(self.failure_categories),
         }
+        if self.recovery_trajectories:
+            from miniverl.evaluation.recovery import aggregate_recovery_metrics
+
+            recovery = aggregate_recovery_metrics(self.recovery_trajectories)
+            payload.update(
+                {
+                    key: value
+                    for key, value in recovery.items()
+                    if key not in {"controlled_intervention", "natural_error", "no_intervention"}
+                }
+            )
+            payload["recovery_subsets"] = {
+                key: recovery[key]
+                for key in ("controlled_intervention", "natural_error", "no_intervention")
+            }
+        return payload
 
 
 def _canonical_call(name: str, arguments: dict[str, Any]) -> str:
@@ -566,7 +585,15 @@ class RolloutRunner:
                 self._add_observation(
                     builder,
                     turn_id=turn_id,
-                    body=render_tool_result(step.ok, result=step.result, error=step.error),
+                    body=render_tool_result(
+                        step.ok,
+                        result=step.result,
+                        error=step.error,
+                        error_code=step.error_code,
+                        retryable=step.retryable,
+                        intervention=step.intervention,
+                        metadata=step.tool_result_metadata,
+                    ),
                     state_id=step.state_id,
                     call_id=call_id,
                 )
@@ -586,6 +613,10 @@ class RolloutRunner:
                             result=step.result,
                             error=step.error,
                             env_state_id=step.state_id,
+                            error_code=step.error_code,
+                            retryable=step.retryable,
+                            intervention=step.intervention,
+                            tool_result_metadata=step.tool_result_metadata,
                         ),
                     )
                 )
@@ -667,6 +698,7 @@ class RolloutRunner:
                 "difficulty": task.difficulty,
                 "split": task.split,
                 "initial_observation_state_id": initial_observation.state_id,
+                **self.environment.trajectory_metadata(task),
                 **({"environment_error": metadata_error} if metadata_error else {}),
             },
         )
@@ -738,7 +770,15 @@ class RolloutRunner:
             self._add_observation(
                 builder,
                 turn_id=turn_id,
-                body=render_tool_result(step.ok, result=step.result, error=step.error),
+                body=render_tool_result(
+                    step.ok,
+                    result=step.result,
+                    error=step.error,
+                    error_code=step.error_code,
+                    retryable=step.retryable,
+                    intervention=step.intervention,
+                    metadata=step.tool_result_metadata,
+                ),
                 state_id=step.state_id,
                 call_id=call_id,
             )
@@ -754,6 +794,10 @@ class RolloutRunner:
                         result=step.result,
                         error=step.error,
                         env_state_id=step.state_id,
+                        error_code=step.error_code,
+                        retryable=step.retryable,
+                        intervention=step.intervention,
+                        tool_result_metadata=step.tool_result_metadata,
                     ),
                 )
             )
@@ -796,6 +840,7 @@ class RolloutRunner:
                 "difficulty": task.difficulty,
                 "split": task.split,
                 "initial_observation_state_id": initial_observation.state_id,
+                **self.environment.trajectory_metadata(task),
             },
         )
 

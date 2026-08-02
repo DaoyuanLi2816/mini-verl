@@ -6,6 +6,16 @@ and what it printed.
 
 Last updated: 2026-08-01.
 
+## v0.3.0 RecoveryBench development
+
+| item | current state |
+| --- | --- |
+| audited baseline | fetched all remotes and started `agent/v0.3-recoverybench` from clean public `main` at `6c79c1fcc5a6e55dd9f4af843d446ece1c454431`; no PR was open, main CI/build were green, and development advanced directly from `0.2.7.dev0` to `0.3.0.dev0` without a `0.2.7` release |
+| available execution environment | Windows checkout with Python 3.12, Torch 2.13.0+cu130 and an NVIDIA GeForce RTX 4080 (16376 MiB); GitHub and Hugging Face access are available and publication remains restricted to exact validated tags |
+| immutable baseline | calculator benchmark SHA-256 is `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; calculator protocol-teacher HEAD is `23323751318135484c06c043b1f9b9e7016dd89f`; existing tags remain untouched |
+| phase boundary | RecoveryBench must be preregistered, fully measured with the sequential engine, frozen, merged, released as `v0.3.0`, publicly verified and state-synced to `0.4.0.dev0` before padded batching begins |
+| current highest-risk work | define deterministic, structurally disjoint SQLite recovery tasks and structured error provenance, then build frozen-student KD identity and fail-closed reuse before any final-test run |
+
 ## v0.2.6 concurrency, lifecycle and privacy correctness release
 
 | item | current state |

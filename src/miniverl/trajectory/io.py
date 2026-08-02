@@ -14,7 +14,10 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from miniverl.errors import SchemaValidationError
-from miniverl.schemas.trajectory import TRAJECTORY_SCHEMA_VERSION, Trajectory
+from miniverl.schemas.trajectory import (
+    READABLE_TRAJECTORY_SCHEMA_VERSIONS,
+    Trajectory,
+)
 
 __all__ = ["write_trajectories", "read_trajectories", "iter_trajectories", "count_trajectories"]
 
@@ -83,10 +86,11 @@ def iter_trajectories(path: str | Path) -> Iterator[Trajectory]:
             except json.JSONDecodeError as exc:
                 raise SchemaValidationError(f"{p}:{lineno} is not valid JSON: {exc}") from exc
             version = payload.get("schema_version")
-            if version != TRAJECTORY_SCHEMA_VERSION:
+            if version not in READABLE_TRAJECTORY_SCHEMA_VERSIONS:
                 raise SchemaValidationError(
                     f"{p}:{lineno} has trajectory schema_version {version!r}, "
-                    f"this build reads version {TRAJECTORY_SCHEMA_VERSION}"
+                    "this build reads versions "
+                    f"{sorted(READABLE_TRAJECTORY_SCHEMA_VERSIONS)}"
                 )
             try:
                 yield Trajectory.model_validate(payload)
