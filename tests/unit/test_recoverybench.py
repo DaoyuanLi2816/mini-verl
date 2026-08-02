@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 from miniverl.agent.loop import RolloutRunner, RolloutStats
 from miniverl.config.models import RolloutConfig
-from miniverl.environments.base import FailureCategory, ToolCall
+from miniverl.environments.base import FailureCategory, ToolCall, make_splits
 from miniverl.environments.registry import available_environments, make_environment
 from miniverl.environments.sqlite_recovery import (
     RECOVERY_SCHEMA_TEMPLATES,
@@ -24,6 +26,9 @@ from miniverl.evaluation.recovery import (
 from miniverl.models.tokenizers import ToyTokenizer
 from miniverl.models.toy import ToyBackend
 from miniverl.trajectory.io import read_trajectories, write_trajectories
+from miniverl.utils.runs import canonical_json
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _runner(environment: SqliteRecoveryEnvironment) -> RolloutRunner:
@@ -79,6 +84,42 @@ def test_template_registry_has_twelve_structurally_disjoint_safe_templates() -> 
         for identifier in template.identifiers:
             assert re.fullmatch(r"[a-z][a-z0-9_]{0,47}", identifier), identifier
     assert re.fullmatch(r"[0-9a-f]{64}", recovery_template_registry_digest())
+
+
+def test_preregistration_binds_the_frozen_registry_and_training_schedule() -> None:
+    preregistration = yaml.safe_load(
+        (REPO_ROOT / "benchmarks/preregistration/recoverybench-v1.yaml").read_text(encoding="utf-8")
+    )
+    generation = preregistration["task_generation"]
+    assert generation["template_registry_digest"] == recovery_template_registry_digest()
+    assert preregistration["seeds"]["model_and_training"] == [1234, 20260727, 20260801]
+    assert len(preregistration["arms"]) == 6
+
+    env = SqliteRecoveryEnvironment(protocol_version="v2")
+    try:
+        splits = make_splits(
+            env,
+            counts=generation["counts"],
+            seed=generation["split_seed"],
+            difficulty=generation["difficulty"],
+        )
+    finally:
+        env.close()
+    identity = [
+        {
+            "task_id": task.task_id,
+            "split": task.split,
+            "prompt": task.prompt,
+            "template_id": task.metadata["template_id"],
+            "template_digest": task.metadata["template_digest"],
+            "database_seed": task.metadata["database_seed"],
+            "task_kind": task.metadata["task_kind"],
+            "intervention_kind": task.metadata["intervention_kind"],
+        }
+        for task in splits["train"]
+    ]
+    digest = hashlib.sha256(canonical_json(identity).encode("utf-8")).hexdigest()
+    assert digest == generation["training_task_schedule_digest"]
 
 
 @pytest.mark.parametrize("split", ["train", "eval", "test"])
