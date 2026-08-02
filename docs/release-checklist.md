@@ -4,7 +4,7 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
-## v0.3.0 RecoveryBench candidate
+## v0.3.0 RecoveryBench release
 
 - [x] Revision-1.3 preregistration predates the valid final run and remains
       byte-frozen at SHA-256
@@ -41,10 +41,15 @@ after the exact release commit and its remote checks are green.
       bitsandbytes 0.43.3. Python 3.13.13 latest boundary passes with Torch
       2.13.0+cpu, Transformers 5.14.1, PEFT 0.20.0, Accelerate 1.14.0, NumPy
       2.5.1 and bitsandbytes 0.50.0.
-- [ ] Focused PR is green and merged; synchronized `main` is green.
-- [ ] Release metadata declares exact `0.3.0`; annotated tag `v0.3.0` triggers
-      OIDC publication, public hashes/attestations, clean install and one GitHub
-      Release from the same distributions.
+- [x] Focused PR #27 is green and merged as `bee82d3`; synchronized `main` CI
+      and build workflows are green.
+- [x] Release metadata declares exact `0.3.0`; the intended annotated tag is
+      exactly `v0.3.0` and will use the existing OIDC-only release workflow.
+
+## After the tag
+
+- [ ] OIDC publication, public hashes/attestations, clean install and one
+      GitHub Release are verified from the same distributions.
 - [ ] Post-release state-sync PR advances clean `main` to `0.4.0.dev0`.
 
 ## Historical v0.2.6 release record
