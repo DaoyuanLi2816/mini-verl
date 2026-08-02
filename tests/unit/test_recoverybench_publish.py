@@ -39,25 +39,22 @@ def test_final_recoverybench_configs_are_frozen_and_preflight_clean() -> None:
             "equal_optimizer_updates",
             8,
             revision_13_digest,
-            "7087b3a333463b88a62ffed73daee2c85d039145",
         ),
         "recoverybench_v1_equal_selected_tokens.yaml": (
             "equal_selected_training_tokens",
             6224,
             revision_13_digest,
-            "7087b3a333463b88a62ffed73daee2c85d039145",
         ),
         "recoverybench_v1_equal_wall_time.yaml": (
             "equal_gpu_wall_time",
             24,
             revision_14_digest,
-            "6f4fabbd74cbb5af9c5427fa9d4fcc0d3e9752e7",
         ),
     }
-    for name, (view, target, digest, preregistration_sha) in expected.items():
+    for name, (view, target, digest) in expected.items():
         config = BenchmarkConfig.from_yaml(ROOT / "benchmarks/configs" / name)
         assert config.preregistration_digest == digest
-        assert config.preregistration_sha == preregistration_sha
+        assert config.preregistration_sha == "7087b3a333463b88a62ffed73daee2c85d039145"
         assert config.eval_split == "test"
         assert config.seeds == [1234, 20260727, 20260801]
         assert config.budget_view == view

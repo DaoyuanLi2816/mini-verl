@@ -17,7 +17,7 @@ budget_axis: wall_time
 eval_split: test
 seeds: [1234, 20260727, 20260801]
 output_dir: runs/recoverybench-v1-equal-wall-time
-preregistration_sha: 6f4fabbd74cbb5af9c5427fa9d4fcc0d3e9752e7
+preregistration_sha: 7087b3a333463b88a62ffed73daee2c85d039145
 preregistration_digest: d3c7c352ade05e6be2f7e70db29e0485a180266a0dc85be4e73bbdde6084cd87
 hypothesis_ids: [H1, H2, H3]
 task_schedule_digest: 0d937493eea9daadc36e7d29c7c4dace6e35b80a43e27e8af3b038b465f9a806
