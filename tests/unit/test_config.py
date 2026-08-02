@@ -161,6 +161,23 @@ def test_single_gpu_quickstart_is_portable_and_uses_protocol_teacher() -> None:
     assert raw_control.models.teacher.adapter is None
 
 
+def test_recovery_teacher_adapter_accepts_every_preregistered_gate() -> None:
+    from miniverl.config.models import TeacherAdapterConfig
+
+    adapter = TeacherAdapterConfig(
+        path="recovery-adapter",
+        require_policy_evaluation=True,
+        minimum_strict_success_rate=0.80,
+        minimum_recovery_after_error_rate=0.75,
+        minimum_parse_valid_tool_call_rate=0.95,
+        minimum_tool_execution_success_rate=0.70,
+    )
+
+    assert adapter.minimum_recovery_after_error_rate == pytest.approx(0.75)
+    assert adapter.minimum_parse_valid_tool_call_rate == pytest.approx(0.95)
+    assert adapter.minimum_tool_execution_success_rate == pytest.approx(0.70)
+
+
 def test_toy_cpu_recipe_is_parsed_into_the_expected_typed_values() -> None:
     # Budgets are tuning knobs; assert them against the YAML rather than
     # hard-coding, so retuning a recipe does not require editing this test.

@@ -248,6 +248,9 @@ class TeacherAdapterConfig(_Base):
     tokenizer_fingerprint: str | None = None
     require_policy_evaluation: bool = False
     minimum_strict_success_rate: float | None = Field(default=None, ge=0.0, le=1.0)
+    minimum_recovery_after_error_rate: float | None = Field(default=None, ge=0.0, le=1.0)
+    minimum_parse_valid_tool_call_rate: float | None = Field(default=None, ge=0.0, le=1.0)
+    minimum_tool_execution_success_rate: float | None = Field(default=None, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
     def _pin_hub_adapter(self) -> TeacherAdapterConfig:
@@ -256,10 +259,15 @@ class TeacherAdapterConfig(_Base):
                 "a Hub teacher adapter must pin adapter.revision; moving adapter "
                 "branches are not reproducible"
             )
-        if self.minimum_strict_success_rate is not None and not self.require_policy_evaluation:
+        thresholds = (
+            self.minimum_strict_success_rate,
+            self.minimum_recovery_after_error_rate,
+            self.minimum_parse_valid_tool_call_rate,
+            self.minimum_tool_execution_success_rate,
+        )
+        if any(value is not None for value in thresholds) and not self.require_policy_evaluation:
             raise ValueError(
-                "adapter.minimum_strict_success_rate requires "
-                "adapter.require_policy_evaluation=true"
+                "adapter minimum policy gates require adapter.require_policy_evaluation=true"
             )
         return self
 
