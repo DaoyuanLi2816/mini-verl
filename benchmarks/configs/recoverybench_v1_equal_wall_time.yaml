@@ -1,11 +1,11 @@
 # Frozen RecoveryBench v1 final-test continuation-wall-time secondary view.
 schema_version: 3
 name: recoverybench-v1-equal-wall-time
-description: Core methods stopped after the first step boundary at or beyond 24 seconds.
+description: Core methods stopped after the first step boundary at or beyond 50 seconds.
 base: ../../recipes/recoverybench_student.yaml
 common_overrides:
   rollout: {max_turns: 5, max_new_tokens_per_turn: 64, max_total_tokens: 896, temperature: 1.0, top_p: 0.95}
-  train: {cycles: 8, rollouts_per_cycle: 8, gradient_accumulation_steps: 8, max_wall_seconds: 24, sft_warmup_cycles: 0, eval_every_cycles: 0, save_every_cycles: 0}
+  train: {cycles: 8, rollouts_per_cycle: 8, gradient_accumulation_steps: 8, max_wall_seconds: 50, sft_warmup_cycles: 0, eval_every_cycles: 0, save_every_cycles: 0}
   eval: {enabled: false, split: test, tasks: 128, temperature: 0.0, max_turns: 5, seed: 20260801}
   report: {enabled: false}
 cold_start_cycles: 24
@@ -18,7 +18,7 @@ eval_split: test
 seeds: [1234, 20260727, 20260801]
 output_dir: runs/recoverybench-v1-equal-wall-time
 preregistration_sha: 7087b3a333463b88a62ffed73daee2c85d039145
-preregistration_digest: d3c7c352ade05e6be2f7e70db29e0485a180266a0dc85be4e73bbdde6084cd87
+preregistration_digest: 9c4c2ec19a56cebb2b2c1c0f3c7e504a9285467c99ae1590488251fbf2ff3934
 hypothesis_ids: [H1, H2, H3]
 task_schedule_digest: 0d937493eea9daadc36e7d29c7c4dace6e35b80a43e27e8af3b038b465f9a806
 template_registry_version: 1
@@ -29,7 +29,7 @@ teacher_gate_results:
   - {candidate: sqlite-recovery-candidate-a-nf4, passed: true, artifact_sha256: 8ed18b0de8d36bd976de3c99859a046cc1e0fb59d63c2dc2addbbbb2a8f96f56}
 teacher_preparation_cost: {one_shot_seconds: 2310.746512599977, amortized_over_5_students_seconds: 462.1493025199954, amortized_over_10_students_seconds: 231.0746512599977, excluded_diagnostic_seconds: 687.0495032999897}
 budget_view: equal_gpu_wall_time
-stop_criterion: {kind: wall_time, target_seconds: 24, boundary: optimizer_step}
+stop_criterion: {kind: wall_time, target_seconds: 50, boundary: optimizer_step}
 result_analysis_version: recoverybench-analysis-v1
 invalidation_status: {valid: true, reasons: []}
 arms:
