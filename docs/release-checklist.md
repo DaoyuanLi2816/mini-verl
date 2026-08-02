@@ -48,9 +48,18 @@ after the exact release commit and its remote checks are green.
 
 ## After the tag
 
-- [ ] OIDC publication, public hashes/attestations, clean install and one
-      GitHub Release are verified from the same distributions.
-- [ ] Post-release state-sync PR advances clean `main` to `0.4.0.dev0`.
+- [x] OIDC publication, public hashes/attestations, clean install and one
+      GitHub Release were verified from the same distributions by tag run
+      [`30772772078`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30772772078).
+- [x] This post-release state-sync change advances development to
+      `0.4.0.dev0`; it merges only after remote checks are green.
+
+Published artifact identity:
+
+- `miniverl-0.3.0-py3-none-any.whl`: SHA-256
+  `e42404ced88b75ba4ff31541cb3df697da0eee09a68f603e4eadbf69a11d2032`
+- `miniverl-0.3.0.tar.gz`: SHA-256
+  `006ce418243286dd27e0731090bf9fa1711a1abc962ecfcc4d39807257539cb2`
 
 ## Historical v0.2.6 release record
 

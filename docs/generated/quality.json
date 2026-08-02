@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "release": "0.3.0",
-  "status": "validated",
+  "status": "released",
   "measured_commit": "9175bbe88e19e96834766a34dc7c9513c46513c7",
   "measured_at": "2026-08-02T15:55:58-07:00",
   "cpu_non_gpu_non_network": {
