@@ -33,16 +33,19 @@ models:
     revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
     tokenizer_revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
     dtype: bfloat16
-    quantization: none
+    quantization: nf4
     attn_implementation: sdpa
     mode: standard
-    # Candidate 1 in the preregistered order. Final configs replace this only
-    # if the eval-only gate selects a later immutable adapter.
+    # First preregistered candidate to pass the complete RecoveryBench eval gate.
     adapter:
       source: hub
-      path: DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher
-      revision: 23323751318135484c06c043b1f9b9e7016dd89f
-      require_policy_evaluation: false
+      path: DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher
+      revision: eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d
+      require_policy_evaluation: true
+      minimum_strict_success_rate: 0.8
+      minimum_recovery_after_error_rate: 0.75
+      minimum_parse_valid_tool_call_rate: 0.95
+      minimum_tool_execution_success_rate: 0.7
 
 environment:
   name: sqlite_recovery
