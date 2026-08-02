@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import random
 import shutil
 from collections import defaultdict
@@ -37,7 +38,39 @@ def _load_result(path: Path, expected_view: str) -> BenchmarkResult:
         raise ValueError(f"{path} is not the schema-v3 {expected_view} result")
     if result.invalidation_status != {"valid": True, "reasons": []}:
         raise ValueError(f"{path} is invalidated")
+    _validate_budget_contract(result, expected_view)
     return result
+
+
+def _validate_budget_contract(result: BenchmarkResult, expected_view: str) -> None:
+    """Reject a nominal wall-time view that actually stopped on another axis."""
+    if expected_view != "equal_gpu_wall_time":
+        return
+    for arm in result.arms:
+        stop = arm.stop_criterion or {}
+        overshoot = arm.overshoot or {}
+        if stop.get("kind") != "wall_seconds":
+            raise ValueError(f"{arm.name}/s{arm.seed} did not stop on wall_seconds: {stop!r}")
+        target = float(stop.get("target", -1))
+        actual = float(stop.get("actual", -1))
+        if target < 0 or actual < target:
+            raise ValueError(f"{arm.name}/s{arm.seed} has an invalid wall-time stop: {stop!r}")
+        if overshoot.get("axis") != "wall_seconds":
+            raise ValueError(f"{arm.name}/s{arm.seed} has a non-wall overshoot: {overshoot!r}")
+        expected = actual - target
+        values = (
+            float(overshoot.get("target", -1)),
+            float(overshoot.get("actual", -1)),
+            float(overshoot.get("value", -1)),
+        )
+        if not all(
+            math.isclose(left, right, rel_tol=0.0, abs_tol=1e-9)
+            for left, right in zip(values, (target, actual, expected), strict=True)
+        ):
+            raise ValueError(
+                f"{arm.name}/s{arm.seed} has inconsistent wall-time overshoot: "
+                f"stop={stop!r}, overshoot={overshoot!r}"
+            )
 
 
 def _compact_task_rows(

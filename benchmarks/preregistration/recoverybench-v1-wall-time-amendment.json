@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "preregistration_revision": "1.4",
+  "scope": "equal_gpu_wall_time",
+  "source": {
+    "benchmark_path": "artifacts/recoverybench-v1-calibration/recoverybench-v1-calibration.json",
+    "benchmark_sha256": "af0cb73c60655c37c4bafba6ea7893e4bb7260e82c6b2915bb646b8872cbe35e",
+    "split": "eval",
+    "seed": 1234,
+    "test_tasks_generated": 0
+  },
+  "derivation": {
+    "included_time": "sum of the measured per-cycle seconds fields for rollout, teacher scoring, cache, backward, and optimizer update",
+    "excluded_time": "final checkpoint persistence and evaluation",
+    "rule": "floor the minimum completed eight-cycle continuation time to a whole second",
+    "completed_continuation_seconds": {
+      "continued-sft": 24.582,
+      "offline-kd-frozen-student": 25.001,
+      "strict-opd-fresh": 624.163
+    },
+    "minimum_seconds": 24.582,
+    "locked_budget_seconds": 24
+  },
+  "source_metrics": {
+    "continued-sft": {
+      "path": "artifacts/recoverybench-v1-calibration/recoverybench-v1-calibration-continued-sft-s1234/metrics.jsonl",
+      "sha256": "74695f1c4a06cf53086268a4ae472168b848295b42efc436d4728df8d6fc521c",
+      "bytes": 34497,
+      "completed_cycles": 8
+    },
+    "offline-kd-frozen-student": {
+      "path": "artifacts/recoverybench-v1-calibration/recoverybench-v1-calibration-offline-kd-frozen-student-s1234/metrics.jsonl",
+      "sha256": "ce950616417f7c4e914621bee0f52c550a9b01f8a3b5db89e6c7e90bc6e6f48a",
+      "bytes": 26708,
+      "completed_cycles": 8
+    },
+    "strict-opd-fresh": {
+      "path": "artifacts/recoverybench-v1-calibration/recoverybench-v1-calibration-strict-opd-fresh-s1234/metrics.jsonl",
+      "sha256": "036288ce1a01d596093266b462192b81640763c8addbb6b3c0dfa0304bc066a7",
+      "bytes": 37890,
+      "completed_cycles": 8
+    }
+  },
+  "invalidated_final_result": {
+    "path": "artifacts/superseded/recoverybench-v1.3-equal-wall-time-cycle-cap-defect/recoverybench-v1-equal-wall-time.json",
+    "sha256": "425b0fa568f37b09e61af731d3da5009bd3833bdde6efaf2c66e9dba8355cbe",
+    "reason": "the nominal 50-second view reached the configured eight-cycle ceiling before the continuation timer for SFT and frozen-student KD"
+  },
+  "replacement_policy": "rerun all three wall-time methods for all three prespecified seeds"
+}

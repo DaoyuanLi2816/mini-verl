@@ -46,6 +46,19 @@ used. The corrected oracle arm freezes a 64-task dataset and consumes it as
 eight ordered batches, matching the same locked schedule prefix as every other
 continuation arm. Every arm and seed is rerun from fresh cold starts.
 
+Revision 1.4 corrects only the secondary wall-time view after the completed
+revision-1.3 run showed that the eight-cycle ceiling preceded the internal
+50-second continuation timer for SFT and frozen-student KD. The earlier 50-second
+calibration had included final checkpoint persistence, which the stop gate
+excludes. Recomputing from the already frozen eval-only per-cycle measurements
+gives 24.582 s for SFT, 25.001 s for frozen KD, and 624.163 s for fresh OPD; the
+same preregistered floor rule therefore locks 24 seconds. The machine-readable
+derivation and source hashes are in
+[`recoverybench-v1-wall-time-amendment.json`](../../benchmarks/preregistration/recoverybench-v1-wall-time-amendment.json).
+All nine revision-1.3 wall-view arms remain preserved under
+`artifacts/superseded/`, and all three methods across all three seeds must be
+rerun. The equal-update and equal-selected-token views are unaffected.
+
 ## Teacher gate
 
 Candidates are tried in the recorded order on eval only. The first candidate
