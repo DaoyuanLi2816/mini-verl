@@ -554,6 +554,53 @@ def prepare_offline_kd_command(
     console.print(f"  trajectories {_esc(summary['trajectories'])}")
 
 
+# --------------------------------------------------------- qualify-teacher
+
+
+@app.command("qualify-teacher")
+def qualify_teacher_command(
+    recipe: Path = typer.Option(..., "--recipe", help="Recipe defining the frozen teacher."),
+    candidate: str = typer.Option(..., "--candidate", help="Preregistered candidate id."),
+    out: Path = typer.Option(..., "--out", help="New immutable gate-result directory."),
+    tasks: Optional[int] = typer.Option(None, "--tasks", help="Eval-task count override."),
+    offline: bool = typer.Option(
+        False, "--offline", help="Refuse network access; use only cached model files."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Evaluate one RecoveryBench teacher candidate on eval only."""
+    from miniverl.config import RunConfig
+
+    try:
+        config = RunConfig.from_yaml(recipe)
+        if config.environment.name != "sqlite_recovery":
+            raise ConfigError("qualify-teacher requires environment.name=sqlite_recovery")
+        _require_training_stack("miniverl qualify-teacher")
+        from miniverl.evaluation.teacher_gate import evaluate_teacher_candidate
+
+        result = evaluate_teacher_candidate(
+            config,
+            candidate_id=candidate,
+            out=out,
+            tasks=tasks,
+            split="eval",
+            local_files_only=offline,
+        )
+    except (ValidationError, MiniVerlError, ModuleNotFoundError) as exc:
+        if isinstance(exc, ValidationError):
+            err_console.print(f"[red]invalid recipe[/red] {_esc(recipe)}\n{_esc(exc)}")
+            raise typer.Exit(1) from None
+        _fail(exc)
+        return
+    if as_json:
+        _emit_json(result)
+        return
+    status = "passed" if result["gate"]["passed"] else "failed"
+    style = "green" if result["gate"]["passed"] else "yellow"
+    console.print(f"[{style}]teacher gate {status}[/{style}] {_esc(candidate)}")
+    console.print(f"  result {_esc(out / 'result.json')}")
+
+
 # ----------------------------------------------------------------- train
 
 

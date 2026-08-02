@@ -17,7 +17,14 @@ from miniverl.evaluation.schema import BenchmarkConfig
 
 def test_every_network_capable_cli_uses_the_offline_term() -> None:
     runner = CliRunner()
-    for command in ("train", "benchmark", "eval", "export-adapter", "prepare-offline-kd"):
+    for command in (
+        "train",
+        "benchmark",
+        "eval",
+        "export-adapter",
+        "prepare-offline-kd",
+        "qualify-teacher",
+    ):
         result = runner.invoke(app, [command, "--help"])
         assert result.exit_code == 0, result.output
         assert "--offline" in result.stdout, command
