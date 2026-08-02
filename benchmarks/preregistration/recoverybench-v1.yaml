@@ -52,6 +52,11 @@ models:
 teacher_qualification:
   split: eval
   inference_quantization: nf4
+  rollout:
+    max_turns: 5
+    max_new_tokens_per_turn: 96
+    max_total_tokens: 1536
+    temperature: 0.0
   candidate_order:
     - id: existing-calculator-protocol-teacher
       adapter_repo: DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher
@@ -87,6 +92,19 @@ amendments:
     preserved_diagnostic: >-
       The completed candidate-A full-precision reapplication is retained as a
       failed noncanonical deployment diagnostic; it is not silently discarded.
+  - id: teacher-gate-decode-scope
+    revision: 1.1
+    timing: before_candidate_a_nf4_gate_completion_and_before_any_final_test
+    scope: teacher_eval_only
+    locked_value:
+      max_turns: 5
+      max_new_tokens_per_turn: 96
+      max_total_tokens: 1536
+      temperature: 0.0
+    rationale: >-
+      The candidate gate uses the already shared eval-only decoding contract;
+      the separately declared 64/896 rollout budget remains the student-arm
+      training and final-test contract.
 
 task_generation:
   environment: sqlite_recovery

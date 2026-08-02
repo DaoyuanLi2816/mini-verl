@@ -47,6 +47,9 @@ all downstream teacher use to an NF4 base. Candidate adapters are trained by
 QLoRA; a portability check showed that applying the same adapter to an
 unquantized base deploys a different policy. The completed full-precision
 candidate-A reapplication is retained as a failed, noncanonical diagnostic.
+Teacher qualification uses deterministic decoding with five turns, 96 new
+tokens per turn, and 1,536 total tokens. The separately locked 64/896 limits
+apply to student-arm training and final-test rollouts, not to the teacher gate.
 
 ## Analysis and invalidation
 
