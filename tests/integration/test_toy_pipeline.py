@@ -254,6 +254,33 @@ def test_frozen_student_offline_kd_collects_once_without_parameter_updates(
     trainer.close()
 
 
+def test_oracle_offline_kd_collects_the_declared_schedule_before_replay(
+    tmp_path: Path,
+) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    config = _config(
+        tmp_path,
+        run={"mode": "offline_kd"},
+        cache={"reuse_across_policy_versions": True, "strict_policy_version": False},
+        offline_kd={"trajectory_source": "oracle", "collection_seed": 17, "collection_tasks": 4},
+        train={"cycles": 2, "rollouts_per_cycle": 2, "gradient_accumulation_steps": 2},
+        eval={"enabled": False},
+    )
+    trainer = OPDTrainer.from_config(config, run_id="oracle-full-schedule")
+    result = trainer.train()
+
+    manifest = json.loads(trainer.paths.offline_dataset_manifest.read_text(encoding="utf-8"))
+    assert result.global_step == 2
+    assert len(manifest["task_ids"]) == 4
+    assert len(set(manifest["task_ids"])) == 4
+    assert trainer._offline_samples is not None
+    assert [sample.trajectory.task_id for sample in trainer._offline_samples] == manifest[
+        "task_ids"
+    ]
+    trainer.close()
+
+
 def test_persisted_offline_kd_reuses_the_prepared_bundle_without_mutating_it(
     tmp_path: Path,
 ) -> None:

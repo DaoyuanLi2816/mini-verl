@@ -1,6 +1,6 @@
 schema_version: 1
 name: recoverybench-v1
-preregistration_revision: 1.2
+preregistration_revision: 1.3
 status: preregistered_before_final_test
 research_question: >-
   Does supervision on fresh states visited by the current student improve
@@ -131,6 +131,25 @@ amendments:
       target is the largest whole second not exceeding the minimum measured
       continuation training time. Arm wall time including evaluation was not
       used.
+  - id: oracle-offline-task-schedule
+    revision: 1.3
+    timing: after_invalidated_partial_final_run_before_replacement_final_test
+    scope: offline_kd_oracle
+    locked_value:
+      collection_tasks: 64
+      update_batching: eight_ordered_tasks_per_optimizer_step
+    defect: >-
+      Revision 1.2 omitted collection_tasks for the oracle offline-KD arm, so
+      its implementation collected the first eight schedule tasks once and
+      replayed them for all eight updates instead of consuming the locked
+      64-task prefix used by the other continuation arms.
+    invalidated_artifacts: >-
+      The interrupted seed-1234 primary run and its frozen bundle are preserved
+      under artifacts/superseded/recoverybench-v1.2-oracle-schedule-defect/.
+    remedy: >-
+      Invalidate the entire partial v1.2 final run, set collection_tasks to 64,
+      and rerun every arm and seed from fresh cold starts. No completed or
+      partial v1.2 outcome is used in the replacement analysis.
 
 task_generation:
   environment: sqlite_recovery
@@ -214,6 +233,7 @@ offline_kd:
   collection_checkpoint: exact_shared_cold_start
   collection_updates: 0
   immutable_reuse: true
+  oracle_collection_tasks: 64
 
 budgets:
   equal_optimizer_updates:

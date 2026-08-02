@@ -24,7 +24,7 @@ def _script() -> ModuleType:
 
 def test_final_recoverybench_configs_are_frozen_and_preflight_clean() -> None:
     preregistration = ROOT / "benchmarks/preregistration/recoverybench-v1.yaml"
-    expected_digest = "b43f67903ff3e9c00527dbe5432098da6d5c29f8867722d3cccabbe5695b58b1"
+    expected_digest = "9c4c2ec19a56cebb2b2c1c0f3c7e504a9285467c99ae1590488251fbf2ff3934"
     assert hashlib.sha256(preregistration.read_bytes()).hexdigest() == expected_digest
 
     expected = {
@@ -45,6 +45,12 @@ def test_final_recoverybench_configs_are_frozen_and_preflight_clean() -> None:
         assert target in config.stop_criterion.values()
         for seed in config.seeds:
             resolve_benchmark_configs(config, seed=seed)
+
+    primary = BenchmarkConfig.from_yaml(
+        ROOT / "benchmarks/configs/recoverybench_v1_equal_updates.yaml"
+    )
+    oracle = next(arm for arm in primary.arms if arm.name == "offline-kd-oracle")
+    assert oracle.overrides["offline_kd"]["collection_tasks"] == 64
 
 
 def test_paired_bootstrap_is_deterministic_and_svg_never_has_negative_width() -> None:

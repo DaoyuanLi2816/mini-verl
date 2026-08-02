@@ -38,6 +38,14 @@ training time (50.556 s); evaluation time is excluded. The calibration artifact
 SHA-256 is `af0cb73c60655c37c4bafba6ea7893e4bb7260e82c6b2915bb646b8872cbe35e`.
 Step-boundary overshoot is retained.
 
+Revision 1.3 records a fail-closed correction before a replacement final run.
+The first partial v1.2 run exposed that the oracle offline-KD arm had collected
+only the first eight schedule tasks and replayed them. That partial run is
+invalidated and preserved under `artifacts/superseded/`; no outcome from it is
+used. The corrected oracle arm freezes a 64-task dataset and consumes it as
+eight ordered batches, matching the same locked schedule prefix as every other
+continuation arm. Every arm and seed is rerun from fresh cold starts.
+
 ## Teacher gate
 
 Candidates are tried in the recorded order on eval only. The first candidate
