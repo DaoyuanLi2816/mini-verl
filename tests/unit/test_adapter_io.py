@@ -14,6 +14,7 @@ def test_exported_adapter_config_uses_portable_base_identity(tmp_path: Path) -> 
                 "base_model_name_or_path": str(tmp_path / "machine-cache" / "snapshot"),
                 "revision": None,
                 "peft_type": "LORA",
+                "target_modules": ["v_proj", "q_proj", "k_proj"],
             }
         ),
         encoding="utf-8",
@@ -29,3 +30,4 @@ def test_exported_adapter_config_uses_portable_base_identity(tmp_path: Path) -> 
     assert normalized["base_model_name_or_path"] == "Qwen/Qwen3-1.7B"
     assert normalized["revision"] == "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
     assert normalized["peft_type"] == "LORA"
+    assert normalized["target_modules"] == ["k_proj", "q_proj", "v_proj"]

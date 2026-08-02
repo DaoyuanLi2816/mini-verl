@@ -132,6 +132,11 @@ def _normalize_exported_adapter_config(
         raise BackendError(f"exported adapter config is not an object: {path}")
     payload["base_model_name_or_path"] = model_id
     payload["revision"] = revision
+    target_modules = payload.get("target_modules")
+    if isinstance(target_modules, list) and all(
+        isinstance(module, str) for module in target_modules
+    ):
+        payload["target_modules"] = sorted(target_modules)
     write_json(path, payload)
 
 
