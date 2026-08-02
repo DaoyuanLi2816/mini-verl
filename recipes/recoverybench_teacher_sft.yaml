@@ -83,7 +83,7 @@ train:
   optimizer: adamw8bit
   sft_warmup_cycles: 0
   save_every_cycles: 16
-  eval_every_cycles: 16
+  eval_every_cycles: 0
 
 memory:
   strategy: resident
@@ -109,6 +109,6 @@ eval:
   seed: 20260801
 
 report:
-  enabled: true
+  enabled: false
   max_trajectories: 12
   max_tokens_per_trajectory: 768
