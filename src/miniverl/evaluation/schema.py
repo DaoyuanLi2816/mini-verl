@@ -86,6 +86,7 @@ class BenchmarkConfig(BaseModel):
     cold_start_cycles: int = Field(default=0, ge=0, le=100000)
     cold_start_checkpoint_template: str | None = None
     frozen_dataset_template: str | None = None
+    frozen_dataset_seed_from_run: bool = False
     allowed_differences: list[str] = Field(default_factory=list)
     budget_axis: Literal["optimizer_steps", "selected_training_tokens", "wall_time"] = (
         "optimizer_steps"

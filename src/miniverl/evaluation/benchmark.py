@@ -145,14 +145,23 @@ def _arm_payload(
     *,
     seed: int,
     name: str,
+    frozen_dataset_seed_from_run: bool,
 ) -> dict[str, Any]:
-    return deep_merge(
+    payload = deep_merge(
         deep_merge(common, arm_overrides),
         {
             "run": {"seed": seed, "name": name},
             "report": {"enabled": False},
         },
     )
+    if (
+        frozen_dataset_seed_from_run
+        and payload.get("run", {}).get("mode") == TrainingMode.OFFLINE_KD.value
+        and payload.get("offline_kd", {}).get("trajectory_source")
+        == OfflineKDTrajectorySource.FROZEN_STUDENT.value
+    ):
+        payload["offline_kd"]["collection_seed"] = seed
+    return payload
 
 
 def resolve_benchmark_configs(
@@ -173,7 +182,13 @@ def resolve_benchmark_configs(
     for arm in config.arms:
         name = f"{config.name}-{arm.name}-s{selected_seed}"
         arm_config = RunConfig.model_validate(
-            _arm_payload(common_dump, arm.overrides, seed=selected_seed, name=name)
+            _arm_payload(
+                common_dump,
+                arm.overrides,
+                seed=selected_seed,
+                name=name,
+                frozen_dataset_seed_from_run=config.frozen_dataset_seed_from_run,
+            )
         )
         diff = structured_diff(common_dump, arm_config.model_dump(mode="json"))
         bad = [row["path"] for row in diff if not _path_allowed(str(row["path"]), allowed)]

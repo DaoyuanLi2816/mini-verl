@@ -249,7 +249,7 @@ def test_v3_benchmark_prepares_one_frozen_dataset_per_seed(
         "cache": {"reuse_across_policy_versions": True},
         "offline_kd": {
             "trajectory_source": "frozen_student",
-            "collection_seed": 7,
+            "collection_seed": 0,
             "collection_tasks": 2,
         },
     }
@@ -261,6 +261,7 @@ def test_v3_benchmark_prepares_one_frozen_dataset_per_seed(
             "base": base,
             "cold_start_cycles": 1,
             "frozen_dataset_template": str(tmp_path / "frozen-s{seed}"),
+            "frozen_dataset_seed_from_run": True,
             "allowed_differences": [
                 "run.mode",
                 "cache.reuse_across_policy_versions",
@@ -302,6 +303,10 @@ def test_v3_benchmark_prepares_one_frozen_dataset_per_seed(
     assert identities[0]["dataset_digest"] == identities[1]["dataset_digest"]
     assert identities[0]["manifest"]["sha256"] == identities[1]["manifest"]["sha256"]
     assert (tmp_path / "frozen-s7" / "offline-dataset" / "manifest.json").is_file()
+    frozen_manifest = json.loads(
+        (tmp_path / "frozen-s7" / "offline-dataset" / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert frozen_manifest["generation_seeds"] == [7, 8]
 
     second_payload = spec.model_dump(mode="json")
     second_payload["name"] = "tiny-shared-frozen-secondary-v3"
