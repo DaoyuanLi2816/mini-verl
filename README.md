@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — on-policy distillation for tool-using agents on one GPU" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — auditable online post-training on one GPU" width="880">
 </p>
 
 <div align="center">
@@ -16,19 +16,21 @@
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI package</strong></a> ·
   <a href="#single-gpu-quickstart">Install &amp; train</a> ·
   <a href="docs/single-gpu-guide.md">Bring your own GPU</a> ·
-  <a href="#measured-result-protocol-aligned-opd-matches-sft">Measured result</a>
+  <a href="#recoverybench-do-fresh-on-policy-states-justify-their-cost">Measured result</a>
 </p>
 
-**A compact, auditable training stack for tool-using agents on one personal GPU.**
+**The independent one-GPU companion for prototyping, diagnosing and validating
+online post-training workflows before scaling selected artifacts to verl.**
 
 PyPI `v0.2.6` is the stable release; `main` is development and may be ahead.
 
-miniVERL is a compact, auditable training lab for teaching a small language
-model from its own multi-turn tool trajectories. It runs real tools, keeps
-token provenance explicit, and applies teacher distributional targets only
-where they belong — without Ray or a GPU cluster. There is no device-name
-allowlist: use the NVIDIA CUDA card you have, then choose a model pair and
-sequence budget that fit it.
+miniVERL is a compact, auditable lab for online teacher-student training on
+multi-turn tool trajectories. SFT establishes task and protocol competence;
+OPD then exposes an online mechanism for transferring the teacher's reasoning,
+policy, style or other behavior. They are not interchangeable stages, and the
+teacher must be qualified for the behavior being transferred. miniVERL runs
+without Ray or a cluster and has no CUDA device-name allowlist; fit still
+depends on model size, sequence budget and available VRAM.
 
 ```bash
 python -m pip install miniverl            # lightweight core
@@ -56,7 +58,7 @@ validate artifacts without downloading a multi-gigabyte ML stack; use
 
 [Run the local demo](#local-toy-demo) ·
 [Train on your GPU](#single-gpu-quickstart) ·
-[Inspect the measured result](#measured-result-protocol-aligned-opd-matches-sft) ·
+[Inspect the measured result](#recoverybench-do-fresh-on-policy-states-justify-their-cost) ·
 [Read the math](docs/math.md)
 
 ## Why miniVERL exists
@@ -98,40 +100,53 @@ keeps the whole lifecycle in one readable single-GPU process.
 | Self-contained offline HTML report with token-level divergence | yes |
 | Ray, FSDP, DeepSpeed, vLLM, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](docs/limitations.md) |
 
-## Measured result: protocol-aligned OPD matches SFT
+## RecoveryBench: do fresh on-policy states justify their cost?
 
 > [!IMPORTANT]
-> **The supported protocol-aligned OPD path reached 100% in both seeds and
-> matched continued SFT.** The primary schema-v2 comparison uses two
-> prespecified seeds, equal optimizer updates, and the saturated `hard`
-> calculator split. The protocol-naive rows are diagnostic negative controls,
-> not recommended configurations:
+> **Not in this measured setting.** Under eight equal continuation updates,
+> frozen-student-state KD reached 23.2% strict success, while strict fresh-state
+> OPD reached 10.9%. The paired fresh-minus-frozen difference was -12.24
+> percentage points (95% task-paired bootstrap interval -15.89 to -8.59).
 
-| role | arm | seed 1234 | seed 20260727 |
-| --- | --- | ---: | ---: |
-| starting point | cold start | 75.0% | 75.0% |
-| baseline | continued SFT | **100.0%** | **100.0%** |
-| supported OPD | protocol-aligned teacher | **100.0%** | **100.0%** |
-| diagnostic control | raw teacher without tool-protocol training | 0.0% | 0.0% |
-| diagnostic control | answer-privileged, protocol-naive teacher | 0.0% | 0.0% |
+RecoveryBench is a preregistered mechanism study on SQLite tool-error recovery,
+not an alignment benchmark. It isolates state freshness while holding the cold
+checkpoint, qualified teacher, task schedule, optimizer and update count fixed.
+All three seeds and all completed negative results are retained.
 
-The [public, immutable protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
-is the default in the single-GPU recipe. It passed an independently
-prespecified policy-competence gate before this benchmark was inspected. Both
-controls completed normally and measured 0% in both seeds; they were neither
-configuration failures nor crashes. Both used the ambiguous historical
-protocol-v1 prompt, so 0% cannot be attributed solely to intrinsic teacher
-behaviour; it diagnoses the missing qualification gate in that setup.
+| method | strict success | recovery after error | continuation time |
+| --- | ---: | ---: | ---: |
+| cold start | 10.7% | 13.6% | 0.2 s |
+| continued oracle SFT | 4.9% | 1.8% | 51.3 s |
+| oracle-state offline KD | **33.1%** | **31.9%** | 58.3 s |
+| frozen-student-state KD | **23.2%** | **22.8%** | 52.1 s |
+| strict fresh-state OPD | 10.9% | 9.1% | 686.8 s |
+| budget-50 fresh-state OPD | 27.3% | 20.7% | 720.8 s |
 
-The historical gate and benchmark reused the same 24-task v0.2 `test` set.
-Candidate A was prespecified and passed first try (no fallback tuning), but the
-set was not untouched. Future selection uses `eval`; reporting uses `test`.
-See [limitations](docs/limitations.md).
+![RecoveryBench three-seed result](docs/recoverybench/recovery-success.svg)
 
-OPD only ties SFT and takes 6.1× as much continuation time here (523.8 s versus
-86.4 s). The task saturates; two seeds support neither significance nor a
-general OPD advantage. See the
-[full result and legacy transcript diagnosis](docs/rtx4080-baselines.md).
+The equal-selected-position view reached the 6,224-position boundary after
+eight updates for every core method, so its quality result matches the primary
+view. The budget-50 selector queried 49.77% of model-generated positions but
+did not reduce wall time because teacher backbone forwards were unchanged. The
+50-second artifact is a **cycle-capped wall diagnostic, not exact equal-time
+evidence**: SFT and frozen KD completed their eight-cycle ceiling, while fresh
+OPD crossed the target in one indivisible 88-121 second update.
+
+Read the [full analysis](docs/recoverybench/recoverybench-v1.md), the
+[data-bound technical report](paper/recoverybench-v1/recoverybench-v1.pdf), or
+the [immutable schema-v3 artifacts](benchmarks/README.md#recoverybench-v1).
+The result is scoped to one Qwen3 pair, one task family, three seeds and one RTX
+4080. It does not show that OPD is universally ineffective or that offline KD
+always wins.
+
+<details>
+<summary>Case study: why teacher protocol qualification matters</summary>
+
+On the saturated v0.2 calculator task, a protocol-qualified OPD teacher reached
+100% in both seeds and tied continued SFT, but took 6.1× as much continuation
+time. Two protocol-naive controls completed normally at 0%; they were not
+configuration failures. Both used the ambiguous historical protocol-v1 prompt,
+so the failure cannot be attributed solely to intrinsic teacher behavior.
 
 ![Two-seed protocol-teacher benchmark](docs/gpu-calc-hard-equal-update-v2.svg)
 
@@ -141,13 +156,10 @@ general OPD advantage. See the
 | [Schema-v2 benchmark](benchmarks/results/gpu-calc-hard-equal-update-v2.json) | frozen five-arm result |
 | [Raw-teacher recipe](recipes/qwen_consumer_gpu_calc_raw_teacher.yaml) | historical control; not default |
 
-<details>
-<summary>Historical 481-second raw-teacher smoke (schema v1)</summary>
-
-On RTX 4080, 16 updates took 481 s, peaked at **4.25/4.76 GiB
-allocated/reserved**, and moved 12-task success from **0% to 100%**. Cold start
-did most of it (first OPD batch: 83.3%); this proves the pipeline, not OPD over
-SFT. [Trace](docs/rtx4080-baselines.md).
+The teacher gate and downstream comparison reused the same 24-task v0.2 test
+set, so this is evidence for qualification in that setup, not a general OPD
+advantage. The separate schema-v1 481-second smoke proves the pipeline, not OPD
+over SFT. [Full diagnosis and caveats](docs/rtx4080-baselines.md).
 
 </details>
 
@@ -465,8 +477,9 @@ The short version; the full list is in [`docs/limitations.md`](docs/limitations.
   pinned to the device they were quantized on.
 * Only Qwen3 and Qwen2 architectures are tested. Others may work through the
   architecture adapter; nothing here claims they do.
-* The primary GPU comparison has two prespecified seeds; legacy GPU artifacts
-  are single-seed. No statistical significance is claimed.
+* RecoveryBench has three prespecified student seeds; the calculator case study
+  has two, and older GPU artifacts are single-seed. No broad statistical
+  significance or cross-task generalization is claimed.
 * On the measured machine, decoding is kernel-launch bound rather than compute
   bound, so throughput figures are platform-specific.
 
@@ -527,7 +540,7 @@ actually ran. See [`docs/comparisons.md`](docs/comparisons.md).
 
 ```bibtex
 @software{miniverl2026,
-  title   = {miniVERL: On-policy distillation for tool-using agents on one GPU},
+  title   = {miniVERL: Auditable online post-training on one GPU},
   author  = {Li, Daoyuan},
   year    = {2026},
   url     = {https://github.com/DaoyuanLi2816/mini-verl},

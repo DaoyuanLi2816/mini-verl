@@ -12,7 +12,7 @@ from typing import Any
 
 from miniverl import __version__
 from miniverl.cache.store import sha256_file
-from miniverl.config.models import RunConfig, TrainingMode
+from miniverl.config.models import OfflineKDTrajectorySource, RunConfig, TrainingMode
 from miniverl.errors import ConfigError
 from miniverl.evaluation.schema import ArmResult, BenchmarkConfig, BenchmarkResult, finite_or_none
 from miniverl.utils import gpu
@@ -31,7 +31,14 @@ __all__ = [
 ]
 
 logger = get_logger("benchmark")
-_HARNESS_DIFFERENCES = {"run.name", "run.seed", "run.run_id", "report.enabled"}
+_HARNESS_DIFFERENCES = {
+    "run.name",
+    "run.seed",
+    "run.run_id",
+    "report.enabled",
+    "offline_kd.trajectory_source",
+    "offline_kd.dataset_path",
+}
 _MISSING = object()
 
 
@@ -138,14 +145,23 @@ def _arm_payload(
     *,
     seed: int,
     name: str,
+    frozen_dataset_seed_from_run: bool,
 ) -> dict[str, Any]:
-    return deep_merge(
+    payload = deep_merge(
         deep_merge(common, arm_overrides),
         {
             "run": {"seed": seed, "name": name},
             "report": {"enabled": False},
         },
     )
+    if (
+        frozen_dataset_seed_from_run
+        and payload.get("run", {}).get("mode") == TrainingMode.OFFLINE_KD.value
+        and payload.get("offline_kd", {}).get("trajectory_source")
+        == OfflineKDTrajectorySource.FROZEN_STUDENT.value
+    ):
+        payload["offline_kd"]["collection_seed"] = seed
+    return payload
 
 
 def resolve_benchmark_configs(
@@ -166,7 +182,13 @@ def resolve_benchmark_configs(
     for arm in config.arms:
         name = f"{config.name}-{arm.name}-s{selected_seed}"
         arm_config = RunConfig.model_validate(
-            _arm_payload(common_dump, arm.overrides, seed=selected_seed, name=name)
+            _arm_payload(
+                common_dump,
+                arm.overrides,
+                seed=selected_seed,
+                name=name,
+                frozen_dataset_seed_from_run=config.frozen_dataset_seed_from_run,
+            )
         )
         diff = structured_diff(common_dump, arm_config.model_dump(mode="json"))
         bad = [row["path"] for row in diff if not _path_allowed(str(row["path"]), allowed)]
@@ -229,7 +251,108 @@ def _cold_start(
             run_config.run.seed,
             result.global_step,
         )
-        return checkpoint, time.perf_counter() - started
+    return checkpoint, time.perf_counter() - started
+
+
+def _seed_path(template: str, *, seed: int) -> Path:
+    return Path(template.format(seed=seed))
+
+
+def _offline_preparation_identity(config: RunConfig) -> str:
+    payload = config.model_dump(mode="json")
+    identity = {
+        "student": payload["models"]["student"],
+        "teacher": payload["models"]["teacher"],
+        "environment": payload["environment"],
+        "rollout": payload["rollout"],
+        "selection": payload["selection"],
+        "loss": payload["loss"],
+        "offline_kd": payload["offline_kd"],
+        "cache": payload["cache"],
+    }
+    return _digest_payload(portable_payload(identity))
+
+
+def _prepare_frozen_dataset(
+    *,
+    benchmark: BenchmarkConfig,
+    target: Path,
+    seed: int,
+    resolved_arms: list[tuple[Any, RunConfig, list[dict[str, Any]]]],
+    checkpoint: Path | None,
+    local_files_only: bool,
+) -> Path | None:
+    frozen = [
+        run_config
+        for _arm, run_config, _diff in resolved_arms
+        if run_config.run.mode is TrainingMode.OFFLINE_KD
+        and run_config.offline_kd.trajectory_source is OfflineKDTrajectorySource.FROZEN_STUDENT
+    ]
+    if not frozen:
+        return None
+    if checkpoint is None or not checkpoint.is_dir():
+        raise ConfigError("frozen-student benchmark arms require a shared cold-start checkpoint")
+    identities = {_offline_preparation_identity(run_config) for run_config in frozen}
+    if len(identities) != 1:
+        raise ConfigError(
+            "frozen-student benchmark arms disagree on dataset preparation settings",
+            hint=(
+                "use the same student, teacher, task schedule, rollout, selection, loss and "
+                "cache settings for every arm that shares one frozen dataset"
+            ),
+        )
+    destination = (
+        _seed_path(benchmark.frozen_dataset_template, seed=seed)
+        if benchmark.frozen_dataset_template
+        else target / f"{benchmark.name}-frozen-s{seed}"
+    )
+    if destination.exists():
+        return destination
+
+    from miniverl.trainer import OPDTrainer
+    from miniverl.training.checkpoint import load_checkpoint, validate_checkpoint
+
+    prepare_payload = frozen[0].model_dump(mode="json")
+    prepare_payload["run"]["name"] = destination.name
+    prepare_payload["eval"]["enabled"] = False
+    prepare_payload["report"]["enabled"] = False
+    prepare_config = RunConfig.model_validate(prepare_payload)
+    validated = validate_checkpoint(checkpoint)
+    with OPDTrainer.from_config(
+        prepare_config,
+        output_dir=destination.parent,
+        run_id=destination.name,
+        local_files_only=local_files_only,
+    ) as trainer:
+        load_checkpoint(
+            checkpoint,
+            backend=trainer.student,
+            optimizer=None,
+            device=trainer.student.device,
+            include_optimizer=False,
+            include_rng=False,
+            expected_identity=(trainer._checkpoint_identity() if validated.identity else None),
+        )
+        trainer.set_offline_collection_checkpoint_digest(validated.content_digest)
+        trainer.prepare_offline_dataset()
+    return destination
+
+
+def _use_prepared_frozen_dataset(run_config: RunConfig, dataset: Path | None) -> RunConfig:
+    if (
+        dataset is None
+        or run_config.run.mode is not TrainingMode.OFFLINE_KD
+        or run_config.offline_kd.trajectory_source is not OfflineKDTrajectorySource.FROZEN_STUDENT
+    ):
+        return run_config
+    payload = run_config.model_dump(mode="json")
+    payload["offline_kd"].update(
+        {
+            "trajectory_source": OfflineKDTrajectorySource.PERSISTED.value,
+            "dataset_path": str(dataset),
+        }
+    )
+    return RunConfig.model_validate(payload)
 
 
 def _isolate_next_trainer(stage: str) -> None:
@@ -291,6 +414,35 @@ def _peak_memory(trainer: Any) -> tuple[int | None, int | None]:
     return (allocated, reserved) if seen else (None, None)
 
 
+def _artifact_reference(path: Path, *, published_path: str) -> dict[str, Any]:
+    digest, size = sha256_file(path)
+    return {"path": published_path, "sha256": digest, "bytes": size}
+
+
+def _recovery_metrics(evaluation: dict[str, Any]) -> dict[str, Any]:
+    """Select RecoveryBench metrics without copying unrelated eval metadata."""
+    names = (
+        "had_tool_error",
+        "first_query_failed",
+        "injected_error_observed",
+        "natural_error_observed",
+        "recovered_after_tool_error",
+        "recovery_after_error_rate",
+        "success_given_first_query_error",
+        "schema_call_after_error",
+        "repeated_same_failed_call",
+        "turns_after_first_error",
+        "turns_to_recovery",
+        "distinct_tool_errors",
+        "valid_sql_execution_rate",
+        "tokens_after_first_error",
+    )
+    metrics = {name: evaluation[name] for name in names if name in evaluation}
+    if "recovery_subsets" in evaluation:
+        metrics["subsets"] = evaluation["recovery_subsets"]
+    return metrics
+
+
 def _classified_config_diffs(
     *,
     config: BenchmarkConfig,
@@ -337,6 +489,7 @@ def _run_one_arm(
     seed: int,
     arm: Any,
     run_config: RunConfig,
+    declared_run_config: RunConfig,
     common_dump: dict[str, Any],
     checkpoint: Path | None,
     local_files_only: bool = False,
@@ -346,7 +499,7 @@ def _run_one_arm(
     from miniverl.trainer import OPDTrainer
     from miniverl.training.checkpoint import load_checkpoint
 
-    declared_config = portable_payload(run_config.model_dump(mode="json"))
+    declared_config = portable_payload(declared_run_config.model_dump(mode="json"))
     arm_started = time.perf_counter()
     existing = target / run_config.run.name
     with OPDTrainer.from_config(
@@ -366,6 +519,9 @@ def _run_one_arm(
             runtime_arm_config=runtime_config,
         )
         if checkpoint is not None and checkpoint.is_dir():
+            from miniverl.training.checkpoint import validate_checkpoint
+
+            checkpoint_digest = validate_checkpoint(checkpoint).content_digest
             load_checkpoint(
                 checkpoint,
                 backend=trainer.student,
@@ -374,9 +530,10 @@ def _run_one_arm(
                 include_optimizer=False,
                 include_rng=False,
             )
+            trainer.set_offline_collection_checkpoint_digest(checkpoint_digest)
             trainer.events.emit(
                 "benchmark_cold_start_loaded",
-                checkpoint_digest=_checkpoint_digest(checkpoint),
+                checkpoint_digest=checkpoint_digest,
                 note="weights only; optimizer state and RNG intentionally not restored",
             )
 
@@ -402,6 +559,18 @@ def _run_one_arm(
             else None
         )
         has_cuda = memory[0] is not None
+        task_artifact = _artifact_reference(
+            trainer.paths.eval_trajectories,
+            published_path=f"{trainer.paths.root.name}/eval_trajectories.jsonl",
+        )
+        frozen_identity: dict[str, Any] | None = None
+        if trainer.offline_dataset_digest:
+            frozen_identity = {"dataset_digest": trainer.offline_dataset_digest}
+            if trainer.paths.offline_dataset_manifest.is_file():
+                frozen_identity["manifest"] = _artifact_reference(
+                    trainer.paths.offline_dataset_manifest,
+                    published_path=(f"{trainer.paths.root.name}/offline-dataset/manifest.json"),
+                )
 
         result = ArmResult(
             name=arm.name,
@@ -495,6 +664,11 @@ def _run_one_arm(
                 "cache": ("measured" if cache_stats is not None else "not_applicable"),
                 **evaluation.get("policy_competence_measurement_status", {}),
             },
+            recovery_metrics=_recovery_metrics(evaluation),
+            frozen_dataset_identity=frozen_identity,
+            stop_criterion=train_result.stop_criterion or config.stop_criterion,
+            overshoot=train_result.overshoot,
+            task_level_artifact=task_artifact,
         )
         logger.info(
             "arm %-18s seed %d: success %.3f in %d steps (%.1fs)",
@@ -536,13 +710,27 @@ def run_benchmark(
 
     for seed in config.seeds:
         _, cold_config, resolved_arms = preflight[seed]
+        reused_checkpoint = (
+            _seed_path(config.cold_start_checkpoint_template, seed=seed)
+            if config.cold_start_checkpoint_template
+            else None
+        )
+        checkpoint: Path | None
+        cold_seconds: float
         try:
-            checkpoint, cold_seconds = _cold_start(
-                cold_config,
-                target,
-                local_files_only=local_files_only,
-                resume_existing=resume,
-            )
+            if reused_checkpoint is not None:
+                if not reused_checkpoint.is_dir():
+                    raise ConfigError(
+                        f"shared cold-start checkpoint not found: {reused_checkpoint}"
+                    )
+                checkpoint, cold_seconds = reused_checkpoint, 0.0
+            else:
+                checkpoint, cold_seconds = _cold_start(
+                    cold_config,
+                    target,
+                    local_files_only=local_files_only,
+                    resume_existing=resume,
+                )
         finally:
             _isolate_next_trainer(f"cold start seed {seed}")
         cold_checkpoints.append(
@@ -558,10 +746,27 @@ def run_benchmark(
                     else None
                 ),
                 "train_seconds": cold_seconds,
+                "reused": reused_checkpoint is not None,
             }
         )
 
-        for arm, run_config, _diff in resolved_arms:
+        try:
+            frozen_dataset = _prepare_frozen_dataset(
+                benchmark=config,
+                target=target,
+                seed=seed,
+                resolved_arms=resolved_arms,
+                checkpoint=checkpoint,
+                local_files_only=local_files_only,
+            )
+        finally:
+            _isolate_next_trainer(f"frozen dataset seed {seed}")
+
+        for arm, declared_run_config, _diff in resolved_arms:
+            run_config = _use_prepared_frozen_dataset(
+                declared_run_config,
+                frozen_dataset,
+            )
             try:
                 results.append(
                     _run_one_arm(
@@ -570,6 +775,7 @@ def run_benchmark(
                         seed=seed,
                         arm=arm,
                         run_config=run_config,
+                        declared_run_config=declared_run_config,
                         common_dump=common_dump,
                         checkpoint=checkpoint,
                         local_files_only=local_files_only,
@@ -580,7 +786,16 @@ def run_benchmark(
                 _isolate_next_trainer(f"arm {arm.name} seed {seed}")
 
     cold_dump = portable_payload(preflight[config.seeds[0]][1].model_dump(mode="json"))
+    task_artifacts = [
+        arm.task_level_artifact for arm in results if arm.task_level_artifact is not None
+    ]
+    frozen_identities = {
+        f"{arm.name}:s{arm.seed}": arm.frozen_dataset_identity
+        for arm in results
+        if arm.frozen_dataset_identity is not None
+    }
     result = BenchmarkResult(
+        schema_version=config.schema_version,
         miniverl_version=__version__,
         name=config.name,
         description=config.description,
@@ -618,6 +833,29 @@ def run_benchmark(
         arms=results,
         notes=notes,
         seeds=list(config.seeds),
+        preregistration_sha=config.preregistration_sha,
+        preregistration_digest=config.preregistration_digest,
+        hypothesis_ids=list(config.hypothesis_ids),
+        task_schedule_digest=config.task_schedule_digest,
+        template_registry_version=config.template_registry_version,
+        template_registry_digest=config.template_registry_digest,
+        selected_teacher_candidate=config.selected_teacher_candidate,
+        teacher_gate_results=list(config.teacher_gate_results),
+        teacher_preparation_cost=config.teacher_preparation_cost,
+        frozen_dataset_identity=frozen_identities or dict(config.frozen_dataset_identity),
+        budget_view=config.budget_view,
+        stop_criterion=config.stop_criterion,
+        overshoot={
+            "axis": config.budget_axis,
+            "maximum": max(
+                (float(arm.overshoot.get("value", 0)) for arm in results),
+                default=0.0,
+            ),
+        },
+        recovery_metrics={"source": "per_arm", "subsets_reported": True},
+        task_level_artifacts=task_artifacts or list(config.task_level_artifacts),
+        result_analysis_version=config.result_analysis_version,
+        invalidation_status=config.invalidation_status,
     )
     write_json(target / f"{config.name}.json", result.model_dump(mode="json"))
     write_text(target / f"{config.name}.md", render_benchmark_markdown(result))

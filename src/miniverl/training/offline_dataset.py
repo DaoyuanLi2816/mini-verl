@@ -19,7 +19,8 @@ if TYPE_CHECKING:
 
 __all__ = ["create_offline_dataset", "load_offline_dataset"]
 
-OFFLINE_DATASET_SCHEMA_VERSION = 1
+OFFLINE_DATASET_SCHEMA_VERSION = 2
+READABLE_OFFLINE_DATASET_SCHEMA_VERSIONS = frozenset({1, 2})
 
 
 def _digest(payload: dict[str, Any]) -> str:
@@ -27,7 +28,7 @@ def _digest(payload: dict[str, Any]) -> str:
 
 
 def _stable_identity(payload: dict[str, Any]) -> dict[str, Any]:
-    return {
+    identity = {
         "schema_version": payload["schema_version"],
         "trajectory_ids": payload["trajectory_ids"],
         "task_ids": payload["task_ids"],
@@ -43,6 +44,42 @@ def _stable_identity(payload: dict[str, Any]) -> dict[str, Any]:
         "creation_policy": payload["creation_policy"],
         "source": payload["source"],
     }
+    if payload["schema_version"] >= 2:
+        identity.update(
+            {
+                "cold_start_checkpoint_digest": payload["cold_start_checkpoint_digest"],
+                "student_identity": payload["student_identity"],
+                "parameter_version": payload["parameter_version"],
+                "task_schedule_digest": payload["task_schedule_digest"],
+                "generation_seeds": payload["generation_seeds"],
+                "teacher_adapter_digest": payload["teacher_adapter_digest"],
+                "trajectory_checksums": payload["trajectory_checksums"],
+                "schema_templates": payload["schema_templates"],
+                "intervention_metadata": payload["intervention_metadata"],
+            }
+        )
+    return identity
+
+
+def _trajectory_checksum(trajectory: Trajectory) -> str:
+    return hashlib.sha256(
+        canonical_json(trajectory.model_dump(mode="json")).encode("utf-8")
+    ).hexdigest()
+
+
+def _task_schedule_digest(trajectories: list[Trajectory]) -> str:
+    schedule = [
+        {
+            "task_id": trajectory.task_id,
+            "template_id": trajectory.metadata.get("template_id"),
+            "template_digest": trajectory.metadata.get("template_digest"),
+            "database_seed": trajectory.metadata.get("database_seed"),
+            "task_kind": trajectory.metadata.get("task_kind"),
+            "intervention_kind": trajectory.metadata.get("intervention_kind"),
+        }
+        for trajectory in trajectories
+    ]
+    return hashlib.sha256(canonical_json(schedule).encode("utf-8")).hexdigest()
 
 
 def create_offline_dataset(
@@ -53,6 +90,10 @@ def create_offline_dataset(
     config: RunConfig,
     tokenizer_identity: dict[str, Any],
     teacher_identity: dict[str, Any],
+    source: str,
+    cold_start_checkpoint_digest: str | None,
+    parameter_version: int,
+    generation_seeds: list[int],
 ) -> str:
     """Persist the fixed ordered trajectories and a checksummed manifest once."""
     root = paths.offline_dataset
@@ -67,6 +108,28 @@ def create_offline_dataset(
     trajectory_sha, trajectory_size = sha256_file(paths.offline_dataset_trajectories)
     cache_index = cache.path / "index.json"
     cache_sha, cache_size = sha256_file(cache_index)
+    schedule_digest = _task_schedule_digest(trajectories)
+    expected_schedule_digest = config.offline_kd.task_schedule_digest
+    if expected_schedule_digest and schedule_digest != expected_schedule_digest:
+        raise CheckpointError(
+            "offline dataset task schedule digest does not match offline_kd.task_schedule_digest"
+        )
+    if source == "frozen_student" and not cold_start_checkpoint_digest:
+        raise CheckpointError(
+            "frozen-student offline KD requires the exact cold-start checkpoint digest"
+        )
+    adapter = teacher_identity.get("adapter")
+    adapter_digest = _digest(adapter) if isinstance(adapter, dict) else None
+    schema_templates = sorted(
+        {
+            (
+                str(trajectory.metadata.get("template_id")),
+                str(trajectory.metadata.get("template_digest")),
+            )
+            for trajectory in trajectories
+            if trajectory.metadata.get("template_id")
+        }
+    )
     payload: dict[str, Any] = {
         "schema_version": OFFLINE_DATASET_SCHEMA_VERSION,
         "created_at": utc_now(),
@@ -74,9 +137,38 @@ def create_offline_dataset(
         "task_ids": [trajectory.task_id for trajectory in trajectories],
         "split": "train",
         "seed": config.run.seed,
+        "generation_seeds": generation_seeds,
         "tokenizer_identity": tokenizer_identity,
         "policy_version": trajectories[0].policy_version if trajectories else 0,
+        "parameter_version": parameter_version,
+        "cold_start_checkpoint_digest": cold_start_checkpoint_digest,
+        "student_identity": {
+            "model_id": config.models.student.model_id,
+            "revision": config.models.student.revision,
+            "tokenizer_revision": config.models.student.tokenizer_revision,
+            "lora": config.models.student.lora.model_dump(mode="json"),
+        },
         "teacher_identity": teacher_identity,
+        "teacher_adapter_digest": adapter_digest,
+        "task_schedule_digest": schedule_digest,
+        "trajectory_checksums": {
+            trajectory.trajectory_id: _trajectory_checksum(trajectory)
+            for trajectory in trajectories
+        },
+        "schema_templates": [
+            {"template_id": template_id, "template_digest": template_digest}
+            for template_id, template_digest in schema_templates
+        ],
+        "intervention_metadata": [
+            {
+                "trajectory_id": trajectory.trajectory_id,
+                "intervention_kind": trajectory.metadata.get("intervention_kind"),
+                "expected_tool_sequence_class": trajectory.metadata.get(
+                    "expected_tool_sequence_class"
+                ),
+            }
+            for trajectory in trajectories
+        ],
         "cache_index_digest": cache_sha,
         "cache_entry_checksums": {
             trajectory_id: entry.checksum
@@ -104,7 +196,7 @@ def create_offline_dataset(
             for sample in samples
         ],
         "creation_policy": "create_once_then_validate",
-        "source": "environment_oracle",
+        "source": source,
     }
     payload["dataset_digest"] = _digest(_stable_identity(payload))
     write_json(paths.offline_dataset_manifest, payload)
@@ -127,7 +219,7 @@ def load_offline_dataset(
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise CheckpointError(f"cannot read offline dataset manifest: {exc}") from exc
-    if payload.get("schema_version") != OFFLINE_DATASET_SCHEMA_VERSION:
+    if payload.get("schema_version") not in READABLE_OFFLINE_DATASET_SCHEMA_VERSIONS:
         raise CheckpointError(
             f"offline dataset schema_version {payload.get('schema_version')!r} is not readable"
         )

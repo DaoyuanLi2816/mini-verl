@@ -1,0 +1,1146 @@
+{
+  "$defs": {
+    "ArmResult": {
+      "additionalProperties": false,
+      "description": "Measured outcome for one arm at one seed.\n\nThe compatibility normalizer maps the two renamed v1 fields into their v2\ncumulative names. Properties retain the old Python accessor names without\nserializing duplicate fields into new artifacts.",
+      "properties": {
+        "assistant_turns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assistant Turns"
+        },
+        "avg_tool_calls": {
+          "title": "Avg Tool Calls",
+          "type": "number"
+        },
+        "avg_turns": {
+          "title": "Avg Turns",
+          "type": "number"
+        },
+        "baseline_success_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Success Rate"
+        },
+        "cache_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Bytes"
+        },
+        "cache_bytes_written_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Bytes Written Total"
+        },
+        "cache_compression_ratio": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Compression Ratio"
+        },
+        "cache_current_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cache Current Bytes"
+        },
+        "declared_config_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declared Config Digest"
+        },
+        "description": {
+          "default": "",
+          "title": "Description",
+          "type": "string"
+        },
+        "divergence": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Divergence"
+        },
+        "emitted_tool_calls": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Emitted Tool Calls"
+        },
+        "evaluation_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evaluation Seconds"
+        },
+        "final_answer_format_validity_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Final Answer Format Validity Rate"
+        },
+        "final_answers_emitted": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Final Answers Emitted"
+        },
+        "final_answers_format_valid": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Final Answers Format Valid"
+        },
+        "final_answers_verified": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Final Answers Verified"
+        },
+        "frozen_dataset_identity": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frozen Dataset Identity"
+        },
+        "generated_tokens_per_task": {
+          "title": "Generated Tokens Per Task",
+          "type": "number"
+        },
+        "generated_training_tokens_total": {
+          "default": 0,
+          "title": "Generated Training Tokens Total",
+          "type": "integer"
+        },
+        "harness_config_diff": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Harness Config Diff",
+          "type": "array"
+        },
+        "invalid_tool_call_rate": {
+          "title": "Invalid Tool Call Rate",
+          "type": "number"
+        },
+        "lenient_diagnostic_success_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lenient Diagnostic Success Rate"
+        },
+        "loss_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Loss Mode"
+        },
+        "measurement_status": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Measurement Status"
+        },
+        "mode": {
+          "title": "Mode",
+          "type": "string"
+        },
+        "model_generated_training_tokens_total": {
+          "default": 0,
+          "title": "Model Generated Training Tokens Total",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "objective": {
+          "default": "legacy_unreported",
+          "title": "Objective",
+          "type": "string"
+        },
+        "opd_freshness": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opd Freshness"
+        },
+        "optimizer_steps": {
+          "title": "Optimizer Steps",
+          "type": "integer"
+        },
+        "overshoot": {
+          "additionalProperties": true,
+          "title": "Overshoot",
+          "type": "object"
+        },
+        "parse_errors": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parse Errors"
+        },
+        "parse_valid_tool_call_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parse Valid Tool Call Rate"
+        },
+        "parsed_tool_calls": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parsed Tool Calls"
+        },
+        "peak_allocated_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peak Allocated Bytes"
+        },
+        "peak_reserved_bytes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Peak Reserved Bytes"
+        },
+        "policy_version": {
+          "title": "Policy Version",
+          "type": "integer"
+        },
+        "protocol_token_accuracy": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protocol Token Accuracy"
+        },
+        "recovery_metrics": {
+          "additionalProperties": true,
+          "title": "Recovery Metrics",
+          "type": "object"
+        },
+        "repeated_call_terminations": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repeated Call Terminations"
+        },
+        "resolved_config_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Config Digest"
+        },
+        "run_dir": {
+          "title": "Run Dir",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "runtime_resolution_diff": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Runtime Resolution Diff",
+          "type": "array"
+        },
+        "runtime_resolved_config_digest": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Runtime Resolved Config Digest"
+        },
+        "scientific_config_diff": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Scientific Config Diff",
+          "type": "array"
+        },
+        "seconds": {
+          "minimum": 0,
+          "title": "Seconds",
+          "type": "number"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "selected_position_ratio": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selected Position Ratio"
+        },
+        "selected_training_tokens": {
+          "minimum": 0,
+          "title": "Selected Training Tokens",
+          "type": "integer"
+        },
+        "selected_training_tokens_total": {
+          "default": 0,
+          "title": "Selected Training Tokens Total",
+          "type": "integer"
+        },
+        "selector": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selector"
+        },
+        "stop_criterion": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Criterion"
+        },
+        "strict_task_success_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strict Task Success Rate"
+        },
+        "structured_diff": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Structured Diff",
+          "type": "array"
+        },
+        "student_model_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Student Model Id"
+        },
+        "student_model_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Student Model Revision"
+        },
+        "success_rate": {
+          "title": "Success Rate",
+          "type": "number"
+        },
+        "task_level_artifact": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Level Artifact"
+        },
+        "tasks": {
+          "title": "Tasks",
+          "type": "integer"
+        },
+        "teacher_adapter": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Teacher Adapter"
+        },
+        "teacher_context_mode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Teacher Context Mode"
+        },
+        "teacher_model_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Teacher Model Id"
+        },
+        "teacher_model_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Teacher Model Revision"
+        },
+        "teacher_queried_position_ratio": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Teacher Queried Position Ratio"
+        },
+        "teacher_queried_positions_total": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Teacher Queried Positions Total"
+        },
+        "tokenizer_fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokenizer Fingerprint"
+        },
+        "tokens_per_solved_task": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens Per Solved Task"
+        },
+        "tool_call_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Call Count"
+        },
+        "tool_execution_error_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Execution Error Rate"
+        },
+        "tool_execution_errors": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Execution Errors"
+        },
+        "tool_execution_success_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Execution Success Rate"
+        },
+        "tool_execution_successes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tool Execution Successes"
+        },
+        "top_k": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Top K"
+        },
+        "total_trajectories": {
+          "default": 0,
+          "title": "Total Trajectories",
+          "type": "integer"
+        },
+        "train_seconds": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Train Seconds"
+        },
+        "unknown_tool_calls": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unknown Tool Calls"
+        },
+        "valid_tool_call_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Valid Tool Call Rate"
+        },
+        "wall_seconds": {
+          "title": "Wall Seconds",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "mode",
+        "seed",
+        "run_id",
+        "run_dir",
+        "optimizer_steps",
+        "policy_version",
+        "tasks",
+        "success_rate",
+        "avg_turns",
+        "avg_tool_calls",
+        "invalid_tool_call_rate",
+        "generated_tokens_per_task"
+      ],
+      "title": "ArmResult",
+      "type": "object"
+    }
+  },
+  "$id": "https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/benchmarks/schema/recoverybench-result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Full benchmark output with v1/v2 read compatibility and v3 provenance.",
+  "properties": {
+    "arms": {
+      "items": {
+        "$ref": "#/$defs/ArmResult"
+      },
+      "title": "Arms",
+      "type": "array"
+    },
+    "budget_axis": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Budget Axis"
+    },
+    "budget_view": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Budget View"
+    },
+    "cold_start": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cold Start"
+    },
+    "common_declared_config": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Common Declared Config"
+    },
+    "common_declared_config_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Common Declared Config Digest"
+    },
+    "common_resolved_config": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Common Resolved Config"
+    },
+    "common_resolved_config_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Common Resolved Config Digest"
+    },
+    "controlled": {
+      "additionalProperties": true,
+      "title": "Controlled",
+      "type": "object"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "description": {
+      "default": "",
+      "title": "Description",
+      "type": "string"
+    },
+    "frozen_dataset_identity": {
+      "additionalProperties": true,
+      "title": "Frozen Dataset Identity",
+      "type": "object"
+    },
+    "git_commit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Commit"
+    },
+    "hardware": {
+      "additionalProperties": true,
+      "title": "Hardware",
+      "type": "object"
+    },
+    "hypothesis_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Hypothesis Ids",
+      "type": "array"
+    },
+    "invalidation_status": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Invalidation Status"
+    },
+    "invocation": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Invocation"
+    },
+    "miniverl_version": {
+      "title": "Miniverl Version",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "notes": {
+      "default": "",
+      "title": "Notes",
+      "type": "string"
+    },
+    "overshoot": {
+      "additionalProperties": true,
+      "title": "Overshoot",
+      "type": "object"
+    },
+    "preregistration_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Preregistration Digest"
+    },
+    "preregistration_sha": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Preregistration Sha"
+    },
+    "recovery_metrics": {
+      "additionalProperties": true,
+      "title": "Recovery Metrics",
+      "type": "object"
+    },
+    "result_analysis_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Result Analysis Version"
+    },
+    "schema_version": {
+      "default": 2,
+      "enum": [
+        1,
+        2,
+        3
+      ],
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "seeds": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Seeds",
+      "type": "array"
+    },
+    "selected_teacher_candidate": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Selected Teacher Candidate"
+    },
+    "software": {
+      "additionalProperties": true,
+      "title": "Software",
+      "type": "object"
+    },
+    "stop_criterion": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stop Criterion"
+    },
+    "task_level_artifacts": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Task Level Artifacts",
+      "type": "array"
+    },
+    "task_schedule_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Schedule Digest"
+    },
+    "teacher_gate_results": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Teacher Gate Results",
+      "type": "array"
+    },
+    "teacher_preparation_cost": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Teacher Preparation Cost"
+    },
+    "template_registry_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Template Registry Digest"
+    },
+    "template_registry_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Template Registry Version"
+    }
+  },
+  "required": [
+    "miniverl_version",
+    "name",
+    "created_at"
+  ],
+  "title": "miniVERL RecoveryBench result",
+  "type": "object"
+}

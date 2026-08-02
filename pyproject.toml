@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "miniverl"
 dynamic = ["version"]
-description = "Auditable on-policy distillation for tool-using agents on one personal GPU."
+description = "Auditable one-GPU prototyping for online post-training and distillation."
 readme = "PYPI.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -93,6 +93,7 @@ include = [
   "/examples",
   "/benchmarks",
   "/docs",
+  "/paper",
   "/scripts",
   "/.github",
   "/README.md",

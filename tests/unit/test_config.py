@@ -37,6 +37,7 @@ from miniverl.config.models import (
     LRSchedule,
     MemoryStrategy,
     ModelBackend,
+    OfflineKDTrajectorySource,
     OPDFreshness,
     OptimizerName,
     Precision,
@@ -158,6 +159,23 @@ def test_single_gpu_quickstart_is_portable_and_uses_protocol_teacher() -> None:
     assert supported.models.student.model_id == raw_control.models.student.model_id
     assert supported.models.teacher.model_id == raw_control.models.teacher.model_id
     assert raw_control.models.teacher.adapter is None
+
+
+def test_recovery_teacher_adapter_accepts_every_preregistered_gate() -> None:
+    from miniverl.config.models import TeacherAdapterConfig
+
+    adapter = TeacherAdapterConfig(
+        path="recovery-adapter",
+        require_policy_evaluation=True,
+        minimum_strict_success_rate=0.80,
+        minimum_recovery_after_error_rate=0.75,
+        minimum_parse_valid_tool_call_rate=0.95,
+        minimum_tool_execution_success_rate=0.70,
+    )
+
+    assert adapter.minimum_recovery_after_error_rate == pytest.approx(0.75)
+    assert adapter.minimum_parse_valid_tool_call_rate == pytest.approx(0.95)
+    assert adapter.minimum_tool_execution_success_rate == pytest.approx(0.70)
 
 
 def test_toy_cpu_recipe_is_parsed_into_the_expected_typed_values() -> None:
@@ -435,6 +453,60 @@ def test_offline_kd_with_reuse_enabled_is_accepted() -> None:
     )
     assert config.run.mode is TrainingMode.OFFLINE_KD
     assert config.is_on_policy is False
+
+
+def test_offline_kd_has_explicit_oracle_source_by_default() -> None:
+    config = RunConfig.from_mapping(
+        _payload(run={"mode": "offline_kd"}, cache={"reuse_across_policy_versions": True})
+    )
+    assert config.offline_kd.trajectory_source is OfflineKDTrajectorySource.ORACLE
+    assert config.offline_kd.dataset_path is None
+
+
+def test_frozen_student_offline_kd_declares_collection_contract() -> None:
+    config = RunConfig.from_mapping(
+        _payload(
+            run={"mode": "offline_kd"},
+            cache={"reuse_across_policy_versions": True},
+            offline_kd={
+                "trajectory_source": "frozen_student",
+                "collection_seed": 20260801,
+                "collection_tasks": 64,
+                "task_schedule_digest": "a" * 64,
+            },
+        )
+    )
+    assert config.offline_kd.trajectory_source is OfflineKDTrajectorySource.FROZEN_STUDENT
+    assert config.offline_kd.collection_seed == 20260801
+    assert config.offline_kd.collection_tasks == 64
+
+
+def test_persisted_offline_kd_requires_an_explicit_dataset_path() -> None:
+    _rejects(
+        _payload(
+            run={"mode": "offline_kd"},
+            cache={"reuse_across_policy_versions": True},
+            offline_kd={"trajectory_source": "persisted"},
+        ),
+        "offline_kd.trajectory_source=persisted requires offline_kd.dataset_path",
+    )
+
+
+def test_training_budget_accepts_exactly_one_step_boundary_stop_axis() -> None:
+    token_budget = RunConfig.from_mapping(_payload(train={"max_selected_training_tokens": 4096}))
+    wall_budget = RunConfig.from_mapping(_payload(train={"max_wall_seconds": 120.0}))
+    assert token_budget.train.max_selected_training_tokens == 4096
+    assert wall_budget.train.max_wall_seconds == pytest.approx(120.0)
+
+    _rejects(
+        _payload(
+            train={
+                "max_selected_training_tokens": 4096,
+                "max_wall_seconds": 120.0,
+            }
+        ),
+        "at most one continuation stop budget",
+    )
 
 
 @pytest.mark.parametrize("beta", [0.0, 1.0])

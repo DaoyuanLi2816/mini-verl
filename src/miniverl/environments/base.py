@@ -118,6 +118,10 @@ class StepResult:
     error: str | None = None
     state_id: str = "s0"
     failure_category: FailureCategory | None = None
+    error_code: str | None = None
+    retryable: bool | None = None
+    intervention: bool = False
+    tool_result_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -208,6 +212,10 @@ class ToolEnvironment(ABC):
     def final_answer_example(self) -> str:
         """Verifier-format-valid final answer used by protocol-v2 prompts."""
         return "answer"
+
+    def trajectory_metadata(self, task: Task) -> dict[str, Any]:  # noqa: ARG002
+        """Structured task provenance copied into policy and oracle trajectories."""
+        return {}
 
     # -- prompt rendering ------------------------------------------------
 

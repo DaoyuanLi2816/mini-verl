@@ -7,10 +7,9 @@ Everything below is traceable to a file in this repository or to a command that
 was run against it. Measurements come from one machine: Windows 11 Pro
 10.0.22631, RTX 4080 (16376 MiB, driver 596.49), CPython 3.12.13, torch
 2.13.0+cu130, transformers 5.14.1, peft 0.19.1, bitsandbytes 0.50.0. The GPU
-figures were produced by `scripts/gpu_smoke.py` and
-`scripts/gpu_probe_throughput.py`; the memory numbers are reproduced in
-[memory.md](memory.md#measured-one-opd-cycle-on-an-rtx-4080) and the throughput
-numbers below.
+figures include the published calculator runs, hardware probes and
+RecoveryBench v1. Their source artifacts, methods and caveats are linked from
+the corresponding sections below.
 
 ## Modelling and objective
 
@@ -206,6 +205,32 @@ themselves -- 25%, 75% and 87.5% are all coarse fractions -- so a single task
 moves the figure by more than ten percentage points and none of these
 differences are separable from noise. Do not quote toy numbers as accuracy
 results.
+
+### RecoveryBench finds no fresh-state advantage in one scoped setting
+
+RecoveryBench v1 is a preregistered mechanism study on one Qwen3 student and
+teacher pair, one read-only SQLite recovery environment, three seeds and one
+RTX 4080. It is not an alignment benchmark. Under eight equal continuation
+updates, frozen-student-state KD reached 23.2% strict success and 22.8%
+recovery after error; strict fresh-state OPD reached 10.9% and 9.1%. The paired
+fresh-minus-frozen differences were -12.24 and -13.79 percentage points. Fresh
+OPD also averaged 686.8 continuation seconds versus 52.1 for frozen KD.
+
+The result does not establish that OPD is universally ineffective, that
+offline KD always wins, or that task accuracy is a sufficient alignment
+endpoint. Seed variation is large, the qualified teacher is not universally
+competent, task-paired bootstrap intervals condition on this fixed test set,
+and three seeds alone do not justify a broad significance claim. The
+budget-50 arm queried 49.77% of model-generated positions but did not reduce
+teacher backbone forwards or wall time.
+
+The nominal 50-second view has an additional limitation. Fresh OPD crossed the
+target in one indivisible update, while SFT and frozen KD completed the
+configured eight-cycle ceiling before their internal continuation timers
+crossed it. It is therefore a cycle-capped wall diagnostic, not exact
+equal-time evidence. The completed artifact is preserved as run rather than
+post-hoc replaced. See the [data-bound report](recoverybench/recoverybench-v1.md)
+and [technical PDF](../paper/recoverybench-v1/recoverybench-v1.pdf).
 
 ### The 16 GB run demonstrates the pipeline, not an OPD-over-SFT win
 

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — 单卡上的工具调用智能体在线策略蒸馏" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — 单卡上可审计的在线后训练" width="880">
 </p>
 
 <div align="center">
@@ -16,19 +16,21 @@
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI 软件包</strong></a> ·
   <a href="#个人单卡快速上手">安装与训练</a> ·
   <a href="docs/single-gpu-guide.md">适配你的 GPU</a> ·
-  <a href="#实测结果协议对齐的-opd-追平-sft">实测结果</a>
+  <a href="#recoverybench新鲜在线状态是否值得额外成本">实测结果</a>
 </p>
 
 > 本文是 [README.md](README.md) 的中文翻译。英文版为准；若两者不一致，请以英文版为准并提交 issue。
 
-**面向个人单卡、紧凑且可审计的工具调用智能体训练栈。**
+**miniVERL 是一个独立的单卡配套工具：先在本地原型化、诊断和验证在线后训练
+流程，再把选定产物扩展到 verl。**
 
 PyPI `v0.2.6` 是稳定发布版；`main` 是开发分支，可能领先于稳定版。
 
-miniVERL 是一个紧凑、可审计的训练实验室，让小型语言模型从**它自己生成的
-多轮工具轨迹**中学习。它会真实执行工具、显式记录 token 来源，并且只在正确
-的位置使用教师分布目标——不需要 Ray 或 GPU 集群。代码没有显卡型号白名单：
-使用你现有的 NVIDIA CUDA 显卡，再选择能装进显存的模型组合与 token 预算。
+miniVERL 是一个紧凑、可审计的在线师生训练实验室。SFT 负责建立任务能力和
+协议能力；OPD 则是在此基础上转移教师的推理、策略、风格或其他行为的在线
+机制，两者不是可互换的阶段，教师也必须先对目标行为合格。它不需要 Ray 或
+GPU 集群，CUDA 路径没有显卡型号白名单；是否装得下仍由模型、序列预算和
+可用显存决定。
 
 ```bash
 python -m pip install miniverl            # 轻量核心层
@@ -52,7 +54,7 @@ schema 与 Python API）。`train` extra 会添加 torch、Transformers 与 PEFT
 
 [运行本地 demo](#本地玩具演示) ·
 [在你的 GPU 上训练](#个人单卡快速上手) ·
-[查看实测结果](#实测结果协议对齐的-opd-追平-sft) ·
+[查看实测结果](#recoverybench新鲜在线状态是否值得额外成本) ·
 [阅读数学说明](docs/math.md)
 
 ## 为什么需要 miniVERL
@@ -85,32 +87,48 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 完全自包含、可离线打开的 HTML 报告 | 支持 |
 | Ray、FSDP、DeepSpeed、vLLM、VLM、跨词表、PPO/GRPO | **不支持**，见[局限](docs/limitations.md) |
 
-## 实测结果：协议对齐的 OPD 追平 SFT
+## RecoveryBench：新鲜在线状态是否值得额外成本？
 
 > [!IMPORTANT]
-> **受支持的协议对齐 OPD 在两个种子上都达到 100%，与继续 SFT 持平。**
-> 主要的 schema-v2 对照使用两个预先指定的种子、相同的优化步数，以及已经
-> 饱和的 `hard` 计算器划分。两个不懂工具协议的实验臂是诊断性负对照，
-> 不是推荐配置：
+> **在本次实测设置中，不值得。** 八个相同继续训练步下，冻结学生状态 KD 的
+> 严格成功率是 23.2%，严格新鲜状态 OPD 是 10.9%。按任务配对的
+> “新鲜减冻结”差值为 -12.24 个百分点（95% 配对 bootstrap 区间
+> -15.89 到 -8.59）。
 
-| 角色 | 实验臂 | seed 1234 | seed 20260727 |
-| --- | --- | ---: | ---: |
-| 起点 | 冷启动 | 75.0% | 75.0% |
-| 基线 | 继续 SFT | **100.0%** | **100.0%** |
-| 受支持的 OPD | 协议对齐教师 | **100.0%** | **100.0%** |
-| 诊断对照 | 未经工具协议训练的原始教师 | 0.0% | 0.0% |
-| 诊断对照 | 获知答案但不懂协议的教师 | 0.0% | 0.0% |
+RecoveryBench 是一个预注册的 SQLite 工具错误恢复机制研究，不是 alignment
+benchmark。它固定冷启动检查点、合格教师、任务顺序、优化器和更新步数，单独
+考察状态新鲜度。三个种子和所有已完成的负结果都被保留。
 
-[公开且固定版本的协议教师适配器](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
-现在是单卡配方的默认教师。它在下游 benchmark 被查看之前，已经通过
-预先指定的能力门槛。两个负对照均正常完成且两个种子都是 0%；它们不是配置
-失败或崩溃。两者使用含歧义的历史 protocol-v1 prompt，故不能把 0% 只归因
-于教师内在行为；它诊断的是该设置缺少资格门禁。
+| 方法 | 严格成功率 | 出错后恢复率 | 继续训练耗时 |
+| --- | ---: | ---: | ---: |
+| 冷启动 | 10.7% | 13.6% | 0.2 秒 |
+| 继续 oracle SFT | 4.9% | 1.8% | 51.3 秒 |
+| oracle 状态离线 KD | **33.1%** | **31.9%** | 58.3 秒 |
+| 冻结学生状态 KD | **23.2%** | **22.8%** | 52.1 秒 |
+| 严格新鲜状态 OPD | 10.9% | 9.1% | 686.8 秒 |
+| budget-50 新鲜状态 OPD | 27.3% | 20.7% | 720.8 秒 |
 
-OPD 在这里仍然只是追平 SFT，继续训练耗时是 SFT 的 6.1 倍（523.8 秒对
-86.4 秒）。任务已经饱和；两个种子既不支持显著性结论，也不构成 OPD
-普遍更优的证据。完整结果和旧实验的逐轨迹诊断见
-[`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)。
+![RecoveryBench 三种子结果](docs/recoverybench/recovery-success.svg)
+
+等选中位置视图中，三个核心方法都在八步后越过 6,224 位置边界，因此质量
+结果与主视图相同。budget-50 只查询了模型生成位置的 49.77%，但没有减少教师
+主干前向，故 wall time 没有下降。50 秒产物是**受 cycle 上限约束的 wall-time
+诊断，不是精确等时间证据**：SFT 与冻结 KD 完成八个 cycle，而新鲜 OPD 在
+一个不可再分的 88–121 秒更新中越过目标。
+
+可阅读[完整分析](docs/recoverybench/recoverybench-v1.md)、
+[数据绑定技术报告](paper/recoverybench-v1/recoverybench-v1.pdf)和
+[不可变 schema-v3 产物](benchmarks/README.md#recoverybench-v1)。结论仅适用于
+一个 Qwen3 师生组合、一个任务族、三个种子和一张 RTX 4080；它不证明 OPD
+普遍无效，也不证明离线 KD 总是胜出。
+
+<details>
+<summary>案例：为什么必须验证教师的工具协议能力</summary>
+
+在已饱和的 v0.2 计算器任务上，协议合格的 OPD 教师在两个种子上都达到
+100%，与继续 SFT 持平，但继续训练耗时为后者的 6.1 倍。两个协议不合格的
+负对照都正常完成且为 0%，并非配置失败。两者使用有歧义的历史 protocol-v1
+prompt，因此不能把失败完全归因于教师自身行为。
 
 ![双种子协议教师对照](docs/gpu-calc-hard-equal-update-v2.svg)
 
@@ -120,12 +138,10 @@ OPD 在这里仍然只是追平 SFT，继续训练耗时是 SFT 的 6.1 倍（52
 | [Schema-v2 结果](benchmarks/results/gpu-calc-hard-equal-update-v2.json) | 冻结五臂对照 |
 | [Raw-teacher](recipes/qwen_consumer_gpu_calc_raw_teacher.yaml) | 历史对照；非默认 |
 
-<details>
-<summary>481 秒 smoke（v1）</summary>
-
-16 步 481 秒，峰值 **4.25/4.76 GiB 已分配/保留**，12 题
-从 **0% 到 100%**。冷启动完成了大部分工作（首批 OPD：83.3%）；这证明
-流水线，而非 OPD 优于 SFT。[追溯](docs/rtx4080-baselines.md)。
+教师门禁与下游对照复用了同一组 24 道 v0.2 test 任务，因此这里只能支持该
+设置下“教师资格很重要”，不能支持 OPD 普遍优越。另一个 schema-v1 的
+481 秒 smoke 证明的是流水线，不是 OPD 胜过 SFT。
+[完整诊断与限制](docs/rtx4080-baselines.md)。
 
 </details>
 
@@ -301,7 +317,8 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 * 每次前向只处理一条轨迹，因此 `gradient_accumulation_steps` **就是** batch size；当前版本没有 padding 批处理。
 * 量化模型不能用 `swap`，因为 bitsandbytes 的参数绑定在量化时所在的设备上。
 * 只测试过 Qwen3 与 Qwen2 架构。其他架构可能能通过架构适配器工作，但本项目不作任何声明。
-* 主要 GPU 对照使用两个预先指定的随机种子；旧 GPU 产物仍是单种子。不声称统计显著性。
+* RecoveryBench 使用三个预先指定的学生种子；计算器案例使用两个，更早的 GPU
+  产物为单种子。不声称广泛统计显著性或跨任务泛化。
 * 在实测机器上，解码是 kernel 启动开销受限而非算力受限，因此吞吐数字与平台强相关。
 
 ## 可复现性

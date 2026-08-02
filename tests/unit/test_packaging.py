@@ -215,7 +215,13 @@ def test_every_published_benchmark_result_validates_against_the_schema():
     jsonschema.Draft202012Validator.check_schema(schema)
     validator = jsonschema.Draft202012Validator(schema)
 
-    results = sorted((root / "benchmarks" / "results").glob("*.json"))
+    # RecoveryBench's paired analysis has its own exact, data-binding contract
+    # in test_recoverybench_publish; it is not a BenchmarkResult document.
+    results = sorted(
+        path
+        for path in (root / "benchmarks" / "results").glob("*.json")
+        if path.name != "recoverybench-v1-analysis.json"
+    )
     assert results, "benchmarks/results/ has no published result to validate"
     for path in results:
         document = json.loads(path.read_text(encoding="utf-8"))
@@ -429,7 +435,7 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
         (REPO_ROOT / "docs" / "generated" / "quality.json").read_text(encoding="utf-8")
     )
     assert record["schema_version"] == 1
-    assert record["quality_floor"] == "1,300+ tests and 87%+ branch coverage at v0.2.6"
+    assert record["quality_floor"] == "1,400+ tests and 86%+ branch coverage at v0.3.0"
     if ".dev" in miniverl.__version__:
         assert record["status"] in {"candidate", "released"}
         if record["status"] == "candidate":

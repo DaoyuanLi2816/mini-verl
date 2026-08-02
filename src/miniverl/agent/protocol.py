@@ -237,13 +237,30 @@ def render_final(answer: str) -> str:
     return f"{FINAL_OPEN}\n{answer}\n{FINAL_CLOSE}"
 
 
-def render_tool_result(ok: bool, result: str = "", error: str | None = None) -> str:
+def render_tool_result(
+    ok: bool,
+    result: str = "",
+    error: str | None = None,
+    *,
+    error_code: str | None = None,
+    retryable: bool | None = None,
+    intervention: bool = False,
+    metadata: dict[str, Any] | None = None,
+) -> str:
     """Render an environment observation block."""
     payload: dict[str, Any] = {"ok": bool(ok)}
     if ok:
         payload["result"] = result
     else:
         payload["error"] = error or "unknown error"
+        if error_code is not None:
+            payload["code"] = error_code
+        if retryable is not None:
+            payload["retryable"] = retryable
+        if intervention:
+            payload["intervention"] = True
+    if metadata:
+        payload["metadata"] = dict(metadata)
     try:
         body = strict_json_dumps(payload, ensure_ascii=False, sort_keys=True)
     except StrictJSONError as exc:

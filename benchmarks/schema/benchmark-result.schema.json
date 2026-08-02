@@ -186,6 +186,19 @@
           "default": null,
           "title": "Final Answers Verified"
         },
+        "frozen_dataset_identity": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Frozen Dataset Identity"
+        },
         "generated_tokens_per_task": {
           "title": "Generated Tokens Per Task",
           "type": "number"
@@ -279,6 +292,11 @@
           "title": "Optimizer Steps",
           "type": "integer"
         },
+        "overshoot": {
+          "additionalProperties": true,
+          "title": "Overshoot",
+          "type": "object"
+        },
         "parse_errors": {
           "anyOf": [
             {
@@ -354,6 +372,11 @@
           ],
           "default": null,
           "title": "Protocol Token Accuracy"
+        },
+        "recovery_metrics": {
+          "additionalProperties": true,
+          "title": "Recovery Metrics",
+          "type": "object"
         },
         "repeated_call_terminations": {
           "anyOf": [
@@ -458,6 +481,19 @@
           "default": null,
           "title": "Selector"
         },
+        "stop_criterion": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Criterion"
+        },
         "strict_task_success_rate": {
           "anyOf": [
             {
@@ -505,6 +541,19 @@
         "success_rate": {
           "title": "Success Rate",
           "type": "number"
+        },
+        "task_level_artifact": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Level Artifact"
         },
         "tasks": {
           "title": "Tasks",
@@ -747,7 +796,7 @@
   "$id": "https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/benchmarks/schema/benchmark-result.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Full benchmark output, with v1 read compatibility and v2 provenance.",
+  "description": "Full benchmark output with v1/v2 read compatibility and v3 provenance.",
   "properties": {
     "arms": {
       "items": {
@@ -767,6 +816,18 @@
       ],
       "default": null,
       "title": "Budget Axis"
+    },
+    "budget_view": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Budget View"
     },
     "cold_start": {
       "anyOf": [
@@ -845,6 +906,11 @@
       "title": "Description",
       "type": "string"
     },
+    "frozen_dataset_identity": {
+      "additionalProperties": true,
+      "title": "Frozen Dataset Identity",
+      "type": "object"
+    },
     "git_commit": {
       "anyOf": [
         {
@@ -861,6 +927,26 @@
       "additionalProperties": true,
       "title": "Hardware",
       "type": "object"
+    },
+    "hypothesis_ids": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Hypothesis Ids",
+      "type": "array"
+    },
+    "invalidation_status": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Invalidation Status"
     },
     "invocation": {
       "anyOf": [
@@ -890,11 +976,58 @@
       "title": "Notes",
       "type": "string"
     },
+    "overshoot": {
+      "additionalProperties": true,
+      "title": "Overshoot",
+      "type": "object"
+    },
+    "preregistration_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Preregistration Digest"
+    },
+    "preregistration_sha": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Preregistration Sha"
+    },
+    "recovery_metrics": {
+      "additionalProperties": true,
+      "title": "Recovery Metrics",
+      "type": "object"
+    },
+    "result_analysis_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Result Analysis Version"
+    },
     "schema_version": {
       "default": 2,
       "enum": [
         1,
-        2
+        2,
+        3
       ],
       "title": "Schema Version",
       "type": "integer"
@@ -906,10 +1039,101 @@
       "title": "Seeds",
       "type": "array"
     },
+    "selected_teacher_candidate": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Selected Teacher Candidate"
+    },
     "software": {
       "additionalProperties": true,
       "title": "Software",
       "type": "object"
+    },
+    "stop_criterion": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stop Criterion"
+    },
+    "task_level_artifacts": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Task Level Artifacts",
+      "type": "array"
+    },
+    "task_schedule_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Task Schedule Digest"
+    },
+    "teacher_gate_results": {
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "title": "Teacher Gate Results",
+      "type": "array"
+    },
+    "teacher_preparation_cost": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Teacher Preparation Cost"
+    },
+    "template_registry_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Template Registry Digest"
+    },
+    "template_registry_version": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Template Registry Version"
     }
   },
   "required": [

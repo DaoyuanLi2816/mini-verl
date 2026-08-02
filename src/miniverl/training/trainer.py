@@ -39,6 +39,7 @@ from miniverl.config.models import (
     LossMode,
     MemoryStrategy,
     ModelBackend,
+    OfflineKDTrajectorySource,
     OPDFreshness,
     Quantization,
     RunConfig,
@@ -81,6 +82,7 @@ from miniverl.utils.runs import (
     JsonlWriter,
     RunPaths,
     make_run_id,
+    read_jsonl,
     utc_now,
     write_bytes,
     write_json,
@@ -132,6 +134,8 @@ class TrainResult:
     parameter_version: int
     rollout_policy_version: int
     duration_seconds: float
+    stop_criterion: dict[str, Any] = field(default_factory=dict)
+    overshoot: dict[str, Any] = field(default_factory=dict)
     final_metrics: dict[str, Any] = field(default_factory=dict)
     eval: dict[str, Any] | None = None
     baseline_eval: dict[str, Any] | None = None
@@ -150,6 +154,8 @@ class TrainResult:
             "rollout_policy_version": self.rollout_policy_version,
             "rollout_iteration": self.cycles_completed,
             "duration_seconds": round(self.duration_seconds, 3),
+            "stop_criterion": self.stop_criterion,
+            "overshoot": self.overshoot,
             "final_metrics": self.final_metrics,
             "eval": self.eval,
             "baseline_eval": self.baseline_eval,
@@ -247,6 +253,7 @@ class OPDTrainer:
         self._cache: TeacherCache | None = None
         self._offline_samples: list[TrainSample] | None = None
         self.offline_dataset_digest = ""
+        self._offline_collection_checkpoint_digest: str | None = None
         self._teacher_on_device = teacher is not None and plan.strategy is MemoryStrategy.RESIDENT
         #: First cycle `train()` will execute. Set by `load_from_checkpoint` so a
         #: resumed run continues instead of redoing completed cycles.
@@ -254,6 +261,7 @@ class OPDTrainer:
         self._resumed = False
         self._resumed_from: dict[str, Any] | None = None
         self._cycles_completed = 0
+        self._last_cycle_metrics: dict[str, Any] = {}
 
     # -- construction --------------------------------------------------------
 
@@ -278,6 +286,12 @@ class OPDTrainer:
     @policy_version.setter
     def policy_version(self, value: int) -> None:
         self.parameter_version = value
+
+    def set_offline_collection_checkpoint_digest(self, digest: str) -> None:
+        """Bind frozen-student collection to the exact loaded cold-start checkpoint."""
+        if len(digest) != 64 or any(character not in "0123456789abcdef" for character in digest):
+            raise ConfigError("cold-start checkpoint digest must be 64 lowercase hex characters")
+        self._offline_collection_checkpoint_digest = digest
 
     def _apply_checkpoint_progress(self, state: CheckpointState) -> None:
         """Copy validated, non-tensor progress into this trainer.
@@ -991,7 +1005,13 @@ class OPDTrainer:
 
     # -- rollout + scoring ------------------------------------------------------
 
-    def _collect(self, tasks: list[Task], *, oracle: bool) -> tuple[list[Trajectory], RolloutStats]:
+    def _collect(
+        self,
+        tasks: list[Task],
+        *,
+        oracle: bool,
+        rollout_seed_base: int | None = None,
+    ) -> tuple[list[Trajectory], RolloutStats]:
         stats = RolloutStats()
         trajectories: list[Trajectory] = []
         for offset, task in enumerate(tasks):
@@ -1002,11 +1022,17 @@ class OPDTrainer:
                     trajectory_id=f"{task.task_id}:oracle:c{self.cycle}",
                 )
             else:
+                generation_seed = (
+                    rollout_seed_base + offset
+                    if rollout_seed_base is not None
+                    else self.config.run.seed + self.global_step * 1013 + offset
+                )
                 traj = self.runner.rollout(
                     task,
                     policy_version=self.policy_version,
-                    seed=self.config.run.seed + self.global_step * 1013 + offset,
+                    seed=generation_seed,
                 )
+                traj.metadata["generation_seed"] = generation_seed
             trajectories.append(traj)
             stats.observe(traj)
         append_trajectories(self.paths.trajectories, trajectories)
@@ -1068,12 +1094,140 @@ class OPDTrainer:
             config=self.config,
             tokenizer_identity=getattr(self.tokenizer, "identity", {}),
             teacher_identity=self._teacher_identity(),
+            source=self.config.offline_kd.trajectory_source.value,
+            cold_start_checkpoint_digest=self._offline_collection_checkpoint_digest,
+            parameter_version=self.parameter_version,
+            generation_seeds=[
+                int(
+                    sample.trajectory.metadata.get(
+                        "generation_seed", self.config.offline_kd.collection_seed + offset
+                    )
+                )
+                for offset, sample in enumerate(samples)
+            ],
         )
         self.events.emit(
             "offline_dataset_created",
             dataset_digest=self.offline_dataset_digest,
             trajectories=len(samples),
-            source="environment_oracle",
+            source=self.config.offline_kd.trajectory_source.value,
+        )
+
+    def _offline_batch_for_cycle(self) -> list[TrainSample]:
+        samples = self._offline_samples or []
+        if not samples:
+            return []
+        width = self.config.train.rollouts_per_cycle
+        start = (self.cycle * width) % len(samples)
+        return [samples[(start + offset) % len(samples)] for offset in range(width)]
+
+    def prepare_offline_dataset(self) -> dict[str, Any]:
+        """Collect and score a frozen-student dataset without updating parameters."""
+        if not self._operation_guard.acquire(blocking=False):
+            raise LifecycleError("cannot prepare offline KD while another operation is active")
+        try:
+            self._ensure_state("prepare_offline_dataset", TrainerState.READY)
+            if self.config.run.mode is not TrainingMode.OFFLINE_KD:
+                raise ConfigError("prepare-offline-kd requires run.mode=offline_kd")
+            if (
+                self.config.offline_kd.trajectory_source
+                is not OfflineKDTrajectorySource.FROZEN_STUDENT
+            ):
+                raise ConfigError(
+                    "prepare-offline-kd requires offline_kd.trajectory_source=frozen_student"
+                )
+            if not self._offline_collection_checkpoint_digest:
+                raise CheckpointError(
+                    "prepare-offline-kd requires a validated cold-start checkpoint digest"
+                )
+            self._prepare_toy_teacher()
+            count = self.config.offline_kd.collection_tasks or self.config.train.rollouts_per_cycle
+            tasks = self._next_tasks(count)
+            trajectories, stats = self._collect(
+                tasks,
+                oracle=False,
+                rollout_seed_base=self.config.offline_kd.collection_seed,
+            )
+            swap = self.plan.strategy is MemoryStrategy.SWAP
+            student_state = None
+            if swap:
+                student_state = self._student_off_device()
+                self._teacher_to_device()
+            try:
+                samples = self._build_samples(trajectories)
+            finally:
+                if swap:
+                    self._teacher_off_device()
+                    self._student_on_device()
+                    if student_state is not None:
+                        self.student.load_trainable_state_dict(student_state)
+            if swap:
+                samples = self._reload_targets_from_cache(samples)
+            self._offline_samples = samples
+            self._persist_offline_dataset(samples)
+
+            import json
+
+            manifest = json.loads(self.paths.offline_dataset_manifest.read_text(encoding="utf-8"))
+            summary = {
+                "dataset_digest": self.offline_dataset_digest,
+                "trajectories": len(samples),
+                "rollouts": stats.rollouts,
+                "parameter_version": self.parameter_version,
+                "manifest": manifest,
+            }
+            write_json(self.paths.root / "offline-preparation.json", summary)
+            self.events.emit(
+                "offline_dataset_prepared",
+                dataset_digest=self.offline_dataset_digest,
+                trajectories=len(samples),
+                parameter_version=self.parameter_version,
+            )
+            return summary
+        finally:
+            self._operation_guard.release()
+
+    def _attach_persisted_offline_dataset(self) -> None:
+        """Copy a validated immutable bundle into this run before optimization."""
+        raw_source = self.config.offline_kd.dataset_path
+        if not raw_source:
+            raise ConfigError("persisted offline KD has no dataset_path")
+        source = Path(raw_source)
+        if (source / "offline-dataset" / "manifest.json").is_file():
+            dataset = source / "offline-dataset"
+            cache = source / "teacher-cache"
+        elif (source / "manifest.json").is_file():
+            dataset = source
+            cache = source.parent / "teacher-cache"
+        else:
+            raise CheckpointError(f"persisted offline dataset manifest not found under {source}")
+        if not cache.is_dir():
+            raise CheckpointError(f"persisted offline teacher cache not found: {cache}")
+
+        import json
+
+        manifest = json.loads((dataset / "manifest.json").read_text(encoding="utf-8"))
+        dataset_checkpoint_digest = manifest.get("cold_start_checkpoint_digest")
+        expected_checkpoint_digest = self._offline_collection_checkpoint_digest
+        if expected_checkpoint_digest and dataset_checkpoint_digest != expected_checkpoint_digest:
+            raise CheckpointError(
+                "persisted offline dataset cold-start checkpoint digest does not match "
+                "the loaded checkpoint"
+            )
+        expected_schedule = self.config.offline_kd.task_schedule_digest
+        if expected_schedule and manifest.get("task_schedule_digest") != expected_schedule:
+            raise CheckpointError(
+                "persisted offline dataset task schedule digest does not match the recipe"
+            )
+        shutil.copytree(dataset, self.paths.offline_dataset)
+        shutil.copytree(cache, self.paths.teacher_cache, dirs_exist_ok=True)
+        self._offline_collection_checkpoint_digest = dataset_checkpoint_digest
+        self._load_offline_dataset(expected_digest=str(manifest.get("dataset_digest") or ""))
+        self.task_cursor = len(self._offline_samples or [])
+        self.events.emit(
+            "persisted_offline_dataset_attached",
+            dataset_digest=self.offline_dataset_digest,
+            source=source.name,
         )
 
     def _load_offline_dataset(self, *, expected_digest: str) -> None:
@@ -1092,6 +1246,9 @@ class OPDTrainer:
             raise CheckpointError("offline dataset tokenizer identity changed")
         if manifest.get("teacher_identity") != self._teacher_identity():
             raise CheckpointError("offline dataset teacher identity changed")
+        expected_schedule = self.config.offline_kd.task_schedule_digest
+        if expected_schedule and manifest.get("task_schedule_digest") != expected_schedule:
+            raise CheckpointError("offline dataset task schedule digest changed")
 
         privileged = self.config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT
         task_by_id = {task.task_id: task for split in self.splits.values() for task in split}
@@ -1588,6 +1745,13 @@ class OPDTrainer:
                 ),
             )
 
+        if (
+            config.run.mode is TrainingMode.OFFLINE_KD
+            and config.offline_kd.trajectory_source is OfflineKDTrajectorySource.PERSISTED
+            and self._offline_samples is None
+        ):
+            self._attach_persisted_offline_dataset()
+
         if not (config.run.mode is TrainingMode.OFFLINE_KD and self._offline_samples is not None):
             self._prepare_toy_teacher()
 
@@ -1603,16 +1767,80 @@ class OPDTrainer:
                 note="skipping the baseline evaluation and the SFT cold start",
             )
         else:
-            if config.eval.enabled:
+            if config.eval.enabled and config.eval.baseline_enabled:
                 baseline = self._evaluate_impl(tag="baseline")
             if config.train.sft_warmup_cycles > 0 and config.run.mode is not TrainingMode.SFT:
                 self._run_sft_warmup(config.train.sft_warmup_cycles)
 
         last_records: list[dict[str, Any]] = []
+        continuation_started = time.perf_counter()
+        cumulative_selected = 0
+        if self._resumed:
+            cumulative_selected = sum(
+                int((row.get("selection") or {}).get("selected_model_tokens") or 0)
+                for row in read_jsonl(self.paths.metrics)
+                if str(row.get("phase", "")).endswith("_cycle")
+            )
+        stop_criterion: dict[str, Any] = {
+            "kind": "configured_cycles",
+            "target": config.train.cycles,
+            "actual": self._cycles_completed,
+        }
+        overshoot: dict[str, Any] = {
+            "axis": "optimizer_steps",
+            "target": config.train.cycles,
+            "actual": self._cycles_completed,
+            "value": 0,
+        }
         for cycle in range(self._start_cycle, config.train.cycles):
             self.cycle = cycle
             last_records = self._run_cycle()
             self._cycles_completed = cycle + 1
+            cumulative_selected += int(
+                (self._last_cycle_metrics.get("selection") or {}).get("selected_model_tokens") or 0
+            )
+            elapsed_continuation = time.perf_counter() - continuation_started
+            budget_reached = False
+            if config.train.max_selected_training_tokens is not None and (
+                cumulative_selected >= config.train.max_selected_training_tokens
+            ):
+                target = config.train.max_selected_training_tokens
+                stop_criterion = {
+                    "kind": "selected_training_tokens",
+                    "target": target,
+                    "actual": cumulative_selected,
+                }
+                overshoot = {
+                    "axis": "selected_training_tokens",
+                    "target": target,
+                    "actual": cumulative_selected,
+                    "value": cumulative_selected - target,
+                }
+                budget_reached = True
+            elif config.train.max_wall_seconds is not None and (
+                elapsed_continuation >= config.train.max_wall_seconds
+            ):
+                target_seconds = config.train.max_wall_seconds
+                stop_criterion = {
+                    "kind": "wall_seconds",
+                    "target": target_seconds,
+                    "actual": elapsed_continuation,
+                }
+                overshoot = {
+                    "axis": "wall_seconds",
+                    "target": target_seconds,
+                    "actual": elapsed_continuation,
+                    "value": elapsed_continuation - target_seconds,
+                }
+                budget_reached = True
+            if budget_reached:
+                self.events.emit(
+                    "continuation_budget_reached",
+                    stop_criterion=stop_criterion,
+                    overshoot=overshoot,
+                    optimizer_step=self.global_step,
+                )
+                break
             if (
                 config.eval.enabled
                 and config.train.eval_every_cycles
@@ -1627,6 +1855,11 @@ class OPDTrainer:
             ):
                 self._save_checkpoint_impl()
 
+        if stop_criterion["kind"] == "configured_cycles":
+            stop_criterion["actual"] = self._cycles_completed
+            overshoot["actual"] = self._cycles_completed
+            overshoot["value"] = max(0, self._cycles_completed - config.train.cycles)
+
         final_eval = self._evaluate_impl(tag="final") if config.eval.enabled else None
         self._save_checkpoint_impl(name="final")
         duration = time.perf_counter() - started
@@ -1635,12 +1868,14 @@ class OPDTrainer:
             run_id=self.run_id,
             run_dir=self.paths.root,
             mode=config.run.mode.value,
-            cycles_completed=config.train.cycles,
+            cycles_completed=self._cycles_completed,
             global_step=self.global_step,
             policy_version=self.policy_version,
             parameter_version=self.parameter_version,
             rollout_policy_version=self._last_rollout_policy_version,
             duration_seconds=duration,
+            stop_criterion=stop_criterion,
+            overshoot=overshoot,
             final_metrics=last_records[-1] if last_records else {},
             eval=final_eval,
             baseline_eval=baseline,
@@ -1691,7 +1926,7 @@ class OPDTrainer:
         rollout_policy_version = self.parameter_version
 
         if mode is TrainingMode.OFFLINE_KD and self._offline_samples is not None:
-            samples = self._offline_samples
+            samples = self._offline_batch_for_cycle()
             if samples:
                 rollout_policy_version = samples[0].trajectory.policy_version
             stats = RolloutStats()
@@ -1702,10 +1937,26 @@ class OPDTrainer:
                 note="fixed teacher targets reused; this run is explicitly not on-policy",
             )
         else:
-            tasks = self._next_tasks(config.train.rollouts_per_cycle)
-            oracle = mode in (TrainingMode.SFT, TrainingMode.OFFLINE_KD)
+            collection_tasks = config.train.rollouts_per_cycle
+            if mode is TrainingMode.OFFLINE_KD and config.offline_kd.collection_tasks is not None:
+                collection_tasks = config.offline_kd.collection_tasks
+            tasks = self._next_tasks(collection_tasks)
+            oracle = mode is TrainingMode.SFT or (
+                mode is TrainingMode.OFFLINE_KD
+                and config.offline_kd.trajectory_source is OfflineKDTrajectorySource.ORACLE
+            )
             rollout_started = time.perf_counter()
-            trajectories, stats = self._collect(tasks, oracle=oracle)
+            trajectories, stats = self._collect(
+                tasks,
+                oracle=oracle,
+                rollout_seed_base=(
+                    config.offline_kd.collection_seed
+                    if mode is TrainingMode.OFFLINE_KD
+                    and config.offline_kd.trajectory_source
+                    is OfflineKDTrajectorySource.FROZEN_STUDENT
+                    else None
+                ),
+            )
             if trajectories:
                 rollout_policy_version = trajectories[0].policy_version
             rollout_seconds = max(time.perf_counter() - rollout_started, 1e-9)
@@ -1744,6 +1995,7 @@ class OPDTrainer:
             if mode is TrainingMode.OFFLINE_KD:
                 self._offline_samples = samples
                 self._persist_offline_dataset(samples)
+                samples = self._offline_batch_for_cycle()
 
         if not samples:
             # A selector can legitimately find nothing -- `tool_and_final` on a
@@ -1796,6 +2048,7 @@ class OPDTrainer:
         if self._cache is not None:
             cycle_metrics["cache"] = self._cache.stats().model_dump(mode="json")
         self.metrics_log.write(cycle_metrics)
+        self._last_cycle_metrics = cycle_metrics
 
         self._last_rollout_policy_version = rollout_policy_version
         if mode is TrainingMode.OPD and self._cache is not None and config.cache.keep_cycles:

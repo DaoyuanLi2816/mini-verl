@@ -80,9 +80,36 @@ Listed so you can check that this repository does not.
 
 | File | Hardware | What it shows |
 | --- | --- | --- |
+| `results/recoverybench-v1-equal-updates.json` | RTX 4080 16 GB | RecoveryBench v1 primary schema-v3 result: six arms, three seeds and eight equal continuation updates. Frozen-student KD reached 23.2% strict success versus 10.9% for strict fresh OPD. [Analysis, figures and caveats.](../docs/recoverybench/recoverybench-v1.md) |
+| `results/recoverybench-v1-equal-selected-tokens.json` | RTX 4080 16 GB | Three-method secondary view at the first optimizer boundary at or beyond 6,224 selected positions. All methods stopped after eight updates; overshoot is retained. |
+| `results/recoverybench-v1-equal-wall-time.json` | RTX 4080 16 GB | Preserved cycle-capped wall diagnostic. SFT and frozen KD reached the eight-cycle ceiling before the internal 50-second timer, while fresh OPD crossed it in one indivisible step; this is not exact equal-time evidence. |
 | `results/gpu-calc-hard-equal-update-v2.json` | RTX 4080 16 GB | Primary schema-v2, five-arm, two-seed equal-update comparison. The protocol-trained teacher prevented the raw/privileged-teacher collapse and reached 100% on both seeds, tying SFT rather than beating it. [Chart and interpretation.](../docs/rtx4080-baselines.md#protocol-teacher-equal-update-comparison-schema-v2) |
 | `results/cpu-toy-calc-matched.json` | CPU only | **Parity, not ranking.** All seven arms run to completion under identical budgets on the toy backend. The accuracy differences are within noise and must not be read as a ranking; see the note in the file. |
 | `results/rtx4080-calc-hard-matched.json` | RTX 4080 16 GB | Legacy single-seed equal-update comparison on the chained calculator split with the real Qwen3 pair. **On-policy distillation lost**, with both a standard and a privileged-context teacher; the transcript-level diagnosis and v1 erratum are in [`docs/rtx4080-baselines.md`](../docs/rtx4080-baselines.md#legacy-equal-update-comparison-schema-v1). |
+
+### RecoveryBench v1
+
+RecoveryBench asks whether scoring fresh current-student states improves
+SQLite tool-error recovery over distillation on a fixed state set collected
+from the cold-start student. It is a mechanism study, not an alignment
+benchmark. The primary hypothesis was not supported, and fresh supervision was
+substantially more expensive in this implementation.
+
+The three result JSON files are immutable source artifacts. The compact
+task-result JSONL, paired analysis and three SVGs are generated from them by
+`scripts/publish_recoverybench_artifacts.py`. The final run follows the public
+[revision-1.3 preregistration](../docs/recoverybench/preregistration.md); one
+earlier partial run with an oracle-schedule defect and one post-run aborted
+wall-budget replacement are preserved outside the publication set and are not
+used in any headline result.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `recoverybench-v1-equal-updates.json` | `6ce2e6837e12b99ebc4fad6d27ce3e69c92e295ff3b9b60e0f68c2d308022384` |
+| `recoverybench-v1-equal-selected-tokens.json` | `fe4c9afc799724dfe7a32e631676a1e5177c44559a7374d2ea31da135354f137` |
+| `recoverybench-v1-equal-wall-time.json` | `425b0fa568f37b09e61af731d3da5009bd3833bddde6efaf2c66e9dba8355cbe` |
+| `recoverybench-v1-task-results.jsonl` | `aff96bffc6da27240a852410ac041bd4d95badf34cad030e6f437be1491a55ad` |
+| `recoverybench-v1-analysis.json` | `8a6891f74aed80f07ec00d5ea1909895c579346e1abbb1d5d95a354bb46c6b81` |
 
 ### Erratum for the legacy RTX 4080 result
 
@@ -182,10 +209,11 @@ modified recipe is welcome as long as it says so.
 
 ## The schema
 
-New harness runs write schema v2. The reader and generated JSON Schema continue
-to accept preserved v1 artifacts; old measurements are never rewritten during
-migration. `schema/benchmark-result.schema.json` is generated from the Pydantic
-model, so the file and implementation cannot drift:
+RecoveryBench runs write schema v3; current calculator harness runs write v2.
+The reader and generated JSON Schema continue to accept preserved v1 and v2
+artifacts, and old measurements are never rewritten during migration.
+`schema/benchmark-result.schema.json` is generated from the Pydantic model, so
+the file and implementation cannot drift:
 
 ```bash
 miniverl schema --out benchmarks/schema/benchmark-result.schema.json

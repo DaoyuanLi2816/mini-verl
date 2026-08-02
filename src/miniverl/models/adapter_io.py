@@ -39,6 +39,7 @@ _POLICY_EVAL_FIELDS = (
     "split",
     "tasks",
     "strict_task_success_rate",
+    "recovery_after_error_rate",
     "lenient_diagnostic_success_rate",
     "parse_valid_tool_call_rate",
     "tool_execution_success_rate",
@@ -62,6 +63,7 @@ _V1_POLICY_EVAL_FIELDS = tuple(
         "tool_execution_error_rate",
         "emitted_tool_calls",
         "parsed_tool_calls",
+        "recovery_after_error_rate",
     }
 )
 
@@ -113,6 +115,29 @@ def _same_model_identity(expected: str, actual: str) -> bool:
     if expected_path.exists() and actual_path.exists():
         return expected_path.resolve() == actual_path.resolve()
     return False
+
+
+def _normalize_exported_adapter_config(
+    path: Path,
+    *,
+    model_id: str,
+    revision: str | None,
+) -> None:
+    """Replace PEFT's machine-local snapshot path with the configured identity."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BackendError(f"cannot normalize exported adapter config {path}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise BackendError(f"exported adapter config is not an object: {path}")
+    payload["base_model_name_or_path"] = model_id
+    payload["revision"] = revision
+    target_modules = payload.get("target_modules")
+    if isinstance(target_modules, list) and all(
+        isinstance(module, str) for module in target_modules
+    ):
+        payload["target_modules"] = sorted(target_modules)
+    write_json(path, payload)
 
 
 def _read_local_adapter(path: Path) -> tuple[dict[str, Any], dict[str, Any], dict[str, Path]]:
@@ -299,20 +324,24 @@ def validate_teacher_adapter(
             raise BackendError(
                 "teacher adapter policy evaluation is incomplete: " + ", ".join(missing_metrics)
             )
-        strict_success = policy_evaluation.get("strict_task_success_rate")
-        if not isinstance(strict_success, (int, float)):
-            raise BackendError(
-                "teacher adapter policy evaluation has no numeric strict success rate"
-            )
-        if (
-            adapter.minimum_strict_success_rate is not None
-            and float(strict_success) < adapter.minimum_strict_success_rate
-        ):
-            raise BackendError(
-                f"teacher adapter strict success {float(strict_success):.1%} is below "
-                f"the prespecified gate {adapter.minimum_strict_success_rate:.1%}",
-                hint="report the failed teacher evaluation; do not run the headline OPD arm",
-            )
+        gates = {
+            "strict_task_success_rate": adapter.minimum_strict_success_rate,
+            "recovery_after_error_rate": adapter.minimum_recovery_after_error_rate,
+            "parse_valid_tool_call_rate": adapter.minimum_parse_valid_tool_call_rate,
+            "tool_execution_success_rate": adapter.minimum_tool_execution_success_rate,
+        }
+        for metric, minimum in gates.items():
+            if minimum is None:
+                continue
+            actual = policy_evaluation.get(metric)
+            if not isinstance(actual, (int, float)):
+                raise BackendError(f"teacher adapter policy evaluation has no numeric {metric}")
+            if float(actual) < minimum:
+                raise BackendError(
+                    f"teacher adapter {metric} {float(actual):.1%} is below "
+                    f"the prespecified gate {minimum:.1%}",
+                    hint="report the failed teacher evaluation; do not run the headline OPD arm",
+                )
 
     checksums = manifest.get("checksums") or {}
     for name, expected in checksums.items():
@@ -418,6 +447,12 @@ def export_adapter(
     ]
     if missing:
         raise BackendError("PEFT export did not produce required files: " + ", ".join(missing))
+
+    _normalize_exported_adapter_config(
+        target / _ADAPTER_CONFIG,
+        model_id=config.models.student.model_id,
+        revision=config.models.student.revision,
+    )
 
     checksums = {
         name: sha256_file(target / name)[0] for name in (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS)

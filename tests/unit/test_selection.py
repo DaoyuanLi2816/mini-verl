@@ -100,6 +100,19 @@ def test_uniform_ratio_respects_the_budget(ratio):
     assert all(traj.model_generated_mask[p] for p in result.positions)
 
 
+def test_uniform_budget_never_overshoots_the_declared_query_fraction() -> None:
+    import math
+
+    traj = _trajectory()
+    result = select_positions(
+        traj,
+        SelectionConfig(selector=SelectorName.UNIFORM_BUDGET, ratio=0.49),
+        run_seed=7,
+    )
+    assert len(result.positions) == math.floor(0.49 * 30)
+    assert result.stats.query_ratio <= 0.49
+
+
 def test_hybrid_keeps_every_critical_token_then_fills_the_budget():
     traj = _trajectory()
     result = select_positions(traj, SelectionConfig(selector=SelectorName.HYBRID, ratio=0.8))

@@ -1,0 +1,27 @@
+{
+  "analysis_version": "recoverybench-analysis-v1",
+  "paired_comparison": "strict-opd-fresh minus offline-kd-frozen-student",
+  "recovery_after_error": {
+    "lower_95": -0.20689655172413793,
+    "mean_difference": -0.13793103448275862,
+    "pairs": 116,
+    "replicates": 10000,
+    "seed": 20260801,
+    "upper_95": -0.06896551724137931
+  },
+  "recovery_pair_rule": "both trajectories had a structured tool error",
+  "schema_version": 1,
+  "source_result_sha256": {
+    "equal_gpu_wall_time": "425b0fa568f37b09e61af731d3da5009bd3833bddde6efaf2c66e9dba8355cbe",
+    "equal_optimizer_updates": "6ce2e6837e12b99ebc4fad6d27ce3e69c92e295ff3b9b60e0f68c2d308022384",
+    "equal_selected_training_tokens": "fe4c9afc799724dfe7a32e631676a1e5177c44559a7374d2ea31da135354f137"
+  },
+  "strict_task_success": {
+    "lower_95": -0.15885416666666666,
+    "mean_difference": -0.12239583333333333,
+    "pairs": 384,
+    "replicates": 10000,
+    "seed": 20260801,
+    "upper_95": -0.0859375
+  }
+}

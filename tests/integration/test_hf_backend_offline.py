@@ -365,6 +365,7 @@ def test_hub_teacher_adapter_downloads_and_validates_miniverl_manifest(
         "split": "test",
         "tasks": 8,
         "strict_task_success_rate": 0.75,
+        "recovery_after_error_rate": 0.75,
         "lenient_diagnostic_success_rate": 0.75,
         "valid_tool_call_rate": 1.0,
         "tool_call_count": 16,
@@ -464,13 +465,18 @@ def test_v2_teacher_competence_requires_precise_tool_event_metrics(
 
     with pytest.raises(
         BackendError,
-        match="policy evaluation is incomplete: parse_valid_tool_call_rate",
+        match=(
+            "policy evaluation is incomplete: recovery_after_error_rate, parse_valid_tool_call_rate"
+        ),
     ):
         validate_teacher_adapter(
             TeacherAdapterConfig(
                 path=str(adapter),
                 require_policy_evaluation=True,
                 minimum_strict_success_rate=0.5,
+                minimum_recovery_after_error_rate=0.75,
+                minimum_parse_valid_tool_call_rate=0.95,
+                minimum_tool_execution_success_rate=0.70,
             ),
             TeacherModelConfig(model_id=str(base)),
             tokenizer_fingerprint=tiny_tokenizer.fingerprint,
@@ -778,6 +784,7 @@ def test_headline_teacher_gate_requires_recorded_policy_competence(
         "split": "test",
         "tasks": 8,
         "strict_task_success_rate": 0.75,
+        "recovery_after_error_rate": 0.75,
         "lenient_diagnostic_success_rate": 0.75,
         "parse_valid_tool_call_rate": 1.0,
         "tool_execution_success_rate": 1.0,
@@ -802,6 +809,9 @@ def test_headline_teacher_gate_requires_recorded_policy_competence(
                 path=str(adapter),
                 require_policy_evaluation=True,
                 minimum_strict_success_rate=0.5,
+                minimum_recovery_after_error_rate=0.75,
+                minimum_parse_valid_tool_call_rate=0.95,
+                minimum_tool_execution_success_rate=0.70,
             ),
         ),
         device="cpu",
@@ -812,6 +822,28 @@ def test_headline_teacher_gate_requires_recorded_policy_competence(
     assert backend.adapter_provenance["policy_evaluation"][
         "strict_task_success_rate"
     ] == pytest.approx(0.75)
+    backend.release()
+
+    manifest["policy_evaluation"]["recovery_after_error_rate"] = 0.74
+    write_json(adapter / ADAPTER_MANIFEST, manifest)
+    with pytest.raises(BackendError, match=r"recovery_after_error_rate 74\.0%"):
+        HFBackend.load(
+            TeacherModelConfig(
+                model_id=str(base),
+                adapter=TeacherAdapterConfig(
+                    path=str(adapter),
+                    require_policy_evaluation=True,
+                    minimum_strict_success_rate=0.5,
+                    minimum_recovery_after_error_rate=0.75,
+                    minimum_parse_valid_tool_call_rate=0.95,
+                    minimum_tool_execution_success_rate=0.70,
+                ),
+            ),
+            device="cpu",
+            tokenizer=tiny_tokenizer,
+            trainable=False,
+            local_files_only=True,
+        )
 
 
 @requires_peft

@@ -1,0 +1,3153 @@
+{
+  "arms": [
+    {
+      "assistant_turns": 599,
+      "avg_tool_calls": 3.875,
+      "avg_turns": 4.6796875,
+      "baseline_success_rate": null,
+      "cache_bytes_written_total": null,
+      "cache_compression_ratio": null,
+      "cache_current_bytes": null,
+      "declared_config_digest": "868796e4d840a7174ebdd1d2086b64e2e160dd38b55b5f698851d1487131762c",
+      "description": "Oracle-SFT continuation.",
+      "divergence": null,
+      "emitted_tool_calls": 579,
+      "evaluation_seconds": 1390.1738157999935,
+      "final_answer_format_validity_rate": 1.0,
+      "final_answers_emitted": 20,
+      "final_answers_format_valid": 20,
+      "final_answers_verified": 20,
+      "frozen_dataset_identity": null,
+      "generated_tokens_per_task": 142.890625,
+      "generated_training_tokens_total": 6675,
+      "harness_config_diff": [
+        {
+          "arm": "recoverybench-v1-equal-wall-time-continued-sft-s1234",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-continued-sft-s1234",
+          "change": "changed",
+          "common": null,
+          "path": "run.run_id",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "invalid_tool_call_rate": 0.14335060449050085,
+      "lenient_diagnostic_success_rate": 0.0,
+      "loss_mode": null,
+      "measurement_status": {
+        "cache": "not_applicable",
+        "evaluation_time": "measured",
+        "final_answer_format_validity_rate": "measured",
+        "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+        "parse_valid_tool_call_rate": "measured",
+        "peak_vram": "measured",
+        "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+        "strict_task_success_rate": "measured_primary",
+        "tool_execution_error_rate": "measured",
+        "tool_execution_success_rate": "measured",
+        "train_time": "measured",
+        "valid_tool_call_rate": "measured",
+        "wall_time": "measured"
+      },
+      "mode": "sft",
+      "model_generated_training_tokens_total": 0,
+      "name": "continued-sft",
+      "objective": "sft_cross_entropy",
+      "opd_freshness": null,
+      "optimizer_steps": 8,
+      "overshoot": {
+        "actual": 8,
+        "axis": "optimizer_steps",
+        "target": 8,
+        "value": 0
+      },
+      "parse_errors": 83,
+      "parse_valid_tool_call_rate": 0.8566493955094991,
+      "parsed_tool_calls": 496,
+      "peak_allocated_bytes": 1561669120,
+      "peak_reserved_bytes": 1872756736,
+      "policy_version": 8,
+      "protocol_token_accuracy": null,
+      "recovery_metrics": {
+        "recovery_after_error_rate": 0.0,
+        "subsets": {
+          "controlled_intervention": {
+            "injected_error_tasks": 8,
+            "natural_error_tasks": 33,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.0,
+            "success_given_first_query_error": 0.0,
+            "tasks": 43,
+            "tokens_after_first_error_total": 4112,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.08791208791208792
+          },
+          "natural_error": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 35,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.0,
+            "success_given_first_query_error": 0.0,
+            "tasks": 42,
+            "tokens_after_first_error_total": 4005,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.10975609756097561
+          },
+          "no_intervention": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 39,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.0,
+            "success_given_first_query_error": 0.0,
+            "tasks": 43,
+            "tokens_after_first_error_total": 4478,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.12643678160919541
+          }
+        },
+        "success_given_first_query_error": 0.0,
+        "turns_to_recovery": null,
+        "valid_sql_execution_rate": 0.1076923076923077
+      },
+      "repeated_call_terminations": 0,
+      "resolved_config_digest": "868796e4d840a7174ebdd1d2086b64e2e160dd38b55b5f698851d1487131762c",
+      "run_dir": "recoverybench-v1-equal-wall-time-continued-sft-s1234",
+      "run_id": "recoverybench-v1-equal-wall-time-continued-sft-s1234",
+      "runtime_resolution_diff": [
+        {
+          "arm": "resident",
+          "change": "changed",
+          "common": "auto",
+          "path": "memory.strategy",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "cuda",
+          "change": "changed",
+          "common": "auto",
+          "path": "models.device",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "runtime_resolved_config_digest": "d6cc1f53ba351011936d2072e4be8114baa1625dedd66aef0cca4c5752a79a07",
+      "scientific_config_diff": [
+        {
+          "arm": "sft",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode",
+          "stage": "declared_vs_common"
+        }
+      ],
+      "seed": 1234,
+      "selected_position_ratio": 1.0,
+      "selected_training_tokens_total": 6675,
+      "selector": "all_model_tokens",
+      "stop_criterion": {
+        "actual": 8,
+        "kind": "configured_cycles",
+        "target": 8
+      },
+      "strict_task_success_rate": 0.0,
+      "structured_diff": [
+        {
+          "arm": "sft",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-continued-sft-s1234",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name"
+        }
+      ],
+      "student_model_id": "Qwen/Qwen3-0.6B",
+      "student_model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "success_rate": 0.0,
+      "task_level_artifact": {
+        "bytes": 3312325,
+        "path": "recoverybench-v1-equal-wall-time-continued-sft-s1234/eval_trajectories.jsonl",
+        "sha256": "eb925bca791adf5e27ba2be25c1903f0df8f8341c466a0cf9e686ab2380ae297"
+      },
+      "tasks": 128,
+      "teacher_adapter": null,
+      "teacher_context_mode": null,
+      "teacher_model_id": null,
+      "teacher_model_revision": null,
+      "teacher_queried_position_ratio": null,
+      "teacher_queried_positions_total": null,
+      "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+      "tokens_per_solved_task": null,
+      "tool_call_count": 579,
+      "tool_execution_error_rate": 0.46774193548387094,
+      "tool_execution_errors": 232,
+      "tool_execution_success_rate": 0.532258064516129,
+      "tool_execution_successes": 264,
+      "top_k": null,
+      "total_trajectories": 64,
+      "train_seconds": 52.278555499971844,
+      "unknown_tool_calls": 0,
+      "valid_tool_call_rate": 0.8566493955094991,
+      "wall_seconds": 1450.9581486999523
+    },
+    {
+      "assistant_turns": 476,
+      "avg_tool_calls": 2.84375,
+      "avg_turns": 3.71875,
+      "baseline_success_rate": null,
+      "cache_bytes_written_total": 0,
+      "cache_compression_ratio": 673.981579837282,
+      "cache_current_bytes": 2915718,
+      "declared_config_digest": "72b765e616902e2764effb25e7b830e7a05bf987fa347c882dae71c3ae64273b",
+      "description": "Immutable cold-student states and teacher targets.",
+      "divergence": "reverse_kl",
+      "emitted_tool_calls": 364,
+      "evaluation_seconds": 962.3577197999693,
+      "final_answer_format_validity_rate": 1.0,
+      "final_answers_emitted": 112,
+      "final_answers_format_valid": 112,
+      "final_answers_verified": 112,
+      "frozen_dataset_identity": {
+        "dataset_digest": "a977917c29686a0245a9053d8b6a2933397676923133fac758bcc6c08cb80488",
+        "manifest": {
+          "bytes": 128338,
+          "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s1234/offline-dataset/manifest.json",
+          "sha256": "142336af0ad51bd7e8cf677575fc4d5ae7416ba12742ec138862d86d494ec702"
+        }
+      },
+      "generated_tokens_per_task": 98.5390625,
+      "generated_training_tokens_total": 0,
+      "harness_config_diff": [
+        {
+          "arm": "frozen_student",
+          "change": "changed",
+          "common": "oracle",
+          "path": "offline_kd.trajectory_source",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s1234",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "<local>/recoverybench-v1-final-frozen-s1234",
+          "change": "changed",
+          "common": null,
+          "path": "offline_kd.dataset_path",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "persisted",
+          "change": "changed",
+          "common": "frozen_student",
+          "path": "offline_kd.trajectory_source",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s1234",
+          "change": "changed",
+          "common": null,
+          "path": "run.run_id",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "invalid_tool_call_rate": 0.0,
+      "lenient_diagnostic_success_rate": 0.3671875,
+      "loss_mode": "bucketed_topk_tail",
+      "measurement_status": {
+        "cache": "measured",
+        "evaluation_time": "measured",
+        "final_answer_format_validity_rate": "measured",
+        "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+        "parse_valid_tool_call_rate": "measured",
+        "peak_vram": "measured",
+        "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+        "strict_task_success_rate": "measured_primary",
+        "tool_execution_error_rate": "measured",
+        "tool_execution_success_rate": "measured",
+        "train_time": "measured",
+        "valid_tool_call_rate": "measured",
+        "wall_time": "measured"
+      },
+      "mode": "offline_kd",
+      "model_generated_training_tokens_total": 0,
+      "name": "offline-kd-frozen-student",
+      "objective": "offline_knowledge_distillation",
+      "opd_freshness": null,
+      "optimizer_steps": 8,
+      "overshoot": {
+        "actual": 8,
+        "axis": "optimizer_steps",
+        "target": 8,
+        "value": 0
+      },
+      "parse_errors": 0,
+      "parse_valid_tool_call_rate": 1.0,
+      "parsed_tool_calls": 364,
+      "peak_allocated_bytes": 3015593984,
+      "peak_reserved_bytes": 3724541952,
+      "policy_version": 8,
+      "protocol_token_accuracy": null,
+      "recovery_metrics": {
+        "recovery_after_error_rate": 0.2857142857142857,
+        "subsets": {
+          "controlled_intervention": {
+            "injected_error_tasks": 38,
+            "natural_error_tasks": 5,
+            "recovery_after_error_rate": 0.32558139534883723,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.32558139534883723,
+            "success_given_first_query_error": 0.32558139534883723,
+            "tasks": 43,
+            "tokens_after_first_error_total": 3155,
+            "turns_to_recovery": 3.0,
+            "valid_sql_execution_rate": 0.4418604651162791
+          },
+          "natural_error": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 2,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 0.6666666666666666,
+            "strict_task_success_rate": 0.35714285714285715,
+            "success_given_first_query_error": 0.0,
+            "tasks": 42,
+            "tokens_after_first_error_total": 124,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.8913043478260869
+          },
+          "no_intervention": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 3,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.4186046511627907,
+            "success_given_first_query_error": 0.0,
+            "tasks": 43,
+            "tokens_after_first_error_total": 186,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.8695652173913043
+          }
+        },
+        "success_given_first_query_error": 0.2916666666666667,
+        "turns_to_recovery": 3.0,
+        "valid_sql_execution_rate": 0.6685393258426966
+      },
+      "repeated_call_terminations": 11,
+      "resolved_config_digest": "72b765e616902e2764effb25e7b830e7a05bf987fa347c882dae71c3ae64273b",
+      "run_dir": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s1234",
+      "run_id": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s1234",
+      "runtime_resolution_diff": [
+        {
+          "arm": "resident",
+          "change": "changed",
+          "common": "auto",
+          "path": "memory.strategy",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "cuda",
+          "change": "changed",
+          "common": "auto",
+          "path": "models.device",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "runtime_resolved_config_digest": "3e8ae0bf4046962b506edfcd7ff4e96dec8ae40b6a7bdb9d23837332d74956f8",
+      "scientific_config_diff": [
+        {
+          "arm": true,
+          "change": "changed",
+          "common": false,
+          "path": "cache.reuse_across_policy_versions",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 64,
+          "change": "changed",
+          "common": null,
+          "path": "offline_kd.collection_tasks",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "frozen_student",
+          "change": "changed",
+          "common": "oracle",
+          "path": "offline_kd.trajectory_source",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "offline_kd",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode",
+          "stage": "declared_vs_common"
+        }
+      ],
+      "seed": 1234,
+      "selected_position_ratio": 1.0,
+      "selected_training_tokens_total": 6467,
+      "selector": "all_model_tokens",
+      "stop_criterion": {
+        "actual": 8,
+        "kind": "configured_cycles",
+        "target": 8
+      },
+      "strict_task_success_rate": 0.3671875,
+      "structured_diff": [
+        {
+          "arm": true,
+          "change": "changed",
+          "common": false,
+          "path": "cache.reuse_across_policy_versions"
+        },
+        {
+          "arm": 64,
+          "change": "changed",
+          "common": null,
+          "path": "offline_kd.collection_tasks"
+        },
+        {
+          "arm": "frozen_student",
+          "change": "changed",
+          "common": "oracle",
+          "path": "offline_kd.trajectory_source"
+        },
+        {
+          "arm": "offline_kd",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s1234",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name"
+        }
+      ],
+      "student_model_id": "Qwen/Qwen3-0.6B",
+      "student_model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "success_rate": 0.3671875,
+      "task_level_artifact": {
+        "bytes": 2714626,
+        "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s1234/eval_trajectories.jsonl",
+        "sha256": "ae4eafa2ad11d2688bf82ff9c68e1d35e79ad87ef0af7a4bd6566b07e7a8493a"
+      },
+      "tasks": 128,
+      "teacher_adapter": {
+        "base_model_id": "Qwen/Qwen3-1.7B",
+        "base_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "identity": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+        "manifest_digest": "19366d5309e08e157298cd4a61461453de73114d90ca85c4f14dadc640e48a57",
+        "peft_type": "LORA",
+        "policy_evaluation": {
+          "avg_turns": 3.6666666666666665,
+          "emitted_tool_calls": 256,
+          "final_answer_format_validity_rate": 1.0,
+          "lenient_diagnostic_success_rate": 0.8645833333333334,
+          "parse_valid_tool_call_rate": 1.0,
+          "parsed_tool_calls": 256,
+          "policy_competence_measurement_status": {
+            "final_answer_format_validity_rate": "measured",
+            "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+            "parse_valid_tool_call_rate": "measured",
+            "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+            "strict_task_success_rate": "measured_primary",
+            "tool_execution_error_rate": "measured",
+            "tool_execution_success_rate": "measured",
+            "valid_tool_call_rate": "measured"
+          },
+          "protocol_token_accuracy": null,
+          "protocol_version": "v2",
+          "recovery_after_error_rate": 0.78125,
+          "split": "eval",
+          "strict_task_success_rate": 0.8645833333333334,
+          "tag": "final",
+          "tasks": 96,
+          "tool_call_count": 256,
+          "tool_execution_error_rate": 0.125,
+          "tool_execution_success_rate": 0.875,
+          "valid_tool_call_rate": 1.0
+        },
+        "protocol_version": "v2",
+        "revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+        "source": "hub",
+        "target_modules": [
+          "down_proj",
+          "gate_proj",
+          "k_proj",
+          "o_proj",
+          "q_proj",
+          "up_proj",
+          "v_proj"
+        ],
+        "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+        "weights_sha256": "5355f7007efb904d1b45a1aeb9b73b479b6f52025ab92502ab7895706155b2ba"
+      },
+      "teacher_context_mode": "standard",
+      "teacher_model_id": "Qwen/Qwen3-1.7B",
+      "teacher_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "teacher_queried_position_ratio": 1.0,
+      "teacher_queried_positions_total": 6467,
+      "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+      "tokens_per_solved_task": 268.36170212765956,
+      "tool_call_count": 364,
+      "tool_execution_error_rate": 0.1643059490084986,
+      "tool_execution_errors": 58,
+      "tool_execution_success_rate": 0.8356940509915014,
+      "tool_execution_successes": 295,
+      "top_k": 64,
+      "total_trajectories": 0,
+      "train_seconds": 52.07148080004845,
+      "unknown_tool_calls": 0,
+      "valid_tool_call_rate": 1.0,
+      "wall_seconds": 1021.4681968999794
+    },
+    {
+      "assistant_turns": 494,
+      "avg_tool_calls": 3.1640625,
+      "avg_turns": 3.859375,
+      "baseline_success_rate": null,
+      "cache_bytes_written_total": 387522,
+      "cache_compression_ratio": 672.197556024029,
+      "cache_current_bytes": 384701,
+      "declared_config_digest": "7cb0d6d50ff12249be313dbafbde14485b71b0e8dcda635284c36ecf8235e1a4",
+      "description": "Strict fresh-state OPD.",
+      "divergence": "reverse_kl",
+      "emitted_tool_calls": 407,
+      "evaluation_seconds": 956.5206041000783,
+      "final_answer_format_validity_rate": 1.0,
+      "final_answers_emitted": 87,
+      "final_answers_format_valid": 87,
+      "final_answers_verified": 87,
+      "frozen_dataset_identity": null,
+      "generated_tokens_per_task": 98.15625,
+      "generated_training_tokens_total": 851,
+      "harness_config_diff": [
+        {
+          "arm": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s1234",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s1234",
+          "change": "changed",
+          "common": null,
+          "path": "run.run_id",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "invalid_tool_call_rate": 0.004914004914004914,
+      "lenient_diagnostic_success_rate": 0.0390625,
+      "loss_mode": "bucketed_topk_tail",
+      "measurement_status": {
+        "cache": "measured",
+        "evaluation_time": "measured",
+        "final_answer_format_validity_rate": "measured",
+        "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+        "parse_valid_tool_call_rate": "measured",
+        "peak_vram": "measured",
+        "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+        "strict_task_success_rate": "measured_primary",
+        "tool_execution_error_rate": "measured",
+        "tool_execution_success_rate": "measured",
+        "train_time": "measured",
+        "valid_tool_call_rate": "measured",
+        "wall_time": "measured"
+      },
+      "mode": "opd",
+      "model_generated_training_tokens_total": 851,
+      "name": "strict-opd-fresh",
+      "objective": "on_policy_distillation",
+      "opd_freshness": "strict",
+      "optimizer_steps": 1,
+      "overshoot": {
+        "actual": 88.35794709995389,
+        "axis": "wall_seconds",
+        "target": 50.0,
+        "value": 38.35794709995389
+      },
+      "parse_errors": 2,
+      "parse_valid_tool_call_rate": 0.995085995085995,
+      "parsed_tool_calls": 405,
+      "peak_allocated_bytes": 2914489856,
+      "peak_reserved_bytes": 3720347648,
+      "policy_version": 1,
+      "protocol_token_accuracy": null,
+      "recovery_metrics": {
+        "recovery_after_error_rate": 0.0390625,
+        "subsets": {
+          "controlled_intervention": {
+            "injected_error_tasks": 12,
+            "natural_error_tasks": 43,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.0,
+            "success_given_first_query_error": 0.0,
+            "tasks": 43,
+            "tokens_after_first_error_total": 3266,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.13793103448275862
+          },
+          "natural_error": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 42,
+            "recovery_after_error_rate": 0.023809523809523808,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.023809523809523808,
+            "success_given_first_query_error": 0.023809523809523808,
+            "tasks": 42,
+            "tokens_after_first_error_total": 2411,
+            "turns_to_recovery": 3.0,
+            "valid_sql_execution_rate": 0.16666666666666666
+          },
+          "no_intervention": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 43,
+            "recovery_after_error_rate": 0.09302325581395349,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.09302325581395349,
+            "success_given_first_query_error": 0.09302325581395349,
+            "tasks": 43,
+            "tokens_after_first_error_total": 2531,
+            "turns_to_recovery": 3.0,
+            "valid_sql_execution_rate": 0.18181818181818182
+          }
+        },
+        "success_given_first_query_error": 0.0390625,
+        "turns_to_recovery": 3.0,
+        "valid_sql_execution_rate": 0.16101694915254236
+      },
+      "repeated_call_terminations": 0,
+      "resolved_config_digest": "7cb0d6d50ff12249be313dbafbde14485b71b0e8dcda635284c36ecf8235e1a4",
+      "run_dir": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s1234",
+      "run_id": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s1234",
+      "runtime_resolution_diff": [
+        {
+          "arm": "resident",
+          "change": "changed",
+          "common": "auto",
+          "path": "memory.strategy",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "cuda",
+          "change": "changed",
+          "common": "auto",
+          "path": "models.device",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "runtime_resolved_config_digest": "6b3361ede20453507e6d45cca85e053bfb4c19b36507935c1e19c25955a89117",
+      "scientific_config_diff": [],
+      "seed": 1234,
+      "selected_position_ratio": 1.0,
+      "selected_training_tokens_total": 851,
+      "selector": "all_model_tokens",
+      "stop_criterion": {
+        "actual": 88.35794709995389,
+        "kind": "wall_seconds",
+        "target": 50.0
+      },
+      "strict_task_success_rate": 0.0390625,
+      "structured_diff": [
+        {
+          "arm": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s1234",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name"
+        }
+      ],
+      "student_model_id": "Qwen/Qwen3-0.6B",
+      "student_model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "success_rate": 0.0390625,
+      "task_level_artifact": {
+        "bytes": 2694736,
+        "path": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s1234/eval_trajectories.jsonl",
+        "sha256": "9fbd40f9fbde5603f31fb59c143db487c92788ccf4a4f7b3ba4d9571fd59cf5b"
+      },
+      "tasks": 128,
+      "teacher_adapter": {
+        "base_model_id": "Qwen/Qwen3-1.7B",
+        "base_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "identity": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+        "manifest_digest": "19366d5309e08e157298cd4a61461453de73114d90ca85c4f14dadc640e48a57",
+        "peft_type": "LORA",
+        "policy_evaluation": {
+          "avg_turns": 3.6666666666666665,
+          "emitted_tool_calls": 256,
+          "final_answer_format_validity_rate": 1.0,
+          "lenient_diagnostic_success_rate": 0.8645833333333334,
+          "parse_valid_tool_call_rate": 1.0,
+          "parsed_tool_calls": 256,
+          "policy_competence_measurement_status": {
+            "final_answer_format_validity_rate": "measured",
+            "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+            "parse_valid_tool_call_rate": "measured",
+            "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+            "strict_task_success_rate": "measured_primary",
+            "tool_execution_error_rate": "measured",
+            "tool_execution_success_rate": "measured",
+            "valid_tool_call_rate": "measured"
+          },
+          "protocol_token_accuracy": null,
+          "protocol_version": "v2",
+          "recovery_after_error_rate": 0.78125,
+          "split": "eval",
+          "strict_task_success_rate": 0.8645833333333334,
+          "tag": "final",
+          "tasks": 96,
+          "tool_call_count": 256,
+          "tool_execution_error_rate": 0.125,
+          "tool_execution_success_rate": 0.875,
+          "valid_tool_call_rate": 1.0
+        },
+        "protocol_version": "v2",
+        "revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+        "source": "hub",
+        "target_modules": [
+          "down_proj",
+          "gate_proj",
+          "k_proj",
+          "o_proj",
+          "q_proj",
+          "up_proj",
+          "v_proj"
+        ],
+        "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+        "weights_sha256": "5355f7007efb904d1b45a1aeb9b73b479b6f52025ab92502ab7895706155b2ba"
+      },
+      "teacher_context_mode": "standard",
+      "teacher_model_id": "Qwen/Qwen3-1.7B",
+      "teacher_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "teacher_queried_position_ratio": 1.0,
+      "teacher_queried_positions_total": 851,
+      "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+      "tokens_per_solved_task": 2512.8,
+      "tool_call_count": 407,
+      "tool_execution_error_rate": 0.4888888888888889,
+      "tool_execution_errors": 198,
+      "tool_execution_success_rate": 0.5111111111111111,
+      "tool_execution_successes": 207,
+      "top_k": 64,
+      "total_trajectories": 8,
+      "train_seconds": 114.89092319994234,
+      "unknown_tool_calls": 0,
+      "valid_tool_call_rate": 0.995085995085995,
+      "wall_seconds": 1077.1350547000766
+    },
+    {
+      "assistant_turns": 492,
+      "avg_tool_calls": 2.6875,
+      "avg_turns": 3.84375,
+      "baseline_success_rate": null,
+      "cache_bytes_written_total": null,
+      "cache_compression_ratio": null,
+      "cache_current_bytes": null,
+      "declared_config_digest": "e877fc2653dfaca35e35412d0a5ac759ddc97594891cb0b6d33c76f55f510d26",
+      "description": "Oracle-SFT continuation.",
+      "divergence": null,
+      "emitted_tool_calls": 408,
+      "evaluation_seconds": 1064.057980399928,
+      "final_answer_format_validity_rate": 1.0,
+      "final_answers_emitted": 84,
+      "final_answers_format_valid": 84,
+      "final_answers_verified": 84,
+      "frozen_dataset_identity": null,
+      "generated_tokens_per_task": 109.46875,
+      "generated_training_tokens_total": 6870,
+      "harness_config_diff": [
+        {
+          "arm": "recoverybench-v1-equal-wall-time-continued-sft-s20260727",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 20260727,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-continued-sft-s20260727",
+          "change": "changed",
+          "common": null,
+          "path": "run.run_id",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "invalid_tool_call_rate": 0.1568627450980392,
+      "lenient_diagnostic_success_rate": 0.0546875,
+      "loss_mode": null,
+      "measurement_status": {
+        "cache": "not_applicable",
+        "evaluation_time": "measured",
+        "final_answer_format_validity_rate": "measured",
+        "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+        "parse_valid_tool_call_rate": "measured",
+        "peak_vram": "measured",
+        "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+        "strict_task_success_rate": "measured_primary",
+        "tool_execution_error_rate": "measured",
+        "tool_execution_success_rate": "measured",
+        "train_time": "measured",
+        "valid_tool_call_rate": "measured",
+        "wall_time": "measured"
+      },
+      "mode": "sft",
+      "model_generated_training_tokens_total": 0,
+      "name": "continued-sft",
+      "objective": "sft_cross_entropy",
+      "opd_freshness": null,
+      "optimizer_steps": 8,
+      "overshoot": {
+        "actual": 8,
+        "axis": "optimizer_steps",
+        "target": 8,
+        "value": 0
+      },
+      "parse_errors": 64,
+      "parse_valid_tool_call_rate": 0.8431372549019608,
+      "parsed_tool_calls": 344,
+      "peak_allocated_bytes": 1562476544,
+      "peak_reserved_bytes": 2006974464,
+      "policy_version": 8,
+      "protocol_token_accuracy": null,
+      "recovery_metrics": {
+        "recovery_after_error_rate": 0.05263157894736842,
+        "subsets": {
+          "controlled_intervention": {
+            "injected_error_tasks": 26,
+            "natural_error_tasks": 6,
+            "recovery_after_error_rate": 0.0625,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.046511627906976744,
+            "success_given_first_query_error": 0.0625,
+            "tasks": 43,
+            "tokens_after_first_error_total": 2265,
+            "turns_to_recovery": 3.0,
+            "valid_sql_execution_rate": 0.40625
+          },
+          "natural_error": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 1,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.023809523809523808,
+            "success_given_first_query_error": 0.0,
+            "tasks": 42,
+            "tokens_after_first_error_total": 62,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.9375
+          },
+          "no_intervention": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 5,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.09302325581395349,
+            "success_given_first_query_error": 0.0,
+            "tasks": 43,
+            "tokens_after_first_error_total": 310,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.7368421052631579
+          }
+        },
+        "success_given_first_query_error": 0.05263157894736842,
+        "turns_to_recovery": 3.0,
+        "valid_sql_execution_rate": 0.6268656716417911
+      },
+      "repeated_call_terminations": 12,
+      "resolved_config_digest": "e877fc2653dfaca35e35412d0a5ac759ddc97594891cb0b6d33c76f55f510d26",
+      "run_dir": "recoverybench-v1-equal-wall-time-continued-sft-s20260727",
+      "run_id": "recoverybench-v1-equal-wall-time-continued-sft-s20260727",
+      "runtime_resolution_diff": [
+        {
+          "arm": "resident",
+          "change": "changed",
+          "common": "auto",
+          "path": "memory.strategy",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "cuda",
+          "change": "changed",
+          "common": "auto",
+          "path": "models.device",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "runtime_resolved_config_digest": "1304ce71b18f48166e13cde5c0eea695423475a7ed09cd2a761e6512c055ef48",
+      "scientific_config_diff": [
+        {
+          "arm": "sft",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode",
+          "stage": "declared_vs_common"
+        }
+      ],
+      "seed": 20260727,
+      "selected_position_ratio": 1.0,
+      "selected_training_tokens_total": 6870,
+      "selector": "all_model_tokens",
+      "stop_criterion": {
+        "actual": 8,
+        "kind": "configured_cycles",
+        "target": 8
+      },
+      "strict_task_success_rate": 0.0546875,
+      "structured_diff": [
+        {
+          "arm": "sft",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-continued-sft-s20260727",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name"
+        },
+        {
+          "arm": 20260727,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed"
+        }
+      ],
+      "student_model_id": "Qwen/Qwen3-0.6B",
+      "student_model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "success_rate": 0.0546875,
+      "task_level_artifact": {
+        "bytes": 2667226,
+        "path": "recoverybench-v1-equal-wall-time-continued-sft-s20260727/eval_trajectories.jsonl",
+        "sha256": "2c692a64726d814890f7faa620473ae8a6a5dbdadb940c824f1cd9e767abf35c"
+      },
+      "tasks": 128,
+      "teacher_adapter": null,
+      "teacher_context_mode": null,
+      "teacher_model_id": null,
+      "teacher_model_revision": null,
+      "teacher_queried_position_ratio": null,
+      "teacher_queried_positions_total": null,
+      "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+      "tokens_per_solved_task": 2001.7142857142858,
+      "tool_call_count": 408,
+      "tool_execution_error_rate": 0.15060240963855423,
+      "tool_execution_errors": 50,
+      "tool_execution_success_rate": 0.8493975903614458,
+      "tool_execution_successes": 282,
+      "top_k": null,
+      "total_trajectories": 64,
+      "train_seconds": 51.204621899989434,
+      "unknown_tool_calls": 0,
+      "valid_tool_call_rate": 0.8431372549019608,
+      "wall_seconds": 1119.205741899903
+    },
+    {
+      "assistant_turns": 535,
+      "avg_tool_calls": 2.921875,
+      "avg_turns": 4.1796875,
+      "baseline_success_rate": null,
+      "cache_bytes_written_total": 0,
+      "cache_compression_ratio": 675.194012102539,
+      "cache_current_bytes": 3039197,
+      "declared_config_digest": "4f6d8bb4aa81d776f9e0adf31369014338399e19728872c423031e8877c7e206",
+      "description": "Immutable cold-student states and teacher targets.",
+      "divergence": "reverse_kl",
+      "emitted_tool_calls": 504,
+      "evaluation_seconds": 1322.0821606999962,
+      "final_answer_format_validity_rate": 1.0,
+      "final_answers_emitted": 31,
+      "final_answers_format_valid": 31,
+      "final_answers_verified": 31,
+      "frozen_dataset_identity": {
+        "dataset_digest": "a6662fb8e0ab10197e66c8eba7b03872b5d788a816b115c57c9aea7d5fff495c",
+        "manifest": {
+          "bytes": 133561,
+          "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260727/offline-dataset/manifest.json",
+          "sha256": "9fcde6fabd535b73681f74de0a2e09ddbd922ddcaa66265e5864a959f5bae2ed"
+        }
+      },
+      "generated_tokens_per_task": 135.578125,
+      "generated_training_tokens_total": 0,
+      "harness_config_diff": [
+        {
+          "arm": "frozen_student",
+          "change": "changed",
+          "common": "oracle",
+          "path": "offline_kd.trajectory_source",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260727",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 20260727,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "<local>/recoverybench-v1-final-frozen-s20260727",
+          "change": "changed",
+          "common": null,
+          "path": "offline_kd.dataset_path",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "persisted",
+          "change": "changed",
+          "common": "frozen_student",
+          "path": "offline_kd.trajectory_source",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260727",
+          "change": "changed",
+          "common": null,
+          "path": "run.run_id",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "invalid_tool_call_rate": 0.25793650793650796,
+      "lenient_diagnostic_success_rate": 0.09375,
+      "loss_mode": "bucketed_topk_tail",
+      "measurement_status": {
+        "cache": "measured",
+        "evaluation_time": "measured",
+        "final_answer_format_validity_rate": "measured",
+        "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+        "parse_valid_tool_call_rate": "measured",
+        "peak_vram": "measured",
+        "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+        "strict_task_success_rate": "measured_primary",
+        "tool_execution_error_rate": "measured",
+        "tool_execution_success_rate": "measured",
+        "train_time": "measured",
+        "valid_tool_call_rate": "measured",
+        "wall_time": "measured"
+      },
+      "mode": "offline_kd",
+      "model_generated_training_tokens_total": 0,
+      "name": "offline-kd-frozen-student",
+      "objective": "offline_knowledge_distillation",
+      "opd_freshness": null,
+      "optimizer_steps": 8,
+      "overshoot": {
+        "actual": 8,
+        "axis": "optimizer_steps",
+        "target": 8,
+        "value": 0
+      },
+      "parse_errors": 130,
+      "parse_valid_tool_call_rate": 0.7420634920634921,
+      "parsed_tool_calls": 374,
+      "peak_allocated_bytes": 2998361600,
+      "peak_reserved_bytes": 3720347648,
+      "policy_version": 8,
+      "protocol_token_accuracy": null,
+      "recovery_metrics": {
+        "recovery_after_error_rate": 0.11627906976744186,
+        "subsets": {
+          "controlled_intervention": {
+            "injected_error_tasks": 10,
+            "natural_error_tasks": 11,
+            "recovery_after_error_rate": 0.23809523809523808,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.11627906976744186,
+            "success_given_first_query_error": 0.23809523809523808,
+            "tasks": 43,
+            "tokens_after_first_error_total": 1567,
+            "turns_to_recovery": 3.0,
+            "valid_sql_execution_rate": 0.23809523809523808
+          },
+          "natural_error": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 11,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.07142857142857142,
+            "success_given_first_query_error": 0.0,
+            "tasks": 42,
+            "tokens_after_first_error_total": 809,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.2903225806451613
+          },
+          "no_intervention": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 11,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.09302325581395349,
+            "success_given_first_query_error": 0.0,
+            "tasks": 43,
+            "tokens_after_first_error_total": 785,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.36363636363636365
+          }
+        },
+        "success_given_first_query_error": 0.11627906976744186,
+        "turns_to_recovery": 3.0,
+        "valid_sql_execution_rate": 0.29245283018867924
+      },
+      "repeated_call_terminations": 32,
+      "resolved_config_digest": "4f6d8bb4aa81d776f9e0adf31369014338399e19728872c423031e8877c7e206",
+      "run_dir": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260727",
+      "run_id": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260727",
+      "runtime_resolution_diff": [
+        {
+          "arm": "resident",
+          "change": "changed",
+          "common": "auto",
+          "path": "memory.strategy",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "cuda",
+          "change": "changed",
+          "common": "auto",
+          "path": "models.device",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "runtime_resolved_config_digest": "b800dfabb4e8bddaaf1bada8358950fc7180e0106e7c8d3674346ec46d94d02f",
+      "scientific_config_diff": [
+        {
+          "arm": true,
+          "change": "changed",
+          "common": false,
+          "path": "cache.reuse_across_policy_versions",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 20260727,
+          "change": "changed",
+          "common": 1234,
+          "path": "offline_kd.collection_seed",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 64,
+          "change": "changed",
+          "common": null,
+          "path": "offline_kd.collection_tasks",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "frozen_student",
+          "change": "changed",
+          "common": "oracle",
+          "path": "offline_kd.trajectory_source",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "offline_kd",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode",
+          "stage": "declared_vs_common"
+        }
+      ],
+      "seed": 20260727,
+      "selected_position_ratio": 1.0,
+      "selected_training_tokens_total": 6753,
+      "selector": "all_model_tokens",
+      "stop_criterion": {
+        "actual": 8,
+        "kind": "configured_cycles",
+        "target": 8
+      },
+      "strict_task_success_rate": 0.09375,
+      "structured_diff": [
+        {
+          "arm": true,
+          "change": "changed",
+          "common": false,
+          "path": "cache.reuse_across_policy_versions"
+        },
+        {
+          "arm": 20260727,
+          "change": "changed",
+          "common": 1234,
+          "path": "offline_kd.collection_seed"
+        },
+        {
+          "arm": 64,
+          "change": "changed",
+          "common": null,
+          "path": "offline_kd.collection_tasks"
+        },
+        {
+          "arm": "frozen_student",
+          "change": "changed",
+          "common": "oracle",
+          "path": "offline_kd.trajectory_source"
+        },
+        {
+          "arm": "offline_kd",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260727",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name"
+        },
+        {
+          "arm": 20260727,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed"
+        }
+      ],
+      "student_model_id": "Qwen/Qwen3-0.6B",
+      "student_model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "success_rate": 0.09375,
+      "task_level_artifact": {
+        "bytes": 2983132,
+        "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260727/eval_trajectories.jsonl",
+        "sha256": "118595777c851af89b57d03a8d250b5dead632c9156d76553e236979e5b5c8f3"
+      },
+      "tasks": 128,
+      "teacher_adapter": {
+        "base_model_id": "Qwen/Qwen3-1.7B",
+        "base_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "identity": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+        "manifest_digest": "19366d5309e08e157298cd4a61461453de73114d90ca85c4f14dadc640e48a57",
+        "peft_type": "LORA",
+        "policy_evaluation": {
+          "avg_turns": 3.6666666666666665,
+          "emitted_tool_calls": 256,
+          "final_answer_format_validity_rate": 1.0,
+          "lenient_diagnostic_success_rate": 0.8645833333333334,
+          "parse_valid_tool_call_rate": 1.0,
+          "parsed_tool_calls": 256,
+          "policy_competence_measurement_status": {
+            "final_answer_format_validity_rate": "measured",
+            "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+            "parse_valid_tool_call_rate": "measured",
+            "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+            "strict_task_success_rate": "measured_primary",
+            "tool_execution_error_rate": "measured",
+            "tool_execution_success_rate": "measured",
+            "valid_tool_call_rate": "measured"
+          },
+          "protocol_token_accuracy": null,
+          "protocol_version": "v2",
+          "recovery_after_error_rate": 0.78125,
+          "split": "eval",
+          "strict_task_success_rate": 0.8645833333333334,
+          "tag": "final",
+          "tasks": 96,
+          "tool_call_count": 256,
+          "tool_execution_error_rate": 0.125,
+          "tool_execution_success_rate": 0.875,
+          "valid_tool_call_rate": 1.0
+        },
+        "protocol_version": "v2",
+        "revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+        "source": "hub",
+        "target_modules": [
+          "down_proj",
+          "gate_proj",
+          "k_proj",
+          "o_proj",
+          "q_proj",
+          "up_proj",
+          "v_proj"
+        ],
+        "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+        "weights_sha256": "5355f7007efb904d1b45a1aeb9b73b479b6f52025ab92502ab7895706155b2ba"
+      },
+      "teacher_context_mode": "standard",
+      "teacher_model_id": "Qwen/Qwen3-1.7B",
+      "teacher_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "teacher_queried_position_ratio": 1.0,
+      "teacher_queried_positions_total": 6753,
+      "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+      "tokens_per_solved_task": 1446.1666666666667,
+      "tool_call_count": 504,
+      "tool_execution_error_rate": 0.21929824561403508,
+      "tool_execution_errors": 75,
+      "tool_execution_success_rate": 0.7807017543859649,
+      "tool_execution_successes": 267,
+      "top_k": 64,
+      "total_trajectories": 0,
+      "train_seconds": 52.33121800003573,
+      "unknown_tool_calls": 0,
+      "valid_tool_call_rate": 0.7420634920634921,
+      "wall_seconds": 1380.259045899962
+    },
+    {
+      "assistant_turns": 520,
+      "avg_tool_calls": 3.03125,
+      "avg_turns": 4.0625,
+      "baseline_success_rate": null,
+      "cache_bytes_written_total": 483147,
+      "cache_compression_ratio": 677.5542277536506,
+      "cache_current_bytes": 480326,
+      "declared_config_digest": "5f120bb5769479d4328263663136df627b1ee41560daea0eaffd9f99a3350d3d",
+      "description": "Strict fresh-state OPD.",
+      "divergence": "reverse_kl",
+      "emitted_tool_calls": 456,
+      "evaluation_seconds": 1170.0514630000107,
+      "final_answer_format_validity_rate": 1.0,
+      "final_answers_emitted": 64,
+      "final_answers_format_valid": 64,
+      "final_answers_verified": 64,
+      "frozen_dataset_identity": null,
+      "generated_tokens_per_task": 119.9921875,
+      "generated_training_tokens_total": 1071,
+      "harness_config_diff": [
+        {
+          "arm": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260727",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 20260727,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260727",
+          "change": "changed",
+          "common": null,
+          "path": "run.run_id",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "invalid_tool_call_rate": 0.14912280701754385,
+      "lenient_diagnostic_success_rate": 0.0546875,
+      "loss_mode": "bucketed_topk_tail",
+      "measurement_status": {
+        "cache": "measured",
+        "evaluation_time": "measured",
+        "final_answer_format_validity_rate": "measured",
+        "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+        "parse_valid_tool_call_rate": "measured",
+        "peak_vram": "measured",
+        "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+        "strict_task_success_rate": "measured_primary",
+        "tool_execution_error_rate": "measured",
+        "tool_execution_success_rate": "measured",
+        "train_time": "measured",
+        "valid_tool_call_rate": "measured",
+        "wall_time": "measured"
+      },
+      "mode": "opd",
+      "model_generated_training_tokens_total": 1071,
+      "name": "strict-opd-fresh",
+      "objective": "on_policy_distillation",
+      "opd_freshness": "strict",
+      "optimizer_steps": 1,
+      "overshoot": {
+        "actual": 106.45812419999857,
+        "axis": "wall_seconds",
+        "target": 50.0,
+        "value": 56.458124199998565
+      },
+      "parse_errors": 68,
+      "parse_valid_tool_call_rate": 0.8508771929824561,
+      "parsed_tool_calls": 388,
+      "peak_allocated_bytes": 2953826816,
+      "peak_reserved_bytes": 3737124864,
+      "policy_version": 1,
+      "protocol_token_accuracy": null,
+      "recovery_metrics": {
+        "recovery_after_error_rate": 0.0392156862745098,
+        "subsets": {
+          "controlled_intervention": {
+            "injected_error_tasks": 21,
+            "natural_error_tasks": 11,
+            "recovery_after_error_rate": 0.0625,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.046511627906976744,
+            "success_given_first_query_error": 0.0625,
+            "tasks": 43,
+            "tokens_after_first_error_total": 2374,
+            "turns_to_recovery": 3.0,
+            "valid_sql_execution_rate": 0.328125
+          },
+          "natural_error": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 8,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.023809523809523808,
+            "success_given_first_query_error": 0.0,
+            "tasks": 42,
+            "tokens_after_first_error_total": 568,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.5789473684210527
+          },
+          "no_intervention": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 11,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.09302325581395349,
+            "success_given_first_query_error": 0.0,
+            "tasks": 43,
+            "tokens_after_first_error_total": 781,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.4883720930232558
+          }
+        },
+        "success_given_first_query_error": 0.0392156862745098,
+        "turns_to_recovery": 3.0,
+        "valid_sql_execution_rate": 0.4413793103448276
+      },
+      "repeated_call_terminations": 30,
+      "resolved_config_digest": "5f120bb5769479d4328263663136df627b1ee41560daea0eaffd9f99a3350d3d",
+      "run_dir": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260727",
+      "run_id": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260727",
+      "runtime_resolution_diff": [
+        {
+          "arm": "resident",
+          "change": "changed",
+          "common": "auto",
+          "path": "memory.strategy",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "cuda",
+          "change": "changed",
+          "common": "auto",
+          "path": "models.device",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "runtime_resolved_config_digest": "36e28eb5fe9d9ae3bb8fd3c08ed9ea900082a380768c7c8b1edb9011b636d1d8",
+      "scientific_config_diff": [],
+      "seed": 20260727,
+      "selected_position_ratio": 1.0,
+      "selected_training_tokens_total": 1071,
+      "selector": "all_model_tokens",
+      "stop_criterion": {
+        "actual": 106.45812419999857,
+        "kind": "wall_seconds",
+        "target": 50.0
+      },
+      "strict_task_success_rate": 0.0546875,
+      "structured_diff": [
+        {
+          "arm": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260727",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name"
+        },
+        {
+          "arm": 20260727,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed"
+        }
+      ],
+      "student_model_id": "Qwen/Qwen3-0.6B",
+      "student_model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "success_rate": 0.0546875,
+      "task_level_artifact": {
+        "bytes": 2836260,
+        "path": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260727/eval_trajectories.jsonl",
+        "sha256": "3e505d4ec5bcafba47b2477b74b50a41a879279cbc681dd7574c0b28487d567a"
+      },
+      "tasks": 128,
+      "teacher_adapter": {
+        "base_model_id": "Qwen/Qwen3-1.7B",
+        "base_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "identity": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+        "manifest_digest": "19366d5309e08e157298cd4a61461453de73114d90ca85c4f14dadc640e48a57",
+        "peft_type": "LORA",
+        "policy_evaluation": {
+          "avg_turns": 3.6666666666666665,
+          "emitted_tool_calls": 256,
+          "final_answer_format_validity_rate": 1.0,
+          "lenient_diagnostic_success_rate": 0.8645833333333334,
+          "parse_valid_tool_call_rate": 1.0,
+          "parsed_tool_calls": 256,
+          "policy_competence_measurement_status": {
+            "final_answer_format_validity_rate": "measured",
+            "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+            "parse_valid_tool_call_rate": "measured",
+            "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+            "strict_task_success_rate": "measured_primary",
+            "tool_execution_error_rate": "measured",
+            "tool_execution_success_rate": "measured",
+            "valid_tool_call_rate": "measured"
+          },
+          "protocol_token_accuracy": null,
+          "protocol_version": "v2",
+          "recovery_after_error_rate": 0.78125,
+          "split": "eval",
+          "strict_task_success_rate": 0.8645833333333334,
+          "tag": "final",
+          "tasks": 96,
+          "tool_call_count": 256,
+          "tool_execution_error_rate": 0.125,
+          "tool_execution_success_rate": 0.875,
+          "valid_tool_call_rate": 1.0
+        },
+        "protocol_version": "v2",
+        "revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+        "source": "hub",
+        "target_modules": [
+          "down_proj",
+          "gate_proj",
+          "k_proj",
+          "o_proj",
+          "q_proj",
+          "up_proj",
+          "v_proj"
+        ],
+        "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+        "weights_sha256": "5355f7007efb904d1b45a1aeb9b73b479b6f52025ab92502ab7895706155b2ba"
+      },
+      "teacher_context_mode": "standard",
+      "teacher_model_id": "Qwen/Qwen3-1.7B",
+      "teacher_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "teacher_queried_position_ratio": 1.0,
+      "teacher_queried_positions_total": 1071,
+      "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+      "tokens_per_solved_task": 2194.1428571428573,
+      "tool_call_count": 456,
+      "tool_execution_error_rate": 0.22625698324022347,
+      "tool_execution_errors": 81,
+      "tool_execution_success_rate": 0.7737430167597765,
+      "tool_execution_successes": 277,
+      "top_k": 64,
+      "total_trajectories": 8,
+      "train_seconds": 132.39048029994592,
+      "unknown_tool_calls": 0,
+      "valid_tool_call_rate": 0.8508771929824561,
+      "wall_seconds": 1308.083654899965
+    },
+    {
+      "assistant_turns": 541,
+      "avg_tool_calls": 3.3203125,
+      "avg_turns": 4.2265625,
+      "baseline_success_rate": null,
+      "cache_bytes_written_total": null,
+      "cache_compression_ratio": null,
+      "cache_current_bytes": null,
+      "declared_config_digest": "536fdf3f74c0062a6cf5bcc2075418267ca05bb0823ca6dcedad25cfa8b203e6",
+      "description": "Oracle-SFT continuation.",
+      "divergence": null,
+      "emitted_tool_calls": 504,
+      "evaluation_seconds": 1292.2752504000673,
+      "final_answer_format_validity_rate": 1.0,
+      "final_answers_emitted": 37,
+      "final_answers_format_valid": 37,
+      "final_answers_verified": 37,
+      "frozen_dataset_identity": null,
+      "generated_tokens_per_task": 127.234375,
+      "generated_training_tokens_total": 6701,
+      "harness_config_diff": [
+        {
+          "arm": "recoverybench-v1-equal-wall-time-continued-sft-s20260801",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 20260801,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-continued-sft-s20260801",
+          "change": "changed",
+          "common": null,
+          "path": "run.run_id",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "invalid_tool_call_rate": 0.15674603174603174,
+      "lenient_diagnostic_success_rate": 0.09375,
+      "loss_mode": null,
+      "measurement_status": {
+        "cache": "not_applicable",
+        "evaluation_time": "measured",
+        "final_answer_format_validity_rate": "measured",
+        "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+        "parse_valid_tool_call_rate": "measured",
+        "peak_vram": "measured",
+        "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+        "strict_task_success_rate": "measured_primary",
+        "tool_execution_error_rate": "measured",
+        "tool_execution_success_rate": "measured",
+        "train_time": "measured",
+        "valid_tool_call_rate": "measured",
+        "wall_time": "measured"
+      },
+      "mode": "sft",
+      "model_generated_training_tokens_total": 0,
+      "name": "continued-sft",
+      "objective": "sft_cross_entropy",
+      "opd_freshness": null,
+      "optimizer_steps": 8,
+      "overshoot": {
+        "actual": 8,
+        "axis": "optimizer_steps",
+        "target": 8,
+        "value": 0
+      },
+      "parse_errors": 79,
+      "parse_valid_tool_call_rate": 0.8432539682539683,
+      "parsed_tool_calls": 425,
+      "peak_allocated_bytes": 1559818240,
+      "peak_reserved_bytes": 2027945984,
+      "policy_version": 8,
+      "protocol_token_accuracy": null,
+      "recovery_metrics": {
+        "recovery_after_error_rate": 0.0,
+        "subsets": {
+          "controlled_intervention": {
+            "injected_error_tasks": 18,
+            "natural_error_tasks": 26,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.0,
+            "success_given_first_query_error": 0.0,
+            "tasks": 43,
+            "tokens_after_first_error_total": 2494,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.017857142857142856
+          },
+          "natural_error": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 15,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.19047619047619047,
+            "success_given_first_query_error": 0.0,
+            "tasks": 42,
+            "tokens_after_first_error_total": 1160,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.40476190476190477
+          },
+          "no_intervention": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 18,
+            "recovery_after_error_rate": 0.0,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.09302325581395349,
+            "success_given_first_query_error": 0.0,
+            "tasks": 43,
+            "tokens_after_first_error_total": 1411,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 0.32558139534883723
+          }
+        },
+        "success_given_first_query_error": 0.0,
+        "turns_to_recovery": null,
+        "valid_sql_execution_rate": 0.22695035460992907
+      },
+      "repeated_call_terminations": 64,
+      "resolved_config_digest": "536fdf3f74c0062a6cf5bcc2075418267ca05bb0823ca6dcedad25cfa8b203e6",
+      "run_dir": "recoverybench-v1-equal-wall-time-continued-sft-s20260801",
+      "run_id": "recoverybench-v1-equal-wall-time-continued-sft-s20260801",
+      "runtime_resolution_diff": [
+        {
+          "arm": "resident",
+          "change": "changed",
+          "common": "auto",
+          "path": "memory.strategy",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "cuda",
+          "change": "changed",
+          "common": "auto",
+          "path": "models.device",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "runtime_resolved_config_digest": "3c7ea17716706ff59ee2669925ca4b986e12382c52a64ef8799b58f771ed7a65",
+      "scientific_config_diff": [
+        {
+          "arm": "sft",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode",
+          "stage": "declared_vs_common"
+        }
+      ],
+      "seed": 20260801,
+      "selected_position_ratio": 1.0,
+      "selected_training_tokens_total": 6701,
+      "selector": "all_model_tokens",
+      "stop_criterion": {
+        "actual": 8,
+        "kind": "configured_cycles",
+        "target": 8
+      },
+      "strict_task_success_rate": 0.09375,
+      "structured_diff": [
+        {
+          "arm": "sft",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-continued-sft-s20260801",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name"
+        },
+        {
+          "arm": 20260801,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed"
+        }
+      ],
+      "student_model_id": "Qwen/Qwen3-0.6B",
+      "student_model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "success_rate": 0.09375,
+      "task_level_artifact": {
+        "bytes": 2997902,
+        "path": "recoverybench-v1-equal-wall-time-continued-sft-s20260801/eval_trajectories.jsonl",
+        "sha256": "698f6a9832fb5b7235ba2d8e342f971f90b7d91285a93247fd0b0198748aa080"
+      },
+      "tasks": 128,
+      "teacher_adapter": null,
+      "teacher_context_mode": null,
+      "teacher_model_id": null,
+      "teacher_model_revision": null,
+      "teacher_queried_position_ratio": null,
+      "teacher_queried_positions_total": null,
+      "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+      "tokens_per_solved_task": 1357.1666666666667,
+      "tool_call_count": 504,
+      "tool_execution_error_rate": 0.30193905817174516,
+      "tool_execution_errors": 109,
+      "tool_execution_success_rate": 0.6980609418282548,
+      "tool_execution_successes": 252,
+      "top_k": null,
+      "total_trajectories": 64,
+      "train_seconds": 52.28081020002719,
+      "unknown_tool_calls": 0,
+      "valid_tool_call_rate": 0.8432539682539683,
+      "wall_seconds": 1348.3015206001
+    },
+    {
+      "assistant_turns": 480,
+      "avg_tool_calls": 2.5,
+      "avg_turns": 3.75,
+      "baseline_success_rate": null,
+      "cache_bytes_written_total": 0,
+      "cache_compression_ratio": 674.1263046500253,
+      "cache_current_bytes": 3001188,
+      "declared_config_digest": "d9d5658ca7e1341f3a4e365ebb3b857b089906fd56c509581e6dc96bc011176d",
+      "description": "Immutable cold-student states and teacher targets.",
+      "divergence": "reverse_kl",
+      "emitted_tool_calls": 384,
+      "evaluation_seconds": 2395.62439849996,
+      "final_answer_format_validity_rate": 1.0,
+      "final_answers_emitted": 96,
+      "final_answers_format_valid": 96,
+      "final_answers_verified": 96,
+      "frozen_dataset_identity": {
+        "dataset_digest": "a3abe8545d39e4b2171c1a408c05d3f89827347959a7d61155144fcb11770ada",
+        "manifest": {
+          "bytes": 132510,
+          "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260801/offline-dataset/manifest.json",
+          "sha256": "d7c1f93f1401cc156730ef3ae4e6dee376af8b3ba35302cfb0490fb990cf7c26"
+        }
+      },
+      "generated_tokens_per_task": 105.734375,
+      "generated_training_tokens_total": 0,
+      "harness_config_diff": [
+        {
+          "arm": "frozen_student",
+          "change": "changed",
+          "common": "oracle",
+          "path": "offline_kd.trajectory_source",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260801",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 20260801,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "<local>/recoverybench-v1-final-frozen-s20260801",
+          "change": "changed",
+          "common": null,
+          "path": "offline_kd.dataset_path",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "persisted",
+          "change": "changed",
+          "common": "frozen_student",
+          "path": "offline_kd.trajectory_source",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260801",
+          "change": "changed",
+          "common": null,
+          "path": "run.run_id",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "invalid_tool_call_rate": 0.16666666666666666,
+      "lenient_diagnostic_success_rate": 0.234375,
+      "loss_mode": "bucketed_topk_tail",
+      "measurement_status": {
+        "cache": "measured",
+        "evaluation_time": "measured",
+        "final_answer_format_validity_rate": "measured",
+        "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+        "parse_valid_tool_call_rate": "measured",
+        "peak_vram": "measured",
+        "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+        "strict_task_success_rate": "measured_primary",
+        "tool_execution_error_rate": "measured",
+        "tool_execution_success_rate": "measured",
+        "train_time": "measured",
+        "valid_tool_call_rate": "measured",
+        "wall_time": "measured"
+      },
+      "mode": "offline_kd",
+      "model_generated_training_tokens_total": 0,
+      "name": "offline-kd-frozen-student",
+      "objective": "offline_knowledge_distillation",
+      "opd_freshness": null,
+      "optimizer_steps": 8,
+      "overshoot": {
+        "actual": 8,
+        "axis": "optimizer_steps",
+        "target": 8,
+        "value": 0
+      },
+      "parse_errors": 64,
+      "parse_valid_tool_call_rate": 0.8333333333333334,
+      "parsed_tool_calls": 320,
+      "peak_allocated_bytes": 2936074752,
+      "peak_reserved_bytes": 3722444800,
+      "policy_version": 8,
+      "protocol_token_accuracy": null,
+      "recovery_metrics": {
+        "recovery_after_error_rate": 0.28125,
+        "subsets": {
+          "controlled_intervention": {
+            "injected_error_tasks": 32,
+            "natural_error_tasks": 0,
+            "recovery_after_error_rate": 0.28125,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.20930232558139536,
+            "success_given_first_query_error": 0.28125,
+            "tasks": 43,
+            "tokens_after_first_error_total": 2229,
+            "turns_to_recovery": 3.0,
+            "valid_sql_execution_rate": 0.5
+          },
+          "natural_error": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 0,
+            "recovery_after_error_rate": null,
+            "schema_call_after_error_rate": null,
+            "strict_task_success_rate": 0.21428571428571427,
+            "success_given_first_query_error": null,
+            "tasks": 42,
+            "tokens_after_first_error_total": 0,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 1.0
+          },
+          "no_intervention": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 0,
+            "recovery_after_error_rate": null,
+            "schema_call_after_error_rate": null,
+            "strict_task_success_rate": 0.27906976744186046,
+            "success_given_first_query_error": null,
+            "tasks": 43,
+            "tokens_after_first_error_total": 0,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 1.0
+          }
+        },
+        "success_given_first_query_error": 0.28125,
+        "turns_to_recovery": 3.0,
+        "valid_sql_execution_rate": 0.75
+      },
+      "repeated_call_terminations": 0,
+      "resolved_config_digest": "d9d5658ca7e1341f3a4e365ebb3b857b089906fd56c509581e6dc96bc011176d",
+      "run_dir": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260801",
+      "run_id": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260801",
+      "runtime_resolution_diff": [
+        {
+          "arm": "resident",
+          "change": "changed",
+          "common": "auto",
+          "path": "memory.strategy",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "cuda",
+          "change": "changed",
+          "common": "auto",
+          "path": "models.device",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "runtime_resolved_config_digest": "24b033f4e64f925b87e44890287459eb0e9b7969d0ee50e409265eac85496b76",
+      "scientific_config_diff": [
+        {
+          "arm": true,
+          "change": "changed",
+          "common": false,
+          "path": "cache.reuse_across_policy_versions",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 20260801,
+          "change": "changed",
+          "common": 1234,
+          "path": "offline_kd.collection_seed",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 64,
+          "change": "changed",
+          "common": null,
+          "path": "offline_kd.collection_tasks",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "frozen_student",
+          "change": "changed",
+          "common": "oracle",
+          "path": "offline_kd.trajectory_source",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "offline_kd",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode",
+          "stage": "declared_vs_common"
+        }
+      ],
+      "seed": 20260801,
+      "selected_position_ratio": 1.0,
+      "selected_training_tokens_total": 6658,
+      "selector": "all_model_tokens",
+      "stop_criterion": {
+        "actual": 8,
+        "kind": "configured_cycles",
+        "target": 8
+      },
+      "strict_task_success_rate": 0.234375,
+      "structured_diff": [
+        {
+          "arm": true,
+          "change": "changed",
+          "common": false,
+          "path": "cache.reuse_across_policy_versions"
+        },
+        {
+          "arm": 20260801,
+          "change": "changed",
+          "common": 1234,
+          "path": "offline_kd.collection_seed"
+        },
+        {
+          "arm": 64,
+          "change": "changed",
+          "common": null,
+          "path": "offline_kd.collection_tasks"
+        },
+        {
+          "arm": "frozen_student",
+          "change": "changed",
+          "common": "oracle",
+          "path": "offline_kd.trajectory_source"
+        },
+        {
+          "arm": "offline_kd",
+          "change": "changed",
+          "common": "opd",
+          "path": "run.mode"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260801",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name"
+        },
+        {
+          "arm": 20260801,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed"
+        }
+      ],
+      "student_model_id": "Qwen/Qwen3-0.6B",
+      "student_model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "success_rate": 0.234375,
+      "task_level_artifact": {
+        "bytes": 2579485,
+        "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260801/eval_trajectories.jsonl",
+        "sha256": "4f9bbc619245346f9902974c58730c500c2c63d79a2de5995ed79361c43f7e0a"
+      },
+      "tasks": 128,
+      "teacher_adapter": {
+        "base_model_id": "Qwen/Qwen3-1.7B",
+        "base_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "identity": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+        "manifest_digest": "19366d5309e08e157298cd4a61461453de73114d90ca85c4f14dadc640e48a57",
+        "peft_type": "LORA",
+        "policy_evaluation": {
+          "avg_turns": 3.6666666666666665,
+          "emitted_tool_calls": 256,
+          "final_answer_format_validity_rate": 1.0,
+          "lenient_diagnostic_success_rate": 0.8645833333333334,
+          "parse_valid_tool_call_rate": 1.0,
+          "parsed_tool_calls": 256,
+          "policy_competence_measurement_status": {
+            "final_answer_format_validity_rate": "measured",
+            "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+            "parse_valid_tool_call_rate": "measured",
+            "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+            "strict_task_success_rate": "measured_primary",
+            "tool_execution_error_rate": "measured",
+            "tool_execution_success_rate": "measured",
+            "valid_tool_call_rate": "measured"
+          },
+          "protocol_token_accuracy": null,
+          "protocol_version": "v2",
+          "recovery_after_error_rate": 0.78125,
+          "split": "eval",
+          "strict_task_success_rate": 0.8645833333333334,
+          "tag": "final",
+          "tasks": 96,
+          "tool_call_count": 256,
+          "tool_execution_error_rate": 0.125,
+          "tool_execution_success_rate": 0.875,
+          "valid_tool_call_rate": 1.0
+        },
+        "protocol_version": "v2",
+        "revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+        "source": "hub",
+        "target_modules": [
+          "down_proj",
+          "gate_proj",
+          "k_proj",
+          "o_proj",
+          "q_proj",
+          "up_proj",
+          "v_proj"
+        ],
+        "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+        "weights_sha256": "5355f7007efb904d1b45a1aeb9b73b479b6f52025ab92502ab7895706155b2ba"
+      },
+      "teacher_context_mode": "standard",
+      "teacher_model_id": "Qwen/Qwen3-1.7B",
+      "teacher_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "teacher_queried_position_ratio": 1.0,
+      "teacher_queried_positions_total": 6658,
+      "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+      "tokens_per_solved_task": 451.1333333333333,
+      "tool_call_count": 384,
+      "tool_execution_error_rate": 0.1,
+      "tool_execution_errors": 32,
+      "tool_execution_success_rate": 0.9,
+      "tool_execution_successes": 288,
+      "top_k": 64,
+      "total_trajectories": 0,
+      "train_seconds": 50.4924416000722,
+      "unknown_tool_calls": 0,
+      "valid_tool_call_rate": 0.8333333333333334,
+      "wall_seconds": 2452.449164299993
+    },
+    {
+      "assistant_turns": 481,
+      "avg_tool_calls": 2.5,
+      "avg_turns": 3.7578125,
+      "baseline_success_rate": null,
+      "cache_bytes_written_total": 321611,
+      "cache_compression_ratio": 663.4301954264563,
+      "cache_current_bytes": 318790,
+      "declared_config_digest": "4d5fec0742995fe3f38ad7dca32ad1ee9ea16c0cc4eb5a5bf1c449322d73e06f",
+      "description": "Strict fresh-state OPD.",
+      "divergence": "reverse_kl",
+      "emitted_tool_calls": 386,
+      "evaluation_seconds": 1568.9124420000007,
+      "final_answer_format_validity_rate": 1.0,
+      "final_answers_emitted": 95,
+      "final_answers_format_valid": 95,
+      "final_answers_verified": 95,
+      "frozen_dataset_identity": null,
+      "generated_tokens_per_task": 111.1171875,
+      "generated_training_tokens_total": 696,
+      "harness_config_diff": [
+        {
+          "arm": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260801",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": 20260801,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed",
+          "stage": "declared_vs_common"
+        },
+        {
+          "arm": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260801",
+          "change": "changed",
+          "common": null,
+          "path": "run.run_id",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "invalid_tool_call_rate": 0.17098445595854922,
+      "lenient_diagnostic_success_rate": 0.125,
+      "loss_mode": "bucketed_topk_tail",
+      "measurement_status": {
+        "cache": "measured",
+        "evaluation_time": "measured",
+        "final_answer_format_validity_rate": "measured",
+        "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+        "parse_valid_tool_call_rate": "measured",
+        "peak_vram": "measured",
+        "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+        "strict_task_success_rate": "measured_primary",
+        "tool_execution_error_rate": "measured",
+        "tool_execution_success_rate": "measured",
+        "train_time": "measured",
+        "valid_tool_call_rate": "measured",
+        "wall_time": "measured"
+      },
+      "mode": "opd",
+      "model_generated_training_tokens_total": 696,
+      "name": "strict-opd-fresh",
+      "objective": "on_policy_distillation",
+      "opd_freshness": "strict",
+      "optimizer_steps": 1,
+      "overshoot": {
+        "actual": 121.302569600055,
+        "axis": "wall_seconds",
+        "target": 50.0,
+        "value": 71.302569600055
+      },
+      "parse_errors": 66,
+      "parse_valid_tool_call_rate": 0.8290155440414507,
+      "parsed_tool_calls": 320,
+      "peak_allocated_bytes": 2797490688,
+      "peak_reserved_bytes": 3718250496,
+      "policy_version": 1,
+      "protocol_token_accuracy": null,
+      "recovery_metrics": {
+        "recovery_after_error_rate": 0.15625,
+        "subsets": {
+          "controlled_intervention": {
+            "injected_error_tasks": 32,
+            "natural_error_tasks": 0,
+            "recovery_after_error_rate": 0.15625,
+            "schema_call_after_error_rate": 1.0,
+            "strict_task_success_rate": 0.11627906976744186,
+            "success_given_first_query_error": 0.15625,
+            "tasks": 43,
+            "tokens_after_first_error_total": 2373,
+            "turns_to_recovery": 3.0,
+            "valid_sql_execution_rate": 0.5
+          },
+          "natural_error": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 0,
+            "recovery_after_error_rate": null,
+            "schema_call_after_error_rate": null,
+            "strict_task_success_rate": 0.16666666666666666,
+            "success_given_first_query_error": null,
+            "tasks": 42,
+            "tokens_after_first_error_total": 0,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 1.0
+          },
+          "no_intervention": {
+            "injected_error_tasks": 0,
+            "natural_error_tasks": 0,
+            "recovery_after_error_rate": null,
+            "schema_call_after_error_rate": null,
+            "strict_task_success_rate": 0.09302325581395349,
+            "success_given_first_query_error": null,
+            "tasks": 43,
+            "tokens_after_first_error_total": 0,
+            "turns_to_recovery": null,
+            "valid_sql_execution_rate": 1.0
+          }
+        },
+        "success_given_first_query_error": 0.15625,
+        "turns_to_recovery": 3.0,
+        "valid_sql_execution_rate": 0.7480314960629921
+      },
+      "repeated_call_terminations": 0,
+      "resolved_config_digest": "4d5fec0742995fe3f38ad7dca32ad1ee9ea16c0cc4eb5a5bf1c449322d73e06f",
+      "run_dir": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260801",
+      "run_id": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260801",
+      "runtime_resolution_diff": [
+        {
+          "arm": "resident",
+          "change": "changed",
+          "common": "auto",
+          "path": "memory.strategy",
+          "stage": "runtime_resolution"
+        },
+        {
+          "arm": "cuda",
+          "change": "changed",
+          "common": "auto",
+          "path": "models.device",
+          "stage": "runtime_resolution"
+        }
+      ],
+      "runtime_resolved_config_digest": "5b6555d2055e2e0c89b456916fa5970054b5bbf8b4fb7f0bec3ec5854668ecd1",
+      "scientific_config_diff": [],
+      "seed": 20260801,
+      "selected_position_ratio": 1.0,
+      "selected_training_tokens_total": 696,
+      "selector": "all_model_tokens",
+      "stop_criterion": {
+        "actual": 121.302569600055,
+        "kind": "wall_seconds",
+        "target": 50.0
+      },
+      "strict_task_success_rate": 0.125,
+      "structured_diff": [
+        {
+          "arm": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260801",
+          "change": "changed",
+          "common": "recoverybench-student",
+          "path": "run.name"
+        },
+        {
+          "arm": 20260801,
+          "change": "changed",
+          "common": 1234,
+          "path": "run.seed"
+        }
+      ],
+      "student_model_id": "Qwen/Qwen3-0.6B",
+      "student_model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "success_rate": 0.125,
+      "task_level_artifact": {
+        "bytes": 2603881,
+        "path": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260801/eval_trajectories.jsonl",
+        "sha256": "a5f8d7bd090f6227d9d33f3ec24fd32e9a37696aedbe821f704d9a3b52a0ece2"
+      },
+      "tasks": 128,
+      "teacher_adapter": {
+        "base_model_id": "Qwen/Qwen3-1.7B",
+        "base_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "identity": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+        "manifest_digest": "19366d5309e08e157298cd4a61461453de73114d90ca85c4f14dadc640e48a57",
+        "peft_type": "LORA",
+        "policy_evaluation": {
+          "avg_turns": 3.6666666666666665,
+          "emitted_tool_calls": 256,
+          "final_answer_format_validity_rate": 1.0,
+          "lenient_diagnostic_success_rate": 0.8645833333333334,
+          "parse_valid_tool_call_rate": 1.0,
+          "parsed_tool_calls": 256,
+          "policy_competence_measurement_status": {
+            "final_answer_format_validity_rate": "measured",
+            "lenient_diagnostic_success_rate": "measured_diagnostic_not_a_replacement_for_strict",
+            "parse_valid_tool_call_rate": "measured",
+            "protocol_token_accuracy": "not_applicable_free_running_trajectories_have_no_aligned_token_target",
+            "strict_task_success_rate": "measured_primary",
+            "tool_execution_error_rate": "measured",
+            "tool_execution_success_rate": "measured",
+            "valid_tool_call_rate": "measured"
+          },
+          "protocol_token_accuracy": null,
+          "protocol_version": "v2",
+          "recovery_after_error_rate": 0.78125,
+          "split": "eval",
+          "strict_task_success_rate": 0.8645833333333334,
+          "tag": "final",
+          "tasks": 96,
+          "tool_call_count": 256,
+          "tool_execution_error_rate": 0.125,
+          "tool_execution_success_rate": 0.875,
+          "valid_tool_call_rate": 1.0
+        },
+        "protocol_version": "v2",
+        "revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+        "source": "hub",
+        "target_modules": [
+          "down_proj",
+          "gate_proj",
+          "k_proj",
+          "o_proj",
+          "q_proj",
+          "up_proj",
+          "v_proj"
+        ],
+        "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+        "weights_sha256": "5355f7007efb904d1b45a1aeb9b73b479b6f52025ab92502ab7895706155b2ba"
+      },
+      "teacher_context_mode": "standard",
+      "teacher_model_id": "Qwen/Qwen3-1.7B",
+      "teacher_model_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "teacher_queried_position_ratio": 1.0,
+      "teacher_queried_positions_total": 696,
+      "tokenizer_fingerprint": "f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035",
+      "tokens_per_solved_task": 888.9375,
+      "tool_call_count": 386,
+      "tool_execution_error_rate": 0.1,
+      "tool_execution_errors": 32,
+      "tool_execution_success_rate": 0.9,
+      "tool_execution_successes": 288,
+      "top_k": 64,
+      "total_trajectories": 8,
+      "train_seconds": 162.67379250004888,
+      "unknown_tool_calls": 0,
+      "valid_tool_call_rate": 0.8290155440414507,
+      "wall_seconds": 1744.4371719000628
+    }
+  ],
+  "budget_axis": "wall_time",
+  "budget_view": "equal_gpu_wall_time",
+  "cold_start": {
+    "checkpoints": [
+      {
+        "checkpoint_digest": "9930d1c7af501b5b45ca588df0b3a47c4643c3c8866c3df61c867ac20d8dfe82",
+        "resolved_config_digest": "22991a1f0e8a77f3ec852c9cab988a92f89baf2addc23a14b5f88a36a57e32bc",
+        "reused": true,
+        "run_id": "recoverybench-v1-equal-wall-time-coldstart-s1234",
+        "seed": 1234,
+        "train_seconds": 0.0
+      },
+      {
+        "checkpoint_digest": "df58260ebe93860df4b8c50ca8b17c9c8a307f65428f50a59ad9faaf5fce9625",
+        "resolved_config_digest": "0ae00d5e3495d6ff9ccb657170cd415988094b98838208b5db1826a4508797f6",
+        "reused": true,
+        "run_id": "recoverybench-v1-equal-wall-time-coldstart-s20260727",
+        "seed": 20260727,
+        "train_seconds": 0.0
+      },
+      {
+        "checkpoint_digest": "16ec7b46afcdd27815a3a69ba9e57ca7b11bd833c2cb1421da36088037f9a438",
+        "resolved_config_digest": "a0ce8115f1bf6b31115c1ce4df2f8a35301ae6fbdc7c7e410018df0004cf501d",
+        "reused": true,
+        "run_id": "recoverybench-v1-equal-wall-time-coldstart-s20260801",
+        "seed": 20260801,
+        "train_seconds": 0.0
+      }
+    ],
+    "cycles": 24,
+    "difficulty": "hard",
+    "environment": "sqlite_recovery",
+    "resolved_config": {
+      "cache": {
+        "dir": null,
+        "dtype": "float16",
+        "entries_per_shard": 8,
+        "keep_cycles": 2,
+        "reuse_across_policy_versions": false,
+        "strict_policy_version": true,
+        "verify_checksums_on_load": true
+      },
+      "environment": {
+        "difficulty": "hard",
+        "eval_tasks": 96,
+        "name": "sqlite_recovery",
+        "params": {
+          "protocol_version": "v2"
+        },
+        "split_seed": 20260801,
+        "test_tasks": 128,
+        "train_tasks": 256
+      },
+      "eval": {
+        "baseline_enabled": true,
+        "enabled": false,
+        "max_turns": 5,
+        "seed": 20260801,
+        "split": "test",
+        "tasks": 128,
+        "temperature": 0.0
+      },
+      "loss": {
+        "allow_large_exact": false,
+        "chunk_size": 256,
+        "divergence": "reverse_kl",
+        "exact_max_vocab": 8192,
+        "jsd_beta": 0.5,
+        "mode": "bucketed_topk_tail",
+        "sampled_token_nll_weight": 0.0,
+        "scale_by_temperature_squared": true,
+        "tail_epsilon": 1e-09,
+        "temperature": 1.0,
+        "top_k": 64
+      },
+      "memory": {
+        "auto_swap_vram_headroom_gb": 2.0,
+        "empty_cache_between_phases": true,
+        "min_chunk_size": 16,
+        "oom_retries": 3,
+        "reset_peak_stats_each_cycle": true,
+        "strategy": "auto"
+      },
+      "models": {
+        "backend": "hf",
+        "device": "auto",
+        "student": {
+          "attn_implementation": "sdpa",
+          "dtype": "bfloat16",
+          "gradient_checkpointing": true,
+          "lora": {
+            "alpha": 32,
+            "bias": "none",
+            "dropout": 0.0,
+            "enabled": true,
+            "r": 16,
+            "target_modules": [
+              "q_proj",
+              "k_proj",
+              "v_proj",
+              "o_proj",
+              "gate_proj",
+              "up_proj",
+              "down_proj"
+            ]
+          },
+          "model_id": "Qwen/Qwen3-0.6B",
+          "quantization": "nf4",
+          "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+          "tokenizer_id": null,
+          "tokenizer_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+          "toy": {
+            "hidden_size": 64,
+            "intermediate_size": 128,
+            "max_position_embeddings": 1024,
+            "num_heads": 4,
+            "num_layers": 2
+          },
+          "trust_remote_code": false
+        },
+        "teacher": {
+          "adapter": {
+            "base_model_revision": null,
+            "minimum_parse_valid_tool_call_rate": 0.95,
+            "minimum_recovery_after_error_rate": 0.75,
+            "minimum_strict_success_rate": 0.8,
+            "minimum_tool_execution_success_rate": 0.7,
+            "path": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+            "require_policy_evaluation": true,
+            "revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+            "source": "hub",
+            "tokenizer_fingerprint": null
+          },
+          "attn_implementation": "sdpa",
+          "dtype": "bfloat16",
+          "mode": "standard",
+          "model_id": "Qwen/Qwen3-1.7B",
+          "quantization": "nf4",
+          "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+          "tokenizer_id": null,
+          "tokenizer_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+          "toy": {
+            "hidden_size": 64,
+            "intermediate_size": 128,
+            "max_position_embeddings": 1024,
+            "num_heads": 4,
+            "num_layers": 2
+          },
+          "toy_pretrain_lr": 0.003,
+          "toy_pretrain_steps": 120,
+          "toy_teacher_seed": 99,
+          "trust_remote_code": false
+        }
+      },
+      "offline_kd": {
+        "collection_seed": 1234,
+        "collection_tasks": null,
+        "dataset_path": null,
+        "task_schedule_digest": null,
+        "trajectory_source": "oracle"
+      },
+      "report": {
+        "enabled": false,
+        "max_tokens_per_trajectory": 768,
+        "max_trajectories": 8
+      },
+      "rollout": {
+        "max_new_tokens_per_turn": 64,
+        "max_parse_errors": 2,
+        "max_repeated_calls": 2,
+        "max_total_tokens": 896,
+        "max_turns": 5,
+        "temperature": 1.0,
+        "top_k": 0,
+        "top_p": 0.95
+      },
+      "run": {
+        "deterministic": true,
+        "mode": "sft",
+        "name": "recoverybench-v1-equal-wall-time-coldstart",
+        "notes": "",
+        "output_dir": "runs",
+        "run_id": null,
+        "seed": 1234,
+        "tags": [
+          "recoverybench",
+          "qwen3",
+          "single-gpu",
+          "protocol-v2"
+        ]
+      },
+      "schema_version": 1,
+      "selection": {
+        "critical_weight": 1.0,
+        "max_positions_per_trajectory": null,
+        "other_weight": 1.0,
+        "ratio": 1.0,
+        "selector": "all_model_tokens"
+      },
+      "train": {
+        "adam_beta1": 0.9,
+        "adam_beta2": 0.95,
+        "adam_eps": 1e-08,
+        "cycles": 24,
+        "eval_every_cycles": 0,
+        "gradient_accumulation_steps": 8,
+        "learning_rate": 0.0001,
+        "log_every_steps": 1,
+        "lr_schedule": "cosine",
+        "max_grad_norm": 1.0,
+        "max_selected_training_tokens": null,
+        "max_wall_seconds": 50.0,
+        "opd_freshness": "strict",
+        "optimizer": "adamw8bit",
+        "rollouts_per_cycle": 8,
+        "save_every_cycles": 0,
+        "sft_warmup_cycles": 0,
+        "warmup_steps": 2,
+        "weight_decay": 0.0
+      }
+    },
+    "resolved_config_digest": "22991a1f0e8a77f3ec852c9cab988a92f89baf2addc23a14b5f88a36a57e32bc"
+  },
+  "common_declared_config": {
+    "cache": {
+      "dir": null,
+      "dtype": "float16",
+      "entries_per_shard": 8,
+      "keep_cycles": 2,
+      "reuse_across_policy_versions": false,
+      "strict_policy_version": true,
+      "verify_checksums_on_load": true
+    },
+    "environment": {
+      "difficulty": "hard",
+      "eval_tasks": 96,
+      "name": "sqlite_recovery",
+      "params": {
+        "protocol_version": "v2"
+      },
+      "split_seed": 20260801,
+      "test_tasks": 128,
+      "train_tasks": 256
+    },
+    "eval": {
+      "baseline_enabled": true,
+      "enabled": false,
+      "max_turns": 5,
+      "seed": 20260801,
+      "split": "test",
+      "tasks": 128,
+      "temperature": 0.0
+    },
+    "loss": {
+      "allow_large_exact": false,
+      "chunk_size": 256,
+      "divergence": "reverse_kl",
+      "exact_max_vocab": 8192,
+      "jsd_beta": 0.5,
+      "mode": "bucketed_topk_tail",
+      "sampled_token_nll_weight": 0.0,
+      "scale_by_temperature_squared": true,
+      "tail_epsilon": 1e-09,
+      "temperature": 1.0,
+      "top_k": 64
+    },
+    "memory": {
+      "auto_swap_vram_headroom_gb": 2.0,
+      "empty_cache_between_phases": true,
+      "min_chunk_size": 16,
+      "oom_retries": 3,
+      "reset_peak_stats_each_cycle": true,
+      "strategy": "auto"
+    },
+    "models": {
+      "backend": "hf",
+      "device": "auto",
+      "student": {
+        "attn_implementation": "sdpa",
+        "dtype": "bfloat16",
+        "gradient_checkpointing": true,
+        "lora": {
+          "alpha": 32,
+          "bias": "none",
+          "dropout": 0.0,
+          "enabled": true,
+          "r": 16,
+          "target_modules": [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj"
+          ]
+        },
+        "model_id": "Qwen/Qwen3-0.6B",
+        "quantization": "nf4",
+        "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+        "tokenizer_id": null,
+        "tokenizer_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+        "toy": {
+          "hidden_size": 64,
+          "intermediate_size": 128,
+          "max_position_embeddings": 1024,
+          "num_heads": 4,
+          "num_layers": 2
+        },
+        "trust_remote_code": false
+      },
+      "teacher": {
+        "adapter": {
+          "base_model_revision": null,
+          "minimum_parse_valid_tool_call_rate": 0.95,
+          "minimum_recovery_after_error_rate": 0.75,
+          "minimum_strict_success_rate": 0.8,
+          "minimum_tool_execution_success_rate": 0.7,
+          "path": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+          "require_policy_evaluation": true,
+          "revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+          "source": "hub",
+          "tokenizer_fingerprint": null
+        },
+        "attn_implementation": "sdpa",
+        "dtype": "bfloat16",
+        "mode": "standard",
+        "model_id": "Qwen/Qwen3-1.7B",
+        "quantization": "nf4",
+        "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "tokenizer_id": null,
+        "tokenizer_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "toy": {
+          "hidden_size": 64,
+          "intermediate_size": 128,
+          "max_position_embeddings": 1024,
+          "num_heads": 4,
+          "num_layers": 2
+        },
+        "toy_pretrain_lr": 0.003,
+        "toy_pretrain_steps": 120,
+        "toy_teacher_seed": 99,
+        "trust_remote_code": false
+      }
+    },
+    "offline_kd": {
+      "collection_seed": 1234,
+      "collection_tasks": null,
+      "dataset_path": null,
+      "task_schedule_digest": null,
+      "trajectory_source": "oracle"
+    },
+    "report": {
+      "enabled": false,
+      "max_tokens_per_trajectory": 768,
+      "max_trajectories": 8
+    },
+    "rollout": {
+      "max_new_tokens_per_turn": 64,
+      "max_parse_errors": 2,
+      "max_repeated_calls": 2,
+      "max_total_tokens": 896,
+      "max_turns": 5,
+      "temperature": 1.0,
+      "top_k": 0,
+      "top_p": 0.95
+    },
+    "run": {
+      "deterministic": true,
+      "mode": "opd",
+      "name": "recoverybench-student",
+      "notes": "",
+      "output_dir": "runs",
+      "run_id": null,
+      "seed": 1234,
+      "tags": [
+        "recoverybench",
+        "qwen3",
+        "single-gpu",
+        "protocol-v2"
+      ]
+    },
+    "schema_version": 1,
+    "selection": {
+      "critical_weight": 1.0,
+      "max_positions_per_trajectory": null,
+      "other_weight": 1.0,
+      "ratio": 1.0,
+      "selector": "all_model_tokens"
+    },
+    "train": {
+      "adam_beta1": 0.9,
+      "adam_beta2": 0.95,
+      "adam_eps": 1e-08,
+      "cycles": 8,
+      "eval_every_cycles": 0,
+      "gradient_accumulation_steps": 8,
+      "learning_rate": 0.0001,
+      "log_every_steps": 1,
+      "lr_schedule": "cosine",
+      "max_grad_norm": 1.0,
+      "max_selected_training_tokens": null,
+      "max_wall_seconds": 50.0,
+      "opd_freshness": "strict",
+      "optimizer": "adamw8bit",
+      "rollouts_per_cycle": 8,
+      "save_every_cycles": 0,
+      "sft_warmup_cycles": 0,
+      "warmup_steps": 2,
+      "weight_decay": 0.0
+    }
+  },
+  "common_declared_config_digest": "b48d905c6a4aef9c08c2e15fe0406133c1d9a3d20d648fa4ca0a9da9947a3d4c",
+  "common_resolved_config": {
+    "cache": {
+      "dir": null,
+      "dtype": "float16",
+      "entries_per_shard": 8,
+      "keep_cycles": 2,
+      "reuse_across_policy_versions": false,
+      "strict_policy_version": true,
+      "verify_checksums_on_load": true
+    },
+    "environment": {
+      "difficulty": "hard",
+      "eval_tasks": 96,
+      "name": "sqlite_recovery",
+      "params": {
+        "protocol_version": "v2"
+      },
+      "split_seed": 20260801,
+      "test_tasks": 128,
+      "train_tasks": 256
+    },
+    "eval": {
+      "baseline_enabled": true,
+      "enabled": false,
+      "max_turns": 5,
+      "seed": 20260801,
+      "split": "test",
+      "tasks": 128,
+      "temperature": 0.0
+    },
+    "loss": {
+      "allow_large_exact": false,
+      "chunk_size": 256,
+      "divergence": "reverse_kl",
+      "exact_max_vocab": 8192,
+      "jsd_beta": 0.5,
+      "mode": "bucketed_topk_tail",
+      "sampled_token_nll_weight": 0.0,
+      "scale_by_temperature_squared": true,
+      "tail_epsilon": 1e-09,
+      "temperature": 1.0,
+      "top_k": 64
+    },
+    "memory": {
+      "auto_swap_vram_headroom_gb": 2.0,
+      "empty_cache_between_phases": true,
+      "min_chunk_size": 16,
+      "oom_retries": 3,
+      "reset_peak_stats_each_cycle": true,
+      "strategy": "auto"
+    },
+    "models": {
+      "backend": "hf",
+      "device": "auto",
+      "student": {
+        "attn_implementation": "sdpa",
+        "dtype": "bfloat16",
+        "gradient_checkpointing": true,
+        "lora": {
+          "alpha": 32,
+          "bias": "none",
+          "dropout": 0.0,
+          "enabled": true,
+          "r": 16,
+          "target_modules": [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj"
+          ]
+        },
+        "model_id": "Qwen/Qwen3-0.6B",
+        "quantization": "nf4",
+        "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+        "tokenizer_id": null,
+        "tokenizer_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+        "toy": {
+          "hidden_size": 64,
+          "intermediate_size": 128,
+          "max_position_embeddings": 1024,
+          "num_heads": 4,
+          "num_layers": 2
+        },
+        "trust_remote_code": false
+      },
+      "teacher": {
+        "adapter": {
+          "base_model_revision": null,
+          "minimum_parse_valid_tool_call_rate": 0.95,
+          "minimum_recovery_after_error_rate": 0.75,
+          "minimum_strict_success_rate": 0.8,
+          "minimum_tool_execution_success_rate": 0.7,
+          "path": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+          "require_policy_evaluation": true,
+          "revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+          "source": "hub",
+          "tokenizer_fingerprint": null
+        },
+        "attn_implementation": "sdpa",
+        "dtype": "bfloat16",
+        "mode": "standard",
+        "model_id": "Qwen/Qwen3-1.7B",
+        "quantization": "nf4",
+        "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "tokenizer_id": null,
+        "tokenizer_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "toy": {
+          "hidden_size": 64,
+          "intermediate_size": 128,
+          "max_position_embeddings": 1024,
+          "num_heads": 4,
+          "num_layers": 2
+        },
+        "toy_pretrain_lr": 0.003,
+        "toy_pretrain_steps": 120,
+        "toy_teacher_seed": 99,
+        "trust_remote_code": false
+      }
+    },
+    "offline_kd": {
+      "collection_seed": 1234,
+      "collection_tasks": null,
+      "dataset_path": null,
+      "task_schedule_digest": null,
+      "trajectory_source": "oracle"
+    },
+    "report": {
+      "enabled": false,
+      "max_tokens_per_trajectory": 768,
+      "max_trajectories": 8
+    },
+    "rollout": {
+      "max_new_tokens_per_turn": 64,
+      "max_parse_errors": 2,
+      "max_repeated_calls": 2,
+      "max_total_tokens": 896,
+      "max_turns": 5,
+      "temperature": 1.0,
+      "top_k": 0,
+      "top_p": 0.95
+    },
+    "run": {
+      "deterministic": true,
+      "mode": "opd",
+      "name": "recoverybench-student",
+      "notes": "",
+      "output_dir": "runs",
+      "run_id": null,
+      "seed": 1234,
+      "tags": [
+        "recoverybench",
+        "qwen3",
+        "single-gpu",
+        "protocol-v2"
+      ]
+    },
+    "schema_version": 1,
+    "selection": {
+      "critical_weight": 1.0,
+      "max_positions_per_trajectory": null,
+      "other_weight": 1.0,
+      "ratio": 1.0,
+      "selector": "all_model_tokens"
+    },
+    "train": {
+      "adam_beta1": 0.9,
+      "adam_beta2": 0.95,
+      "adam_eps": 1e-08,
+      "cycles": 8,
+      "eval_every_cycles": 0,
+      "gradient_accumulation_steps": 8,
+      "learning_rate": 0.0001,
+      "log_every_steps": 1,
+      "lr_schedule": "cosine",
+      "max_grad_norm": 1.0,
+      "max_selected_training_tokens": null,
+      "max_wall_seconds": 50.0,
+      "opd_freshness": "strict",
+      "optimizer": "adamw8bit",
+      "rollouts_per_cycle": 8,
+      "save_every_cycles": 0,
+      "sft_warmup_cycles": 0,
+      "warmup_steps": 2,
+      "weight_decay": 0.0
+    }
+  },
+  "common_resolved_config_digest": "b48d905c6a4aef9c08c2e15fe0406133c1d9a3d20d648fa4ca0a9da9947a3d4c",
+  "controlled": {
+    "allowed_differences": [
+      "run.mode",
+      "cache.reuse_across_policy_versions",
+      "offline_kd.*"
+    ],
+    "budget_axis": "wall_time",
+    "digest": "b48d905c6a4aef9c08c2e15fe0406133c1d9a3d20d648fa4ca0a9da9947a3d4c",
+    "source": "common_declared_config"
+  },
+  "created_at": "2026-08-02T21:51:29+00:00",
+  "description": "Core methods stopped after the first step boundary at or beyond 50 seconds.",
+  "frozen_dataset_identity": {
+    "offline-kd-frozen-student:s1234": {
+      "dataset_digest": "a977917c29686a0245a9053d8b6a2933397676923133fac758bcc6c08cb80488",
+      "manifest": {
+        "bytes": 128338,
+        "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s1234/offline-dataset/manifest.json",
+        "sha256": "142336af0ad51bd7e8cf677575fc4d5ae7416ba12742ec138862d86d494ec702"
+      }
+    },
+    "offline-kd-frozen-student:s20260727": {
+      "dataset_digest": "a6662fb8e0ab10197e66c8eba7b03872b5d788a816b115c57c9aea7d5fff495c",
+      "manifest": {
+        "bytes": 133561,
+        "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260727/offline-dataset/manifest.json",
+        "sha256": "9fcde6fabd535b73681f74de0a2e09ddbd922ddcaa66265e5864a959f5bae2ed"
+      }
+    },
+    "offline-kd-frozen-student:s20260801": {
+      "dataset_digest": "a3abe8545d39e4b2171c1a408c05d3f89827347959a7d61155144fcb11770ada",
+      "manifest": {
+        "bytes": 132510,
+        "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260801/offline-dataset/manifest.json",
+        "sha256": "d7c1f93f1401cc156730ef3ae4e6dee376af8b3ba35302cfb0490fb990cf7c26"
+      }
+    }
+  },
+  "git_commit": "dba595f55ac634c7e0735db696a052126994bb26",
+  "hardware": {
+    "cpu_count": 24,
+    "gpu": {
+      "available": true,
+      "capability": "8.9",
+      "device_count": 1,
+      "device_index": 0,
+      "driver_version": null,
+      "multi_processor_count": 76,
+      "name": "NVIDIA GeForce RTX 4080",
+      "torch_cuda_version": "13.0",
+      "torch_version": "2.13.0+cu130",
+      "total_memory_bytes": 17170956288,
+      "total_memory_gib": 15.992
+    },
+    "os": "Windows"
+  },
+  "hypothesis_ids": [
+    "H1",
+    "H2",
+    "H3"
+  ],
+  "invalidation_status": {
+    "reasons": [],
+    "valid": true
+  },
+  "invocation": [
+    "<local>/miniverl",
+    "benchmark",
+    "benchmarks/configs/recoverybench_v1_equal_wall_time.yaml",
+    "--output",
+    "artifacts/recoverybench-v1-equal-wall-time",
+    "--offline",
+    "--json"
+  ],
+  "miniverl_version": "0.3.0.dev0",
+  "name": "recoverybench-v1-equal-wall-time",
+  "notes": "",
+  "overshoot": {
+    "axis": "wall_time",
+    "maximum": 71.302569600055
+  },
+  "preregistration_digest": "9c4c2ec19a56cebb2b2c1c0f3c7e504a9285467c99ae1590488251fbf2ff3934",
+  "preregistration_sha": "7087b3a333463b88a62ffed73daee2c85d039145",
+  "recovery_metrics": {
+    "source": "per_arm",
+    "subsets_reported": true
+  },
+  "result_analysis_version": "recoverybench-analysis-v1",
+  "schema_version": 3,
+  "seeds": [
+    1234,
+    20260727,
+    20260801
+  ],
+  "selected_teacher_candidate": {
+    "adapter_repo": "DaoyuanLi/mini-verl-qwen3-1.7b-sqlite-recovery-teacher",
+    "adapter_revision": "eb2747895ec32dab47c5b50c2d8aa9c0d9701e0d",
+    "adapter_weights_sha256": "5355f7007efb904d1b45a1aeb9b73b479b6f52025ab92502ab7895706155b2ba",
+    "id": "sqlite-recovery-candidate-a"
+  },
+  "software": {
+    "packages": {
+      "accelerate": "1.14.0",
+      "bitsandbytes": "0.50.0",
+      "miniverl": "0.3.0.dev0",
+      "numpy": "2.5.1",
+      "peft": "0.19.1",
+      "pydantic": "2.13.4",
+      "rich": "15.0.0",
+      "safetensors": "0.8.0",
+      "torch": "2.13.0+cu130",
+      "transformers": "5.14.1",
+      "typer": "0.27.0"
+    },
+    "python": "3.12.13"
+  },
+  "stop_criterion": {
+    "boundary": "optimizer_step",
+    "kind": "wall_time",
+    "target_seconds": 50
+  },
+  "task_level_artifacts": [
+    {
+      "bytes": 3312325,
+      "path": "recoverybench-v1-equal-wall-time-continued-sft-s1234/eval_trajectories.jsonl",
+      "sha256": "eb925bca791adf5e27ba2be25c1903f0df8f8341c466a0cf9e686ab2380ae297"
+    },
+    {
+      "bytes": 2714626,
+      "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s1234/eval_trajectories.jsonl",
+      "sha256": "ae4eafa2ad11d2688bf82ff9c68e1d35e79ad87ef0af7a4bd6566b07e7a8493a"
+    },
+    {
+      "bytes": 2694736,
+      "path": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s1234/eval_trajectories.jsonl",
+      "sha256": "9fbd40f9fbde5603f31fb59c143db487c92788ccf4a4f7b3ba4d9571fd59cf5b"
+    },
+    {
+      "bytes": 2667226,
+      "path": "recoverybench-v1-equal-wall-time-continued-sft-s20260727/eval_trajectories.jsonl",
+      "sha256": "2c692a64726d814890f7faa620473ae8a6a5dbdadb940c824f1cd9e767abf35c"
+    },
+    {
+      "bytes": 2983132,
+      "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260727/eval_trajectories.jsonl",
+      "sha256": "118595777c851af89b57d03a8d250b5dead632c9156d76553e236979e5b5c8f3"
+    },
+    {
+      "bytes": 2836260,
+      "path": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260727/eval_trajectories.jsonl",
+      "sha256": "3e505d4ec5bcafba47b2477b74b50a41a879279cbc681dd7574c0b28487d567a"
+    },
+    {
+      "bytes": 2997902,
+      "path": "recoverybench-v1-equal-wall-time-continued-sft-s20260801/eval_trajectories.jsonl",
+      "sha256": "698f6a9832fb5b7235ba2d8e342f971f90b7d91285a93247fd0b0198748aa080"
+    },
+    {
+      "bytes": 2579485,
+      "path": "recoverybench-v1-equal-wall-time-offline-kd-frozen-student-s20260801/eval_trajectories.jsonl",
+      "sha256": "4f9bbc619245346f9902974c58730c500c2c63d79a2de5995ed79361c43f7e0a"
+    },
+    {
+      "bytes": 2603881,
+      "path": "recoverybench-v1-equal-wall-time-strict-opd-fresh-s20260801/eval_trajectories.jsonl",
+      "sha256": "a5f8d7bd090f6227d9d33f3ec24fd32e9a37696aedbe821f704d9a3b52a0ece2"
+    }
+  ],
+  "task_schedule_digest": "0d937493eea9daadc36e7d29c7c4dace6e35b80a43e27e8af3b038b465f9a806",
+  "teacher_gate_results": [
+    {
+      "artifact_sha256": "7bec9d1977c93ba77345bae42eeb02ba58be39684f008a989ee08141f1a41b92",
+      "candidate": "existing-calculator-protocol-teacher",
+      "passed": false
+    },
+    {
+      "artifact_sha256": "8ed18b0de8d36bd976de3c99859a046cc1e0fb59d63c2dc2addbbbb2a8f96f56",
+      "candidate": "sqlite-recovery-candidate-a-nf4",
+      "passed": true
+    }
+  ],
+  "teacher_preparation_cost": {
+    "amortized_over_10_students_seconds": 231.0746512599977,
+    "amortized_over_5_students_seconds": 462.1493025199954,
+    "excluded_diagnostic_seconds": 687.0495032999897,
+    "one_shot_seconds": 2310.746512599977
+  },
+  "template_registry_digest": "396c49c14641f8a282706e635f164ac72aa6f42d5c5b0fe2abd0c8f667168242",
+  "template_registry_version": 1
+}

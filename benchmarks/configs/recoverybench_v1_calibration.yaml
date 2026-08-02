@@ -1,0 +1,66 @@
+# Eval-only calibration for RecoveryBench v1 secondary budgets.
+# This config never evaluates or generates the final test split.
+
+schema_version: 2
+name: recoverybench-v1-calibration
+description: >-
+  Eval-only calibration of the common selected-position and continuation-time
+  budgets for continued SFT, frozen-student offline KD, and strict fresh OPD.
+
+base: ../../recipes/recoverybench_student.yaml
+common_overrides:
+  rollout:
+    max_turns: 5
+    max_new_tokens_per_turn: 64
+    max_total_tokens: 896
+    temperature: 1.0
+    top_p: 0.95
+  train:
+    cycles: 8
+    rollouts_per_cycle: 8
+    gradient_accumulation_steps: 8
+    sft_warmup_cycles: 0
+    eval_every_cycles: 0
+    save_every_cycles: 0
+  eval:
+    enabled: false
+    split: eval
+    tasks: 96
+    temperature: 0.0
+    max_turns: 5
+    seed: 20260801
+  report: {enabled: false}
+cold_start_cycles: 24
+frozen_dataset_template: ../../artifacts/recoverybench-v1-frozen-s{seed}
+frozen_dataset_seed_from_run: true
+allowed_differences:
+  - run.mode
+  - cache.reuse_across_policy_versions
+  - offline_kd.*
+budget_axis: optimizer_steps
+eval_split: eval
+seeds: [1234]
+output_dir: runs/recoverybench-v1-calibration
+
+arms:
+  - name: continued-sft
+    description: Eight oracle-SFT continuation updates from the shared cold start.
+    overrides:
+      run: {mode: sft}
+
+  - name: offline-kd-frozen-student
+    description: >-
+      Eight offline-KD updates on one immutable trajectory and teacher-target
+      dataset collected from the exact shared cold-start student.
+    overrides:
+      run: {mode: offline_kd}
+      cache: {reuse_across_policy_versions: true}
+      offline_kd:
+        trajectory_source: frozen_student
+        collection_seed: 0
+        collection_tasks: 64
+
+  - name: strict-opd-fresh
+    description: Eight strict fresh-state OPD continuation updates.
+    overrides:
+      run: {mode: opd}

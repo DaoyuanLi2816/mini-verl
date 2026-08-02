@@ -45,6 +45,8 @@ EXPECTED_COMMANDS = {
     "train",
     "eval",
     "benchmark",
+    "prepare-offline-kd",
+    "qualify-teacher",
     "inspect",
     "report",
     "export-adapter",

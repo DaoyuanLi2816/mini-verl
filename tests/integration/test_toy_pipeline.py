@@ -176,6 +176,25 @@ def test_eval_disabled_suppresses_periodic_evaluations(tmp_path: Path):
     assert not [record for record in metrics if record.get("phase") == "eval"]
 
 
+def test_baseline_can_be_disabled_without_disabling_final_eval(tmp_path: Path) -> None:
+    trainer, result = _train(
+        _config(
+            tmp_path,
+            run={"mode": "sft"},
+            train={"cycles": 1},
+            eval={"enabled": True, "baseline_enabled": False},
+        ),
+        "no-baseline",
+    )
+    assert result.baseline_eval is None
+    assert result.eval is not None
+    metrics = [
+        json.loads(line) for line in trainer.paths.metrics.read_text(encoding="utf-8").splitlines()
+    ]
+    eval_tags = [record["tag"] for record in metrics if record.get("phase") == "eval"]
+    assert eval_tags == ["final"]
+
+
 def test_offline_kd_reuses_one_frozen_cache_and_labels_itself(tmp_path: Path):
     config = _config(
         tmp_path,
@@ -196,6 +215,218 @@ def test_offline_kd_reuses_one_frozen_cache_and_labels_itself(tmp_path: Path):
 
     cache = TeacherCache.open(trainer.paths.teacher_cache)
     assert len(cache.index.policy_versions()) == 1
+
+
+def test_frozen_student_offline_kd_collects_once_without_parameter_updates(
+    tmp_path: Path,
+) -> None:
+    from miniverl.trainer import OPDTrainer
+    from miniverl.trajectory.io import read_trajectories
+
+    config = _config(
+        tmp_path,
+        run={"mode": "offline_kd"},
+        cache={"reuse_across_policy_versions": True, "strict_policy_version": False},
+        offline_kd={
+            "trajectory_source": "frozen_student",
+            "collection_seed": 20260801,
+            "collection_tasks": 4,
+        },
+        train={"cycles": 2, "rollouts_per_cycle": 2, "gradient_accumulation_steps": 2},
+        eval={"enabled": False},
+    )
+    trainer = OPDTrainer.from_config(config, run_id="frozen-student-offline")
+    trainer.set_offline_collection_checkpoint_digest("a" * 64)
+    result = trainer.train()
+
+    manifest = json.loads(trainer.paths.offline_dataset_manifest.read_text(encoding="utf-8"))
+    trajectories = read_trajectories(trainer.paths.offline_dataset_trajectories)
+    assert result.global_step == 2
+    assert manifest["schema_version"] == 2
+    assert manifest["source"] == "frozen_student"
+    assert manifest["cold_start_checkpoint_digest"] == "a" * 64
+    assert manifest["parameter_version"] == 0
+    assert len(trajectories) == 4
+    assert all(":oracle:" not in trajectory.trajectory_id for trajectory in trajectories)
+    assert [trajectory.task_id for trajectory in trajectories] == manifest["task_ids"]
+    assert manifest["task_schedule_digest"]
+    assert manifest["generation_seeds"] == [20260801, 20260802, 20260803, 20260804]
+    trainer.close()
+
+
+def test_oracle_offline_kd_collects_the_declared_schedule_before_replay(
+    tmp_path: Path,
+) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    config = _config(
+        tmp_path,
+        run={"mode": "offline_kd"},
+        cache={"reuse_across_policy_versions": True, "strict_policy_version": False},
+        offline_kd={"trajectory_source": "oracle", "collection_seed": 17, "collection_tasks": 4},
+        train={"cycles": 2, "rollouts_per_cycle": 2, "gradient_accumulation_steps": 2},
+        eval={"enabled": False},
+    )
+    trainer = OPDTrainer.from_config(config, run_id="oracle-full-schedule")
+    result = trainer.train()
+
+    manifest = json.loads(trainer.paths.offline_dataset_manifest.read_text(encoding="utf-8"))
+    assert result.global_step == 2
+    assert len(manifest["task_ids"]) == 4
+    assert len(set(manifest["task_ids"])) == 4
+    assert trainer._offline_samples is not None
+    assert [sample.trajectory.task_id for sample in trainer._offline_samples] == manifest[
+        "task_ids"
+    ]
+    trainer.close()
+
+
+def test_persisted_offline_kd_reuses_the_prepared_bundle_without_mutating_it(
+    tmp_path: Path,
+) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    common = {
+        "run": {"mode": "offline_kd"},
+        "cache": {"reuse_across_policy_versions": True, "strict_policy_version": False},
+        "train": {"cycles": 2, "rollouts_per_cycle": 2, "gradient_accumulation_steps": 2},
+        "eval": {"enabled": False},
+    }
+    prepared = OPDTrainer.from_config(
+        _config(
+            tmp_path,
+            **common,
+            offline_kd={
+                "trajectory_source": "frozen_student",
+                "collection_seed": 17,
+                "collection_tasks": 4,
+            },
+        ),
+        run_id="prepared-bundle",
+    )
+    prepared.set_offline_collection_checkpoint_digest("b" * 64)
+    summary = prepared.prepare_offline_dataset()
+    source_root = prepared.paths.root
+    prepared.close()
+    source_bytes = {
+        path.relative_to(source_root): path.read_bytes()
+        for artifact in (source_root / "offline-dataset", source_root / "teacher-cache")
+        for path in artifact.rglob("*")
+        if path.is_file()
+    }
+
+    consumer = OPDTrainer.from_config(
+        _config(
+            tmp_path,
+            **common,
+            offline_kd={
+                "trajectory_source": "persisted",
+                "dataset_path": str(source_root),
+                "task_schedule_digest": summary["manifest"]["task_schedule_digest"],
+            },
+        ),
+        run_id="persisted-consumer",
+    )
+    result = consumer.train()
+
+    assert result.global_step == 2
+    assert consumer.offline_dataset_digest == summary["dataset_digest"]
+    assert consumer._offline_samples is not None
+    assert len(consumer._offline_samples) == 4
+    assert all(
+        (source_root / path).read_bytes() == contents for path, contents in source_bytes.items()
+    )
+    consumer.close()
+
+
+def test_persisted_offline_kd_rejects_a_different_cold_start_checkpoint(
+    tmp_path: Path,
+) -> None:
+    from miniverl.errors import CheckpointError
+    from miniverl.trainer import OPDTrainer
+
+    common = {
+        "run": {"mode": "offline_kd"},
+        "cache": {"reuse_across_policy_versions": True, "strict_policy_version": False},
+        "train": {"cycles": 1, "rollouts_per_cycle": 2, "gradient_accumulation_steps": 2},
+        "eval": {"enabled": False},
+    }
+    prepared = OPDTrainer.from_config(
+        _config(
+            tmp_path,
+            **common,
+            offline_kd={
+                "trajectory_source": "frozen_student",
+                "collection_seed": 17,
+                "collection_tasks": 2,
+            },
+        ),
+        run_id="prepared-cold-start-bound-bundle",
+    )
+    prepared.set_offline_collection_checkpoint_digest("b" * 64)
+    summary = prepared.prepare_offline_dataset()
+    source_root = prepared.paths.root
+    prepared.close()
+
+    consumer = OPDTrainer.from_config(
+        _config(
+            tmp_path,
+            **common,
+            offline_kd={
+                "trajectory_source": "persisted",
+                "dataset_path": str(source_root),
+                "task_schedule_digest": summary["manifest"]["task_schedule_digest"],
+            },
+        ),
+        run_id="mismatched-cold-start-consumer",
+    )
+    consumer.set_offline_collection_checkpoint_digest("c" * 64)
+    with pytest.raises(CheckpointError, match="cold-start checkpoint digest"):
+        consumer.train()
+    assert not consumer.paths.offline_dataset.exists()
+    consumer.close()
+
+
+def test_selected_token_budget_stops_only_after_an_optimizer_step_and_records_overshoot(
+    tmp_path: Path,
+) -> None:
+    trainer, result = _train(
+        _config(
+            tmp_path,
+            run={"mode": "sft"},
+            train={"cycles": 10, "max_selected_training_tokens": 1},
+            eval={"enabled": False},
+        ),
+        "selected-token-stop",
+    )
+
+    assert result.global_step == 1
+    assert result.cycles_completed == 1
+    assert result.stop_criterion == {
+        "kind": "selected_training_tokens",
+        "target": 1,
+        "actual": result.overshoot["actual"],
+    }
+    assert result.overshoot["value"] == result.overshoot["actual"] - 1
+    assert result.overshoot["value"] >= 0
+    manifest = json.loads(trainer.paths.manifest.read_text(encoding="utf-8"))
+    assert manifest["result"]["stop_criterion"] == result.stop_criterion
+
+
+def test_wall_budget_stops_after_a_complete_optimizer_step(tmp_path: Path) -> None:
+    _trainer, result = _train(
+        _config(
+            tmp_path,
+            run={"mode": "sft"},
+            train={"cycles": 10, "max_wall_seconds": 1.0e-9},
+            eval={"enabled": False},
+        ),
+        "wall-stop",
+    )
+    assert result.global_step == 1
+    assert result.cycles_completed == 1
+    assert result.stop_criterion["kind"] == "wall_seconds"
+    assert result.overshoot["value"] >= 0.0
 
 
 def test_opd_and_offline_kd_differ_in_their_cache_policy_versions(tmp_path: Path):
