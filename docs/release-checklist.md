@@ -1,12 +1,55 @@
 # Release checklist
 
-This is the release gate and publication record for `v0.2.6`. A checked item
-names an invariant that was exercised on the release source. The tag workflow
-repeated the mechanical gates and refused inconsistent metadata or an
-unchecked pre-tag item. Publication began only after explicit maintainer
-authorization.
+This is the release gate and publication record for miniVERL. A checked item
+names an invariant exercised on the stated source. Publication begins only
+after the exact release commit and its remote checks are green.
 
-## Version consistency
+## v0.3.0 RecoveryBench candidate
+
+- [x] Revision-1.3 preregistration predates the valid final run and remains
+      byte-frozen at SHA-256
+      `9c4c2ec19a56cebb2b2c1c0f3c7e504a9285467c99ae1590488251fbf2ff3934`.
+- [x] All three schema-v3 budget results validate; 36 task files, 4,608
+      trajectories, 128 task records per arm, task pairing, cold checkpoints,
+      frozen datasets and all 75 fresh-policy update versions were audited.
+- [x] Negative results, failed teacher candidates, the invalid v1.2 partial
+      run and the post-run aborted wall-budget replacement are disclosed and
+      excluded from headline analysis.
+- [x] Equal-updates, selected-position and cycle-capped wall diagnostics are
+      reported without changing the frozen experiment or analysis after seeing
+      outcomes.
+- [x] The five RecoveryBench publication artifacts and three SVGs have exact
+      hash tests; SVG generator output byte-matches the committed figures.
+- [x] The six-page technical PDF is data-bound, reproducible byte-for-byte and
+      visually inspected on every page; the three SVGs and banner are visually
+      clean at their intended sizes.
+- [x] The legacy calculator JSON remains byte-identical at SHA-256
+      `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
+- [x] Ruff check/format, mypy, actionlint and `git diff --check` pass.
+- [x] Full non-GPU/non-network suite: **1408 passed**, 6 deselected, **86.68%**
+      branch coverage.
+- [x] Available RTX 4080 GPU suite: **5 passed**, 1409 deselected.
+- [x] Network suite: **3 passed**, 1411 deselected, including both immutable
+      public teacher adapters.
+- [x] Development wheel and sdist build; both pass Twine. Clean Python 3.10
+      core and clean Python 3.12 training-extra installs pass their command and
+      demo/report/cache smoke tests.
+- [x] Extracted sdist passes PyPI-description, Ruff, format, mypy and all 1408
+      CPU tests; its rebuilt wheel has the same 81-file package inventory.
+- [x] Python 3.10.11 minimum boundary passes with Torch 2.3.1+cpu,
+      Transformers 4.51.3, PEFT 0.12.0, Accelerate 0.33.0, NumPy 1.24.4 and
+      bitsandbytes 0.43.3. Python 3.13.13 latest boundary passes with Torch
+      2.13.0+cpu, Transformers 5.14.1, PEFT 0.20.0, Accelerate 1.14.0, NumPy
+      2.5.1 and bitsandbytes 0.50.0.
+- [ ] Focused PR is green and merged; synchronized `main` is green.
+- [ ] Release metadata declares exact `0.3.0`; annotated tag `v0.3.0` triggers
+      OIDC publication, public hashes/attestations, clean install and one GitHub
+      Release from the same distributions.
+- [ ] Post-release state-sync PR advances clean `main` to `0.4.0.dev0`.
+
+## Historical v0.2.6 release record
+
+### Version consistency
 
 - [x] Tagged source `v0.2.6` declares package version `0.2.6`.
 - [x] `CHANGELOG.md` has a dated `## [0.2.6]` section.
@@ -14,7 +57,7 @@ authorization.
 - [x] The intended annotated tag is exactly `v0.2.6`.
 - [x] The package/project name remains `miniverl`.
 
-## Correctness and lifecycle
+### Correctness and lifecycle
 
 - [x] Strict model-output JSON rejects non-finite values, duplicate keys,
       oversized integers, excessive depth/members and invalid surrogates before
@@ -39,7 +82,7 @@ authorization.
       reductions, chunking, finite gradients, zero tails and OOM RNG
       equivalence remain green.
 
-## Quality gates
+### Quality gates
 
 - [x] `git diff --check`.
 - [x] `ruff check .`.
@@ -60,7 +103,7 @@ authorization.
 - [x] No unfinished implementation markers remain under `src`, `tests`,
       `examples` or `scripts`.
 
-## Packaging and clean installs
+### Packaging and clean installs
 
 - [x] A clean `python -m build` produces one `0.2.6` wheel and one sdist.
 - [x] `python -m twine check dist/*` passes.
@@ -78,7 +121,7 @@ authorization.
 - [x] Reusing the demo output without `--overwrite` fails without changing a
       file; explicit overwrite produces a fresh completed run.
 
-## Artifacts, documentation and hygiene
+### Artifacts, documentation and hygiene
 
 - [x] Every shipped run recipe validates; every benchmark config resolves.
 - [x] The committed benchmark JSON Schema is byte-identical to generated
@@ -105,7 +148,7 @@ authorization.
       dependency boundaries describe the validated implementation.
 - [x] No RecoveryBench or unrelated feature expansion was added.
 
-## Trusted publishing readiness
+### Trusted publishing readiness
 
 - [x] PyPI reports project `miniverl`; `v0.2.6` is the current public version.
 - [x] GitHub environment `pypi` exists and has a deployment branch policy.
@@ -116,7 +159,7 @@ authorization.
 - [x] The immutable `v0.2.0` through `v0.2.6` tags, frozen calculator JSON and
       pinned public protocol-teacher adapter are unchanged.
 
-## After the tag
+### After the tag
 
 - [x] Annotated tag `v0.2.6` resolves to exact validated merge commit
       `59fe738709526a13f354a744ab763f13530de4d1`.

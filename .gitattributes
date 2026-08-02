@@ -29,6 +29,7 @@
 *.jpg   binary
 *.gif   binary
 *.ico   binary
+*.pdf   binary
 *.whl   binary
 *.gz    binary
 *.safetensors binary

@@ -435,7 +435,7 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
         (REPO_ROOT / "docs" / "generated" / "quality.json").read_text(encoding="utf-8")
     )
     assert record["schema_version"] == 1
-    assert record["quality_floor"] == "1,300+ tests and 87%+ branch coverage at v0.2.6"
+    assert record["quality_floor"] == "1,400+ tests and 86%+ branch coverage at v0.3.0"
     if ".dev" in miniverl.__version__:
         assert record["status"] in {"candidate", "released"}
         if record["status"] == "candidate":
