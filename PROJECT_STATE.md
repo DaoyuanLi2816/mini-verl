@@ -6,7 +6,7 @@ and what it printed.
 
 Last updated: 2026-08-01.
 
-## v0.3.0 RecoveryBench development
+## v0.3.0 RecoveryBench release
 
 | item | current state |
 | --- | --- |
@@ -14,7 +14,7 @@ Last updated: 2026-08-01.
 | available execution environment | Windows checkout with Python 3.12, Torch 2.13.0+cu130 and an NVIDIA GeForce RTX 4080 (16376 MiB); GitHub and Hugging Face access are available and publication remains restricted to exact validated tags |
 | immutable baseline | calculator benchmark SHA-256 is `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; calculator protocol-teacher HEAD is `23323751318135484c06c043b1f9b9e7016dd89f`; existing tags remain untouched |
 | phase boundary | RecoveryBench must be preregistered, fully measured with the sequential engine, frozen, merged, released as `v0.3.0`, publicly verified and state-synced to `0.4.0.dev0` before padded batching begins |
-| current highest-risk work | final experiment, artifact audit and data-bound publication are complete; remaining work is release validation, integration, Trusted Publishing verification and the required `0.4.0.dev0` state sync |
+| current highest-risk work | RecoveryBench, release validation, integration and Trusted Publishing verification are complete; the next phase is the separately gated v0.4 consumer batched runtime |
 | RecoveryBench environment | `sqlite_recovery` has 12 structurally disjoint versioned templates, deterministic controlled/natural/no-intervention subsets, structured tool-error provenance, executable recovery oracles, and exact recovery metrics; focused environment and backward-read tests pass |
 | preregistration | public commit `7087b3a333463b88a62ffed73daee2c85d039145` and revision-1.3 digest `9c4c2ec19a56cebb2b2c1c0f3c7e504a9285467c99ae1590488251fbf2ff3934` bind the final procedure; the later public wall-budget amendment was reverted, its partial replacement stopped, and the already-complete frozen experiment was retained without rerun |
 | teacher selection so far | the historical calculator teacher completed 96 eval tasks and failed the gate at 25.0% strict, 10.7% recovery, 95.8% parse validity and 14.4% tool execution; candidate A trained for 64 QLoRA SFT updates and its in-process NF4 eval measured 86.5%, 78.1%, 100% and 87.5%; a separately loaded full-precision reapplication failed at 65.6%, 65.6%, 100% and 62.7% and is retained as a noncanonical diagnostic |
@@ -32,6 +32,13 @@ Last updated: 2026-08-01.
 | secondary budgets | all equal-selected-position arms crossed the 6,224 target after eight steps with recorded overshoot; the nominal 50-second artifact is explicitly a cycle-capped wall diagnostic because SFT and frozen KD completed eight cycles while fresh OPD crossed the target in one indivisible step |
 | immutable RecoveryBench results | equal-updates `6ce2e6837e12b99ebc4fad6d27ce3e69c92e295ff3b9b60e0f68c2d308022384`; equal-selected-positions `fe4c9afc799724dfe7a32e631676a1e5177c44559a7374d2ea31da135354f137`; wall diagnostic `425b0fa568f37b09e61af731d3da5009bd3833bddde6efaf2c66e9dba8355cbe`; task JSONL `aff96bffc6da27240a852410ac041bd4d95badf34cad030e6f437be1491a55ad`; paired analysis `8a6891f74aed80f07ec00d5ea1909895c579346e1abbb1d5d95a354bb46c6b81` |
 | technical publication | the generated Markdown analysis, three SVGs and deterministic six-page PDF report are data-bound to the frozen JSON; native/README-width SVG inspection and every-page PDF inspection found no clipping or overlap |
+| integration source | RecoveryBench PR [#27](https://github.com/DaoyuanLi2816/mini-verl/pull/27) was squash-merged as `bee82d3a6e2c8a5c3f4c62c0d3827a07483a1977`; release-metadata PR [#28](https://github.com/DaoyuanLi2816/mini-verl/pull/28) was squash-merged as `624c6a352db53e0bd2038c4aeb0669a16a402239`; annotated tag `v0.3.0` resolves to the latter exact commit |
+| version transition | `v0.3.0` is immutable and public; this state-sync change identifies subsequent development as `0.4.0.dev0` |
+| release execution | tag run [`30772772078`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30772772078) passed metadata, full tests, one-time build, OIDC publication with attestations, public verification, exact clean install and GitHub Release creation |
+| published wheel | [`miniverl-0.3.0-py3-none-any.whl`](https://pypi.org/project/miniverl/0.3.0/), SHA-256 `e42404ced88b75ba4ff31541cb3df697da0eee09a68f603e4eadbf69a11d2032` |
+| published sdist | [`miniverl-0.3.0.tar.gz`](https://pypi.org/project/miniverl/0.3.0/), SHA-256 `006ce418243286dd27e0731090bf9fa1711a1abc962ecfcc4d39807257539cb2` |
+| independent public verification | GitHub Release downloads reproduce both public hashes; a no-cache Windows Python 3.10 install from `https://pypi.org/simple` reported `miniverl 0.3.0`, passed JSON `doctor`, and kept torch, Transformers, PEFT and bitsandbytes absent |
+| release state | complete; PyPI and [`miniVERL v0.3.0`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.3.0) expose the same verified wheel and sdist |
 
 ## v0.2.6 concurrency, lifecycle and privacy correctness release
 
