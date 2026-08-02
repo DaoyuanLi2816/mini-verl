@@ -1,8 +1,9 @@
 """Versioned benchmark configuration and result schemas.
 
 Version 2 records resolved configuration provenance and cumulative accounting.
-The public version-1 artifacts remain readable, but new benchmark executions
-always write version 2 and never rewrite old measurements in place.
+Version 3 adds RecoveryBench's preregistration, recovery, budget and task-level
+artifact provenance. Public version-1 and version-2 artifacts remain readable
+and are never reinterpreted or rewritten in place.
 """
 
 from __future__ import annotations
@@ -18,17 +19,20 @@ from miniverl.errors import ConfigError
 
 __all__ = [
     "BENCHMARK_SCHEMA_VERSION",
+    "RECOVERY_BENCHMARK_SCHEMA_VERSION",
     "LEGACY_BENCHMARK_SCHEMA_VERSION",
     "BenchmarkArm",
     "BenchmarkConfig",
     "ArmResult",
     "BenchmarkResult",
     "json_schema",
+    "recovery_json_schema",
     "finite_or_none",
 ]
 
 LEGACY_BENCHMARK_SCHEMA_VERSION = 1
 BENCHMARK_SCHEMA_VERSION = 2
+RECOVERY_BENCHMARK_SCHEMA_VERSION = 3
 
 
 def _resolve_local_adapter_path(overrides: dict[str, Any], parent: Path) -> None:
@@ -69,11 +73,11 @@ class BenchmarkArm(BaseModel):
 
 
 class BenchmarkConfig(BaseModel):
-    """Benchmark-v2 specification with explicit cold-start semantics."""
+    """Versioned benchmark specification with explicit cold-start semantics."""
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[2] = 2
+    schema_version: Literal[2, 3] = 2
     name: str = Field(min_length=1, max_length=80)
     description: str = ""
     base: str | dict[str, Any]
@@ -89,6 +93,24 @@ class BenchmarkConfig(BaseModel):
     arms: list[BenchmarkArm] = Field(min_length=1)
     output_dir: str = "runs/benchmarks"
 
+    # Schema-v3 RecoveryBench provenance. These stay optional for schema-v2
+    # calculator specifications and are mandatory as a complete set for v3.
+    preregistration_sha: str | None = None
+    preregistration_digest: str | None = None
+    hypothesis_ids: list[str] = Field(default_factory=list)
+    task_schedule_digest: str | None = None
+    template_registry_version: int | None = None
+    template_registry_digest: str | None = None
+    selected_teacher_candidate: dict[str, Any] | None = None
+    teacher_gate_results: list[dict[str, Any]] = Field(default_factory=list)
+    teacher_preparation_cost: dict[str, Any] | None = None
+    frozen_dataset_identity: dict[str, Any] = Field(default_factory=dict)
+    budget_view: str | None = None
+    stop_criterion: dict[str, Any] | None = None
+    task_level_artifacts: list[dict[str, Any]] = Field(default_factory=list)
+    result_analysis_version: str | None = None
+    invalidation_status: dict[str, Any] | None = None
+
     @model_validator(mode="after")
     def _validate(self) -> BenchmarkConfig:
         names = [a.name for a in self.arms]
@@ -99,6 +121,25 @@ class BenchmarkConfig(BaseModel):
             for path in self.allowed_differences
         ):
             raise ValueError("allowed_differences entries must be non-empty dotted config paths")
+        if self.schema_version == RECOVERY_BENCHMARK_SCHEMA_VERSION:
+            required = {
+                "preregistration_sha": self.preregistration_sha,
+                "preregistration_digest": self.preregistration_digest,
+                "hypothesis_ids": self.hypothesis_ids,
+                "task_schedule_digest": self.task_schedule_digest,
+                "template_registry_version": self.template_registry_version,
+                "template_registry_digest": self.template_registry_digest,
+                "selected_teacher_candidate": self.selected_teacher_candidate,
+                "teacher_gate_results": self.teacher_gate_results,
+                "teacher_preparation_cost": self.teacher_preparation_cost,
+                "budget_view": self.budget_view,
+                "stop_criterion": self.stop_criterion,
+                "result_analysis_version": self.result_analysis_version,
+                "invalidation_status": self.invalidation_status,
+            }
+            missing = [name for name, value in required.items() if value is None or value == []]
+            if missing:
+                raise ValueError("benchmark config schema v3 requires: " + ", ".join(missing))
         return self
 
     @classmethod
@@ -222,6 +263,11 @@ class ArmResult(BaseModel):
     wall_seconds: float
     baseline_success_rate: float | None = None
     measurement_status: dict[str, str] | str = Field(default_factory=dict)
+    recovery_metrics: dict[str, Any] = Field(default_factory=dict)
+    frozen_dataset_identity: dict[str, Any] | None = None
+    stop_criterion: dict[str, Any] | None = None
+    overshoot: dict[str, Any] = Field(default_factory=dict)
+    task_level_artifact: dict[str, Any] | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -267,11 +313,11 @@ class ArmResult(BaseModel):
 
 
 class BenchmarkResult(BaseModel):
-    """Full benchmark output, with v1 read compatibility and v2 provenance."""
+    """Full benchmark output with v1/v2 read compatibility and v3 provenance."""
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: Literal[1, 2] = 2
+    schema_version: Literal[1, 2, 3] = 2
     miniverl_version: str
     name: str
     description: str = ""
@@ -291,9 +337,27 @@ class BenchmarkResult(BaseModel):
     notes: str = ""
     seeds: list[int] = Field(default_factory=list)
 
+    preregistration_sha: str | None = None
+    preregistration_digest: str | None = None
+    hypothesis_ids: list[str] = Field(default_factory=list)
+    task_schedule_digest: str | None = None
+    template_registry_version: int | None = None
+    template_registry_digest: str | None = None
+    selected_teacher_candidate: dict[str, Any] | None = None
+    teacher_gate_results: list[dict[str, Any]] = Field(default_factory=list)
+    teacher_preparation_cost: dict[str, Any] | None = None
+    frozen_dataset_identity: dict[str, Any] = Field(default_factory=dict)
+    budget_view: str | None = None
+    stop_criterion: dict[str, Any] | None = None
+    overshoot: dict[str, Any] = Field(default_factory=dict)
+    recovery_metrics: dict[str, Any] = Field(default_factory=dict)
+    task_level_artifacts: list[dict[str, Any]] = Field(default_factory=list)
+    result_analysis_version: str | None = None
+    invalidation_status: dict[str, Any] | None = None
+
     @model_validator(mode="after")
     def _require_v2_provenance(self) -> BenchmarkResult:
-        if self.schema_version == BENCHMARK_SCHEMA_VERSION:
+        if self.schema_version >= BENCHMARK_SCHEMA_VERSION:
             missing = [
                 name
                 for name, value in (
@@ -308,6 +372,29 @@ class BenchmarkResult(BaseModel):
             if missing:
                 raise ValueError(
                     "benchmark schema v2 requires provenance fields: " + ", ".join(missing)
+                )
+        if self.schema_version == RECOVERY_BENCHMARK_SCHEMA_VERSION:
+            required = {
+                "preregistration_sha": self.preregistration_sha,
+                "preregistration_digest": self.preregistration_digest,
+                "hypothesis_ids": self.hypothesis_ids,
+                "task_schedule_digest": self.task_schedule_digest,
+                "template_registry_version": self.template_registry_version,
+                "template_registry_digest": self.template_registry_digest,
+                "selected_teacher_candidate": self.selected_teacher_candidate,
+                "teacher_gate_results": self.teacher_gate_results,
+                "teacher_preparation_cost": self.teacher_preparation_cost,
+                "budget_view": self.budget_view,
+                "stop_criterion": self.stop_criterion,
+                "recovery_metrics": self.recovery_metrics,
+                "task_level_artifacts": self.task_level_artifacts,
+                "result_analysis_version": self.result_analysis_version,
+                "invalidation_status": self.invalidation_status,
+            }
+            missing = [name for name, value in required.items() if value is None or value == []]
+            if missing:
+                raise ValueError(
+                    "benchmark schema v3 requires provenance fields: " + ", ".join(missing)
                 )
         return self
 
@@ -339,7 +426,7 @@ class BenchmarkResult(BaseModel):
 
 
 def json_schema() -> dict[str, Any]:
-    """JSON Schema accepting preserved v1 and newly generated v2 results."""
+    """JSON Schema accepting preserved v1/v2 and RecoveryBench-v3 results."""
     schema = BenchmarkResult.model_json_schema()
     # Pydantic's pre-validator migrates the three renamed v1 fields at runtime,
     # but JSON Schema cannot see that Python hook. Describe the legacy spellings
@@ -374,5 +461,16 @@ def json_schema() -> dict[str, Any]:
     schema["$id"] = (
         "https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/"
         "benchmarks/schema/benchmark-result.schema.json"
+    )
+    return schema
+
+
+def recovery_json_schema() -> dict[str, Any]:
+    """RecoveryBench-v3 publication view with legacy read compatibility."""
+    schema = json_schema()
+    schema["title"] = "miniVERL RecoveryBench result"
+    schema["$id"] = (
+        "https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/"
+        "benchmarks/schema/recoverybench-result.schema.json"
     )
     return schema

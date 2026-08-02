@@ -449,6 +449,111 @@ def _artifact_listing(root: Path) -> dict[str, str]:
     return out
 
 
+# ----------------------------------------------------- prepare-offline-kd
+
+
+@app.command("prepare-offline-kd")
+def prepare_offline_kd_command(
+    recipe: Path = typer.Option(..., "--recipe", help="Frozen-student offline-KD recipe."),
+    checkpoint: Path = typer.Option(
+        ..., "--checkpoint", help="Exact shared cold-start checkpoint directory."
+    ),
+    out: Path = typer.Option(..., "--out", help="New immutable dataset bundle directory."),
+    offline: bool = typer.Option(
+        False, "--offline", help="Refuse network access; use only cached model files."
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate and print the collection plan without loading models or writing files.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Collect one frozen-student trajectory/teacher-target dataset."""
+    from miniverl.config import OfflineKDTrajectorySource, RunConfig, TrainingMode
+
+    try:
+        config = RunConfig.from_yaml(recipe)
+        if config.run.mode is not TrainingMode.OFFLINE_KD:
+            raise ConfigError("prepare-offline-kd requires run.mode=offline_kd")
+        if config.offline_kd.trajectory_source is not OfflineKDTrajectorySource.FROZEN_STUDENT:
+            raise ConfigError(
+                "prepare-offline-kd requires offline_kd.trajectory_source=frozen_student"
+            )
+        if not checkpoint.is_dir():
+            raise ConfigError(f"checkpoint directory not found: {checkpoint}")
+        if out.exists():
+            raise ConfigError(
+                f"output already exists: {out}",
+                hint="choose a new directory; frozen datasets are never overwritten",
+            )
+    except (ValidationError, MiniVerlError) as exc:
+        if isinstance(exc, MiniVerlError):
+            _fail(exc)
+        err_console.print(f"[red]invalid recipe[/red] {_esc(recipe)}\n{_esc(exc)}")
+        raise typer.Exit(1) from None
+
+    plan = {
+        "dry_run": dry_run,
+        "recipe": str(recipe),
+        "checkpoint": str(checkpoint),
+        "out": str(out),
+        "offline": offline,
+        "trajectory_source": config.offline_kd.trajectory_source.value,
+        "collection_seed": config.offline_kd.collection_seed,
+        "collection_tasks": (config.offline_kd.collection_tasks or config.train.rollouts_per_cycle),
+        "student": config.models.student.model_id,
+        "student_revision": config.models.student.revision,
+        "teacher": config.models.teacher.model_id,
+        "teacher_revision": config.models.teacher.revision,
+    }
+    if dry_run:
+        if as_json:
+            _emit_json(plan)
+        else:
+            console.print(f"[green]dry run ok[/green] {_esc(recipe)}")
+            for key, value in plan.items():
+                console.print(f"  [dim]{key}[/dim] {_esc(value)}")
+            console.print("\nNo models were loaded, files written, or downloads attempted.")
+        return
+
+    try:
+        _require_training_stack("miniverl prepare-offline-kd")
+        from miniverl.trainer import OPDTrainer
+        from miniverl.training.checkpoint import load_checkpoint, validate_checkpoint
+
+        validated = validate_checkpoint(checkpoint)
+        with OPDTrainer.from_config(
+            config,
+            output_dir=out.parent,
+            run_id=out.name,
+            local_files_only=offline,
+        ) as trainer:
+            load_checkpoint(
+                checkpoint,
+                backend=trainer.student,
+                optimizer=None,
+                device=trainer.student.device,
+                include_optimizer=False,
+                include_rng=False,
+                expected_identity=(trainer._checkpoint_identity() if validated.identity else None),
+            )
+            trainer.set_offline_collection_checkpoint_digest(validated.content_digest)
+            summary = trainer.prepare_offline_dataset()
+            destination = trainer.paths.root
+    except (MiniVerlError, ModuleNotFoundError) as exc:
+        _fail(exc)
+        return
+
+    payload = {**plan, "written": str(destination), **summary}
+    if as_json:
+        _emit_json(payload)
+        return
+    console.print(f"[green]offline dataset prepared[/green] {_esc(destination)}")
+    console.print(f"  digest {_esc(summary['dataset_digest'])}")
+    console.print(f"  trajectories {_esc(summary['trajectories'])}")
+
+
 # ----------------------------------------------------------------- train
 
 
@@ -1064,6 +1169,11 @@ def export_benchmark(
 @app.command("schema")
 def schema_command(
     out: Optional[Path] = typer.Option(None, "--out", help="Write the JSON Schema to a file."),
+    recoverybench: bool = typer.Option(
+        False,
+        "--recoverybench",
+        help="Emit the RecoveryBench-v3 publication schema.",
+    ),
 ) -> None:
     """Print the benchmark-result JSON Schema.
 
@@ -1074,10 +1184,10 @@ def schema_command(
     committed copy, so whichever path a contributor happens to use has to give
     the same bytes or the check fails on formatting rather than on drift.
     """
-    from miniverl.evaluation.schema import json_schema
+    from miniverl.evaluation.schema import json_schema, recovery_json_schema
     from miniverl.utils.runs import canonical_json, write_text
 
-    text = canonical_json(json_schema())
+    text = canonical_json(recovery_json_schema() if recoverybench else json_schema())
     if out is not None:
         write_text(out, text)
         console.print(f"[green]schema written[/green] {_esc(out)}")

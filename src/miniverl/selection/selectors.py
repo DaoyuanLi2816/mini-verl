@@ -136,6 +136,12 @@ def select_positions(
     elif selector is SelectorName.UNIFORM_RATIO:
         budget = math.ceil(config.ratio * len(model_positions))
         chosen = _deterministic_sample(model_positions, budget, rng)
+    elif selector is SelectorName.UNIFORM_BUDGET:
+        # Unlike the historical ratio selector, this is a hard upper bound:
+        # floor prevents a short trajectory from exceeding the declared
+        # teacher-query fraction through per-trajectory rounding.
+        budget = math.floor(config.ratio * len(model_positions))
+        chosen = _deterministic_sample(model_positions, budget, rng)
     elif selector is SelectorName.HYBRID:
         budget = math.ceil(config.ratio * len(model_positions))
         chosen = list(critical_positions)

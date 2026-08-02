@@ -793,7 +793,7 @@
       "type": "object"
     }
   },
-  "$id": "https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/benchmarks/schema/benchmark-result.schema.json",
+  "$id": "https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/benchmarks/schema/recoverybench-result.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "description": "Full benchmark output with v1/v2 read compatibility and v3 provenance.",
@@ -1141,6 +1141,6 @@
     "name",
     "created_at"
   ],
-  "title": "miniVERL benchmark result",
+  "title": "miniVERL RecoveryBench result",
   "type": "object"
 }

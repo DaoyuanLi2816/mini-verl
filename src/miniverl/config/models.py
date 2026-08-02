@@ -24,6 +24,7 @@ from miniverl.utils.runs import write_text
 
 __all__ = [
     "TrainingMode",
+    "OfflineKDTrajectorySource",
     "OPDFreshness",
     "AdapterSource",
     "ModelBackend",
@@ -49,6 +50,7 @@ __all__ = [
     "TrainConfig",
     "MemoryConfig",
     "CacheConfig",
+    "OfflineKDConfig",
     "EvalConfig",
     "ReportConfig",
     "RunMeta",
@@ -65,6 +67,14 @@ class TrainingMode(str, Enum):
     SFT = "sft"
     OFFLINE_KD = "offline_kd"
     OPD = "opd"
+
+
+class OfflineKDTrajectorySource(str, Enum):
+    """Where the immutable state distribution for offline KD comes from."""
+
+    ORACLE = "oracle"
+    FROZEN_STUDENT = "frozen_student"
+    PERSISTED = "persisted"
 
 
 class OPDFreshness(str, Enum):
@@ -133,6 +143,7 @@ class SelectorName(str, Enum):
     ALL_MODEL_TOKENS = "all_model_tokens"
     TOOL_AND_FINAL = "tool_and_final"
     UNIFORM_RATIO = "uniform_ratio"
+    UNIFORM_BUDGET = "uniform_budget"
     HYBRID = "hybrid"
 
 
@@ -420,6 +431,18 @@ class TrainConfig(_Base):
     #: Optional SFT cold start executed before the KD/OPD loop.
     sft_warmup_cycles: int = Field(default=0, ge=0, le=100000)
     log_every_steps: int = Field(default=1, ge=1, le=10000)
+    #: Optional continuation-only budgets. Each is checked after an optimizer
+    #: step/cycle, so the exact nonnegative overshoot is part of the result.
+    max_selected_training_tokens: int | None = Field(default=None, ge=1)
+    max_wall_seconds: float | None = Field(default=None, gt=0.0)
+
+    @model_validator(mode="after")
+    def _one_stop_budget(self) -> TrainConfig:
+        if self.max_selected_training_tokens is not None and self.max_wall_seconds is not None:
+            raise ValueError(
+                "train accepts at most one continuation stop budget: selected tokens or wall time"
+            )
+        return self
 
 
 class MemoryConfig(_Base):
@@ -451,6 +474,28 @@ class CacheConfig(_Base):
     reuse_across_policy_versions: bool = False
     keep_cycles: int = Field(default=1, ge=1, le=100000)
     verify_checksums_on_load: bool = True
+
+
+class OfflineKDConfig(_Base):
+    """Explicit provenance and collection policy for fixed-state distillation."""
+
+    trajectory_source: OfflineKDTrajectorySource = OfflineKDTrajectorySource.ORACLE
+    dataset_path: str | None = None
+    collection_seed: int = Field(default=1234, ge=0)
+    collection_tasks: int | None = Field(default=None, ge=1, le=100000)
+    task_schedule_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def _validate_source(self) -> OfflineKDConfig:
+        if self.trajectory_source is OfflineKDTrajectorySource.PERSISTED and not self.dataset_path:
+            raise ValueError(
+                "offline_kd.trajectory_source=persisted requires offline_kd.dataset_path"
+            )
+        if self.trajectory_source is not OfflineKDTrajectorySource.PERSISTED and self.dataset_path:
+            raise ValueError(
+                "offline_kd.dataset_path is only valid when trajectory_source=persisted"
+            )
+        return self
 
 
 class EvalConfig(_Base):
@@ -501,6 +546,7 @@ class RunConfig(_Base):
     train: TrainConfig = Field(default_factory=TrainConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
+    offline_kd: OfflineKDConfig = Field(default_factory=OfflineKDConfig)
     eval: EvalConfig = Field(default_factory=EvalConfig)
     report: ReportConfig = Field(default_factory=ReportConfig)
 
@@ -552,6 +598,8 @@ class RunConfig(_Base):
                 "run.mode=offline_kd needs cache.reuse_across_policy_versions=true; "
                 "that flag is what makes the offline (fixed-target) semantics explicit"
             )
+        if mode is not TrainingMode.OFFLINE_KD and self.offline_kd != OfflineKDConfig():
+            raise ValueError("offline_kd settings apply only when run.mode=offline_kd")
 
         if self.loss.divergence is Divergence.JSD and not 0.0 < self.loss.jsd_beta < 1.0:
             raise ValueError(
@@ -714,6 +762,14 @@ class RunConfig(_Base):
                 source = private.get("_source_path") if isinstance(private, dict) else None
                 base = source.parent if isinstance(source, Path) else Path.cwd()
                 adapter.path = str((base / adapter_path).resolve())
+        dataset_path = runtime.offline_kd.dataset_path
+        if dataset_path:
+            path = Path(dataset_path)
+            if not path.is_absolute():
+                private = getattr(self, "__pydantic_private__", None)
+                source = private.get("_source_path") if isinstance(private, dict) else None
+                base = source.parent if isinstance(source, Path) else Path.cwd()
+                runtime.offline_kd.dataset_path = str((base / path).resolve())
         return runtime
 
     def to_yaml(self) -> str:

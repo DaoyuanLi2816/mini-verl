@@ -291,6 +291,35 @@ def _peak_memory(trainer: Any) -> tuple[int | None, int | None]:
     return (allocated, reserved) if seen else (None, None)
 
 
+def _artifact_reference(path: Path, *, published_path: str) -> dict[str, Any]:
+    digest, size = sha256_file(path)
+    return {"path": published_path, "sha256": digest, "bytes": size}
+
+
+def _recovery_metrics(evaluation: dict[str, Any]) -> dict[str, Any]:
+    """Select RecoveryBench metrics without copying unrelated eval metadata."""
+    names = (
+        "had_tool_error",
+        "first_query_failed",
+        "injected_error_observed",
+        "natural_error_observed",
+        "recovered_after_tool_error",
+        "recovery_after_error_rate",
+        "success_given_first_query_error",
+        "schema_call_after_error",
+        "repeated_same_failed_call",
+        "turns_after_first_error",
+        "turns_to_recovery",
+        "distinct_tool_errors",
+        "valid_sql_execution_rate",
+        "tokens_after_first_error",
+    )
+    metrics = {name: evaluation[name] for name in names if name in evaluation}
+    if "recovery_subsets" in evaluation:
+        metrics["subsets"] = evaluation["recovery_subsets"]
+    return metrics
+
+
 def _classified_config_diffs(
     *,
     config: BenchmarkConfig,
@@ -366,6 +395,7 @@ def _run_one_arm(
             runtime_arm_config=runtime_config,
         )
         if checkpoint is not None and checkpoint.is_dir():
+            checkpoint_digest = _checkpoint_digest(checkpoint)
             load_checkpoint(
                 checkpoint,
                 backend=trainer.student,
@@ -374,9 +404,10 @@ def _run_one_arm(
                 include_optimizer=False,
                 include_rng=False,
             )
+            trainer.set_offline_collection_checkpoint_digest(checkpoint_digest)
             trainer.events.emit(
                 "benchmark_cold_start_loaded",
-                checkpoint_digest=_checkpoint_digest(checkpoint),
+                checkpoint_digest=checkpoint_digest,
                 note="weights only; optimizer state and RNG intentionally not restored",
             )
 
@@ -402,6 +433,18 @@ def _run_one_arm(
             else None
         )
         has_cuda = memory[0] is not None
+        task_artifact = _artifact_reference(
+            trainer.paths.eval_trajectories,
+            published_path=f"{trainer.paths.root.name}/eval_trajectories.jsonl",
+        )
+        frozen_identity = None
+        if trainer.offline_dataset_digest:
+            frozen_identity = {"dataset_digest": trainer.offline_dataset_digest}
+            if trainer.paths.offline_dataset_manifest.is_file():
+                frozen_identity["manifest"] = _artifact_reference(
+                    trainer.paths.offline_dataset_manifest,
+                    published_path=(f"{trainer.paths.root.name}/offline-dataset/manifest.json"),
+                )
 
         result = ArmResult(
             name=arm.name,
@@ -495,6 +538,11 @@ def _run_one_arm(
                 "cache": ("measured" if cache_stats is not None else "not_applicable"),
                 **evaluation.get("policy_competence_measurement_status", {}),
             },
+            recovery_metrics=_recovery_metrics(evaluation),
+            frozen_dataset_identity=frozen_identity,
+            stop_criterion=train_result.stop_criterion or config.stop_criterion,
+            overshoot=train_result.overshoot,
+            task_level_artifact=task_artifact,
         )
         logger.info(
             "arm %-18s seed %d: success %.3f in %d steps (%.1fs)",
@@ -580,7 +628,16 @@ def run_benchmark(
                 _isolate_next_trainer(f"arm {arm.name} seed {seed}")
 
     cold_dump = portable_payload(preflight[config.seeds[0]][1].model_dump(mode="json"))
+    task_artifacts = [
+        arm.task_level_artifact for arm in results if arm.task_level_artifact is not None
+    ]
+    frozen_identities = {
+        f"{arm.name}:s{arm.seed}": arm.frozen_dataset_identity
+        for arm in results
+        if arm.frozen_dataset_identity is not None
+    }
     result = BenchmarkResult(
+        schema_version=config.schema_version,
         miniverl_version=__version__,
         name=config.name,
         description=config.description,
@@ -618,6 +675,29 @@ def run_benchmark(
         arms=results,
         notes=notes,
         seeds=list(config.seeds),
+        preregistration_sha=config.preregistration_sha,
+        preregistration_digest=config.preregistration_digest,
+        hypothesis_ids=list(config.hypothesis_ids),
+        task_schedule_digest=config.task_schedule_digest,
+        template_registry_version=config.template_registry_version,
+        template_registry_digest=config.template_registry_digest,
+        selected_teacher_candidate=config.selected_teacher_candidate,
+        teacher_gate_results=list(config.teacher_gate_results),
+        teacher_preparation_cost=config.teacher_preparation_cost,
+        frozen_dataset_identity=frozen_identities or dict(config.frozen_dataset_identity),
+        budget_view=config.budget_view,
+        stop_criterion=config.stop_criterion,
+        overshoot={
+            "axis": config.budget_axis,
+            "maximum": max(
+                (float(arm.overshoot.get("value", 0)) for arm in results),
+                default=0.0,
+            ),
+        },
+        recovery_metrics={"source": "per_arm", "subsets_reported": True},
+        task_level_artifacts=task_artifacts or list(config.task_level_artifacts),
+        result_analysis_version=config.result_analysis_version,
+        invalidation_status=config.invalidation_status,
     )
     write_json(target / f"{config.name}.json", result.model_dump(mode="json"))
     write_text(target / f"{config.name}.md", render_benchmark_markdown(result))

@@ -176,7 +176,7 @@ class RolloutStats:
         self.tool_calls += parsed_tool_calls
         self.invalid_tool_calls += trajectory.invalid_tool_calls
         self.generated_tokens += trajectory.generated_token_count
-        if trajectory.environment == "sqlite_recovery":
+        if getattr(trajectory, "environment", None) == "sqlite_recovery":
             self.recovery_trajectories.append(trajectory)
         reason = trajectory.termination_reason.value
         self.termination_reasons[reason] = self.termination_reasons.get(reason, 0) + 1

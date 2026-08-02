@@ -37,6 +37,7 @@ from miniverl.config.models import (
     LRSchedule,
     MemoryStrategy,
     ModelBackend,
+    OfflineKDTrajectorySource,
     OPDFreshness,
     OptimizerName,
     Precision,
@@ -435,6 +436,60 @@ def test_offline_kd_with_reuse_enabled_is_accepted() -> None:
     )
     assert config.run.mode is TrainingMode.OFFLINE_KD
     assert config.is_on_policy is False
+
+
+def test_offline_kd_has_explicit_oracle_source_by_default() -> None:
+    config = RunConfig.from_mapping(
+        _payload(run={"mode": "offline_kd"}, cache={"reuse_across_policy_versions": True})
+    )
+    assert config.offline_kd.trajectory_source is OfflineKDTrajectorySource.ORACLE
+    assert config.offline_kd.dataset_path is None
+
+
+def test_frozen_student_offline_kd_declares_collection_contract() -> None:
+    config = RunConfig.from_mapping(
+        _payload(
+            run={"mode": "offline_kd"},
+            cache={"reuse_across_policy_versions": True},
+            offline_kd={
+                "trajectory_source": "frozen_student",
+                "collection_seed": 20260801,
+                "collection_tasks": 64,
+                "task_schedule_digest": "a" * 64,
+            },
+        )
+    )
+    assert config.offline_kd.trajectory_source is OfflineKDTrajectorySource.FROZEN_STUDENT
+    assert config.offline_kd.collection_seed == 20260801
+    assert config.offline_kd.collection_tasks == 64
+
+
+def test_persisted_offline_kd_requires_an_explicit_dataset_path() -> None:
+    _rejects(
+        _payload(
+            run={"mode": "offline_kd"},
+            cache={"reuse_across_policy_versions": True},
+            offline_kd={"trajectory_source": "persisted"},
+        ),
+        "offline_kd.trajectory_source=persisted requires offline_kd.dataset_path",
+    )
+
+
+def test_training_budget_accepts_exactly_one_step_boundary_stop_axis() -> None:
+    token_budget = RunConfig.from_mapping(_payload(train={"max_selected_training_tokens": 4096}))
+    wall_budget = RunConfig.from_mapping(_payload(train={"max_wall_seconds": 120.0}))
+    assert token_budget.train.max_selected_training_tokens == 4096
+    assert wall_budget.train.max_wall_seconds == pytest.approx(120.0)
+
+    _rejects(
+        _payload(
+            train={
+                "max_selected_training_tokens": 4096,
+                "max_wall_seconds": 120.0,
+            }
+        ),
+        "at most one continuation stop budget",
+    )
 
 
 @pytest.mark.parametrize("beta", [0.0, 1.0])
