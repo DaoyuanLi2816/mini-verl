@@ -228,8 +228,13 @@ def publish(paths: dict[str, Path]) -> dict[str, str]:
     TASK_RESULTS.write_text(
         "".join(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n" for row in rows),
         encoding="utf-8",
+        newline="\n",
     )
-    ANALYSIS.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    ANALYSIS.write_text(
+        json.dumps(analysis, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
     for name, content in render_figures(
         loaded[0][2], analysis, hashes["equal_optimizer_updates"]
     ).items():

@@ -7,7 +7,7 @@ the script refuses unexpected result hashes.
 
 Read the [generated six-page report](recoverybench-v1.pdf). Its release-source
 SHA-256 is
-`b6000a9e0d1c665382cebd39ad99dd3de2176ca89a3845db7bb2516a68adaefb`.
+`c506300599942445f24b30a4e0d7e01972c75daa7834f6d1eff5b8132dce93af`.
 
 From the repository root, using the Codex PDF runtime shown in the validation
 record:

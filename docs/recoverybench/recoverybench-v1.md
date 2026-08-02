@@ -110,8 +110,8 @@ before choosing an online teacher-student mechanism.
 | [equal updates](../../benchmarks/results/recoverybench-v1-equal-updates.json) | `6ce2e6837e12b99ebc4fad6d27ce3e69c92e295ff3b9b60e0f68c2d308022384` |
 | [equal selected tokens](../../benchmarks/results/recoverybench-v1-equal-selected-tokens.json) | `fe4c9afc799724dfe7a32e631676a1e5177c44559a7374d2ea31da135354f137` |
 | [wall-time diagnostic](../../benchmarks/results/recoverybench-v1-equal-wall-time.json) | `425b0fa568f37b09e61af731d3da5009bd3833bddde6efaf2c66e9dba8355cbe` |
-| [compact task results](../../benchmarks/results/recoverybench-v1-task-results.jsonl) | `76ab53202f8ad1eb332b056c9c840eb34816986883a568813edc0e0f502d3086` |
-| [paired analysis](../../benchmarks/results/recoverybench-v1-analysis.json) | `c0e7b8c9e8da9a0d0a5d64a17a688c45e3dbbd1c3b68074249b31fc10f0baeca` |
+| [compact task results](../../benchmarks/results/recoverybench-v1-task-results.jsonl) | `aff96bffc6da27240a852410ac041bd4d95badf34cad030e6f437be1491a55ad` |
+| [paired analysis](../../benchmarks/results/recoverybench-v1-analysis.json) | `8a6891f74aed80f07ec00d5ea1909895c579346e1abbb1d5d95a354bb46c6b81` |
 
 The three raw task-artifact sets contain 36 files and 4,608 trajectories. Their
 individual hashes remain embedded in the schema-v3 result JSON. The

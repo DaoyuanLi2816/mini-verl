@@ -49,7 +49,7 @@ EXPECTED_HASHES = {
         "425b0fa568f37b09e61af731d3da5009bd3833bddde6efaf2c66e9dba8355cbe"
     ),
     "recoverybench-v1-analysis.json": (
-        "c0e7b8c9e8da9a0d0a5d64a17a688c45e3dbbd1c3b68074249b31fc10f0baeca"
+        "8a6891f74aed80f07ec00d5ea1909895c579346e1abbb1d5d95a354bb46c6b81"
     ),
 }
 
@@ -687,7 +687,7 @@ def build(output: Path = OUTPUT) -> None:
                     [
                         _p("recoverybench-v1-task-results.jsonl", styles["table_cell"]),
                         _p(
-                            "76ab53202f8ad1eb332b056c9c840eb34816986883a568813edc0e0f502d3086",
+                            "aff96bffc6da27240a852410ac041bd4d95badf34cad030e6f437be1491a55ad",
                             styles["hash"],
                         ),
                     ],
