@@ -261,6 +261,20 @@ def test_pilot_rules_are_versioned_conservative_and_explainable(
     assert result.cost_assumptions
 
 
+def test_pilot_rejects_continuation_when_the_starting_policy_is_saturated() -> None:
+    result = recommend_alignment_method(
+        PilotEvidence(
+            sample_size=48,
+            teacher_policy_competence=None,
+            student_baseline_alignment=1.0,
+            fresh_state_gap=0.2,
+            hard_soft_gap=0.2,
+        )
+    )
+    assert result.recommendation is PilotRecommendation.INSUFFICIENT_EVIDENCE
+    assert "headroom" in result.reasons[0]
+
+
 def test_alignment_metrics_jointly_report_safety_overrefusal_and_utility() -> None:
     trajectories = [
         _trajectory(
@@ -323,6 +337,58 @@ def test_alignment_card_is_privacy_safe_and_hash_bound(tmp_path: Path) -> None:
         payload["card_sha256"]
         == json.loads((tmp_path / "alignment-card.json").read_text(encoding="utf-8"))["card_sha256"]
     )
+
+
+def test_dpo_alignment_cost_reads_and_validates_external_training_manifest(
+    tmp_path: Path,
+) -> None:
+    from miniverl.alignment.workflow import _external_dpo_training_cost, _reference_identity
+    from miniverl.errors import ConfigError
+
+    adapter = tmp_path / "adapter"
+    adapter.mkdir()
+    manifest = {
+        "method": "dpo",
+        "trl_version": "1.8.0",
+        "exact_config_sha256": "b" * 64,
+        "dataset": {"sha256": "c" * 64},
+        "reference": {"adapter_weights_sha256": "e" * 64},
+        "adapter": {"weights_sha256": "d" * 64},
+        "config": {"max_steps": 4},
+        "train_metrics": {"train_runtime": 8.5},
+        "hardware": {"peak_vram_bytes": 1_750_000_000},
+    }
+    (adapter / "dpo_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    alignment = AlignmentConfig(
+        method=AlignmentMethod.DPO,
+        policy=ArtifactIdentity(id="policy", revision="v1", sha256="a" * 64),
+        dpo_adapter_path=str(adapter),
+        dpo={
+            "trl_version": "1.8.0",
+            "exact_config_sha256": "b" * 64,
+            "reference_model": {"id": "ref", "revision": "v1", "sha256": "e" * 64},
+            "dataset": {"id": "data", "revision": "v1", "sha256": "c" * 64},
+            "checkpoint": {"id": "sft", "revision": "v1", "sha256": "f" * 64},
+            "adapter": {"id": "dpo", "revision": "v1", "sha256": "d" * 64},
+        },
+    )
+    assert _external_dpo_training_cost(alignment) == (8.5, 1_750_000_000, 4)
+    reference = _reference_identity(SimpleNamespace(alignment=alignment))
+    assert reference is not None
+    assert reference["sha256"] == "e" * 64
+    assert reference["dataset"]["sha256"] == "c" * 64
+    assert reference["adapter"]["sha256"] == "d" * 64
+
+    manifest["reference"]["adapter_weights_sha256"] = "0" * 64
+    (adapter / "dpo_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ConfigError, match="reference digest"):
+        _external_dpo_training_cost(alignment)
+
+    manifest["reference"]["adapter_weights_sha256"] = "e" * 64
+    manifest["dataset"]["sha256"] = "0" * 64
+    (adapter / "dpo_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ConfigError, match="dataset digest"):
+        _external_dpo_training_cost(alignment)
 
 
 def test_benchmark_registry_pins_official_revisions_and_redistribution_policy() -> None:

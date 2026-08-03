@@ -1,0 +1,173 @@
+{
+  "cells": [
+    {
+      "budget_digest": "df4c7fc6e5f501865b3db9a0218e7e995dd02974ea716cb00b5f47ea9839c519",
+      "seeds": [
+        1234,
+        20260727,
+        20260801
+      ],
+      "signal": {
+        "bucketed_teacher_entropy_nats_mean": 0.002348655829573237,
+        "policy_versions": [
+          0
+        ],
+        "retained_teacher_probability_mass_mean": 0.9997209510653491,
+        "selected_positions": 414,
+        "target_categories_per_position": 1,
+        "teacher_argmax_matches_student_token_rate": 1.0,
+        "teacher_off_argmax_probability_mean": 0.00027904893465088187,
+        "teacher_tail_probability_mean": 5.9467608539814194e-05,
+        "teacher_top1_probability_mean": 0.9997209510653491,
+        "trajectories": 12
+      },
+      "starting_checkpoint_digest": "7304922281268a687dd1c75ba918e26c64c8207b5701db78c368afd20d80ae89",
+      "state_digest": "65a2920aba30fd5319ba1bf58eb34515b7c4e2f926e3def265ea2aca93214729",
+      "state_source": "frozen_student",
+      "supervision": "teacher_argmax",
+      "teacher_digest": "39d18518c046ab67787c5aaa0af07ba6b861b5f6e19ff4a781fe909b416a6a49"
+    },
+    {
+      "budget_digest": "df4c7fc6e5f501865b3db9a0218e7e995dd02974ea716cb00b5f47ea9839c519",
+      "seeds": [
+        1234,
+        20260727,
+        20260801
+      ],
+      "signal": {
+        "bucketed_teacher_entropy_nats_mean": 0.002348655829573237,
+        "policy_versions": [
+          0
+        ],
+        "retained_teacher_probability_mass_mean": 1.0,
+        "selected_positions": 414,
+        "target_categories_per_position": 65,
+        "teacher_argmax_matches_student_token_rate": 1.0,
+        "teacher_off_argmax_probability_mean": 0.00027904893465088187,
+        "teacher_tail_probability_mean": 5.9467608539814194e-05,
+        "teacher_top1_probability_mean": 0.9997209510653491,
+        "trajectories": 12
+      },
+      "starting_checkpoint_digest": "7304922281268a687dd1c75ba918e26c64c8207b5701db78c368afd20d80ae89",
+      "state_digest": "65a2920aba30fd5319ba1bf58eb34515b7c4e2f926e3def265ea2aca93214729",
+      "state_source": "frozen_student",
+      "supervision": "teacher_soft_distribution",
+      "teacher_digest": "39d18518c046ab67787c5aaa0af07ba6b861b5f6e19ff4a781fe909b416a6a49"
+    },
+    {
+      "budget_digest": "df4c7fc6e5f501865b3db9a0218e7e995dd02974ea716cb00b5f47ea9839c519",
+      "seeds": [
+        1234,
+        20260727,
+        20260801
+      ],
+      "signal": {
+        "bucketed_teacher_entropy_nats_mean": 0.002159362673373209,
+        "policy_versions": [
+          2,
+          3
+        ],
+        "retained_teacher_probability_mass_mean": 0.9997491141493688,
+        "selected_positions": 596,
+        "target_categories_per_position": 1,
+        "teacher_argmax_matches_student_token_rate": 1.0,
+        "teacher_off_argmax_probability_mean": 0.00025088585063115065,
+        "teacher_tail_probability_mean": 4.666916135908523e-05,
+        "teacher_top1_probability_mean": 0.9997491141493688,
+        "trajectories": 24
+      },
+      "starting_checkpoint_digest": "7304922281268a687dd1c75ba918e26c64c8207b5701db78c368afd20d80ae89",
+      "state_digest": "d34d4f44591abbf7357f03a2347ddf345295a134f5c3d7761710ff8103f13363",
+      "state_source": "fresh_student",
+      "supervision": "teacher_argmax",
+      "teacher_digest": "39d18518c046ab67787c5aaa0af07ba6b861b5f6e19ff4a781fe909b416a6a49"
+    },
+    {
+      "budget_digest": "df4c7fc6e5f501865b3db9a0218e7e995dd02974ea716cb00b5f47ea9839c519",
+      "seeds": [
+        1234,
+        20260727,
+        20260801
+      ],
+      "signal": {
+        "bucketed_teacher_entropy_nats_mean": 0.002159362673373209,
+        "policy_versions": [
+          2,
+          3
+        ],
+        "retained_teacher_probability_mass_mean": 1.0,
+        "selected_positions": 596,
+        "target_categories_per_position": 65,
+        "teacher_argmax_matches_student_token_rate": 1.0,
+        "teacher_off_argmax_probability_mean": 0.00025088585063115065,
+        "teacher_tail_probability_mean": 4.666916135908523e-05,
+        "teacher_top1_probability_mean": 0.9997491141493688,
+        "trajectories": 24
+      },
+      "starting_checkpoint_digest": "7304922281268a687dd1c75ba918e26c64c8207b5701db78c368afd20d80ae89",
+      "state_digest": "d34d4f44591abbf7357f03a2347ddf345295a134f5c3d7761710ff8103f13363",
+      "state_source": "fresh_student",
+      "supervision": "teacher_soft_distribution",
+      "teacher_digest": "39d18518c046ab67787c5aaa0af07ba6b861b5f6e19ff4a781fe909b416a6a49"
+    }
+  ],
+  "claims": {
+    "reason": "This artifact measures matched target signal, not separately trained hard-target policies; downstream quality comes only from the six-arm final benchmark.",
+    "state_or_soft_target_quality_advantage": "not_claimed"
+  },
+  "hard_definition": "teacher_argmax",
+  "headline_training_cells": {
+    "fresh_soft_distribution": "standard_opd",
+    "frozen_preference_reward": "dpo",
+    "frozen_soft_distribution": "offline_distillation",
+    "localized_fresh_soft_distribution": "verifier_gated_opd",
+    "oracle_hard_target": "continued_sft"
+  },
+  "matched_comparisons": {
+    "fresh_hard_vs_fresh_soft": {
+      "interpretation": "probability information present in the matched soft target and discarded by its argmax projection",
+      "same_budget_digest": true,
+      "same_seeds": true,
+      "same_starting_checkpoint_digest": true,
+      "same_state_digest": true,
+      "same_teacher_digest": true,
+      "soft_probability_mass_beyond_argmax_mean": 0.00025088585063115065
+    },
+    "frozen_hard_vs_fresh_hard": {
+      "endpoint": "teacher_argmax_matches_student_token_rate",
+      "fresh": 1.0,
+      "fresh_minus_frozen": 0.0,
+      "frozen": 1.0,
+      "interpretation": "state-source change in hard-target disagreement signal"
+    },
+    "frozen_soft_vs_fresh_soft": {
+      "endpoint": "bucketed_teacher_entropy_nats_mean",
+      "fresh": 0.002159362673373209,
+      "fresh_minus_frozen": -0.00018929315620002827,
+      "frozen": 0.002348655829573237,
+      "interpretation": "state-source change in soft-distribution signal"
+    }
+  },
+  "measurement_status": "measured_signal_diagnostic_not_training_outcome",
+  "name": "alignment-lab-v1-state-supervision",
+  "preregistration_sha256": "71307dbfe9a5bb20c686307cafce8bd254c07af8b69c1bf1c6ec0dbf53a8cde0",
+  "schema_version": 1,
+  "source_artifacts": {
+    "fresh_cache_index_sha256_by_seed": {
+      "1234": "f90d8921c6f99b8473748fb5bd8d113706e9f976306f8892b3c5376c78517699",
+      "20260727": "7a7955758e2f96cf37bf9ea71901a172b1399fdbd2bc933ff9ca10ca8830d29b",
+      "20260801": "f2c63abd5a112d1ab92b667d4c7264dd512b8ca8c06dcf2061ef326cf2920c59"
+    },
+    "frozen_cache_index_sha256_by_seed": {
+      "1234": "5f4e446a8de7e1b9d1d261ffa934faa1ea48a0ef6e745c421b9d032b1e323c5c",
+      "20260727": "c5f5dcc2283750a4e2983e54b2c8e2a3bde61933a855c62cb58d45da4059210b",
+      "20260801": "9db2db055ee86b9dadedb22594003f66552224abb9e34352aa7855ff36e3c907"
+    }
+  },
+  "source_scope": {
+    "fresh_student": "the two most recent policy versions retained by the preregistered cache policy",
+    "frozen_student": "all fixed starting-policy cache entries",
+    "selection_timing": "cache retention was configured before final test"
+  },
+  "starting_checkpoint_sha256": "7304922281268a687dd1c75ba918e26c64c8207b5701db78c368afd20d80ae89"
+}

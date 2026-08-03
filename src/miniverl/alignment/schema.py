@@ -118,14 +118,15 @@ class PilotEvidence(_Base):
     """Bounded diagnostic evidence; values are rates or signed rate gaps."""
 
     sample_size: int = Field(default=0, ge=0)
-    teacher_policy_competence: float = Field(default=0.0, ge=0.0, le=1.0)
+    teacher_policy_competence: float | None = Field(default=None, ge=0.0, le=1.0)
     student_baseline_alignment: float = Field(default=0.0, ge=0.0, le=1.0)
-    teacher_student_topk_overlap: float = Field(default=0.0, ge=0.0, le=1.0)
+    teacher_student_policy_gap: float | None = Field(default=None, ge=-1.0, le=1.0)
+    teacher_student_topk_overlap: float | None = Field(default=None, ge=0.0, le=1.0)
     fresh_state_gap: float = Field(default=0.0, ge=-1.0, le=1.0)
     hard_soft_gap: float = Field(default=0.0, ge=-1.0, le=1.0)
     preference_win_gap: float = Field(default=0.0, ge=-1.0, le=1.0)
     policy_sensitive_token_fraction: float = Field(default=0.0, ge=0.0, le=1.0)
-    verifier_precision: float = Field(default=0.0, ge=0.0, le=1.0)
+    verifier_precision: float | None = Field(default=None, ge=0.0, le=1.0)
     estimated_vram_gib: float | None = Field(default=None, ge=0.0)
     estimated_time_seconds: float | None = Field(default=None, ge=0.0)
     uncertainty_half_width: float | None = Field(default=None, ge=0.0, le=1.0)

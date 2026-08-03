@@ -854,6 +854,7 @@ def test_every_json_artifact_of_a_run_is_strictly_valid_json(tmp_path: Path):
 
     config = _config(
         tmp_path,
+        environment={"eval_tasks": 4},
         train={"cycles": 1, "sft_warmup_cycles": 1, "rollouts_per_cycle": 2},
         eval={"enabled": True, "tasks": 4},
     )
@@ -904,6 +905,7 @@ def test_a_run_writes_lf_line_endings_on_every_platform(tmp_path: Path):
 
     config = _config(
         tmp_path,
+        environment={"eval_tasks": 4},
         train={"cycles": 1, "sft_warmup_cycles": 1, "rollouts_per_cycle": 2},
         eval={"enabled": True, "tasks": 4},
     )

@@ -15,6 +15,12 @@ def recommend_alignment_method(evidence: PilotEvidence) -> PilotResult:
     ):
         recommendation = PilotRecommendation.INSUFFICIENT_EVIDENCE
         reasons.append("fewer than 24 observations or uncertainty wider than 0.25")
+    elif evidence.student_baseline_alignment >= 0.98:
+        recommendation = PilotRecommendation.INSUFFICIENT_EVIDENCE
+        reasons.append("the starting policy leaves less than 0.02 measured alignment headroom")
+    elif evidence.teacher_policy_competence is None:
+        recommendation = PilotRecommendation.INSUFFICIENT_EVIDENCE
+        reasons.append("teacher policy competence was not measured")
     elif evidence.teacher_policy_competence < 0.70:
         recommendation = PilotRecommendation.CONTINUED_SFT
         reasons.append("teacher policy competence is below the preregistered 0.70 floor")
@@ -28,6 +34,7 @@ def recommend_alignment_method(evidence: PilotEvidence) -> PilotResult:
         evidence.fresh_state_gap >= 0.03
         and evidence.hard_soft_gap >= 0.03
         and evidence.policy_sensitive_token_fraction <= 0.35
+        and evidence.verifier_precision is not None
         and evidence.verifier_precision >= 0.80
     ):
         recommendation = PilotRecommendation.VERIFIER_GATED_OPD

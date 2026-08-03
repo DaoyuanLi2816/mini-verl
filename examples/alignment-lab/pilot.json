@@ -1,0 +1,38 @@
+{
+  "cost_assumptions": {
+    "estimated_time_seconds": 76.68566666666668,
+    "estimated_vram_gib": 0.940885066986084,
+    "teacher_query_fraction_assumption": 0.4680396206932033
+  },
+  "decision": "Do not spend online teacher-query cost on this already-saturated recipe.",
+  "evidence": {
+    "estimated_time_seconds": 76.68566666666668,
+    "estimated_vram_gib": 0.940885066986084,
+    "fresh_state_gap": -0.01388888888888884,
+    "hard_soft_gap": 0.00025088585063115065,
+    "policy_sensitive_token_fraction": 0.4680396206932033,
+    "preference_win_gap": -0.01388888888888884,
+    "sample_size": 48,
+    "student_baseline_alignment": 1.0,
+    "teacher_policy_competence": null,
+    "teacher_student_policy_gap": null,
+    "teacher_student_topk_overlap": null,
+    "uncertainty_half_width": null,
+    "verifier_precision": null
+  },
+  "evidence_status": {
+    "teacher_policy_competence": "not_measured_as_a_free_running_teacher_endpoint",
+    "teacher_student_policy_gap": "not_computable_without_teacher_policy_competence",
+    "teacher_student_topk_overlap": "student_distribution_not_retained",
+    "uncertainty_half_width": "not_a_population_sample",
+    "verifier_precision": "gate_coverage_measured_but_precision_not_independently_estimated"
+  },
+  "reasons": [
+    "the starting policy leaves less than 0.02 measured alignment headroom"
+  ],
+  "recommendation": "insufficient_evidence",
+  "rules_version": "alignment-pilot-v1",
+  "schema_version": 1,
+  "scope": "alignment-lab-v1 measured final; three seeds; one deterministic suite",
+  "uncertainty_note": "A pilot is a bounded diagnostic, not a final comparison. Freeze a matched, multi-seed test before making an alignment claim."
+}

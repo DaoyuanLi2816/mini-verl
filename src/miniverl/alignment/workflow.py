@@ -243,8 +243,22 @@ def _teacher_identity(config: RunConfig) -> dict[str, Any] | None:
 
 
 def _reference_identity(config: RunConfig) -> dict[str, Any] | None:
-    reference = config.alignment.reference if config.alignment else None
-    return reference.model_dump(mode="json") if reference is not None else None
+    alignment = config.alignment
+    if alignment is None:
+        return None
+    if alignment.reference is not None:
+        return alignment.reference.model_dump(mode="json")
+    if alignment.dpo is None:
+        return None
+    return {
+        **alignment.dpo.reference_model.model_dump(mode="json"),
+        "kind": "implicit_initial_policy",
+        "trl_version": alignment.dpo.trl_version,
+        "exact_config_sha256": alignment.dpo.exact_config_sha256,
+        "dataset": alignment.dpo.dataset.model_dump(mode="json"),
+        "checkpoint": alignment.dpo.checkpoint.model_dump(mode="json"),
+        "adapter": alignment.dpo.adapter.model_dump(mode="json"),
+    }
 
 
 def _training_measurements(
@@ -281,6 +295,40 @@ def _training_measurements(
     return continuation_seconds, queried, query_ratio, peak_vram or None
 
 
+def _external_dpo_training_cost(
+    alignment: AlignmentConfig,
+) -> tuple[float, int, int]:
+    """Return validated TRL training seconds, peak VRAM and optimizer updates."""
+    if alignment.method is not AlignmentMethod.DPO or alignment.dpo is None:
+        return 0.0, 0, 0
+    if not alignment.dpo_adapter_path:  # pragma: no cover - schema guard
+        raise ConfigError("DPO cost accounting requires alignment.dpo_adapter_path")
+    path = Path(alignment.dpo_adapter_path) / "dpo_manifest.json"
+    manifest = read_json(path)
+    if not isinstance(manifest, dict) or manifest.get("method") != "dpo":
+        raise ConfigError(f"invalid DPO training manifest: {path}")
+    if manifest.get("trl_version") != alignment.dpo.trl_version:
+        raise ConfigError("DPO training manifest TRL version differs from alignment provenance")
+    if manifest.get("exact_config_sha256") != alignment.dpo.exact_config_sha256:
+        raise ConfigError("DPO training manifest config digest differs from alignment provenance")
+    if (manifest.get("dataset") or {}).get("sha256") != alignment.dpo.dataset.sha256:
+        raise ConfigError("DPO training manifest dataset digest differs from alignment provenance")
+    if (manifest.get("reference") or {}).get("adapter_weights_sha256") != (
+        alignment.dpo.reference_model.sha256
+    ):
+        raise ConfigError(
+            "DPO training manifest reference digest differs from alignment provenance"
+        )
+    if (manifest.get("adapter") or {}).get("weights_sha256") != alignment.dpo.adapter.sha256:
+        raise ConfigError("DPO training manifest adapter digest differs from alignment provenance")
+    seconds = float((manifest.get("train_metrics") or {}).get("train_runtime") or 0.0)
+    peak_vram = int((manifest.get("hardware") or {}).get("peak_vram_bytes") or 0)
+    updates = int((manifest.get("config") or {}).get("max_steps") or 0)
+    if seconds <= 0 or updates <= 0:
+        raise ConfigError("DPO training manifest has incomplete measured cost")
+    return seconds, peak_vram, updates
+
+
 def publish_alignment_artifacts(
     trainer: OPDTrainer,
     result: TrainResult,
@@ -302,6 +350,14 @@ def publish_alignment_artifacts(
         trainer,
         alignment.method,
     )
+    optimizer_updates = result.global_step
+    external_wall_seconds = 0.0
+    if alignment.method is AlignmentMethod.DPO:
+        dpo_seconds, dpo_peak, dpo_updates = _external_dpo_training_cost(alignment)
+        continuation_seconds += dpo_seconds
+        external_wall_seconds = dpo_seconds
+        peak = max(int(peak or 0), dpo_peak)
+        optimizer_updates = dpo_updates
     shift = _jsd(
         _decision_distribution(baseline_rows),
         _decision_distribution(final_rows),
@@ -326,10 +382,10 @@ def publish_alignment_artifacts(
         "integrity": "same_run_stage",
     }
     cost = {
-        "wall_seconds": result.duration_seconds,
+        "wall_seconds": result.duration_seconds + external_wall_seconds,
         "gpu_seconds": metrics.gpu_seconds,
         "peak_vram_bytes": metrics.peak_vram_bytes,
-        "optimizer_updates": result.global_step,
+        "optimizer_updates": optimizer_updates,
     }
     card_path = trainer.paths.root / "alignment-card.md"
     card = render_alignment_card(
