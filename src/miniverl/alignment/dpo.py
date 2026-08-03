@@ -23,7 +23,7 @@ def build_dpo_training_config(
     return {
         "output_dir": "<OUTPUT>",
         "max_steps": max_steps,
-        "per_device_train_batch_size": 2,
+        "per_device_train_batch_size": 1,
         "gradient_accumulation_steps": 4,
         "learning_rate": learning_rate,
         "beta": beta,
