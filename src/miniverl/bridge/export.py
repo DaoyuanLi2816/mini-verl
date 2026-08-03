@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
+import re
+import shlex
 import shutil
 import uuid
 from pathlib import Path
@@ -46,6 +49,7 @@ _UNSUPPORTED = (
     "PPO advantage or clipping semantics",
     "GRPO group semantics",
 )
+_REVISION = re.compile(r"^[0-9a-f]{40}$")
 
 
 def _sha256(path: Path) -> str:
@@ -87,7 +91,49 @@ def _copy_model(source: Path, destination: Path) -> None:
         )
 
 
-def _verl_overrides() -> dict[str, Any]:
+def _adapter_contract(source: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads((source / "adapter_config.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"cannot read standard PEFT adapter config: {exc}") from exc
+    if not isinstance(payload, dict) or str(payload.get("peft_type", "")).upper() != "LORA":
+        raise ConfigError("verl bridge export requires a standard LoRA PEFT adapter")
+    base_model = payload.get("base_model_name_or_path")
+    revision = payload.get("revision")
+    rank = payload.get("r")
+    alpha = payload.get("lora_alpha")
+    target_modules = payload.get("target_modules")
+    if not isinstance(base_model, str) or not base_model.strip():
+        raise ConfigError("adapter_config.json has no portable base_model_name_or_path")
+    if not isinstance(revision, str) or not _REVISION.fullmatch(revision):
+        raise ConfigError(
+            "adapter_config.json has no immutable 40-character base revision",
+            hint="re-export the adapter from a run whose base model revision is pinned",
+        )
+    if isinstance(rank, bool) or not isinstance(rank, int) or rank < 1:
+        raise ConfigError("adapter_config.json has no positive LoRA rank")
+    if isinstance(alpha, bool) or not isinstance(alpha, (int, float)) or alpha <= 0:
+        raise ConfigError("adapter_config.json has no positive LoRA alpha")
+    if isinstance(target_modules, str):
+        targets = [target_modules]
+    elif (
+        isinstance(target_modules, list)
+        and target_modules
+        and all(isinstance(item, str) and item for item in target_modules)
+    ):
+        targets = target_modules
+    else:
+        raise ConfigError("adapter_config.json has no explicit LoRA target_modules")
+    return {
+        "base_model": base_model,
+        "revision": revision,
+        "rank": rank,
+        "alpha": alpha,
+        "target_modules": targets,
+    }
+
+
+def _verl_overrides(adapter: dict[str, Any]) -> dict[str, Any]:
     return {
         "data": {
             "train_files": ["data/train.parquet"],
@@ -98,7 +144,14 @@ def _verl_overrides() -> dict[str, Any]:
             "seed": 1234,
         },
         "actor_rollout_ref": {
-            "model": {"path": "model", "enable_gradient_checkpointing": True},
+            "model": {
+                "path": "model/base",
+                "enable_gradient_checkpointing": True,
+                "lora_rank": adapter["rank"],
+                "lora_alpha": adapter["alpha"],
+                "target_modules": adapter["target_modules"],
+                "lora_adapter_path": "model",
+            },
             "actor": {"optim": {"lr": 1e-5}},
         },
         "custom_reward_function": {
@@ -112,30 +165,40 @@ def _verl_overrides() -> dict[str, Any]:
             "experiment_name": "exported-profile",
             "total_epochs": 1,
         },
-        "miniverl_bridge": {
-            "profile": BRIDGE_PROFILE,
-            "verl_tag": VERL_TAG,
-            "verl_commit": VERL_COMMIT,
-            "distributed_execution_status": "not tested",
-        },
     }
 
 
-def _launch_script() -> str:
+def _launch_script(adapter: dict[str, Any]) -> str:
+    base_model = shlex.quote(adapter["base_model"])
+    revision = shlex.quote(adapter["revision"])
+    targets = shlex.quote(json.dumps(adapter["target_modules"], separators=(",", ":")))
     return f"""#!/usr/bin/env bash
 set -euo pipefail
 
 # Generated for {VERL_REPOSITORY}@{VERL_COMMIT} ({VERL_TAG}).
 # Review the reward scaffold before launching domain-specific work.
 BUNDLE_ROOT="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/.." && pwd)"
+if [[ ! -f "$BUNDLE_ROOT/model/base/config.json" ]]; then
+  echo "materialize the exact base snapshot before launch:" >&2
+  echo "  hf download {base_model} --revision {revision} --local-dir \"$BUNDLE_ROOT/model/base\"" >&2
+  exit 2
+fi
+if grep -q "complete and test reward_or_verifier_scaffold" "$BUNDLE_ROOT/reward/reward_or_verifier_scaffold.py"; then
+  echo "complete and test the fail-closed reward scaffold before launch" >&2
+  exit 2
+fi
 python -m verl.trainer.main_ppo \\
   data.train_files="['$BUNDLE_ROOT/data/train.parquet']" \\
   data.val_files="['$BUNDLE_ROOT/data/val.parquet']" \\
   data.prompt_key=prompt \\
   data.max_prompt_length=512 \\
   data.max_response_length=128 \\
-  actor_rollout_ref.model.path="$BUNDLE_ROOT/model" \\
+  actor_rollout_ref.model.path="$BUNDLE_ROOT/model/base" \\
   actor_rollout_ref.model.enable_gradient_checkpointing=true \\
+  actor_rollout_ref.model.lora_rank={adapter["rank"]} \\
+  actor_rollout_ref.model.lora_alpha={adapter["alpha"]} \\
+  actor_rollout_ref.model.target_modules={targets} \\
+  actor_rollout_ref.model.lora_adapter_path="$BUNDLE_ROOT/model" \\
   actor_rollout_ref.actor.optim.lr=1e-5 \\
   custom_reward_function.path="$BUNDLE_ROOT/reward/reward_or_verifier_scaffold.py" \\
   custom_reward_function.name=compute_score \\
@@ -179,7 +242,9 @@ artifacts with the documented `{BRIDGE_PROFILE}` subset of
 
 Run `miniverl bridge doctor . --require-verl` after installing the exact pin.
 The generated reward scaffold fails closed until domain logic is supplied and
-tested. The bundle has **not** executed a distributed job. It does not convert
+tested. Materialize `model/base` from the exact identity in
+`model/base-model.json` before launch; the adapter directory alone is not a
+base-model checkpoint. The bundle has **not** executed a distributed job. It does not convert
 optimizer state, distributed RNG, FSDP/Megatron checkpoints, Ray state, or a
 miniVERL teacher cache into PPO reference log-probabilities.
 """
@@ -206,6 +271,7 @@ def export_verl_bundle(
     if not run_path.is_dir() or not manifest_path.is_file():
         raise ConfigError(f"miniVERL run is missing manifest.json: {run_path}")
     model_source = _model_source(run_path)
+    adapter = _adapter_contract(model_source)
     data_source = run_path / "data"
     for split in ("train.parquet", "val.parquet"):
         if not (data_source / split).is_file():
@@ -231,6 +297,12 @@ def export_verl_bundle(
             "commit": VERL_COMMIT,
         },
         "miniverl_version": __version__,
+        "base_model": {
+            "model_id": adapter["base_model"],
+            "revision": adapter["revision"],
+            "materialized_path": "model/base",
+            "status": "not bundled; materialize the exact snapshot before launch",
+        },
         "supported_artifacts": [
             "Hugging Face model/config/tokenizer",
             "standard PEFT adapter",
@@ -247,6 +319,15 @@ def export_verl_bundle(
     }
     try:
         _copy_model(model_source, temporary / "model")
+        write_json(
+            temporary / "model" / "base-model.json",
+            {
+                "materialized_path": "model/base",
+                "model_id": adapter["base_model"],
+                "revision": adapter["revision"],
+                "status": "not bundled; materialize the exact snapshot before launch",
+            },
+        )
         data_destination = temporary / "data"
         data_destination.mkdir()
         shutil.copy2(data_source / "train.parquet", data_destination / "train.parquet")
@@ -256,9 +337,11 @@ def export_verl_bundle(
         recipe.mkdir()
         write_text(
             recipe / "verl-overrides.yaml",
-            yaml.safe_dump(_verl_overrides(), sort_keys=False, allow_unicode=True, width=100),
+            yaml.safe_dump(
+                _verl_overrides(adapter), sort_keys=False, allow_unicode=True, width=100
+            ),
         )
-        write_text(recipe / "launch.sh", _launch_script())
+        write_text(recipe / "launch.sh", _launch_script(adapter))
         write_text(recipe / "REQUIRED_VERL.txt", required_verl_text())
 
         reward = temporary / "reward"

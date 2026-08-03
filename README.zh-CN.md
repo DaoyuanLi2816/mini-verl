@@ -14,26 +14,29 @@
 
 <p align="center">
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI 软件包</strong></a> ·
+  <a href="https://daoyuanli2816.github.io/mini-verl/">文档站</a> ·
   <a href="#个人单卡快速上手">安装与训练</a> ·
-  <a href="docs/single-gpu-guide.md">适配你的 GPU</a> ·
-  <a href="#alignment-lab什么时候应该关闭-opd">Alignment Lab 结果</a>
+  <a href="docs/verl-bridge.md">经验证的 verl 桥接</a> ·
+  <a href="#alignment-lab什么时候应该关闭-opd">Alignment Lab</a>
 </p>
 
 > 本文是 [README.md](README.md) 的中文翻译。英文版为准；若两者不一致，请以英文版为准并提交 issue。
 
-**在一张 GPU 上完成在线对齐与蒸馏。**
+**面向 verl 风格在线后训练已文档化子集的单卡原型运行时。**
 
-从经过 SFT 的模型出发，用带策略上下文、经过偏好训练或经过安全对齐的教师
-继续训练——不需要 Ray 或集群。
+在本地开发、诊断和验证对齐或蒸馏配方，再把标准模型、数据集、配方和来源
+产物导出到锁定版本的 verl，用于扩展执行。
 
 **先同时测量对齐、过度拒绝、保留效用与成本，再选择 SFT、DPO 或 OPD。**
 
 PyPI `v0.5.0` 是稳定发布版；`main` 是开发分支，可能领先于稳定版。
 
-miniVERL 是一个独立的单卡配套工具，用于在扩展前原型化、诊断和验证在线
-后训练流程。SFT 负责建立任务与协议能力；OPD 在学生实际访问的状态上转移
-显式教师的行为，两者不是可互换的阶段。CUDA 路径没有显卡型号白名单；
-是否装得下仍由模型、序列预算和可用显存决定。
+miniVERL 独立于 verl，并针对官方 verl `v0.8.0` 实现了一个经验证的 Level-3
+配置 `single-gpu-online-distillation-v1`。它是标准产物与配置子集桥接，不是
+通用 YAML 兼容层，也不声称已经测试分布式执行。CUDA 路径没有显卡型号
+白名单；是否装得下仍由模型、序列预算和可用显存决定。
+
+![miniVERL 单卡工作流与锁定 verl 版本的扩展桥接](docs/verl-bridge-architecture.svg)
 
 ```bash
 python -m pip install miniverl            # 轻量核心层
@@ -94,7 +97,29 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 计算器、JSON 导航、SQLite 三个环境 | 支持，确定性生成 + 精确判分 |
 | 精确的断点续训 | 支持，逐参数断言 |
 | 完全自包含、可离线打开的 HTML 报告 | 支持 |
-| Ray、FSDP、DeepSpeed、vLLM、VLM、跨词表、PPO/GRPO | **不支持**，见[局限](docs/limitations.md) |
+| 锁定 verl `v0.8.0` 的 Level-3 桥接 | 支持；一个 fail-closed 配置、Parquet 双向转换、标准 PEFT/safetensors 导出 |
+| 原生 Ray/FSDP/Megatron/vLLM 执行、VLM、跨词表、PPO/GRPO | **不支持**，见[局限](docs/limitations.md) |
+
+## 经验证的 verl 桥接
+
+桥接层只导入一个锁定配置中的 14 个命名字段，双向转换官方 prompt Parquet
+schema，导出可自检的扩展 bundle，并明确区分 miniVERL 教师目标与 PPO
+reference log-probabilities。
+
+```bash
+python -m pip install "miniverl[bridge]"
+miniverl import-verl verl.yaml --profile single-gpu-online-distillation-v1 \
+  --target-verl v0.8.0 --out recipes/imported.yaml
+miniverl convert-dataset --from verl-parquet train.parquet --out local.parquet
+miniverl export-verl --run runs/my-alignment --target-verl v0.8.0 \
+  --out exports/my-alignment-verl
+miniverl bridge doctor exports/my-alignment-verl --json
+```
+
+发布烟测锁定 commit `7aed6b230776f963fa09509c10d9c3a767d1102c`，会解析生成的
+OmegaConf 配置，加载标准 PEFT/safetensors 和两份 Parquet，导入 reward
+脚手架，并验证隐私与全部哈希；分布式执行明确记录为**未测试**。详见
+[契约、白名单与证据](docs/verl-bridge.md)和[社区配方注册表](docs/community-benchmarks.md)。
 
 ## Alignment Lab：什么时候应该关闭 OPD
 
@@ -421,13 +446,13 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 
 ## 路线图
 
-以下均**未实现**、也不作承诺，仅为明确边界：跨词表蒸馏、批量或引擎化 rollout 解码、熵感知散度混合（arXiv:2603.07079）、更多模型族、更多环境、多卡。任何集群规模的需求，请直接用 verl。
+以下均**未实现**、也不作承诺，仅为明确边界：跨词表蒸馏、批量或引擎化 rollout 解码、熵感知散度混合（arXiv:2603.07079）、更多模型族、更多环境、原生多卡执行。Level-3 桥接只把一个已文档化配置导出到锁定版本的 verl，并不执行分布式作业。
 
 ## 致谢与声明
 
 > miniVERL 是一个独立项目，与 verl 项目、字节跳动（ByteDance）或火山引擎（Volcano Engine）没有隶属关系，也未获得其背书。它**不是** verl 的直接替代品。
 
-这个名字只是对问题领域的致意，不代表任何兼容性声明。verl 是一个优秀得多、规模也大得多的系统，它同样实现了在线策略蒸馏和多轮工具调用——只不过是在集群规模上，依赖 Ray。如果你有集群，请用它。miniVERL 面向的是「只有一块个人显卡、并且希望把每一行发生的事都读懂」的场景：它可以是较老的 12 GiB 显卡，也可以是当前的高端显卡；仓库只对实际跑过的硬件声明实测性能。对比见 [`docs/comparisons.md`](docs/comparisons.md)。
+这个名字只是对问题领域的致意，不代表通用兼容性；经验证的桥接被明确限制在一个锁定配置内。verl 是面向 Ray 集群扩展的更大系统。miniVERL 面向的是「只有一块个人显卡、并且希望把每一行发生的事都读懂，之后再把标准产物交给 verl 扩展」的场景：它可以是较老的 12 GiB 显卡，也可以是当前的高端显卡；仓库只对实际跑过的硬件声明实测性能。对比见 [`docs/comparisons.md`](docs/comparisons.md)。
 
 ## 引用与许可证
 

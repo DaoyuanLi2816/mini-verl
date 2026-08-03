@@ -52,7 +52,7 @@ The default calculator recipe owns separate 0.6B student and 1.7B teacher
 models, so it uses `models.runtime: dual_model`. When student and teacher use
 the same base revision, `models.runtime: shared_backbone` can instead keep one
 base with separate adapters. The shipped
-[`qwen_consumer_gpu_shared.yaml`](../recipes/qwen_consumer_gpu_shared.yaml)
+[`qwen_consumer_gpu_shared.yaml`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/recipes/qwen_consumer_gpu_shared.yaml)
 demonstrates the wiring and batch-4 update path; its frozen teacher is a systems
 artifact, not a newly quality-qualified recipe. See the
 [measured runtime report](consumer-runtime-v1.md) before adapting it.
@@ -104,6 +104,6 @@ miniverl export-benchmark runs/<run-id> --notes "GPU, VRAM, driver, torch and CU
 ```
 
 Validate the exported JSON and open a pull request following
-[`benchmarks/README.md`](../benchmarks/README.md). Results from cards other than
+[`benchmarks/README.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/README.md). Results from cards other than
 the measured RTX 4080 are welcome; until they exist, the README labels those
 cards as portable code paths rather than measured performance.

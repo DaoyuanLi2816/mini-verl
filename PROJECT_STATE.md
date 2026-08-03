@@ -6,6 +6,20 @@ and what it printed.
 
 Last updated: 2026-08-02.
 
+## v0.6.0 Verified verl Bridge development state
+
+| item | current state |
+| --- | --- |
+| audited upstream | official stable verl `v0.8.0`, source commit `7aed6b230776f963fa09509c10d9c3a767d1102c`, tested with Python 3.12; the installed source reports `0.8.0.dev0` |
+| compatibility contract | Levels 0-3 are explicit; Level 2 is a fail-closed 14-field whitelist for `single-gpu-online-distillation-v1`; Level 3 exchanges standard HF/PEFT/safetensors/tokenizer/Parquet artifacts and a checksummed scale-out bundle |
+| command surface | `import-verl`, `convert-dataset`, `export-verl`, `bridge doctor` and `benchmark --export-community` are implemented without importing torch in the core path |
+| exact compatibility smoke | the pinned source installed successfully; OmegaConf parsed official and exported config shapes; PEFT, safetensors, train/val Parquet, reward import, privacy and all bundle hashes passed; the checksummed record is `docs/generated/verl-bridge-smoke.json` |
+| distributed boundary | Ray, FSDP/Megatron, vLLM/SGLang and a full distributed run were not installed or launched; distributed execution remains explicitly `not tested` |
+| community surface | four versioned recipe records bind existing measurements; the preference-teacher distillation entry is explicitly unmeasured and links an aligned-adapter scaffold that still requires a pinned preference-trained teacher; no external adoption is claimed |
+| documentation | a static MkDocs site, bridge architecture diagram, launch article/demo/card copy/announcement/social preview and community submission guide are part of the release candidate |
+| immutable evidence | the frozen calculator JSON remains required byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; prior tags and published adapter revisions remain immutable |
+| release state | development PR in progress from `0.6.0.dev0`; publication evidence is recorded only after tag, OIDC, public install and state sync complete |
+
 ## v0.5.0 One-GPU Alignment Lab release
 
 | item | current state |

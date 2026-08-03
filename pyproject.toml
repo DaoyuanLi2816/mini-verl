@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "miniverl"
 dynamic = ["version"]
-description = "Auditable one-GPU prototyping for online post-training and distillation."
+description = "Auditable one-GPU post-training with a verified pinned verl bridge."
 readme = "PYPI.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -22,6 +22,7 @@ keywords = [
   "post-training",
   "qwen",
   "llm-agents",
+  "verl",
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -73,6 +74,7 @@ dev = [
   "build>=1.2",
   "twine>=5.1",
   "pyarrow>=15",
+  "mkdocs>=1.6,<2",
 ]
 
 [project.scripts]
@@ -81,6 +83,7 @@ miniverl = "miniverl.cli:app"
 [project.urls]
 Homepage = "https://github.com/DaoyuanLi2816/mini-verl"
 PyPI = "https://pypi.org/project/miniverl/"
+Documentation = "https://daoyuanli2816.github.io/mini-verl/"
 Issues = "https://github.com/DaoyuanLi2816/mini-verl/issues"
 Repository = "https://github.com/DaoyuanLi2816/mini-verl"
 Changelog = "https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md"
@@ -113,6 +116,7 @@ include = [
   "/LICENSE",
   "/THIRD_PARTY_NOTICES.md",
   "/CITATION.cff",
+  "/mkdocs.yml",
   "/pyproject.toml",
 ]
 

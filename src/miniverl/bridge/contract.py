@@ -51,5 +51,5 @@ def required_verl_text() -> str:
         f"VERL_COMMIT={VERL_COMMIT}\n"
         f"TESTED_PYTHON={TESTED_PYTHON}\n"
         f"PROFILE={BRIDGE_PROFILE}\n"
-        "OBSERVED_PACKAGE_VERSION=0.8.0.dev\n"
+        "OBSERVED_PACKAGE_VERSION=0.8.0.dev0\n"
     )

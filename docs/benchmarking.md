@@ -352,8 +352,8 @@ Hub adapter to immutable revision
 only its source/path for offline use.
 
 The completed two-seed RTX 4080 result is published as
-[`gpu-calc-hard-equal-update-v2.json`](../benchmarks/results/gpu-calc-hard-equal-update-v2.json),
-with a [human-readable table](../benchmarks/results/gpu-calc-hard-equal-update-v2.md)
+[`gpu-calc-hard-equal-update-v2.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/gpu-calc-hard-equal-update-v2.json),
+with a [human-readable table](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/gpu-calc-hard-equal-update-v2.md)
 and [SVG comparison](gpu-calc-hard-equal-update-v2.svg). To rebuild the portable
 artifacts from the preserved run directory:
 

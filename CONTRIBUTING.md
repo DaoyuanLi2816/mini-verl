@@ -100,6 +100,18 @@ Read `docs/math.md` first. Then:
 
 ## Contributing a benchmark result
 
+For the versioned community hardware matrix, start with a privacy-safe template:
+
+```bash
+miniverl benchmark --export-community submission.json
+```
+
+Fill measured fields only from retained artifacts and include their SHA-256
+digests. CI validates the schema, packaged recipe digest, hardware/software
+provenance, privacy and artifact hashes. Negative and failed runs are useful;
+label them rather than removing them. See the
+[community submission guide](docs/community-benchmarks.md).
+
 ```bash
 miniverl train <recipe>
 miniverl export-benchmark runs/<run-id> --out benchmarks/results/<gpu>-<recipe>.json

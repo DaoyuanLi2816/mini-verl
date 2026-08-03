@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640"
+     role="img" aria-labelledby="social-title social-desc">
+  <title id="social-title">miniVERL one GPU to a verified verl handoff</title>
+  <desc id="social-desc">Dark social preview showing an auditable one-GPU miniVERL workflow exporting standard artifacts to pinned verl v0.8.0.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#020617"/>
+      <stop offset="0.55" stop-color="#071b33"/>
+      <stop offset="1" stop-color="#291052"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="0.55" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#c084fc"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="78%" cy="22%" r="70%">
+      <stop offset="0" stop-color="#7c3aed" stop-opacity=".38"/>
+      <stop offset="1" stop-color="#7c3aed" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0 0 L11 5.5 L0 11 Z" fill="#7dd3fc"/>
+    </marker>
+  </defs>
+  <rect width="1280" height="640" rx="28" fill="url(#bg)"/>
+  <rect width="1280" height="640" rx="28" fill="url(#glow)"/>
+  <rect x="2" y="2" width="1276" height="636" rx="26" fill="none" stroke="#526987" stroke-opacity=".55" stroke-width="4"/>
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif">
+    <text x="68" y="92" fill="#7dd3fc" font-size="18" font-weight="760" letter-spacing="3">SINGLE-GPU LLM POST-TRAINING</text>
+    <text x="68" y="178" fill="#f8fafc" font-size="72" font-weight="820" letter-spacing="-3">mini<tspan fill="url(#brand)">VERL</tspan></text>
+    <text x="68" y="225" fill="#dbeafe" font-size="28" font-weight="700">One GPU to a verified verl handoff</text>
+    <text x="68" y="263" fill="#a9b8cf" font-size="21">Diagnose locally. Export standard artifacts. Scale with an exact pin.</text>
+
+    <rect x="68" y="323" width="470" height="184" rx="22" fill="#081728" stroke="#22708d" stroke-width="2"/>
+    <text x="98" y="364" fill="#67e8f9" font-size="19" font-weight="780" letter-spacing="2">MINIVERL · 1× CUDA GPU</text>
+    <g font-size="18" font-weight="700" text-anchor="middle">
+      <rect x="98" y="399" width="90" height="54" rx="12" fill="#10283e"/><text x="143" y="433" fill="#e2e8f0">actor</text>
+      <rect x="204" y="399" width="90" height="54" rx="12" fill="#10283e"/><text x="249" y="433" fill="#e2e8f0">rollout</text>
+      <rect x="310" y="389" width="108" height="74" rx="12" fill="#1a2441"/><text x="364" y="419" fill="#ede9fe">teacher</text><text x="364" y="443" fill="#ede9fe">reward</text>
+      <rect x="434" y="399" width="74" height="54" rx="12" fill="#10283e"/><text x="471" y="433" fill="#e2e8f0">eval</text>
+    </g>
+    <text x="98" y="487" fill="#9fb3ca" font-size="16">typed provenance · PEFT · Parquet · hashes</text>
+
+    <path d="M555 415 H700" stroke="url(#brand)" stroke-width="5" marker-end="url(#arrow)"/>
+    <rect x="576" y="352" width="116" height="42" rx="21" fill="#132c48" stroke="#7dd3fc"/>
+    <text x="634" y="379" text-anchor="middle" fill="#e0f7ff" font-size="16" font-weight="780">export-verl</text>
+
+    <rect x="721" y="323" width="491" height="184" rx="22" fill="#16142b" stroke="#7659aa" stroke-width="2"/>
+    <text x="752" y="364" fill="#d8b4fe" font-size="19" font-weight="780" letter-spacing="2">VERL v0.8.0 · EXACT COMMIT</text>
+    <g fill="#ede9fe" font-size="18" font-weight="700">
+      <rect x="752" y="395" width="132" height="50" rx="12" fill="#241d40"/><text x="779" y="427">Ray</text>
+      <rect x="900" y="395" width="132" height="50" rx="12" fill="#241d40"/><text x="920" y="427">FSDP</text>
+      <rect x="1048" y="395" width="134" height="50" rx="12" fill="#241d40"/><text x="1068" y="427">vLLM</text>
+    </g>
+    <text x="752" y="485" fill="#b8a9d1" font-size="16">distributed execution status: not tested</text>
+
+    <g font-size="16" font-weight="690">
+      <rect x="68" y="550" width="174" height="34" rx="17" fill="#22d3ee" fill-opacity=".12" stroke="#67e8f9" stroke-opacity=".45"/><text x="155" y="573" text-anchor="middle" fill="#cffafe">14-field whitelist</text>
+      <rect x="258" y="550" width="190" height="34" rx="17" fill="#60a5fa" fill-opacity=".12" stroke="#93c5fd" stroke-opacity=".42"/><text x="353" y="573" text-anchor="middle" fill="#dbeafe">Parquet round trip</text>
+      <rect x="464" y="550" width="212" height="34" rx="17" fill="#a78bfa" fill-opacity=".13" stroke="#c4b5fd" stroke-opacity=".42"/><text x="570" y="573" text-anchor="middle" fill="#ede9fe">checksummed bundle</text>
+    </g>
+    <text x="1212" y="573" text-anchor="end" fill="#94a3b8" font-size="16">independent project · no endorsement implied</text>
+  </g>
+</svg>

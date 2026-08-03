@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import uuid
 from collections.abc import Mapping
+from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal
 
@@ -136,7 +138,10 @@ def convert_dataset(
             nested = extra.pop("miniverl", None)
             if nested is not None and extension is None:
                 extension = nested
-            row["extra_info"] = extra
+            # Parquet cannot encode an empty struct. ``None`` is the exact
+            # canonical intermediate when all extension fields moved to the
+            # checksummed sidecar; the reverse conversion restores the object.
+            row["extra_info"] = extra or None
         if extension is not None:
             extensions[str(len(accepted))] = extension
         accepted.append(row)
@@ -144,12 +149,13 @@ def convert_dataset(
     if not accepted:
         raise ConfigError("dataset conversion accepted zero rows", hint="inspect the rejected rows")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.tmp")
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
     try:
         pq.write_table(pa.Table.from_pylist(accepted), temporary)
         temporary.replace(destination)
     except Exception as exc:
-        temporary.unlink(missing_ok=True)
+        with suppress(OSError):
+            temporary.unlink(missing_ok=True)
         raise ConfigError(f"cannot write Parquet dataset {destination}: {exc}") from exc
 
     extension_path = _sidecar_path(destination)

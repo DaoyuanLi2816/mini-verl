@@ -232,6 +232,24 @@ def import_verl_config(
         path for path in flat if path not in _MAPPED and path not in _IGNORED_INFORMATIONAL
     )
     if unsupported:
+        rejection_report = {
+            "schema_version": 1,
+            "source_verl": {
+                "repository": VERL_REPOSITORY,
+                "tag": VERL_TAG,
+                "commit": VERL_COMMIT,
+            },
+            "profile": BRIDGE_PROFILE,
+            "source_config_sha256": _digest_bytes(source_bytes),
+            "mapped_fields": {},
+            "ignored_informational_fields": [],
+            "unsupported_fields": unsupported,
+            "semantic_conflicts": [],
+            "inserted_defaults": [],
+            "generated_miniverl_sha256": None,
+            "status": "rejected",
+        }
+        write_json_atomic(Path(out).parent / "import-report.json", rejection_report)
         raise ConfigError(
             f"unsupported verl field {unsupported[0]!r} for profile {BRIDGE_PROFILE}",
             hint="remove algorithm, distributed, rollout-runtime or unknown fields; inspect the documented whitelist",
@@ -270,6 +288,7 @@ def import_verl_config(
         "semantic_conflicts": [],
         "inserted_defaults": inserted_defaults,
         "generated_miniverl_sha256": _digest_bytes(rendered),
+        "status": "accepted",
         "claim": (
             "Imports the documented single-gpu-online-distillation-v1 subset of pinned verl v0.8.0."
         ),

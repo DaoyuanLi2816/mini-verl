@@ -17,7 +17,7 @@ from miniverl.bridge.contract import BRIDGE_PROFILE, VERL_TAG
 from miniverl.utils.privacy import portable_text
 from miniverl.utils.runs import read_json, utc_now, write_json
 
-__all__ = ["export_community_submission", "validate_submission"]
+__all__ = ["export_community_submission", "load_recipe_registry", "validate_submission"]
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -48,6 +48,29 @@ class _Submission(BaseModel):
     notes: str = ""
 
 
+class _RecipeArtifact(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    path: str
+    sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
+class _RecipeRecord(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    schema_version: int = 1
+    recipe_id: str
+    category: str
+    method: str
+    model: dict[str, Any]
+    hardware: dict[str, Any]
+    wall_time_seconds: float | None = Field(default=None, ge=0)
+    benchmark: str
+    artifact: _RecipeArtifact
+    measured_status: str = Field(pattern=r"^(measured|not_measured)$")
+    compatible_miniverl_release: str
+    compatible_verl_bridge_profile: str
+    notes: str = ""
+
+
 def _recipe_path(recipe_id: str) -> Path:
     package_root = resources.files("miniverl.community")
     candidate = package_root.joinpath("recipes", "v1", f"{recipe_id}.yaml")
@@ -59,6 +82,23 @@ def _recipe_path(recipe_id: str) -> Path:
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def load_recipe_registry() -> list[dict[str, Any]]:
+    """Load and schema-validate every packaged version-1 recipe record."""
+    import yaml
+
+    package_root = resources.files("miniverl.community").joinpath("recipes", "v1")
+    records: list[dict[str, Any]] = []
+    for resource in sorted(package_root.iterdir(), key=lambda item: item.name):
+        if not resource.name.endswith(".yaml"):
+            continue
+        payload = yaml.safe_load(resource.read_text(encoding="utf-8"))
+        record = _RecipeRecord.model_validate(payload)
+        if record.measured_status == "measured" and record.wall_time_seconds is None:
+            raise ValueError(f"measured recipe {record.recipe_id!r} has no wall time")
+        records.append(record.model_dump(mode="json"))
+    return records
 
 
 def export_community_submission(

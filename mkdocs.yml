@@ -1,0 +1,29 @@
+site_name: miniVERL
+site_description: Auditable one-GPU online post-training and a pinned verl scale-out bridge
+site_url: https://daoyuanli2816.github.io/mini-verl/
+repo_url: https://github.com/DaoyuanLi2816/mini-verl
+repo_name: DaoyuanLi2816/mini-verl
+theme:
+  name: readthedocs
+nav:
+  - Home: index.md
+  - One-GPU quickstart: single-gpu-guide.md
+  - Alignment Lab:
+      - Why OPD after SFT?: alignment-lab/when-opd-should-follow-sft.md
+      - SFT vs DPO vs OPD: alignment-lab/alignment-lab-v1.md
+  - Consumer runtime: consumer-runtime-v1.md
+  - RecoveryBench: recoverybench/recoverybench-v1.md
+  - Verified verl bridge: verl-bridge.md
+  - 90-second bridge demo: verl-bridge-demo.md
+  - Community benchmarks: community-benchmarks.md
+  - v0.6 launch story: verl-bridge-launch.md
+  - Schemas:
+      - Trajectories: trajectory-schema.md
+      - Benchmarking: benchmarking.md
+  - Limitations: limitations.md
+markdown_extensions:
+  - tables
+  - fenced_code
+  - admonition
+  - toc:
+      permalink: true

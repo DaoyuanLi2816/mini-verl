@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="460" viewBox="0 0 1120 460"
+     role="img" aria-labelledby="bridge-title bridge-desc">
+  <title id="bridge-title">miniVERL to verl scale-out architecture</title>
+  <desc id="bridge-desc">A one-GPU miniVERL workflow exports standard model, dataset, recipe and provenance artifacts to a pinned documented subset of verl for distributed scale-out. Distributed execution is not tested by miniVERL.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#030712"/>
+      <stop offset="0.55" stop-color="#07182d"/>
+      <stop offset="1" stop-color="#26104f"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="0.55" stop-color="#60a5fa"/>
+      <stop offset="1" stop-color="#c084fc"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#7dd3fc"/>
+    </marker>
+  </defs>
+  <rect width="1120" height="460" rx="28" fill="url(#bg)"/>
+  <rect x="1.5" y="1.5" width="1117" height="457" rx="26.5" fill="none" stroke="#506987" stroke-opacity=".55" stroke-width="3"/>
+  <g font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif">
+    <text x="48" y="55" fill="#f8fafc" font-size="28" font-weight="800">One GPU to a pinned scale-out bundle</text>
+    <text x="48" y="82" fill="#94a3b8" font-size="15">Documented subset · standard artifacts · explicit unsupported semantics</text>
+
+    <rect x="42" y="111" width="690" height="270" rx="22" fill="#081321" stroke="#1d6682" stroke-width="2"/>
+    <text x="70" y="149" fill="#67e8f9" font-size="18" font-weight="780" letter-spacing="2">MINIVERL · ONE CUDA GPU</text>
+    <text x="70" y="174" fill="#a9b8cb" font-size="14">develop · diagnose · validate</text>
+
+    <g font-size="14" font-weight="700" text-anchor="middle">
+      <rect x="70" y="209" width="103" height="58" rx="13" fill="#10233a" stroke="#2c6a86"/>
+      <text x="121.5" y="244" fill="#e2e8f0">actor</text>
+      <rect x="190" y="209" width="103" height="58" rx="13" fill="#10233a" stroke="#2c6a86"/>
+      <text x="241.5" y="244" fill="#e2e8f0">rollout</text>
+      <rect x="310" y="198" width="155" height="80" rx="13" fill="#14243d" stroke="#6d5fa7"/>
+      <text x="387.5" y="229" fill="#e9d5ff">teacher / ref</text>
+      <text x="387.5" y="252" fill="#e9d5ff">reward</text>
+      <rect x="482" y="209" width="103" height="58" rx="13" fill="#10233a" stroke="#2c6a86"/>
+      <text x="533.5" y="244" fill="#e2e8f0">update</text>
+      <rect x="602" y="209" width="103" height="58" rx="13" fill="#10233a" stroke="#2c6a86"/>
+      <text x="653.5" y="244" fill="#e2e8f0">eval</text>
+    </g>
+    <g stroke="#5dc9e8" stroke-width="2" marker-end="url(#arrow)">
+      <path d="M173 238 H186"/><path d="M293 238 H306"/><path d="M465 238 H478"/><path d="M585 238 H598"/>
+    </g>
+    <rect x="70" y="310" width="635" height="43" rx="12" fill="#0b1c30" stroke="#28506c"/>
+    <text x="387.5" y="337" text-anchor="middle" fill="#b8c7da" font-size="14">typed provenance · PEFT / safetensors · Parquet · checksummed manifests</text>
+
+    <path d="M732 246 C776 246 773 246 813 246" fill="none" stroke="url(#accent)" stroke-width="4" marker-end="url(#arrow)" filter="url(#glow)"/>
+    <rect x="748" y="189" width="88" height="34" rx="17" fill="#162a45" stroke="#7dd3fc"/>
+    <text x="792" y="211" text-anchor="middle" fill="#dff8ff" font-size="12" font-weight="760">export-verl</text>
+
+    <rect x="831" y="111" width="247" height="270" rx="22" fill="#131329" stroke="#7256a8" stroke-width="2"/>
+    <text x="859" y="149" fill="#d8b4fe" font-size="18" font-weight="780" letter-spacing="2">VERL · SCALE-OUT</text>
+    <text x="859" y="174" fill="#b8a9d1" font-size="14">v0.8.0 · exact commit pin</text>
+    <g font-size="14" font-weight="700">
+      <rect x="859" y="205" width="191" height="42" rx="12" fill="#201b3b" stroke="#624c8f"/>
+      <text x="878" y="231" fill="#ede9fe">Ray orchestration</text>
+      <rect x="859" y="259" width="191" height="42" rx="12" fill="#201b3b" stroke="#624c8f"/>
+      <text x="878" y="285" fill="#ede9fe">FSDP / Megatron</text>
+      <rect x="859" y="313" width="191" height="42" rx="12" fill="#201b3b" stroke="#624c8f"/>
+      <text x="878" y="339" fill="#ede9fe">vLLM / SGLang</text>
+    </g>
+    <text x="42" y="423" fill="#94a3b8" font-size="14">Independent project · no endorsement implied · distributed execution status: not tested</text>
+    <text x="1078" y="423" text-anchor="end" fill="#e2e8f0" font-size="18" font-weight="780">mini<tspan fill="#8b9dff">VERL</tspan></text>
+  </g>
+</svg>
+

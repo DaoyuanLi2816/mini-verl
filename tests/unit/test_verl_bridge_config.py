@@ -82,6 +82,7 @@ def test_import_verl_maps_only_the_pinned_profile_and_writes_a_report(tmp_path: 
     assert report["semantic_conflicts"] == []
     assert report["source_config_sha256"]
     assert report["generated_miniverl_sha256"]
+    assert report["status"] == "accepted"
     assert "data.train_files" in report["mapped_fields"]
     assert report["mapped_fields"]["data.train_files"]["disposition"] == "bridge_metadata"
 
@@ -119,7 +120,9 @@ def test_import_verl_fails_closed_on_algorithm_or_scale_out_fields(
             out=tmp_path / "imported.yaml",
         )
     assert not (tmp_path / "imported.yaml").exists()
-    assert not (tmp_path / "import-report.json").exists()
+    rejection = json.loads((tmp_path / "import-report.json").read_text(encoding="utf-8"))
+    assert rejection["status"] == "rejected"
+    assert ".".join(path) in rejection["unsupported_fields"]
 
 
 def test_import_verl_rejects_a_moving_or_unverified_target(tmp_path: Path) -> None:

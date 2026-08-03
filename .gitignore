@@ -11,6 +11,7 @@ __pycache__/
 .eggs/
 /build/
 /dist/
+/site/
 /.venv/
 /venv/
 .python-version

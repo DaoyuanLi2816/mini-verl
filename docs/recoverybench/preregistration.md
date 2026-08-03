@@ -2,7 +2,7 @@
 
 This document records the experimental choices for RecoveryBench before any
 final `test`-split model run. The canonical machine-readable record is
-[`benchmarks/preregistration/recoverybench-v1.yaml`](../../benchmarks/preregistration/recoverybench-v1.yaml).
+[`benchmarks/preregistration/recoverybench-v1.yaml`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/preregistration/recoverybench-v1.yaml).
 
 ## Question and endpoints
 
@@ -90,4 +90,4 @@ under `artifacts/superseded/recoverybench-v1.4-aborted-by-steering/`, and none
 of them enters any result, figure or report. The immutable publication hashes
 and the full chronology are recorded in
 [`recoverybench-v1.md`](recoverybench-v1.md) and
-[`PROJECT_STATE.md`](../../PROJECT_STATE.md).
+[`PROJECT_STATE.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/PROJECT_STATE.md).

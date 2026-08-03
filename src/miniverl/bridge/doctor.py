@@ -89,12 +89,25 @@ def _check_model(root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     else:
         weights_ok, detail = _check_safetensors(weights)
         peft_ok = str(payload.get("peft_type", "")).upper() == "LORA"
+        peft_load = "not installed; structural validation only"
+        if weights_ok and peft_ok:
+            try:
+                from peft import PeftConfig
+
+                loaded = PeftConfig.from_pretrained(str(model))
+                peft_load = f"loaded {type(loaded).__name__}"
+            except ImportError:
+                pass
+            except Exception as exc:
+                weights_ok = False
+                peft_load = f"PEFT rejected adapter_config.json: {exc}"
         model_check = {
             "status": "ok" if weights_ok and peft_ok else "fail",
             "peft_type": payload.get("peft_type"),
             "base_model": payload.get("base_model_name_or_path"),
             "detail": detail,
-            "load_scope": "standard PEFT config and safetensors structure; base weights not loaded",
+            "peft_config_load": peft_load,
+            "load_scope": "PEFT config plus safetensors structure; base weights not loaded",
         }
     tokenizer_files = (
         sorted(path for path in model.iterdir() if path.is_file() and "tokenizer" in path.name)
@@ -141,15 +154,40 @@ def _check_config(root: Path) -> dict[str, Any]:
         payload = yaml.safe_load(
             (root / "recipe" / "verl-overrides.yaml").read_text(encoding="utf-8")
         )
-    except (OSError, yaml.YAMLError) as exc:
+        adapter = json.loads((root / "model" / "adapter_config.json").read_text(encoding="utf-8"))
+        base = json.loads((root / "model" / "base-model.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, yaml.YAMLError) as exc:
         return {"status": "fail", "detail": str(exc)}
-    profile = ((payload or {}).get("miniverl_bridge") or {}).get("profile")
     required_roots = {"data", "actor_rollout_ref", "trainer", "custom_reward_function"}
     actual = set(payload) if isinstance(payload, dict) else set()
+    problems: list[str] = []
+    if not required_roots.issubset(actual):
+        problems.append("missing required root")
+    try:
+        model = payload["actor_rollout_ref"]["model"]
+        expected = {
+            "path": "model/base",
+            "lora_adapter_path": "model",
+            "lora_rank": adapter["r"],
+            "lora_alpha": adapter["lora_alpha"],
+            "target_modules": adapter["target_modules"],
+        }
+        for field, value in expected.items():
+            if model.get(field) != value:
+                problems.append(f"actor_rollout_ref.model.{field}")
+        if base.get("model_id") != adapter["base_model_name_or_path"]:
+            problems.append("base-model.json model_id")
+        if base.get("revision") != adapter["revision"]:
+            problems.append("base-model.json revision")
+        if base.get("materialized_path") != "model/base":
+            problems.append("base-model.json materialized_path")
+    except (KeyError, TypeError):
+        problems.append("invalid model handoff structure")
     return {
-        "status": "ok" if profile == BRIDGE_PROFILE and required_roots.issubset(actual) else "fail",
-        "profile": profile,
+        "status": "ok" if not problems else "fail",
+        "profile": BRIDGE_PROFILE,
         "roots": sorted(actual),
+        "model_handoff_problems": problems,
     }
 
 
