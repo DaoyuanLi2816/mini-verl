@@ -4,6 +4,39 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.4.0 Consumer Runtime release
+
+- [x] Preregistration revisions 1.1 and 1.2 were public before the sole
+      headline run; the eager-attention and FP32-compute amendments retain the
+      earlier SDPA and BF16 diagnostics as non-headline negative evidence.
+- [x] All eight dual/shared by sequential/2/4/auto cells completed with one
+      trajectory digest and one teacher-target digest; all 12 preregistered
+      loss, full-gradient and post-update-logit equivalence gates passed.
+- [x] The frozen result, profiler and Pareto SVG have SHA-256 values
+      `a302da31af99f1d29f1efd4e6b3dbeb6ea4ac956bba102ca8a1bee8dff0319eb`,
+      `66111cd7fc876cf1befea3297a1a51bcd99252c0bf8989c029381e1dc155a98b`
+      and `98645a668a7832423d28b621262292619615917f037adf7219ff1bf071fb2fea`.
+- [x] Typed batching, mask isolation, all three objectives, shared adapter-role
+      restoration, optimizer isolation, one-base loading, reference isolation
+      and standard student export have focused CPU and tiny-HF coverage.
+- [x] The legacy calculator JSON remains byte-identical at SHA-256
+      `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`;
+      v0.3 artifacts and negative results are unchanged.
+- [x] Ruff check/format, mypy, actionlint, Markdown links, generated SVG byte
+      comparison and `git diff --check` pass; native and 820-pixel SVG renders
+      were visually inspected.
+- [x] Full non-GPU/non-network suite: **1448 passed**, 6 deselected, **86.26%**
+      branch coverage.
+- [x] Available RTX 4080 GPU suite: **5 passed**, 1449 deselected.
+- [x] Network suite: **3 passed**, 1451 deselected, including all immutable
+      public adapters used by the current tests.
+- [x] Wheel and sdist build and pass Twine; a clean Python 3.10 wheel install
+      reports `miniverl 0.4.0.dev0` and passes the core command smoke tests.
+- [x] Focused PR #30 is green and merged as `9914c6d`; synchronized main CI
+      and build runs `30776659196` and `30776659178` are green.
+- [x] Release metadata declares exact `0.4.0`; the intended annotated tag is
+      exactly `v0.4.0` and will use the existing OIDC-only release workflow.
+
 ## v0.3.0 RecoveryBench release
 
 - [x] Revision-1.3 preregistration predates the valid final run and remains
