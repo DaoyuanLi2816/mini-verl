@@ -6,6 +6,37 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `miniverl align` for explicit base → SFT checkpoint → teacher/reference →
+  alignment → evaluation → Alignment Card workflows, plus an
+  uncertainty-aware, versioned `miniverl pilot` decision aid.
+- Policy-conditioned and frozen aligned-adapter teachers, pinned TRL DPO
+  provenance, a versioned verifier-gated selector, deterministic tool-policy
+  evaluation and privacy-safe JSON/Markdown Alignment Cards.
+- A preregistered three-seed Alignment Lab result, 864 task-level records, a
+  matched State × Supervision diagnostic, four data-bound figures, technical
+  report, article and reproducible short demo.
+
+### Changed
+
+- Public positioning now treats OPD as a post-SFT teacher-student mechanism to
+  justify with alignment, over-alignment, retained utility and cost evidence,
+  rather than as a generic replacement for SFT.
+- DPO Alignment Cards include the external pinned TRL training time, peak VRAM,
+  optimizer updates and exact provenance instead of counting evaluation only.
+
+### Results
+
+- The common Qwen3-0.6B SFT checkpoint saturated the deterministic Minipolicy
+  suite at 100% alignment and 100% retained tool utility across all three
+  seeds. No continuation method improved it; completed regressions from
+  continued SFT, standard OPD and verifier-gated OPD are retained.
+- Verifier gating reduced queried positions from 100% to 46.8% and mean GPU
+  time from 76.7 to 66.0 seconds without improving quality. The matched signal
+  diagnostic found only 0.0251% fresh soft probability mass beyond argmax, so
+  the pilot recommends not spending online teacher-query cost for this recipe.
+
 ## [0.4.0] - 2026-08-02
 
 ### Added

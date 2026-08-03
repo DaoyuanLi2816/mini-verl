@@ -1,0 +1,69 @@
+{
+  "benchmark": "alignment-lab-v1",
+  "card_sha256": "2e6132fc12c8cffb0b7dcc8fc8ad10580db0e591a3d75ad2b920baa8d53dc34f",
+  "cost": {
+    "gpu_seconds": 0.0,
+    "optimizer_updates": 0,
+    "peak_vram_bytes": 679735808,
+    "wall_seconds": 204.180928
+  },
+  "dpo_training": null,
+  "limitations": [
+    "One model family, one deterministic sandbox policy suite and one measured GPU.",
+    "The common SFT checkpoint already saturated every measured policy and utility endpoint.",
+    "Three seeds describe observed variation and do not establish a population claim.",
+    "External IFEval, XSTest, HarmBench and RewardBench endpoints were not measured in this artifact."
+  ],
+  "method": "sft_checkpoint",
+  "metrics": {
+    "alignment_score": 1.0,
+    "appropriate_refusal_rate": 1.0,
+    "benign_compliance_rate": 1.0,
+    "decision_distribution_shift_jsd": null,
+    "general_utility_retention": 1.0,
+    "harmful_compliance_rate": 0.0,
+    "instruction_retention": 1.0,
+    "over_refusal_rate": 0.0,
+    "preference_win_rate": 1.0,
+    "tasks": 48,
+    "teacher_queried_positions": null,
+    "teacher_query_ratio": null,
+    "tool_utility_retention": 1.0
+  },
+  "policy": {
+    "id": "miniverl-tool-policy",
+    "revision": "v1",
+    "sha256": "9a9316bea117928d115eff86291982d7386e6ca2d7127aacb933e508d322c8a8"
+  },
+  "raw_artifact_hashes": {
+    "offset_0": {
+      "alignment-card.json": "5fb7e744feb307c9a4b717ec52366af27b8c5a83b10d3d704545cde3fbac1baf",
+      "alignment.json": "a1d3b810c1e5d0ce322f168dab3a9a9e2cfae35945a7591068cba5d9a5c70780",
+      "config.resolved.yaml": "96c552525827890dbf86b94790b67fff5e6d86cb6fb18e4f7c7158d23da3ad28",
+      "eval.json": "7e0a9697db92582012c3b55b2cdf5691a9f50e5ae11b224c5066437a623aa7b7",
+      "eval_trajectories.jsonl": "5e743e3d25f892f78798ea469577088b1d7b8a5d7bf847172ef86375a3183673",
+      "events.jsonl": "803db5ba1d434511ce4c302c5bed35d57662725b9ea60bc3fd8ba13692e23c5a",
+      "manifest.json": "b29f70305edf268a089374cce8ae0fab2861b9f3ec7d58ecc764c4c429f3e8b5",
+      "metrics.jsonl": "5fc9545c28bd803fdbf0714658e2846e31f43e92ec13c793622e5684bd526a4d"
+    },
+    "offset_24": {
+      "alignment-card.json": "e906c54da51ff952d14805ae35ef028f7001c39d49109641629dc25e1c8b5b62",
+      "alignment.json": "63713b4785447a75e5afd0efc78953d6e9bcadb19325080abd156def9258d8c0",
+      "config.resolved.yaml": "563e64a25d4f5c2ced88d3a1c341ecd31f023b2e26dd06dbb7d1f26754b119c5",
+      "eval.json": "2bc8087b3c3bab806b596ea03bf65ea9e5832e2061028cf9f155d424fa4db8d8",
+      "eval_trajectories.jsonl": "e8664e25f5d87fbbaf895675397575e3faf786cb3bcc80cf7e598e351d00f9a1",
+      "events.jsonl": "8680de844e7eb6f5c133842eb80486fe8b9ca3a65cfe7d6075bdcbc2d718feba",
+      "manifest.json": "54506fa01bd5639bd8f2f4eaf55086bdb4141f05f179ac8b38e1fb732fea9e91",
+      "metrics.jsonl": "522907ee9fc0424b7718e52fea2a90a9ca235e130ff8b5a7b8117e0e9fbb294b"
+    }
+  },
+  "reference": null,
+  "schema_version": 1,
+  "seed": 1234,
+  "source_result_sha256": "584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef",
+  "starting_sft_checkpoint": {
+    "id": "mini-verl-qwen3-0.6b-tool-policy-sft",
+    "sha256": "7304922281268a687dd1c75ba918e26c64c8207b5701db78c368afd20d80ae89"
+  },
+  "teacher": null
+}

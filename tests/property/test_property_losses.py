@@ -343,7 +343,12 @@ def test_weighted_mean_rejects_a_shape_mismatch(values):
     seed=st.integers(min_value=0, max_value=10_000),
 )
 def test_selection_is_reproducible_for_any_ratio_and_seed(ratio, seed):
-    from miniverl.config.models import SelectionConfig, SelectorName
+    from miniverl.config.models import (
+        GateConfig,
+        GateSignal,
+        SelectionConfig,
+        SelectorName,
+    )
     from miniverl.schemas.trajectory import Span, SpanType, TerminationReason, Trajectory, Turn
     from miniverl.selection.selectors import select_positions
     from miniverl.trajectory.masks import build_masks
@@ -370,7 +375,15 @@ def test_selection_is_reproducible_for_any_ratio_and_seed(ratio, seed):
         termination_reason=TerminationReason.FINAL_ANSWER,
     )
     for selector in SelectorName:
-        config = SelectionConfig(selector=selector, ratio=ratio)
+        gate = (
+            GateConfig(
+                version="property-gate-v1",
+                signal=GateSignal.POLICY_CRITICAL_SPAN,
+            )
+            if selector is SelectorName.VERIFIER_GATED
+            else None
+        )
+        config = SelectionConfig(selector=selector, ratio=ratio, gate=gate)
         first = select_positions(traj, config, run_seed=seed)
         second = select_positions(traj, config, run_seed=seed)
         assert first.positions == second.positions

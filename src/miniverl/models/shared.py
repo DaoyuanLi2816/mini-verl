@@ -121,15 +121,28 @@ class AdapterRoleController:
     def load_student_state_dict(self, state: dict[str, torch.Tensor]) -> None:
         """Restore a checkpoint without touching teacher/reference adapters."""
         own = dict(self._student_named_parameters)
-        unknown = sorted(set(state).difference(own))
-        missing = sorted(set(own).difference(state))
+        actor_name = self.role_adapters[PolicyRole.ACTOR]
+        normalized: dict[str, torch.Tensor] = {}
+        for name, value in state.items():
+            parts = name.split(".")
+            for index, part in enumerate(parts):
+                if part == "default" and index > 0 and parts[index - 1].startswith("lora_"):
+                    parts[index] = actor_name
+            normalized_name = ".".join(parts)
+            if normalized_name in normalized:
+                raise BackendError(
+                    f"checkpoint adapter normalization produced duplicate key {normalized_name!r}"
+                )
+            normalized[normalized_name] = value
+        unknown = sorted(set(normalized).difference(own))
+        missing = sorted(set(own).difference(normalized))
         if unknown or missing:
             raise BackendError(
                 "shared-backbone student checkpoint names do not match "
                 f"(unknown={unknown[:1]}, missing={missing[:1]})"
             )
         with torch.no_grad():
-            for name, value in state.items():
+            for name, value in normalized.items():
                 parameter = own[name]
                 if value.shape != parameter.shape:
                     raise BackendError(

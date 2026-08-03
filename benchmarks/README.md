@@ -80,6 +80,7 @@ Listed so you can check that this repository does not.
 
 | File | Hardware | What it shows |
 | --- | --- | --- |
+| `results/alignment-lab-v1.json` | RTX 4080 16 GB | Alignment Lab v1: six methods from one Qwen3-0.6B SFT checkpoint, three seeds and 48 paired policy tasks per arm. The SFT start saturated alignment and utility; no continuation method improved it, so the pilot recommends no online teacher querying. [Report, figures and caveats.](../docs/alignment-lab/alignment-lab-v1.md) |
 | `results/consumer-runtime-v1.json` | RTX 4080 16 GB | Preregistered eight-cell systems matrix for sequential/batch-2/batch-4/auto updates under dual-model and shared-backbone ownership. Batch-4 reached 3.866 and 3.475 trajectories/s at 3.035 and 2.227 GiB reserved; all equivalence gates passed. [Figure, method and caveats.](../docs/consumer-runtime-v1.md) |
 | `results/recoverybench-v1-equal-updates.json` | RTX 4080 16 GB | RecoveryBench v1 primary schema-v3 result: six arms, three seeds and eight equal continuation updates. Frozen-student KD reached 23.2% strict success versus 10.9% for strict fresh OPD. [Analysis, figures and caveats.](../docs/recoverybench/recoverybench-v1.md) |
 | `results/recoverybench-v1-equal-selected-tokens.json` | RTX 4080 16 GB | Three-method secondary view at the first optimizer boundary at or beyond 6,224 selected positions. All methods stopped after eight updates; overshoot is retained. |
@@ -87,6 +88,27 @@ Listed so you can check that this repository does not.
 | `results/gpu-calc-hard-equal-update-v2.json` | RTX 4080 16 GB | Primary schema-v2, five-arm, two-seed equal-update comparison. The protocol-trained teacher prevented the raw/privileged-teacher collapse and reached 100% on both seeds, tying SFT rather than beating it. [Chart and interpretation.](../docs/rtx4080-baselines.md#protocol-teacher-equal-update-comparison-schema-v2) |
 | `results/cpu-toy-calc-matched.json` | CPU only | **Parity, not ranking.** All seven arms run to completion under identical budgets on the toy backend. The accuracy differences are within noise and must not be read as a ranking; see the note in the file. |
 | `results/rtx4080-calc-hard-matched.json` | RTX 4080 16 GB | Legacy single-seed equal-update comparison on the chained calculator split with the real Qwen3 pair. **On-policy distillation lost**, with both a standard and a privileged-context teacher; the transcript-level diagnosis and v1 erratum are in [`docs/rtx4080-baselines.md`](../docs/rtx4080-baselines.md#legacy-equal-update-comparison-schema-v1). |
+
+### Alignment Lab v1
+
+All 18 completed arms start from one checksummed SFT checkpoint and retain the
+same 48 ordered final-test tasks within each of three preregistered seeds. The
+task-level JSONL contains 864 rows. DPO provenance includes the external pinned
+TRL 1.8.0 training cost; teacher-query ratio is explicitly a selected-position
+ratio, not teacher-backbone FLOPs.
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `alignment-lab-v1.json` | `584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef` |
+| `alignment-lab-v1-task-results.jsonl` | `8d7fc723436d7377d196fc44046d960e3cb7f0aa81e03d49ef05b627eb84630f` |
+| `alignment-lab-v1-state-supervision.json` | `9e08129ba4cd9e460c189b94b4e421d881ba69e3938f02eac95d251f50c88788` |
+| `../paper/alignment-lab-v1/alignment-lab-v1.pdf` | `adbffa967f6b9a25d2cdb0cc4464a93c13db4615a1e91499585fb199285d980b` |
+
+The State × Supervision file is a measured signal diagnostic, not a separately
+trained hard-target result. The fresh soft target retains 0.0251% mean
+probability mass beyond argmax under matched states, teacher, budget, checkpoint
+and seeds; no soft-target quality advantage is claimed. All public Alignment
+Cards are under `alignment-cards/alignment-lab-v1/`.
 
 ### Consumer Runtime v1
 

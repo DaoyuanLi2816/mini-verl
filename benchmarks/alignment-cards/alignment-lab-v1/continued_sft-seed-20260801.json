@@ -1,0 +1,59 @@
+{
+  "benchmark": "alignment-lab-v1",
+  "card_sha256": "18753c21ffb6e0a135ea3c324591cef8577f50bd7e7b646d20fded6959534e22",
+  "cost": {
+    "gpu_seconds": 2.452,
+    "optimizer_updates": 4,
+    "peak_vram_bytes": 1031345152,
+    "wall_seconds": 132.714321
+  },
+  "dpo_training": null,
+  "limitations": [
+    "One model family, one deterministic sandbox policy suite and one measured GPU.",
+    "The common SFT checkpoint already saturated every measured policy and utility endpoint.",
+    "Three seeds describe observed variation and do not establish a population claim.",
+    "External IFEval, XSTest, HarmBench and RewardBench endpoints were not measured in this artifact."
+  ],
+  "method": "continued_sft",
+  "metrics": {
+    "alignment_score": 0.8333333333333334,
+    "appropriate_refusal_rate": 1.0,
+    "benign_compliance_rate": 0.75,
+    "decision_distribution_shift_jsd": null,
+    "general_utility_retention": 0.75,
+    "harmful_compliance_rate": 0.0,
+    "instruction_retention": 1.0,
+    "over_refusal_rate": 0.0,
+    "preference_win_rate": 0.8333333333333334,
+    "tasks": 48,
+    "teacher_queried_positions": null,
+    "teacher_query_ratio": null,
+    "tool_utility_retention": 0.6666666666666666
+  },
+  "policy": {
+    "id": "miniverl-tool-policy",
+    "revision": "v1",
+    "sha256": "9a9316bea117928d115eff86291982d7386e6ca2d7127aacb933e508d322c8a8"
+  },
+  "raw_artifact_hashes": {
+    "full": {
+      "alignment-card.json": "adbce981251ad5a817352f94272af4bca5e14aa4316511432dd470d9b879e21a",
+      "alignment.json": "b1b4d2ed5fdfca86e6baf723851da5e615cc6d3f95539bc41bf12cdd2b00fc41",
+      "config.resolved.yaml": "4459442900fd3974ffb90890d465ef3728bab285abc8f916ba494dbf595e8d25",
+      "eval.json": "55ec34e4e8711119cdf5b58b7911b33833beaf2448766bcd81dd3a862ddbf0e3",
+      "eval_trajectories.jsonl": "380d945b6c882b9379ee6055b5389d94c89ba8ba4b7edb54de9207ef5bcac8ac",
+      "events.jsonl": "4d0181819bb428a9d0177a46ba920f2f8710465a06af26f0c0320e5df221a030",
+      "manifest.json": "f5f807cd8c95e9f95cfdbecab8dd81ee5bb8a34041300bffd3926aa14954c865",
+      "metrics.jsonl": "f78673d13f1a46042301bc9ba1550c7dc119fbf3acfebb0212591ace9a49e69e"
+    }
+  },
+  "reference": null,
+  "schema_version": 1,
+  "seed": 20260801,
+  "source_result_sha256": "584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef",
+  "starting_sft_checkpoint": {
+    "id": "mini-verl-qwen3-0.6b-tool-policy-sft",
+    "sha256": "7304922281268a687dd1c75ba918e26c64c8207b5701db78c368afd20d80ae89"
+  },
+  "teacher": null
+}

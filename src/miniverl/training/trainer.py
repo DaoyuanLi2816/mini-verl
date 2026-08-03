@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING, Any
 
 from miniverl import __version__
 from miniverl.agent.loop import RolloutRunner, RolloutStats
+from miniverl.alignment.workflow import build_alignment_stage_plan
 from miniverl.cache.store import TeacherCache
 from miniverl.config.models import (
     LossMode,
@@ -68,6 +69,7 @@ from miniverl.schemas.alignment import AlignmentMap
 from miniverl.schemas.trajectory import Trajectory
 from miniverl.selection.selectors import (
     SelectionResult,
+    SelectionStats,
     aggregate_selection_stats,
     select_positions,
 )
@@ -285,6 +287,7 @@ class OPDTrainer:
         self._resumed_from: dict[str, Any] | None = None
         self._cycles_completed = 0
         self._last_cycle_metrics: dict[str, Any] = {}
+        self._last_selection_stats: list[SelectionStats] = []
 
     # -- construction --------------------------------------------------------
 
@@ -889,6 +892,14 @@ class OPDTrainer:
                 ),
             },
             "objective": objective,
+            "alignment_workflow": (
+                build_alignment_stage_plan(
+                    config.alignment,
+                    sft_warmup_cycles=config.train.sft_warmup_cycles,
+                )
+                if config.alignment is not None
+                else None
+            ),
             "runtime_role_graph": self.role_graph.describe(),
             "artifact_bridge": {
                 "kind": "local_filesystem",
@@ -1428,11 +1439,37 @@ class OPDTrainer:
         """Select positions, align, and (for KD modes) score with the teacher."""
         config = self.config
         samples: list[TrainSample] = []
+        selections: list[SelectionStats] = []
         privileged = config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT
         task_by_id = {t.task_id: t for split in self.splits.values() for t in split}
 
         for traj in trajectories:
             selection = select_positions(traj, config.selection, run_seed=config.run.seed)
+            selections.append(selection.stats)
+            if selection.stats.gate_decision is not None:
+                selected = set(selection.positions)
+                self.events.emit(
+                    "alignment_gate_decision",
+                    trajectory_id=traj.trajectory_id,
+                    task_id=traj.task_id,
+                    gate_version=selection.stats.gate_version,
+                    gate_signal=selection.stats.gate_signal,
+                    decision=selection.stats.gate_decision,
+                    spans=[
+                        {
+                            "span_type": span.span_type.value,
+                            "start": span.start,
+                            "end": span.end,
+                            "selected_positions": sum(
+                                1
+                                for position in range(span.start, span.end)
+                                if position in selected
+                            ),
+                        }
+                        for span in traj.spans
+                        if span.is_critical
+                    ],
+                )
             if not selection.positions:
                 continue
             teacher_view: Trajectory | None = None
@@ -1444,6 +1481,8 @@ class OPDTrainer:
                 traj, selection.positions, selection.weights, teacher=teacher_view
             )
             samples.append(TrainSample(trajectory=traj, alignment=alignment, selection=selection))
+
+        self._last_selection_stats = selections
 
         if self.scorer is None or config.run.mode is TrainingMode.SFT:
             return samples
@@ -1914,9 +1953,20 @@ class OPDTrainer:
                 note="skipping the baseline evaluation and the SFT cold start",
             )
         else:
+            alignment_warmup = (
+                config.alignment is not None
+                and config.train.sft_warmup_cycles > 0
+                and config.run.mode is not TrainingMode.SFT
+            )
+            if alignment_warmup:
+                self._run_sft_warmup(config.train.sft_warmup_cycles)
             if config.eval.enabled and config.eval.baseline_enabled:
                 baseline = self._evaluate_impl(tag="baseline")
-            if config.train.sft_warmup_cycles > 0 and config.run.mode is not TrainingMode.SFT:
+            if (
+                config.train.sft_warmup_cycles > 0
+                and config.run.mode is not TrainingMode.SFT
+                and not alignment_warmup
+            ):
                 self._run_sft_warmup(config.train.sft_warmup_cycles)
 
         last_records: list[dict[str, Any]] = []
@@ -2058,12 +2108,15 @@ class OPDTrainer:
 
     def _build_samples_ce_only(self, trajectories: list[Trajectory]) -> list[TrainSample]:
         samples: list[TrainSample] = []
+        selections: list[SelectionStats] = []
         for traj in trajectories:
             selection = select_positions(traj, self.config.selection, run_seed=self.config.run.seed)
+            selections.append(selection.stats)
             if not selection.positions:
                 continue
             alignment = build_alignment_map(traj, selection.positions, selection.weights)
             samples.append(TrainSample(trajectory=traj, alignment=alignment, selection=selection))
+        self._last_selection_stats = selections
         return samples
 
     def _run_cycle(self) -> list[dict[str, Any]]:
@@ -2071,6 +2124,7 @@ class OPDTrainer:
         mode = config.run.mode
         cycle_started = time.perf_counter()
         rollout_policy_version = self.parameter_version
+        self._last_selection_stats = []
 
         if mode is TrainingMode.OFFLINE_KD and self._offline_samples is not None:
             samples = self._offline_batch_for_cycle()
@@ -2176,7 +2230,9 @@ class OPDTrainer:
             if mode is TrainingMode.OPD:
                 for sample in samples:
                     sample.teacher = None
-        selection_stats = aggregate_selection_stats([s.selection.stats for s in samples])
+        selection_stats = aggregate_selection_stats(
+            self._last_selection_stats or [sample.selection.stats for sample in samples]
+        )
         cycle_metrics: dict[str, Any] = {
             "phase": f"{config.run.mode.value}_cycle",
             "cycle": self.cycle,
@@ -2365,7 +2421,8 @@ class OPDTrainer:
         chosen_split = split or config.eval.split
         pool = tasks if tasks is not None else self.splits.get(chosen_split, [])
         limit = config.effective_eval_tasks if tasks is None else len(pool)
-        pool = pool[:limit]
+        task_offset = config.eval.task_offset if tasks is None else 0
+        pool = pool[task_offset : task_offset + limit]
         if not pool:
             return {
                 "tag": tag,
@@ -2398,7 +2455,7 @@ class OPDTrainer:
                 traj = self.runner.rollout(
                     task,
                     policy_version=self.policy_version,
-                    seed=config.eval.seed + offset,
+                    seed=config.eval.seed + task_offset + offset,
                     temperature=config.eval.temperature,
                     max_turns=config.eval.max_turns,
                     trajectory_id=f"{task.task_id}:{tag}:v{self.policy_version}",
@@ -2423,6 +2480,7 @@ class OPDTrainer:
                 "rollout_iteration": self._cycles_completed,
                 "rollout_policy_version": self._last_rollout_policy_version,
                 "temperature": config.eval.temperature,
+                "task_offset": task_offset,
                 "seconds": round(elapsed, 3),
                 "rollout_tokens_per_second": round(stats.generated_tokens / elapsed, 2),
                 "success_by_difficulty": {

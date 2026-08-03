@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DaoyuanLi2816/mini-verl/benchmarks/schema/alignment-lab-result.schema.json",
+  "title": "miniVERL Alignment Lab v1 result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "measurement_status",
+    "code_commit",
+    "preregistration_sha256",
+    "frozen_calculator_sha256",
+    "starting_checkpoint_sha256",
+    "policy_sha256",
+    "hardware",
+    "scope",
+    "arms",
+    "method_summary",
+    "state_supervision_diagnostic",
+    "pilot",
+    "task_results_sha256",
+    "invalidation_status"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "name": {"const": "alignment-lab-v1"},
+    "measurement_status": {"const": "measured_final"},
+    "code_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "preregistration_sha256": {"$ref": "#/$defs/sha256"},
+    "frozen_calculator_sha256": {"$ref": "#/$defs/sha256"},
+    "starting_checkpoint_sha256": {"$ref": "#/$defs/sha256"},
+    "policy_sha256": {"$ref": "#/$defs/sha256"},
+    "hardware": {"type": "object"},
+    "scope": {"type": "object"},
+    "arms": {
+      "type": "array",
+      "minItems": 18,
+      "maxItems": 18,
+      "items": {"$ref": "#/$defs/arm"}
+    },
+    "method_summary": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {"type": "object"}
+    },
+    "state_supervision_diagnostic": {"type": "object"},
+    "pilot": {"type": "object"},
+    "task_results_sha256": {"$ref": "#/$defs/sha256"},
+    "invalidation_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "reasons"],
+      "properties": {
+        "valid": {"const": true},
+        "reasons": {"type": "array", "maxItems": 0}
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "rate": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "metrics": {
+      "type": "object",
+      "required": [
+        "tasks",
+        "alignment_score",
+        "appropriate_refusal_rate",
+        "harmful_compliance_rate",
+        "over_refusal_rate",
+        "benign_compliance_rate",
+        "preference_win_rate",
+        "instruction_retention",
+        "tool_utility_retention",
+        "general_utility_retention",
+        "teacher_queried_positions",
+        "teacher_query_ratio",
+        "decision_distribution_shift_jsd"
+      ],
+      "properties": {
+        "tasks": {"const": 48},
+        "alignment_score": {"$ref": "#/$defs/rate"},
+        "appropriate_refusal_rate": {"$ref": "#/$defs/rate"},
+        "harmful_compliance_rate": {"$ref": "#/$defs/rate"},
+        "over_refusal_rate": {"$ref": "#/$defs/rate"},
+        "benign_compliance_rate": {"$ref": "#/$defs/rate"},
+        "preference_win_rate": {"$ref": "#/$defs/rate"},
+        "instruction_retention": {"$ref": "#/$defs/rate"},
+        "tool_utility_retention": {"$ref": "#/$defs/rate"},
+        "general_utility_retention": {"$ref": "#/$defs/rate"},
+        "teacher_queried_positions": {"type": ["integer", "null"], "minimum": 0},
+        "teacher_query_ratio": {"$ref": "#/$defs/rate"},
+        "decision_distribution_shift_jsd": {"$ref": "#/$defs/rate"}
+      },
+      "additionalProperties": false
+    },
+    "cost": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gpu_seconds", "wall_seconds", "peak_vram_bytes", "optimizer_updates"],
+      "properties": {
+        "gpu_seconds": {"type": "number", "minimum": 0},
+        "wall_seconds": {"type": "number", "minimum": 0},
+        "peak_vram_bytes": {"type": "integer", "minimum": 0},
+        "optimizer_updates": {"type": "integer", "minimum": 0}
+      }
+    },
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "seed",
+        "status",
+        "starting_checkpoint_sha256",
+        "metrics",
+        "cost",
+        "artifacts",
+        "provenance",
+        "recovery"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "sft_checkpoint",
+            "continued_sft",
+            "dpo",
+            "offline_distillation",
+            "standard_opd",
+            "verifier_gated_opd"
+          ]
+        },
+        "seed": {"enum": [1234, 20260727, 20260801]},
+        "status": {"const": "completed"},
+        "starting_checkpoint_sha256": {"$ref": "#/$defs/sha256"},
+        "metrics": {"$ref": "#/$defs/metrics"},
+        "cost": {"$ref": "#/$defs/cost"},
+        "artifacts": {"type": "object"},
+        "provenance": {"type": "object"},
+        "recovery": {"type": ["object", "null"]}
+      }
+    }
+  }
+}

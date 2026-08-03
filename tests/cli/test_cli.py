@@ -39,6 +39,7 @@ TOY_RECIPE = REPO_ROOT / "recipes" / "toy_cpu.yaml"
 
 #: Every documented command, spelled exactly as it is typed.
 EXPECTED_COMMANDS = {
+    "align",
     "doctor",
     "validate",
     "demo",
@@ -46,6 +47,7 @@ EXPECTED_COMMANDS = {
     "eval",
     "benchmark",
     "prepare-offline-kd",
+    "pilot",
     "qualify-teacher",
     "inspect",
     "report",
@@ -137,6 +139,29 @@ def _write_recipe(path: Path, mutate: dict[str, Any]) -> Path:
     """Copy the toy recipe with ``mutate`` applied to its ``train`` block."""
     data = yaml.safe_load(TOY_RECIPE.read_text(encoding="utf-8"))
     data["train"].update(mutate)
+    path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def _write_alignment_recipe(path: Path, *, with_pilot: bool = False) -> Path:
+    data = yaml.safe_load(TOY_RECIPE.read_text(encoding="utf-8"))
+    data["run"].update({"name": "alignment-dry-run", "mode": "opd"})
+    data["models"]["teacher"]["mode"] = "privileged_context"
+    data["environment"].update({"name": "tool_policy", "difficulty": "easy"})
+    data["environment"]["params"] = {"prompt_style": "compact", "protocol_version": "v2"}
+    data["alignment"] = {
+        "method": "standard_opd",
+        "teacher_mode": "policy_conditioned",
+        "policy": {"id": "minipolicy", "revision": "v1", "sha256": "a" * 64},
+    }
+    if with_pilot:
+        data["alignment"]["pilot"] = {
+            "sample_size": 48,
+            "teacher_policy_competence": 0.9,
+            "fresh_state_gap": 0.08,
+            "hard_soft_gap": 0.08,
+            "policy_sensitive_token_fraction": 0.8,
+        }
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
     return path
 
@@ -320,6 +345,33 @@ def test_train_dry_run_rejects_a_missing_recipe(tmp_path: Path) -> None:
     result = _invoke("train", str(tmp_path / "absent.yaml"), "--dry-run")
     assert result.exit_code != 0
     assert "not found" in _collapse(result.output)
+
+
+def test_align_dry_run_exposes_the_six_stage_workflow_without_writes(tmp_path: Path) -> None:
+    recipe = _write_alignment_recipe(tmp_path / "alignment.yaml")
+    target = tmp_path / "runs"
+    payload = _payload(
+        _invoke("align", str(recipe), "--dry-run", "--json", "--output", str(target))
+    )
+    assert payload["dry_run"] is True
+    assert payload["method"] == "standard_opd"
+    assert [stage["name"] for stage in payload["workflow"]["stages"]] == [
+        "base_model",
+        "sft_checkpoint",
+        "teacher_reference_construction",
+        "alignment",
+        "evaluation",
+        "alignment_card",
+    ]
+    assert not target.exists()
+
+
+def test_pilot_is_bounded_explainable_and_does_not_load_models(tmp_path: Path) -> None:
+    recipe = _write_alignment_recipe(tmp_path / "pilot.yaml", with_pilot=True)
+    payload = _payload(_invoke("pilot", str(recipe), "--json"))
+    assert payload["rules_version"] == "alignment-pilot-v1"
+    assert payload["recommendation"] == "standard_opd"
+    assert payload["reasons"]
 
 
 @pytest.mark.parametrize(

@@ -605,6 +605,124 @@ def qualify_teacher_command(
 
 
 @app.command()
+def pilot(
+    recipe: Path = typer.Argument(..., help="Alignment recipe containing bounded pilot evidence."),
+    out: Optional[Path] = typer.Option(None, "--out", help="Optional JSON output path."),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Recommend a method from explicit pilot evidence without loading a model."""
+    from miniverl.alignment import PilotEvidence, recommend_alignment_method
+    from miniverl.config import RunConfig
+    from miniverl.utils.runs import write_json_atomic
+
+    try:
+        config = RunConfig.from_yaml(recipe)
+        if config.alignment is None:
+            raise ConfigError("miniverl pilot requires a recipe with an alignment section")
+        evidence = config.alignment.pilot or PilotEvidence()
+        result = recommend_alignment_method(evidence)
+        payload = result.model_dump(mode="json")
+        if out is not None:
+            write_json_atomic(out, payload)
+    except (ValidationError, MiniVerlError) as exc:
+        if isinstance(exc, MiniVerlError):
+            _fail(exc)
+        err_console.print(f"[red]invalid recipe[/red] {_esc(recipe)}\n{_esc(exc)}")
+        raise typer.Exit(1) from None
+    if as_json:
+        _emit_json(payload)
+        return
+    console.print(f"[bold]recommendation[/bold] {_esc(payload['recommendation'])}")
+    for reason in payload["reasons"]:
+        console.print(f"  - {_esc(reason)}")
+    if out is not None:
+        console.print(f"  evidence {_esc(out)}")
+
+
+@app.command()
+def align(
+    recipe: Path = typer.Argument(..., help="Path to a post-SFT alignment recipe YAML file."),
+    output: Optional[Path] = typer.Option(
+        None, "--output", help="Parent directory for the run (default: run.output_dir)."
+    ),
+    run_id: Optional[str] = typer.Option(None, "--run-id", help="Explicit run id."),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Explicitly replace the whole target run directory.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Validate and print all alignment stages without loading models.",
+    ),
+    offline: bool = typer.Option(
+        False, "--offline", help="Refuse network access; use only cached model files."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Run base -> SFT checkpoint -> teacher -> alignment -> eval -> card."""
+    from miniverl.alignment import build_alignment_stage_plan
+    from miniverl.config import RunConfig
+
+    try:
+        config = RunConfig.from_yaml(recipe)
+        if config.alignment is None:
+            raise ConfigError("miniverl align requires a recipe with an alignment section")
+    except (ValidationError, MiniVerlError) as exc:
+        if isinstance(exc, MiniVerlError):
+            _fail(exc)
+        err_console.print(f"[red]invalid recipe[/red] {_esc(recipe)}\n{_esc(exc)}")
+        raise typer.Exit(1) from None
+
+    workflow = build_alignment_stage_plan(
+        config.alignment,
+        sft_warmup_cycles=config.train.sft_warmup_cycles,
+    )
+    if dry_run:
+        payload = {
+            "dry_run": True,
+            "recipe": str(recipe),
+            "method": config.alignment.method.value,
+            "workflow": workflow,
+            "backend": config.models.backend.value,
+            "downloads_required": config.models.backend.value == "hf",
+            "output_dir": str(output or config.run.output_dir),
+        }
+        if as_json:
+            _emit_json(payload)
+        else:
+            console.print(f"[green]alignment dry run ok[/green] {_esc(recipe)}")
+            for stage in workflow["stages"]:
+                console.print(f"  - {_esc(stage['name'])}")
+            console.print("\nNo models were loaded and nothing was downloaded.")
+        return
+
+    try:
+        _require_training_stack("miniverl align")
+        from miniverl.alignment import run_alignment
+
+        payload = run_alignment(
+            config,
+            output_dir=output,
+            run_id=run_id,
+            local_files_only=offline,
+            overwrite=overwrite,
+        )
+    except (MiniVerlError, ModuleNotFoundError) as exc:
+        _fail(exc)
+        return
+    if as_json:
+        _emit_json(payload)
+        return
+    console.print(f"[bold green]alignment complete[/bold green] {_esc(payload['run_dir'])}")
+    console.print(f"  card {_esc(Path(str(payload['run_dir'])) / 'alignment-card.md')}")
+
+
+# ----------------------------------------------------------------- train
+
+
+@app.command()
 def train(
     recipe: Path = typer.Argument(..., help="Path to a recipe YAML file."),
     output: Optional[Path] = typer.Option(

@@ -8,7 +8,7 @@ was run against it. Measurements come from one machine: Windows 11 Pro
 10.0.22631, RTX 4080 (16376 MiB, driver 596.49), CPython 3.12.13, torch
 2.13.0+cu130, transformers 5.14.1, peft 0.19.1, bitsandbytes 0.50.0. The GPU
 figures include the published calculator runs, hardware probes and
-RecoveryBench v1. Their source artifacts, methods and caveats are linked from
+RecoveryBench v1 plus Alignment Lab v1. Their source artifacts, methods and caveats are linked from
 the corresponding sections below.
 
 ## Modelling and objective
@@ -235,6 +235,35 @@ crossed it. It is therefore a cycle-capped wall diagnostic, not exact
 equal-time evidence. The completed artifact is preserved as run rather than
 post-hoc replaced. See the [data-bound report](recoverybench/recoverybench-v1.md)
 and [technical PDF](../paper/recoverybench-v1/recoverybench-v1.pdf).
+
+### Alignment Lab starts from a saturated policy
+
+Alignment Lab v1 uses one Qwen3-0.6B SFT checkpoint, one deterministic
+Minipolicy tool-policy suite, three seeds and one RTX 4080. The starting SFT
+policy scores 100% alignment and retains 100% tool utility in every seed.
+Consequently, the experiment can detect regressions and cost differences but
+has no headroom to establish an incremental quality improvement.
+
+DPO and offline soft distillation tie the start. Continued SFT, standard OPD
+and verifier-gated OPD each contain completed safe-error-recovery regressions.
+All methods record 0% harmful compliance and 0% over-refusal, so those two axes
+alone miss the observed benign-utility failure. This is evidence about metric
+coverage in this suite, not a broad safety result.
+
+The matched State × Supervision artifact measures teacher signal, not four new
+trained outcomes. It finds 100% teacher-argmax/student-token agreement and only
+0.0251% mean fresh soft probability mass beyond argmax under matched states,
+teacher, budget, starting checkpoint and seeds. No hard/soft quality advantage
+is claimed. The verifier gate reduces selected positions from 100% to 46.8%,
+but selected positions are not teacher-backbone FLOPs and the quality result
+does not improve.
+
+External IFEval-, XSTest-, HarmBench- and RewardBench-style entries are pinned
+metadata adapters only in this result. Their datasets or evaluators were not
+executed. The reported preference metric is the deterministic suite's fixed
+paired policy outcome, not a general human-preference claim. The pilot's
+`insufficient_evidence` recommendation is therefore scoped to this recipe and
+must not be generalized to other teachers, policies, models or hardware.
 
 ### The 16 GB run demonstrates the pipeline, not an OPD-over-SFT win
 

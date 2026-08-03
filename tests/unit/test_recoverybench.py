@@ -50,7 +50,13 @@ def _runner(environment: SqliteRecoveryEnvironment) -> RolloutRunner:
 
 
 def test_recovery_environment_is_registered_without_replacing_sqlite() -> None:
-    assert available_environments() == ["calculator", "jsonnav", "sqlite", "sqlite_recovery"]
+    assert available_environments() == [
+        "calculator",
+        "jsonnav",
+        "sqlite",
+        "sqlite_recovery",
+        "tool_policy",
+    ]
     assert make_environment("sqlite").name == "sqlite"
     recovery = make_environment("sqlite_recovery")
     try:

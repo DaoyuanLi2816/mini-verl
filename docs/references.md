@@ -109,6 +109,43 @@ divergence computation rather than materializing full-vocabulary tensors for a
 whole batch. The repository has **no LICENSE file**, so despite the overlap in
 approach none of it is reusable.
 
+## Qualified and localized supervision
+
+**Trust Region On-Policy Distillation** `[primary]`
+Xingrun Xing, Haoqing Wang, Boyan Gao, Ziheng Li, Yehui Tang.
+arXiv:2606.01249, v3 2026-06-17. <https://arxiv.org/abs/2606.01249>
+TrOPD restricts or changes supervision where teacher/student mismatch makes
+token-level OPD unreliable. miniVERL's verifier gate is narrower: it selects
+versioned deterministic policy-critical spans and does not implement TrOPD's
+trust-region estimator, outlier handling or teacher-prefix guidance.
+
+**Reward-Weighted On-Policy Distillation with an Open Property-Equivalence
+Verifier for NL-to-SVA Generation** `[primary]`
+Qingyun Zou, Yingze Li, Tianen Liu, Bingsheng He, Weng-Fai Wong.
+arXiv:2605.13501, v1 2026-05-13. <https://arxiv.org/abs/2605.13501>
+RWOPD weights dense forward-KL supervision using a domain property-equivalence
+verifier. miniVERL's v0.5 gate neither implements that reward weighting nor
+claims its deterministic tool-policy checker is a general reward model.
+
+**Llama 2: Open Foundation and Fine-Tuned Chat Models** `[primary]`
+Hugo Touvron et al. arXiv:2307.09288, v2 2023-07-19.
+<https://arxiv.org/abs/2307.09288>
+The safety section includes context distillation from safety context. It is
+relevant to the policy-conditioned-teacher pattern, but miniVERL does not claim
+that privileged context automatically creates a safe or qualified teacher.
+
+**EasyOPD: An Easy-to-use On-Policy Distillation Framework for Large Language
+Models** `[primary]`
+Jie Sun et al. arXiv:2607.11012, v1 2026-07-13.
+<https://arxiv.org/abs/2607.11012>
+EasyOPD provides multiple OPD settings on a shared verl distributed backend.
+miniVERL is an independent one-GPU runtime with a smaller typed workflow and no
+claim of distributed-runtime or method compatibility.
+
+These works were refreshed from their primary arXiv pages on 2026-08-02.
+Verifier-Gated OPD is not claimed as novel; its contribution here is an
+auditable local implementation and a preserved neutral/negative result.
+
 ## Distillation mechanics
 
 **Distilling the Knowledge in a Neural Network** `[primary]`

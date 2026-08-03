@@ -57,6 +57,10 @@ train = [
   "numpy>=1.24",
 ]
 cuda = ["bitsandbytes>=0.43; platform_system != 'Darwin'"]
+dpo = [
+  "trl==1.8.0",
+  "datasets>=4.0,<5",
+]
 dev = [
   "pytest>=8.0",
   "pytest-cov>=5.0",

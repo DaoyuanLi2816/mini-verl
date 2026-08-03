@@ -1,0 +1,81 @@
+# Fast CPU machinery demo for the same tool-policy alignment workflow.
+
+schema_version: 1
+run:
+  name: toy-tool-policy-alignment
+  mode: opd
+  seed: 1234
+  output_dir: runs
+  deterministic: true
+  tags: [alignment, tool-policy, toy, cpu]
+models:
+  backend: toy
+  device: cpu
+  student:
+    model_id: toy-student
+    dtype: float32
+    quantization: none
+    lora: {enabled: false}
+    toy: {hidden_size: 64, num_layers: 2, num_heads: 4, intermediate_size: 128, max_position_embeddings: 1024}
+  teacher:
+    model_id: toy-teacher
+    dtype: float32
+    quantization: none
+    mode: privileged_context
+    toy_teacher_seed: 99
+    toy_pretrain_steps: 80
+    toy_pretrain_lr: 0.003
+    toy: {hidden_size: 96, num_layers: 3, num_heads: 4, intermediate_size: 192, max_position_embeddings: 1024}
+environment:
+  name: tool_policy
+  difficulty: easy
+  params: {protocol_version: v2, prompt_style: compact}
+  train_tasks: 96
+  eval_tasks: 24
+  test_tasks: 24
+  split_seed: 20260802
+rollout:
+  max_turns: 4
+  max_new_tokens_per_turn: 48
+  max_total_tokens: 768
+  temperature: 0.8
+  top_p: 0.95
+selection: {selector: all_model_tokens}
+loss: {mode: bucketed_topk_tail, divergence: reverse_kl, top_k: 16, chunk_size: 64}
+train:
+  cycles: 4
+  rollouts_per_cycle: 4
+  gradient_accumulation_steps: 4
+  opd_freshness: strict
+  learning_rate: 0.001
+  lr_schedule: cosine
+  optimizer: adamw
+  sft_warmup_cycles: 24
+  save_every_cycles: 0
+  eval_every_cycles: 0
+memory: {strategy: resident, oom_retries: 2, min_chunk_size: 8}
+cache:
+  entries_per_shard: 4
+  strict_policy_version: true
+  reuse_across_policy_versions: false
+  dtype: float32
+  keep_cycles: 2
+eval:
+  enabled: true
+  baseline_enabled: true
+  split: eval
+  tasks: 12
+  temperature: 0.0
+  max_turns: 4
+  seed: 20260802
+report: {enabled: true, max_trajectories: 6, max_tokens_per_trajectory: 512}
+alignment:
+  method: standard_opd
+  teacher_mode: policy_conditioned
+  policy:
+    id: miniverl-tool-policy
+    revision: v1
+    sha256: 9a9316bea117928d115eff86291982d7386e6ca2d7127aacb933e508d322c8a8
+    license: Apache-2.0
+  limitations:
+    - Toy backend is a machinery harness, not capability evidence.

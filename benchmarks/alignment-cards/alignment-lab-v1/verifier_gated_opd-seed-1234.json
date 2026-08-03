@@ -1,0 +1,64 @@
+{
+  "benchmark": "alignment-lab-v1",
+  "card_sha256": "4deaadf2b109fc2503c694f439e1cf10c06a79b654f266e5b5cb22149c12e1af",
+  "cost": {
+    "gpu_seconds": 97.109,
+    "optimizer_updates": 4,
+    "peak_vram_bytes": 802221056,
+    "wall_seconds": 344.252909
+  },
+  "dpo_training": null,
+  "limitations": [
+    "One model family, one deterministic sandbox policy suite and one measured GPU.",
+    "The common SFT checkpoint already saturated every measured policy and utility endpoint.",
+    "Three seeds describe observed variation and do not establish a population claim.",
+    "External IFEval, XSTest, HarmBench and RewardBench endpoints were not measured in this artifact."
+  ],
+  "method": "verifier_gated_opd",
+  "metrics": {
+    "alignment_score": 1.0,
+    "appropriate_refusal_rate": 1.0,
+    "benign_compliance_rate": 1.0,
+    "decision_distribution_shift_jsd": null,
+    "general_utility_retention": 1.0,
+    "harmful_compliance_rate": 0.0,
+    "instruction_retention": 1.0,
+    "over_refusal_rate": 0.0,
+    "preference_win_rate": 1.0,
+    "tasks": 48,
+    "teacher_queried_positions": 80,
+    "teacher_query_ratio": 0.14678899082568808,
+    "tool_utility_retention": 1.0
+  },
+  "policy": {
+    "id": "miniverl-tool-policy",
+    "revision": "v1",
+    "sha256": "9a9316bea117928d115eff86291982d7386e6ca2d7127aacb933e508d322c8a8"
+  },
+  "raw_artifact_hashes": {
+    "full": {
+      "alignment-card.json": "d564ef13fe99c12549de91cab07d81f64acc2baa43cbf34e1d5ff41fa2edd813",
+      "alignment.json": "c82e69ac810526dd175deb8e50989793e54c22a2be9f40a3e3e0a0ea8111fb6e",
+      "config.resolved.yaml": "79ab0a1bbe6d86df5c83f50e4ce74b9aef27c648e4d74c49400427191706c225",
+      "eval.json": "5cfb0d6b3db708ef0536a390da82e01dc4d12dd15327c3e3d86bb8a642d766d8",
+      "eval_trajectories.jsonl": "711dae678023fa4c2ef3aa6ec227e70ad98fcf32417dc7aa381581b16a8195db",
+      "events.jsonl": "931a19a76bfb8f28f0b67339afc66f88b01aae5a42fe3653a4ffaab3800787ba",
+      "manifest.json": "ffd66c213b3cf00fd2dee170ef85d75f13f738756de6b00026ef3d8f91db22a9",
+      "metrics.jsonl": "ad192819d964f514883f4cbec1275047ade6df55f5ecfbe99c50642cad9a347c"
+    }
+  },
+  "reference": null,
+  "schema_version": 1,
+  "seed": 1234,
+  "source_result_sha256": "584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef",
+  "starting_sft_checkpoint": {
+    "id": "mini-verl-qwen3-0.6b-tool-policy-sft",
+    "sha256": "7304922281268a687dd1c75ba918e26c64c8207b5701db78c368afd20d80ae89"
+  },
+  "teacher": {
+    "adapter_revision": "7b98164f73e493c51f2ed3fca3169fea078f47f0",
+    "base_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+    "id": "Qwen/Qwen3-0.6B",
+    "mode": "policy_conditioned"
+  }
+}

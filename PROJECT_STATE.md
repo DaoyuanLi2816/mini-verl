@@ -6,6 +6,29 @@ and what it printed.
 
 Last updated: 2026-08-02.
 
+## v0.5.0 One-GPU Alignment Lab release
+
+| item | current state |
+| --- | --- |
+| phase boundary | v0.4.0 was released and state-synced to `0.5.0.dev0` before final Alignment Lab execution; v0.5 must merge, release and advance main to `0.6.0.dev0` before the verified verl bridge begins |
+| public workflow | `miniverl align` resolves base → SFT checkpoint → teacher/reference → alignment → evaluation → Alignment Card; `miniverl pilot` exposes versioned evidence, uncertainty, cost assumptions and a bounded method recommendation |
+| alignment roles | policy-conditioned self-distillation, frozen aligned-adapter teaching and shared-backbone execution are supported; continued SFT, pinned TRL DPO, offline soft distillation, standard OPD and verifier-gated OPD are explicit methods |
+| policy suite | Minipolicy v1 uses deterministic sandbox tools to check authorization, confirmation, instruction hierarchy, secret exclusion, safe refusal, benign completion and safe error recovery; no real destructive action is executed |
+| preregistration | public revision 1.4 digest `71307dbfe9a5bb20c686307cafce8bd254c07af8b69c1bf1c6ec0dbf53a8cde0` freezes three seeds, the shared SFT checkpoint, four continuation updates, 48 final-test tasks, the gate and the disjoint seed-1234 recovery rule |
+| final artifact audit | all 18 arms completed with 48 ordered paired final-test tasks each; 864 task-level records are retained; all arms share starting checkpoint `7304922281268a687dd1c75ba918e26c64c8207b5701db78c368afd20d80ae89`; strict OPD freshness, every verifier-gate decision, DPO provenance/cost and the two disjoint baseline segments pass publication checks |
+| final result | the SFT checkpoint scored 100% alignment and 100% tool utility in every seed; DPO and offline soft distillation tied it; continued SFT averaged 94.4% / 88.9%, standard OPD 98.6% / 97.2%, and verifier-gated OPD 97.9% / 95.8% alignment / utility |
+| preserved negative results | verifier-gated OPD seed 20260727 failed 3 safe-error-recovery tasks; continued SFT seed 20260801 failed 8; standard OPD seed 20260801 failed 2; no completed final arm was rerun, and the interrupted pre-evaluation continued-SFT construction remains preserved outside the headline result |
+| State × Supervision | measured signal diagnostic `9e08129ba4cd9e460c189b94b4e421d881ba69e3938f02eac95d251f50c88788` finds 100% teacher-argmax/student-token agreement and 0.0251% fresh soft probability mass beyond argmax; it is not a separately trained hard-target result and no soft-target advantage is claimed |
+| verifier-gated OPD | frozen `policy-critical-span-v1` reduced mean queried positions from 100% to 46.8% and GPU time from 76.7 to 66.0 seconds, but did not improve alignment or retained utility; selected positions are not teacher-backbone FLOPs |
+| pilot decision | `alignment-pilot-v1` returns `insufficient_evidence` and the operational decision not to spend online teacher-query cost because the starting policy is already saturated and no continuation method improves it |
+| frozen public artifacts | result `584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef`; task rows `8d7fc723436d7377d196fc44046d960e3cb7f0aa81e03d49ef05b627eb84630f`; technical PDF `adbffa967f6b9a25d2cdb0cc4464a93c13db4615a1e91499585fb199285d980b`; 18 JSON plus 18 Markdown Alignment Cards |
+| public teacher | the common Qwen3-0.6B SFT adapter is immutable at `DaoyuanLi/mini-verl-qwen3-0.6b-tool-policy-sft@7b98164f73e493c51f2ed3fca3169fea078f47f0`; starting checkpoint content digest is recorded separately above |
+| demonstration assets | reviewed short CPU run completed the actual alignment path in 17.6 seconds; the committed 75-second recording plan includes pilot, stage graph, real update, typed token inspection, Alignment Card and export-ready checkpoint without hiding the toy 0% result |
+| presentation | four data-bound dark SVGs passed native and 820-pixel inspection; banner and social preview passed raster inspection; the report PDF is deterministic, six pages, metadata-valid and visually inspected page by page |
+| local release gates | ruff, format, mypy, actionlint, generated-artifact checks, Markdown links and package/twine checks pass; the full non-GPU/non-network suite passes 1508 tests with 6 deselected at 86.13% branch coverage; the RTX 4080 gate passes 5 and the network gate passes 3; fresh core and CPU-training wheel installs, a real no-network toy demo, and all 1508 tests from an isolated extracted sdist pass |
+| immutable baseline | calculator benchmark remains byte-identical at `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; v0.3/v0.4 tags, RecoveryBench artifacts and public adapter revisions remain unchanged |
+| integration state | development branch `v0.5-alignment-lab` contains the frozen execution commit `8ffb2d9c3094fb6580e5afd89c861c8e0511ef78`; implementation and local release gates are complete, while PR review, merge, release and state sync remain pending |
+
 ## v0.4.0 Consumer Runtime release
 
 | item | current state |

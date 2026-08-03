@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DaoyuanLi2816/mini-verl/benchmarks/schema/alignment-state-supervision.schema.json",
+  "title": "miniVERL Alignment Lab v1 State x Supervision signal diagnostic",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "measurement_status",
+    "preregistration_sha256",
+    "starting_checkpoint_sha256",
+    "hard_definition",
+    "source_scope",
+    "cells",
+    "matched_comparisons",
+    "headline_training_cells",
+    "claims",
+    "source_artifacts"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "name": {"const": "alignment-lab-v1-state-supervision"},
+    "measurement_status": {"const": "measured_signal_diagnostic_not_training_outcome"},
+    "preregistration_sha256": {"$ref": "#/$defs/sha256"},
+    "starting_checkpoint_sha256": {"$ref": "#/$defs/sha256"},
+    "hard_definition": {"const": "teacher_argmax"},
+    "source_scope": {"type": "object"},
+    "cells": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": [
+          "state_source",
+          "supervision",
+          "state_digest",
+          "teacher_digest",
+          "starting_checkpoint_digest",
+          "budget_digest",
+          "seeds",
+          "signal"
+        ],
+        "properties": {
+          "state_source": {"enum": ["frozen_student", "fresh_student"]},
+          "supervision": {"enum": ["teacher_argmax", "teacher_soft_distribution"]},
+          "state_digest": {"$ref": "#/$defs/sha256"},
+          "teacher_digest": {"$ref": "#/$defs/sha256"},
+          "starting_checkpoint_digest": {"$ref": "#/$defs/sha256"},
+          "budget_digest": {"$ref": "#/$defs/sha256"},
+          "seeds": {"const": [1234, 20260727, 20260801]},
+          "signal": {"type": "object"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "matched_comparisons": {
+      "type": "object",
+      "required": [
+        "frozen_hard_vs_fresh_hard",
+        "frozen_soft_vs_fresh_soft",
+        "fresh_hard_vs_fresh_soft"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "frozen_hard_vs_fresh_hard": {"type": "object"},
+        "frozen_soft_vs_fresh_soft": {"type": "object"},
+        "fresh_hard_vs_fresh_soft": {"type": "object"}
+      }
+    },
+    "headline_training_cells": {"type": "object"},
+    "claims": {"type": "object"},
+    "source_artifacts": {"type": "object"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+  }
+}
