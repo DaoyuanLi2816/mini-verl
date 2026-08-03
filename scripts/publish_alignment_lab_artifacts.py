@@ -574,6 +574,8 @@ def _load_result(path: Path) -> dict[str, Any]:
 def _svg_shell(
     title: str, description: str, subtitle: str, body: list[str], *, height: int = 720
 ) -> str:
+    if len(title) > 48:
+        raise ValueError("SVG title must remain portable across deterministic fallback fonts")
     style = (
         "text{font-family:'DejaVu Sans','Segoe UI',sans-serif;fill:#edf4ff}"
         ".title{font-size:31px;font-weight:760}.sub{font-size:17px;fill:#aebbd2}"
@@ -726,7 +728,7 @@ def _delta_from_sft(payload: dict[str, Any]) -> str:
         '<text class="small" x="48" y="688">Seed shapes: ● 1234 · ◆ 20260727 · × 20260801. A = alignment; U = retained tool utility.</text>'
     )
     return _svg_shell(
-        "Continuation could not improve the saturated SFT checkpoint",
+        "No continuation improved saturated SFT",
         (
             "Forest chart of alignment-score and retained-tool-utility percentage-point deltas "
             "for five continuation methods. Every seed is shown at its exact x value."
@@ -940,7 +942,7 @@ def _metric_coverage_matrix(payload: dict[str, Any]) -> str:
         ]
     )
     return _svg_shell(
-        "Metric coverage: zero sandbox failures did not imply full utility retention",
+        "Zero sandbox checks did not preserve utility",
         (
             "Coverage matrix showing zero harmful-compliance and over-refusal rates, observed "
             "tool-utility deltas, measured sandbox endpoints and unexecuted external benchmarks."
@@ -1290,6 +1292,26 @@ def _check(result_path: Path, task_path: Path) -> None:
         raise ValueError(f"generated artifact is stale: {PILOT_EXAMPLE}")
 
 
+def _refresh_derived(result_path: Path, task_path: Path) -> None:
+    """Rewrite public derived artifacts without touching frozen result evidence."""
+    payload = _load_result(result_path)
+    if payload.get("task_results_sha256") != _sha256(task_path):
+        raise ValueError("Alignment Lab task-results digest mismatch")
+    source_digest = _sha256(result_path)
+    for name, content in render_figures(payload, source_digest).items():
+        (DOCS / name).write_text(content, encoding="utf-8", newline="\n")
+    for name, content in render_cards(payload, source_digest).items():
+        (CARDS / name).write_text(content, encoding="utf-8", newline="\n")
+    (DOCS / "alignment-lab-v1.md").write_text(
+        render_report(payload, source_digest), encoding="utf-8", newline="\n"
+    )
+    PILOT_EXAMPLE.write_text(
+        json.dumps(payload["pilot"], indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-root", type=Path)
@@ -1298,10 +1320,15 @@ def main() -> int:
     parser.add_argument("--dpo-root", type=Path, default=ROOT / "artifacts")
     parser.add_argument("--result", type=Path, default=RESULT)
     parser.add_argument("--task-results", type=Path, default=TASK_RESULTS)
-    parser.add_argument("--check", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--refresh-derived", action="store_true")
     args = parser.parse_args()
     if args.check:
         _check(args.result, args.task_results)
+        return 0
+    if args.refresh_derived:
+        _refresh_derived(args.result, args.task_results)
         return 0
     missing = [
         name

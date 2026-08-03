@@ -9,6 +9,7 @@ from pathlib import Path
 from types import ModuleType
 
 import jsonschema
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -163,6 +164,12 @@ def test_alignment_figures_are_exactly_generated_and_privacy_safe() -> None:
     assert hashlib.sha256(pdf_path.read_bytes()).hexdigest() == (
         "db4aeb2507839ce200cb5c6d93855fd687b9bb8b978fe76b089c5f1993af78a5"
     )
+
+
+def test_alignment_svg_titles_are_portable_across_fallback_fonts() -> None:
+    publisher = _publisher()
+    with pytest.raises(ValueError, match="portable across deterministic fallback fonts"):
+        publisher._svg_shell("x" * 49, "description", "subtitle", [])
 
 
 def test_dpo_external_training_cost_is_included() -> None:
