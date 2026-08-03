@@ -1,7 +1,7 @@
 schema_version: 1
 name: alignment-lab-v1
 status: preregistered_before_final_test
-preregistration_revision: 1.1
+preregistration_revision: 1.2
 implementation_commit: 318d6339bfbee8bb25d04ec07e7a641bb17601a2
 registered_at_utc: 2026-08-03T03:00:38Z
 
@@ -20,6 +20,19 @@ amendments:
       because the common dual-model checkpoint and shared actor use different
       names for the same LoRA role. The regression proves exact student-tensor
       loading without touching teacher parameters. No final-test task was read.
+  - id: offline-dataset-starting-checkpoint-binding
+    revision: 1.2
+    implementation_commit: 4d0b6bc632d084ae3b8c854893dfa337128a9f01
+    timing: after_eval_only_offline_diagnostic_before_any_final_test_access
+    locked_change: >-
+      Pass the already validated starting-checkpoint content digest into the
+      frozen-student offline dataset manifest. No tensor, prompt, budget,
+      method, metric or final-test rule changes.
+    rationale: >-
+      The offline eval calibration stopped after collecting train-split states
+      because the alignment wrapper had loaded but not forwarded the required
+      cold-start provenance digest. The completed rerun produced the same
+      declared digest and 24/24 eval success. No final-test task was read.
 
 question: >-
   After one shared SFT checkpoint, how do continued SFT, DPO, frozen-state soft
