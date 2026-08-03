@@ -6,6 +6,47 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-03
+
+### Added
+
+- Deterministic real-browser documentation gates across five representative
+  pages and four viewports, with overflow, SVG bounds, label collision,
+  readability, table and responsive-bridge assertions plus screenshot
+  artifacts.
+- Responsive desktop and mobile bridge diagrams that separate the verified
+  local runtime, portable bundle and pinned upstream smoke from explicitly
+  untested distributed execution.
+
+### Changed
+
+- The Alignment Lab case study now uses three data-bound forest/matrix figures
+  that show every measured seed, preserve not-applicable query ratios and make
+  the limited sandbox-safety coverage explicit without changing frozen data.
+- The documentation uses pinned Material 9.7.7 with stable/development paths,
+  search, dark/light modes, copy controls and a task-oriented landing page.
+- The English and Chinese READMEs are shorter product guides with one scoped
+  evidence summary and direct Align, Distill locally and Scale out paths.
+
+### Fixed
+
+- `import-verl` now classifies field semantics, fails closed with a
+  non-executable template when data, teacher, objective or schedule choices are
+  unresolved, accepts finite scientific-notation strings and validates every
+  runnable recipe before atomic publication.
+- `export-verl` now reports artifact completeness, upstream parse/load smoke,
+  reward implementation, launchability, distributed execution and algorithm
+  parity independently; its fail-closed scaffold emits `launch.template.sh`
+  and is never described as ready to launch.
+
+### Verified
+
+- Official verl `v0.8.0` commit `7aed6b230776f963fa09509c10d9c3a767d1102c`
+  still passes the bounded parse/load smoke. Distributed execution and
+  miniVERL OPD-to-PPO semantic parity remain untested and unclaimed.
+- Every frozen calculator, RecoveryBench, Consumer Runtime, Alignment Lab and
+  bridge-smoke JSON/JSONL artifact remains byte-identical.
+
 ## [0.6.0] - 2026-08-03
 
 ### Added
@@ -556,7 +597,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.3.0...v0.4.0

@@ -25,7 +25,7 @@ assistant-only loss masks, teacher targets, update budgets and run artifacts
 explicit, then exports portable artifacts through a fail-closed bridge to one
 pinned upstream verl profile.
 
-PyPI `v0.6.0` is stable; `main` is development. The CUDA path has no GPU-name
+PyPI `v0.6.1` is stable; `main` is development. The CUDA path has no GPU-name
 allowlist, but fit depends on the model pair, context budget, kernels and VRAM.
 miniVERL is independent from verl and does not claim distributed execution or
 full algorithmic compatibility.
