@@ -1,9 +1,25 @@
 schema_version: 1
 name: alignment-lab-v1
 status: preregistered_before_final_test
-preregistration_revision: 1.0
+preregistration_revision: 1.1
 implementation_commit: 318d6339bfbee8bb25d04ec07e7a641bb17601a2
 registered_at_utc: 2026-08-03T03:00:38Z
+
+amendments:
+  - id: shared-actor-checkpoint-role-normalization
+    revision: 1.1
+    implementation_commit: d902f2119dabc42510eb71d893d901fa34eb3c2d
+    timing: after_eval_only_load_diagnostic_before_any_final_test_access
+    locked_change: >-
+      Normalize the standard PEFT adapter role segment `default` to the
+      shared-backbone actor role `student` while loading the same checksummed
+      tensors. Unknown keys, missing keys, shapes, budgets, prompts, methods,
+      metrics and final-test rules remain unchanged.
+    rationale: >-
+      The first shared-backbone eval-only calibration stopped before evaluation
+      because the common dual-model checkpoint and shared actor use different
+      names for the same LoRA role. The regression proves exact student-tensor
+      loading without touching teacher parameters. No final-test task was read.
 
 question: >-
   After one shared SFT checkpoint, how do continued SFT, DPO, frozen-state soft
