@@ -69,6 +69,7 @@ from miniverl.schemas.alignment import AlignmentMap
 from miniverl.schemas.trajectory import Trajectory
 from miniverl.selection.selectors import (
     SelectionResult,
+    SelectionStats,
     aggregate_selection_stats,
     select_positions,
 )
@@ -286,6 +287,7 @@ class OPDTrainer:
         self._resumed_from: dict[str, Any] | None = None
         self._cycles_completed = 0
         self._last_cycle_metrics: dict[str, Any] = {}
+        self._last_selection_stats: list[SelectionStats] = []
 
     # -- construction --------------------------------------------------------
 
@@ -1437,11 +1439,13 @@ class OPDTrainer:
         """Select positions, align, and (for KD modes) score with the teacher."""
         config = self.config
         samples: list[TrainSample] = []
+        selections: list[SelectionStats] = []
         privileged = config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT
         task_by_id = {t.task_id: t for split in self.splits.values() for t in split}
 
         for traj in trajectories:
             selection = select_positions(traj, config.selection, run_seed=config.run.seed)
+            selections.append(selection.stats)
             if selection.stats.gate_decision is not None:
                 selected = set(selection.positions)
                 self.events.emit(
@@ -1477,6 +1481,8 @@ class OPDTrainer:
                 traj, selection.positions, selection.weights, teacher=teacher_view
             )
             samples.append(TrainSample(trajectory=traj, alignment=alignment, selection=selection))
+
+        self._last_selection_stats = selections
 
         if self.scorer is None or config.run.mode is TrainingMode.SFT:
             return samples
@@ -2102,12 +2108,15 @@ class OPDTrainer:
 
     def _build_samples_ce_only(self, trajectories: list[Trajectory]) -> list[TrainSample]:
         samples: list[TrainSample] = []
+        selections: list[SelectionStats] = []
         for traj in trajectories:
             selection = select_positions(traj, self.config.selection, run_seed=self.config.run.seed)
+            selections.append(selection.stats)
             if not selection.positions:
                 continue
             alignment = build_alignment_map(traj, selection.positions, selection.weights)
             samples.append(TrainSample(trajectory=traj, alignment=alignment, selection=selection))
+        self._last_selection_stats = selections
         return samples
 
     def _run_cycle(self) -> list[dict[str, Any]]:
@@ -2115,6 +2124,7 @@ class OPDTrainer:
         mode = config.run.mode
         cycle_started = time.perf_counter()
         rollout_policy_version = self.parameter_version
+        self._last_selection_stats = []
 
         if mode is TrainingMode.OFFLINE_KD and self._offline_samples is not None:
             samples = self._offline_batch_for_cycle()
@@ -2220,7 +2230,9 @@ class OPDTrainer:
             if mode is TrainingMode.OPD:
                 for sample in samples:
                     sample.teacher = None
-        selection_stats = aggregate_selection_stats([s.selection.stats for s in samples])
+        selection_stats = aggregate_selection_stats(
+            self._last_selection_stats or [sample.selection.stats for sample in samples]
+        )
         cycle_metrics: dict[str, Any] = {
             "phase": f"{config.run.mode.value}_cycle",
             "cycle": self.cycle,

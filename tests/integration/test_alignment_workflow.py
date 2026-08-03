@@ -129,3 +129,12 @@ def test_verifier_gated_workflow_records_per_example_span_decisions(tmp_path: Pa
     assert all(row["trajectory_id"] and row["task_id"] for row in decisions)
     assert all(row["gate_version"] == "policy-span-v1" for row in decisions)
     assert all(isinstance(row["spans"], list) for row in decisions)
+    cycle = next(
+        json.loads(line)
+        for line in (Path(payload["run_dir"]) / "metrics.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if '"phase": "opd_cycle"' in line
+    )
+    assert cycle["selection"]["trajectories"] == cycle["rollouts"]["rollouts"]
+    assert cycle["selection"]["teacher_queried_position_ratio"] < 1.0
