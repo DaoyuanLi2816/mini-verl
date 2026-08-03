@@ -1,0 +1,150 @@
+{
+  "bundle_doctor": {
+    "artifact_hashes": {
+      "files": 14,
+      "problems": [],
+      "status": "ok"
+    },
+    "config_profile": {
+      "model_handoff_problems": [],
+      "profile": "single-gpu-online-distillation-v1",
+      "roots": [
+        "actor_rollout_ref",
+        "custom_reward_function",
+        "data",
+        "trainer"
+      ],
+      "status": "ok"
+    },
+    "distributed_execution_status": "not tested",
+    "installed_verl": {
+      "direct_url": {
+        "url": "https://github.com/verl-project/verl.git",
+        "vcs_info": {
+          "commit_id": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+          "requested_revision": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+          "vcs": "git"
+        }
+      },
+      "expected_commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+      "status": "ok",
+      "version": "0.8.0.dev0"
+    },
+    "local_smoke_status": "passed",
+    "model_adapter_loadability": {
+      "base_model": "hf-internal-testing/tiny-random-gpt2",
+      "detail": "1 tensor header(s)",
+      "load_scope": "PEFT config plus safetensors structure; base weights not loaded",
+      "peft_config_load": "loaded LoraConfig",
+      "peft_type": "LORA",
+      "status": "ok"
+    },
+    "parquet_schema": {
+      "schemas": {
+        "train": [
+          "data_source",
+          "prompt",
+          "ability",
+          "reward_model",
+          "extra_info"
+        ],
+        "val": [
+          "data_source",
+          "prompt",
+          "ability",
+          "reward_model",
+          "extra_info"
+        ]
+      },
+      "status": "ok"
+    },
+    "privacy": {
+      "problems": [],
+      "status": "ok"
+    },
+    "reward_scaffold_importability": {
+      "detail": "side-effect-free import; scaffold intentionally not executed",
+      "status": "ok"
+    },
+    "target_verl": {
+      "commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+      "mismatches": {},
+      "profile": "single-gpu-online-distillation-v1",
+      "status": "ok",
+      "tag": "v0.8.0"
+    },
+    "tokenizer_identity": {
+      "files": [
+        "tokenizer_config.json"
+      ],
+      "status": "ok",
+      "structural_digest": "5a652912e64f5edd8c1b7c2a6f0d2e4d77d6522c546bf66b6bc38e906d05be4b"
+    },
+    "unsupported_semantics": [
+      "optimizer state",
+      "distributed RNG state",
+      "FSDP native checkpoint",
+      "Megatron native checkpoint",
+      "Ray runtime state",
+      "teacher cache as PPO reference cache",
+      "PPO advantage or clipping semantics",
+      "GRPO group semantics"
+    ],
+    "verdict": "ok"
+  },
+  "distributed_execution_status": "not tested",
+  "model_or_adapter_load": "loaded LoraConfig",
+  "official_config": {
+    "exported_override_roots": [
+      "actor_rollout_ref",
+      "custom_reward_function",
+      "data",
+      "trainer"
+    ],
+    "missing_export_fields": [],
+    "missing_fields": [],
+    "parse_status": "passed with OmegaConf",
+    "path": "verl/trainer/config/_generated_ppo_trainer.yaml",
+    "required_export_fields": [
+      "actor_rollout_ref.model.lora_rank",
+      "actor_rollout_ref.model.lora_alpha",
+      "actor_rollout_ref.model.target_modules",
+      "actor_rollout_ref.model.lora_adapter_path",
+      "custom_reward_function.path",
+      "custom_reward_function.name"
+    ],
+    "required_fields": [
+      "data.train_files",
+      "data.val_files",
+      "data.prompt_key",
+      "data.max_prompt_length",
+      "data.max_response_length",
+      "data.seed",
+      "actor_rollout_ref.model.path",
+      "actor_rollout_ref.model.enable_gradient_checkpointing",
+      "actor_rollout_ref.actor.optim.lr",
+      "trainer.save_freq",
+      "trainer.test_freq",
+      "trainer.project_name",
+      "trainer.experiment_name",
+      "trainer.total_epochs"
+    ],
+    "structured_merge_status": "passed"
+  },
+  "parquet_load": "train and val passed",
+  "privacy_status": "ok",
+  "profile": "single-gpu-online-distillation-v1",
+  "reward_scaffold_import": "passed; fail-closed scorer not executed",
+  "schema_version": 1,
+  "target_verl": {
+    "commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+    "observed_package_version": "0.8.0.dev0",
+    "observed_vcs_commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+    "tag": "v0.8.0"
+  },
+  "tiny_cpu_dry_run": {
+    "reason": "full PPO execution requires the excluded distributed inference stack",
+    "status": "artifact-only"
+  },
+  "verdict": "ok"
+}

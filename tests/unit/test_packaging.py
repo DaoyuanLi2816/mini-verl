@@ -34,7 +34,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_SUBPACKAGES = (
     "agent",
     "alignment",
+    "bridge",
     "cache",
+    "community",
     "config",
     "environments",
     "evaluation",
@@ -52,9 +54,17 @@ REQUIRED_SUBPACKAGES = (
 
 #: Modules importable without torch. Importing any of these must not pull torch in.
 TORCH_FREE_MODULES = (
+    "miniverl.bridge",
+    "miniverl.bridge.community",
+    "miniverl.bridge.config",
+    "miniverl.bridge.contract",
+    "miniverl.bridge.dataset",
+    "miniverl.bridge.doctor",
+    "miniverl.bridge.export",
     "miniverl.cli",
     "miniverl.config",
     "miniverl.config.models",
+    "miniverl.community",
     "miniverl.doctor",
     "miniverl.errors",
     "miniverl.inspection",
@@ -350,6 +360,24 @@ def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
         text = (REPO_ROOT / readme).read_text(encoding="utf-8")
         assert text.count(pypi_url) >= 2
         assert "docs/single-gpu-guide.md" in text
+
+
+def test_verl_bridge_visual_and_launch_assets_are_accessible_and_honest() -> None:
+    architecture = (REPO_ROOT / "docs" / "verl-bridge-architecture.svg").read_text(encoding="utf-8")
+    social = (REPO_ROOT / "docs" / "social-preview-v0.6.svg").read_text(encoding="utf-8")
+    for asset in (architecture, social):
+        root = ET.fromstring(asset)
+        assert root.attrib.get("role") == "img"
+        assert root.attrib.get("aria-labelledby")
+        assert "distributed execution" in " ".join(root.itertext()).lower()
+
+    launch = (REPO_ROOT / "docs" / "verl-bridge-launch.md").read_text(encoding="utf-8")
+    demo = (REPO_ROOT / "docs" / "verl-bridge-demo.md").read_text(encoding="utf-8")
+    assert "Flagship article" in launch
+    assert "Hugging Face card addenda" in launch
+    assert "Distributed execution" in launch
+    assert "90-second verified-bridge demo" in demo
+    assert "does not prove a distributed verl job ran" in demo
 
 
 def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_links() -> None:

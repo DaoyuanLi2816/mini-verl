@@ -234,7 +234,7 @@ configured eight-cycle ceiling before their internal continuation timers
 crossed it. It is therefore a cycle-capped wall diagnostic, not exact
 equal-time evidence. The completed artifact is preserved as run rather than
 post-hoc replaced. See the [data-bound report](recoverybench/recoverybench-v1.md)
-and [technical PDF](../paper/recoverybench-v1/recoverybench-v1.pdf).
+and [technical PDF](https://github.com/DaoyuanLi2816/mini-verl/blob/main/paper/recoverybench-v1/recoverybench-v1.pdf).
 
 ### Alignment Lab starts from a saturated policy
 
@@ -349,7 +349,7 @@ human selection time. Teacher preparation is reusable, not free.
 The core Python matrix is not a claim that every torch/PEFT/bitsandbytes build
 supports every one of those interpreters.
 
-The [schema-v2 result](../benchmarks/results/gpu-calc-hard-equal-update-v2.json)
+The [schema-v2 result](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/gpu-calc-hard-equal-update-v2.json)
 contains both seeds and every arm's complete resolved-config diff. The preserved
 [legacy result and transcript diagnosis](rtx4080-baselines.md#legacy-equal-update-comparison-schema-v1)
 show how the raw teacher corrupted formatting while the privileged teacher
@@ -427,21 +427,32 @@ projection have not been exercised beyond the pinned Qwen3 pair (which does have
 
 ### Things this project does not contain
 
-A case-insensitive whole-word grep over `src/` returns zero hits for each of the
-following: `ray`, `vllm`, `sglang`, `fsdp`, `deepspeed`, `megatron`, `ppo`,
-`grpo`. There is likewise no vision or multimodal code path, no distributed
-initialization, and no `world_size` anywhere.
-
-Concretely, miniVERL has no distributed training, no multi-GPU or multi-node
-execution, no high-throughput rollout engine, no PPO, GRPO or any other RL
-objective, no reward model, no vision-language support, no dataset loader (all
-tasks are generated in-process by the three built-in environments), no
-cross-tokenizer distillation, and no containerized or networked tool sandbox.
+miniVERL has no distributed training, multi-GPU or multi-node execution,
+high-throughput rollout engine, PPO/GRPO objective, trained reward model,
+vision-language support, cross-tokenizer distillation, or containerized or
+networked tool sandbox. The three built-in environments still generate their
+tasks in-process; the v0.6 Parquet converter only exchanges validated prompt
+datasets and does not turn arbitrary verl datasets into those environments.
 Tools execute in-process. Where that is risky the environment restricts the
 input rather than the process: the calculator walks a parsed `ast` with a closed
 node whitelist instead of calling `eval`, and the SQLite environment uses a
 `sqlite3` authorizer plus a function whitelist and permits one statement per
 call.
+
+### The verified verl bridge does not execute verl
+
+The v0.6 Level-3 bridge targets official verl `v0.8.0` at one exact commit and
+one named profile. It validates standard PEFT/safetensors/tokenizer artifacts,
+Parquet prompt data, 14 whitelisted config fields, a safe reward scaffold and
+bundle hashes. The recorded smoke installs that exact source and parses or
+loads each exchange surface.
+
+It does **not** launch Ray, FSDP/Megatron, vLLM/SGLang or a distributed training
+job. It does not convert optimizer state, distributed RNG, native sharded
+checkpoints, Ray runtime state or teacher caches into PPO reference caches.
+Unknown and distributed-only config fields fail by default. “Level 3” therefore
+means a validated scale-out bundle, not runtime parity or generic verl YAML
+support. See the [exact contract and evidence](verl-bridge.md).
 
 `models.teacher.mode: privileged_context` works only with environments that
 implement `privileged_context()`. All three built-in environments do;
@@ -504,7 +515,8 @@ sections above cannot be read as implying it does.
   KL into high-entropy positions, as in arXiv:2603.07079, is **not implemented**.
 - **Swap for quantized models.** Requires dequantize-on-eviction or a second
   copy of the weights. Not implemented, and rejected at config time today.
-- **Multi-GPU or multi-node execution.** Not implemented and not planned; use
-  verl (see [comparisons.md](comparisons.md)).
+- **Native multi-GPU or multi-node execution.** Not implemented. The v0.6
+  bridge can export one documented profile to pinned verl, where scale-out
+  remains the user's separately reviewed and executed operation.
 - **A batched or engine-backed rollout path.** Not implemented.
 - **Additional tested architectures.** Only Qwen3 and Qwen2 are tested today.

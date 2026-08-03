@@ -142,8 +142,8 @@ at a time.
 
 | artifact | SHA-256 |
 | --- | --- |
-| [`consumer-runtime-v1.json`](../benchmarks/results/consumer-runtime-v1.json) | `a302da31af99f1d29f1efd4e6b3dbeb6ea4ac956bba102ca8a1bee8dff0319eb` |
-| [`consumer-runtime-v1-profiler.json`](../benchmarks/results/consumer-runtime-v1-profiler.json) | `66111cd7fc876cf1befea3297a1a51bcd99252c0bf8989c029381e1dc155a98b` |
+| [`consumer-runtime-v1.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/consumer-runtime-v1.json) | `a302da31af99f1d29f1efd4e6b3dbeb6ea4ac956bba102ca8a1bee8dff0319eb` |
+| [`consumer-runtime-v1-profiler.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/consumer-runtime-v1-profiler.json) | `66111cd7fc876cf1befea3297a1a51bcd99252c0bf8989c029381e1dc155a98b` |
 | [`consumer-runtime-v1-pareto.svg`](consumer-runtime-v1-pareto.svg) | `98645a668a7832423d28b621262292619615917f037adf7219ff1bf071fb2fea` |
 
 The systems-only teacher adapter is pinned at

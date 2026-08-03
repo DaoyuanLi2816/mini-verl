@@ -152,7 +152,7 @@ not measured endpoints. The evidence supports a local decision for this recipe,
 not a broad safety, capability, population or cross-hardware claim.
 
 The complete evidence is in the [generated report](alignment-lab-v1.md),
-[machine-readable result](../../benchmarks/results/alignment-lab-v1.json),
-[task-level records](../../benchmarks/results/alignment-lab-v1-task-results.jsonl),
-[preregistration](../../benchmarks/preregistration/alignment-lab-v1.yaml) and
-[Alignment Cards](../../benchmarks/alignment-cards/alignment-lab-v1/).
+[machine-readable result](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/alignment-lab-v1.json),
+[task-level records](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/alignment-lab-v1-task-results.jsonl),
+[preregistration](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/preregistration/alignment-lab-v1.yaml) and
+[Alignment Cards](https://github.com/DaoyuanLi2816/mini-verl/tree/main/benchmarks/alignment-cards/alignment-lab-v1/).

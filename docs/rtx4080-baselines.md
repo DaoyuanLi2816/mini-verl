@@ -179,8 +179,8 @@ both seeds. The task is also saturated after continuation, the evaluation set
 has only 24 tasks, and two seeds do not support a significance claim.
 
 The schema-validated source is
-[`benchmarks/results/gpu-calc-hard-equal-update-v2.json`](../benchmarks/results/gpu-calc-hard-equal-update-v2.json),
-with a [generated Markdown table](../benchmarks/results/gpu-calc-hard-equal-update-v2.md).
+[`benchmarks/results/gpu-calc-hard-equal-update-v2.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/gpu-calc-hard-equal-update-v2.json),
+with a [generated Markdown table](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/gpu-calc-hard-equal-update-v2.md).
 
 ![Strict success and training time across the five arms](gpu-calc-hard-equal-update-v2.svg)
 

@@ -107,11 +107,11 @@ before choosing an online teacher-student mechanism.
 
 | artifact | SHA-256 |
 | --- | --- |
-| [equal updates](../../benchmarks/results/recoverybench-v1-equal-updates.json) | `6ce2e6837e12b99ebc4fad6d27ce3e69c92e295ff3b9b60e0f68c2d308022384` |
-| [equal selected tokens](../../benchmarks/results/recoverybench-v1-equal-selected-tokens.json) | `fe4c9afc799724dfe7a32e631676a1e5177c44559a7374d2ea31da135354f137` |
-| [wall-time diagnostic](../../benchmarks/results/recoverybench-v1-equal-wall-time.json) | `425b0fa568f37b09e61af731d3da5009bd3833bddde6efaf2c66e9dba8355cbe` |
-| [compact task results](../../benchmarks/results/recoverybench-v1-task-results.jsonl) | `aff96bffc6da27240a852410ac041bd4d95badf34cad030e6f437be1491a55ad` |
-| [paired analysis](../../benchmarks/results/recoverybench-v1-analysis.json) | `8a6891f74aed80f07ec00d5ea1909895c579346e1abbb1d5d95a354bb46c6b81` |
+| [equal updates](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/recoverybench-v1-equal-updates.json) | `6ce2e6837e12b99ebc4fad6d27ce3e69c92e295ff3b9b60e0f68c2d308022384` |
+| [equal selected tokens](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/recoverybench-v1-equal-selected-tokens.json) | `fe4c9afc799724dfe7a32e631676a1e5177c44559a7374d2ea31da135354f137` |
+| [wall-time diagnostic](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/recoverybench-v1-equal-wall-time.json) | `425b0fa568f37b09e61af731d3da5009bd3833bddde6efaf2c66e9dba8355cbe` |
+| [compact task results](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/recoverybench-v1-task-results.jsonl) | `aff96bffc6da27240a852410ac041bd4d95badf34cad030e6f437be1491a55ad` |
+| [paired analysis](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/recoverybench-v1-analysis.json) | `8a6891f74aed80f07ec00d5ea1909895c579346e1abbb1d5d95a354bb46c6b81` |
 
 The three raw task-artifact sets contain 36 files and 4,608 trajectories. Their
 individual hashes remain embedded in the schema-v3 result JSON. The
@@ -128,6 +128,6 @@ python scripts/publish_recoverybench_artifacts.py \
 ```
 
 See the [preregistration](preregistration.md),
-[machine-readable schema](../../benchmarks/schema/recoverybench-result.schema.json)
-and [technical report](../../paper/recoverybench-v1/README.md) for the full
+[machine-readable schema](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/schema/recoverybench-result.schema.json)
+and [technical report](https://github.com/DaoyuanLi2816/mini-verl/blob/main/paper/recoverybench-v1/README.md) for the full
 method and limitations.

@@ -41,8 +41,8 @@ CPU. Do not edit out the card's toy-backend limitation or 0% result.
 
 ## Sanitized examples
 
-- [Formal benchmark pilot decision](../../examples/alignment-lab/pilot.json)
-- [Reviewed toy Alignment Card](../../examples/alignment-lab/alignment-card.json)
+- [Formal benchmark pilot decision](https://github.com/DaoyuanLi2816/mini-verl/blob/main/examples/alignment-lab/pilot.json)
+- [Reviewed toy Alignment Card](https://github.com/DaoyuanLi2816/mini-verl/blob/main/examples/alignment-lab/alignment-card.json)
 - [Policy-sensitive query figure](quality-vs-teacher-query.svg)
 
 No user quote, adoption number or unmeasured GPU claim is part of this demo.

@@ -1,0 +1,1 @@
+"""Packaged community recipe registry."""

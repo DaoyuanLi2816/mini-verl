@@ -6,6 +6,32 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A compatibility Level-3 bridge for the fail-closed
+  `single-gpu-online-distillation-v1` profile, pinned to official verl `v0.8.0`
+  commit `7aed6b230776f963fa09509c10d9c3a767d1102c`.
+- `import-verl`, bidirectional prompt-Parquet conversion, `export-verl` standard
+  artifact bundles and `bridge doctor`, with exact pin, PEFT/safetensors,
+  tokenizer, data, reward-scaffold, privacy and hash checks.
+- Five versioned, evidence-bound community recipe records plus
+  `benchmark --export-community`, schema/privacy/digest validation, a static
+  documentation site and launch materials.
+
+### Changed
+
+- The README now describes miniVERL as single-GPU prototyping for one
+  documented subset of verl-style online post-training and distinguishes
+  artifact/config interoperability from untested distributed execution.
+
+### Verified
+
+- A Python 3.12 smoke installed the exact pinned verl source (observed package
+  version `0.8.0.dev0`), parsed the official and exported OmegaConf shapes,
+  loaded standard PEFT/safetensors and both Parquet splits, imported the safe
+  reward scaffold, and verified privacy plus every bundle hash. Ray,
+  FSDP/Megatron, vLLM/SGLang and distributed training were not run.
+
 ## [0.5.0] - 2026-08-02
 
 ### Added

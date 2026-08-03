@@ -14,27 +14,32 @@
 
 <p align="center">
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI package</strong></a> ·
+  <a href="https://daoyuanli2816.github.io/mini-verl/">Documentation</a> ·
   <a href="#single-gpu-quickstart">Install &amp; train</a> ·
-  <a href="docs/single-gpu-guide.md">Bring your own GPU</a> ·
-  <a href="#alignment-lab-when-to-turn-opd-off">Alignment Lab result</a>
+  <a href="docs/verl-bridge.md">Verified verl bridge</a> ·
+  <a href="#alignment-lab-when-to-turn-opd-off">Alignment Lab</a>
 </p>
 
-**Online alignment and distillation on one GPU.**
+**Single-GPU prototyping for a documented subset of verl-style online
+post-training.**
 
-Post-train an SFT model from a policy-conditioned, preference-trained or
-safety-aligned teacher—without Ray or a cluster.
+Develop, diagnose and validate an alignment or distillation recipe locally,
+then export standard model, dataset, recipe and provenance artifacts to a
+pinned verl release for scale-out.
 
 **Measure alignment, over-refusal, retained utility and cost before choosing
 SFT, DPO or OPD.**
 
 PyPI `v0.5.0` is the stable release; `main` is development and may be ahead.
 
-miniVERL is an independent one-GPU companion for prototyping, diagnosing and
-validating online post-training workflows before scale-out. SFT establishes
-task and protocol competence; OPD transfers behavior from an explicit teacher
-on student-visited states. They are not interchangeable stages. The local CUDA
-path has no device-name allowlist; fit still depends on model size, sequence
-budget and available VRAM.
+miniVERL is independent from verl and implements one verified Level-3 profile,
+`single-gpu-online-distillation-v1`, against official verl `v0.8.0`. This is a
+standard-artifact and config-subset bridge—not generic YAML compatibility or a
+claim that distributed execution was tested. The local CUDA path has no
+device-name allowlist; fit still depends on model size, sequence budget and
+available VRAM.
+
+![miniVERL one-GPU workflow and pinned verl scale-out bridge](docs/verl-bridge-architecture.svg)
 
 ```bash
 python -m pip install miniverl            # lightweight core
@@ -108,7 +113,32 @@ keeps the whole lifecycle in one readable single-GPU process.
 | Calculator, JSON-navigation and SQLite environments | yes, deterministic with exact verifiers |
 | Exact checkpoint/resume | yes, asserted parameter-for-parameter |
 | Self-contained offline HTML report with token-level divergence | yes |
-| Ray, FSDP, DeepSpeed, vLLM, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](docs/limitations.md) |
+| Pinned verl `v0.8.0` Level-3 bridge | yes; one fail-closed profile, Parquet round trips and standard PEFT/safetensors export |
+| Native Ray/FSDP/Megatron/vLLM execution, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](docs/limitations.md) |
+
+## Verified verl bridge
+
+The bridge imports 14 named fields from one pinned profile, converts the
+official prompt Parquet schema in both directions, exports a self-checking
+scale-out bundle and diagnoses it without pretending that miniVERL teacher
+targets are PPO reference log-probabilities.
+
+```bash
+python -m pip install "miniverl[bridge]"
+miniverl import-verl verl.yaml --profile single-gpu-online-distillation-v1 \
+  --target-verl v0.8.0 --out recipes/imported.yaml
+miniverl convert-dataset --from verl-parquet train.parquet --out local.parquet
+miniverl export-verl --run runs/my-alignment --target-verl v0.8.0 \
+  --out exports/my-alignment-verl
+miniverl bridge doctor exports/my-alignment-verl --json
+```
+
+The release smoke pins commit
+`7aed6b230776f963fa09509c10d9c3a767d1102c`, parses the generated OmegaConf
+profile, loads standard PEFT/safetensors and both Parquet splits, imports the
+reward scaffold, verifies privacy plus every hash, and records distributed
+execution as **not tested**. See the [contract, whitelist and evidence](docs/verl-bridge.md)
+or the [community recipe registry](docs/community-benchmarks.md).
 
 ## Alignment Lab: when to turn OPD off
 
@@ -615,7 +645,8 @@ See [`docs/reproducibility.md`](docs/reproducibility.md) and the concise
 Not implemented, not promised, listed so the scope is unambiguous:
 cross-tokenizer distillation, batched or engine-backed rollout decoding,
 entropy-aware divergence mixing (arXiv:2603.07079), additional model families,
-more environments, and multi-GPU. For anything at cluster scale, use verl.
+more environments, and native multi-GPU execution. The Level-3 bridge exports
+one documented profile to pinned verl; it does not execute that distributed job.
 
 ## Acknowledgement and disclaimer
 
@@ -623,13 +654,14 @@ more environments, and multi-GPU. For anything at cluster scale, use verl.
 > the verl project, ByteDance, or Volcano Engine. It is not a drop-in
 > replacement for verl.
 
-The name is a nod to the problem space, not a claim of compatibility. verl is an
-excellent, much larger system that also implements on-policy distillation and
-multi-turn tool use — at cluster scale, with Ray. If you have a cluster, use it.
-miniVERL exists for the case where you have one personal GPU and want to read
-every line of what is happening. That can be an older 12 GiB card or a current
-high-end card; the repository claims measured performance only for hardware it
-actually ran. See [`docs/comparisons.md`](docs/comparisons.md).
+The name is a nod to the problem space, not a claim of generic compatibility.
+The verified bridge is deliberately limited to one pinned profile. verl is an
+excellent, much larger system for cluster-scale execution with Ray. miniVERL
+exists for the case where you have one personal GPU and want to read every line
+of what is happening, then hand standard artifacts to verl for scale-out. That
+can be an older 12 GiB card or a current high-end card; the repository claims
+measured performance only for hardware it actually ran. See
+[`docs/comparisons.md`](docs/comparisons.md).
 
 ## Citation
 
