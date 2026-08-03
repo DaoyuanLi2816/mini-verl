@@ -10,7 +10,7 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ### Added
 
-- A compatibility Level-3 bridge for the fail-closed
+- A miniVERL-defined compatibility Level-3 bridge for the fail-closed
   `single-gpu-online-distillation-v1` profile, pinned to official verl `v0.8.0`
   commit `7aed6b230776f963fa09509c10d9c3a767d1102c`.
 - `import-verl`, bidirectional prompt-Parquet conversion, `export-verl` standard

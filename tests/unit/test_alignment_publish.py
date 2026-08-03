@@ -53,6 +53,12 @@ def test_alignment_result_schema_and_paired_task_evidence() -> None:
         (ROOT / "benchmarks/schema/alignment-lab-result.schema.json").read_text(encoding="utf-8")
     )
     result = json.loads(result_path.read_text(encoding="utf-8"))
+    assert hashlib.sha256(result_path.read_bytes()).hexdigest() == (
+        "584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef"
+    )
+    assert hashlib.sha256(task_path.read_bytes()).hexdigest() == (
+        "8d7fc723436d7377d196fc44046d960e3cb7f0aa81e03d49ef05b627eb84630f"
+    )
     jsonschema.validate(result, schema)
     assert result["measurement_status"] == "measured_final"
     assert len(result["arms"]) == 18
@@ -116,6 +122,23 @@ def test_alignment_figures_are_exactly_generated_and_privacy_safe() -> None:
     payload = publisher._load_result(result_path)
     source_digest = hashlib.sha256(result_path.read_bytes()).hexdigest()
     rendered = publisher.render_figures(payload, source_digest)
+    assert set(rendered) == {
+        "delta-from-sft.svg",
+        "outcome-cost-matrix.svg",
+        "metric-coverage-matrix.svg",
+    }
+    publisher.assert_chart_suitability(rendered)
+    combined_svg = "\n".join(rendered.values())
+    assert "concentric" not in combined_svg.lower()
+    assert "jitter" not in combined_svg.lower()
+    assert source_digest not in combined_svg
+    assert "—  not applicable" in rendered["outcome-cost-matrix.svg"]
+    assert 'data-applicable="false"' in rendered["outcome-cost-matrix.svg"]
+    assert 'data-encoding="seed-point"' in combined_svg
+    assert (
+        "The two sandbox safety checks tied at zero while utility still regressed."
+        in (rendered["metric-coverage-matrix.svg"])
+    )
     for name, content in rendered.items():
         target = ROOT / "docs/alignment-lab" / name
         assert target.read_text(encoding="utf-8") == content
@@ -138,7 +161,7 @@ def test_alignment_figures_are_exactly_generated_and_privacy_safe() -> None:
 
     pdf_path = ROOT / "paper" / "alignment-lab-v1" / "alignment-lab-v1.pdf"
     assert hashlib.sha256(pdf_path.read_bytes()).hexdigest() == (
-        "adbffa967f6b9a25d2cdb0cc4464a93c13db4615a1e91499585fb199285d980b"
+        "db4aeb2507839ce200cb5c6d93855fd687b9bb8b978fe76b089c5f1993af78a5"
     )
 
 

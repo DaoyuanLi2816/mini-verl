@@ -1,4 +1,4 @@
-# Online Policy Distillation After SFT on One Consumer GPU
+# Alignment Lab v1: a saturated tool-policy case study
 
 ## Abstract
 
@@ -30,6 +30,9 @@ student never receives that context. All actions are synthetic sandbox actions;
 no real destructive operation is executed. IFEval, XSTest, HarmBench and
 RewardBench are represented by pinned metadata adapters only and are **not**
 measured endpoints in this artifact.
+“Preference win rate” is the deterministic Minipolicy paired outcome, not a
+human-preference measurement. Harmful compliance and over-refusal are sandbox
+policy checks, not a broad safety result.
 
 ## Final result
 
@@ -42,13 +45,20 @@ measured endpoints in this artifact.
 | standard OPD | 98.6% | 0.0% | 0.0% | 97.2% | 100.0% | 76.7 s | 0.94 GiB |
 | verifier-gated OPD | 97.9% | 0.0% | 0.0% | 95.8% | 46.8% | 66.0 s | 0.87 GiB |
 
-![Alignment quality versus utility retention](quality-vs-utility.svg)
+![Forest chart of alignment and tool-utility deltas from the saturated SFT checkpoint, with every seed and the three-seed means](delta-from-sft.svg)
 
-![Safety-policy outcome versus over-refusal](safety-vs-overrefusal.svg)
+![Row matrix of alignment, retained tool utility, teacher-query ratio, continuation GPU time and peak VRAM, including every measured seed](outcome-cost-matrix.svg)
 
-![Preference outcome versus continuation GPU time](preference-vs-gpu-time.svg)
+![Coverage matrix showing tied zero sandbox safety checks, utility regressions and external safety benchmarks not executed](metric-coverage-matrix.svg)
 
-![Alignment quality versus teacher-query ratio](quality-vs-teacher-query.svg)
+<details>
+<summary>Figure provenance</summary>
+
+- Result SHA-256: `584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef`
+- Task-level result SHA-256: `8d7fc723436d7377d196fc44046d960e3cb7f0aa81e03d49ef05b627eb84630f`
+- Three seed identities: `1234`, `20260727`, `20260801`
+
+</details>
 
 The starting checkpoint defines a ceiling; overlapping continuation points are
 not evidence of algorithmic equivalence, and every non-overlapping regression

@@ -11,7 +11,7 @@ Last updated: 2026-08-03.
 | item | current state |
 | --- | --- |
 | audited upstream | official stable verl `v0.8.0`, source commit `7aed6b230776f963fa09509c10d9c3a767d1102c`, tested with Python 3.12; the installed source reports `0.8.0.dev0` |
-| compatibility contract | Levels 0-3 are explicit; Level 2 is a fail-closed 14-field whitelist for `single-gpu-online-distillation-v1`; Level 3 exchanges standard HF/PEFT/safetensors/tokenizer/Parquet artifacts and a checksummed scale-out bundle |
+| compatibility contract | Levels 0-3 are explicitly miniVERL-defined; Level 2 is a fail-closed 14-field whitelist for `single-gpu-online-distillation-v1`; miniVERL-defined Level 3 exchanges standard HF/PEFT/safetensors/tokenizer/Parquet artifacts and a checksummed scale-out bundle |
 | command surface | `import-verl`, `convert-dataset`, `export-verl`, `bridge doctor` and `benchmark --export-community` are implemented without importing torch in the core path |
 | exact compatibility smoke | the pinned source installed successfully; OmegaConf parsed official and exported config shapes; PEFT, safetensors, train/val Parquet, reward import, privacy and all bundle hashes passed; the checksummed record is `docs/generated/verl-bridge-smoke.json` |
 | distributed boundary | Ray, FSDP/Megatron, vLLM/SGLang and a full distributed run were not installed or launched; distributed execution remains explicitly `not tested` |

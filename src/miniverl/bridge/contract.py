@@ -27,7 +27,7 @@ COMPATIBILITY_LEVELS: Final = {
     0: "conceptual post-training flow",
     1: "standard artifact interoperability",
     2: "versioned config-field whitelist",
-    3: "validated pinned scale-out bundle",
+    3: "miniVERL-defined validated pinned artifact bundle",
 }
 
 

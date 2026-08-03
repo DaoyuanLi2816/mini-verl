@@ -16,10 +16,11 @@ quietly changes algorithm semantics.
 
 miniVERL keeps the local regime small: actor → rollout → teacher/reference or
 reward → update → evaluation, in one process on one CUDA device. v0.6 then adds
-four explicit compatibility levels. Level 1 exchanges standard Hugging Face,
-PEFT, safetensors, tokenizer and Parquet artifacts. Level 2 imports exactly 14
-documented fields from one fail-closed profile. Level 3 generates a checksummed
-bundle for official verl `v0.8.0` at commit
+four explicit miniVERL-defined compatibility levels. Level 1 exchanges standard
+Hugging Face, PEFT, safetensors, tokenizer and Parquet artifacts. Level 2
+imports exactly 14 documented fields from one fail-closed profile.
+**miniVERL-defined compatibility Level 3** generates a checksummed bundle for
+official verl `v0.8.0` at commit
 `7aed6b230776f963fa09509c10d9c3a767d1102c`.
 
 The importer rejects critic, PPO/GRPO, Ray resources, FSDP/Megatron placement,
@@ -27,15 +28,16 @@ vLLM/SGLang placement, asynchronous rollout and unknown fields. The dataset
 converter preserves chat messages, ground truth, extension data, rejection
 reasons and hashes without silently truncating. The exporter writes standard
 adapter, tokenizer and Parquet files, a pinned override recipe, a safe reward
-scaffold, source manifests and `SHA256SUMS`. `miniverl bridge doctor` checks the
-whole handoff before the user chooses to launch anything.
+scaffold, source manifests and `SHA256SUMS`. Because the base snapshot, reward
+implementation and user mappings are not complete, the entry point is named
+`launch.template.sh` and doctor reports `launchable: false`.
 
 The release smoke installed the exact official source under Python 3.12. It
 parsed the official and exported OmegaConf shapes; loaded a standard PEFT LoRA
 config, safetensors header and both Parquet splits; imported the reward
 scaffold; and verified privacy plus every artifact hash. It did not install or
 run Ray, FSDP/Megatron or vLLM/SGLang. Distributed execution is therefore
-recorded as **not tested**, not implied by the Level-3 label.
+recorded as **not tested**, not implied by the miniVERL-defined label.
 
 This bridge also preserves miniVERL's negative results. RecoveryBench did not
 show a general fresh-state advantage, and the Alignment Lab began from a

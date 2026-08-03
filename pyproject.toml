@@ -75,6 +75,8 @@ dev = [
   "twine>=5.1",
   "pyarrow>=15",
   "mkdocs>=1.6,<2",
+  "mkdocs-material==9.7.7",
+  "playwright==1.62.0",
 ]
 
 [project.scripts]

@@ -10,7 +10,7 @@ from miniverl.bridge.contract import BRIDGE_PROFILE, VERL_TAG
 from miniverl.cli import app
 
 
-def test_import_verl_cli_writes_recipe_and_report(tmp_path: Path) -> None:
+def test_import_verl_cli_defaults_to_a_needs_input_template(tmp_path: Path) -> None:
     source = tmp_path / "verl.yaml"
     source.write_text(
         yaml.safe_dump(
@@ -59,8 +59,66 @@ def test_import_verl_cli_writes_recipe_and_report(tmp_path: Path) -> None:
     assert result.exit_code == 0, result.output
     payload = json.loads(result.stdout)
     assert payload["profile"] == BRIDGE_PROFILE
-    assert out.is_file()
+    assert payload["status"] == "needs_user_input"
+    assert not out.exists()
+    assert (tmp_path / "imported.template.yaml").is_file()
     assert (tmp_path / "import-report.json").is_file()
+
+
+def test_import_verl_cli_explicit_contract_writes_a_valid_recipe(tmp_path: Path) -> None:
+    source = tmp_path / "verl.yaml"
+    source.write_text(
+        yaml.safe_dump(
+            {
+                "data": {
+                    "train_files": ["train.parquet"],
+                    "val_files": ["val.parquet"],
+                    "prompt_key": "prompt",
+                    "max_prompt_length": 64,
+                    "max_response_length": 32,
+                    "seed": 7,
+                },
+                "actor_rollout_ref": {
+                    "model": {"path": "Qwen/Qwen3-0.6B"},
+                    "actor": {"optim": {"lr": "1e-5"}},
+                },
+                "trainer": {
+                    "save_freq": 1,
+                    "test_freq": 1,
+                    "project_name": "test",
+                    "experiment_name": "bridge",
+                    "total_epochs": 1,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "imported.yaml"
+    result = CliRunner().invoke(
+        app,
+        [
+            "import-verl",
+            str(source),
+            "--profile",
+            BRIDGE_PROFILE,
+            "--target-verl",
+            VERL_TAG,
+            "--out",
+            str(out),
+            "--environment",
+            "calculator",
+            "--teacher-model",
+            "Qwen/Qwen3-1.7B",
+            "--loss-profile",
+            "topk-tail-reverse-kl",
+            "--schedule-mapping",
+            "epochs-as-cycles",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["status"] == "accepted"
+    assert out.is_file()
 
 
 def test_benchmark_export_community_exact_command_needs_no_training_stack(
@@ -93,13 +151,16 @@ def test_export_and_bridge_doctor_cli_round_trip(tmp_path: Path) -> None:
         ],
     )
     assert exported.exit_code == 0, exported.output
-    assert json.loads(exported.stdout)["distributed_execution_status"] == "not tested"
+    exported_payload = json.loads(exported.stdout)
+    assert exported_payload["distributed_execution_status"] == "not tested"
+    assert exported_payload["launchable"] is False
 
     diagnosed = CliRunner().invoke(app, ["bridge", "doctor", str(bundle), "--json"])
     assert diagnosed.exit_code == 0, diagnosed.output
     payload = json.loads(diagnosed.stdout)
     assert payload["verdict"] == "ok"
     assert payload["config_profile"]["model_handoff_problems"] == []
+    assert payload["launchable"] is False
 
 
 def test_convert_dataset_cli_preserves_the_official_chat_schema(tmp_path: Path) -> None:

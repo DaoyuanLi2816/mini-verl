@@ -966,6 +966,21 @@ def import_verl_command(
     profile: str = typer.Option(..., "--profile", help="Documented bridge profile."),
     target_verl: str = typer.Option(..., "--target-verl", help="Pinned verl tag or commit."),
     out: Path = typer.Option(..., "--out", help="New miniVERL recipe path."),
+    environment: Optional[str] = typer.Option(
+        None, "--environment", help="Explicit registered miniVERL environment."
+    ),
+    teacher_model: Optional[str] = typer.Option(
+        None, "--teacher-model", help="Explicit frozen teacher model identity."
+    ),
+    teacher_adapter: Optional[str] = typer.Option(
+        None, "--teacher-adapter", help="Optional local teacher adapter path."
+    ),
+    loss_profile: Optional[str] = typer.Option(
+        None, "--loss-profile", help="Explicit miniVERL distillation objective profile."
+    ),
+    schedule_mapping: Optional[str] = typer.Option(
+        None, "--schedule-mapping", help="Explicit schedule-unit mapping."
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Import the documented whitelist, never generic verl YAML."""
@@ -977,15 +992,22 @@ def import_verl_command(
             profile=profile,
             target_verl=target_verl,
             out=out,
+            environment=environment,
+            teacher_model=teacher_model,
+            teacher_adapter=teacher_adapter,
+            loss_profile=loss_profile,
+            schedule_mapping=schedule_mapping,
         )
     except MiniVerlError as exc:
         _fail(exc)
         return
-    payload = {"written": str(out), "report": str(out.parent / "import-report.json"), **report}
+    written = out.parent / str(report["generated_path"])
+    payload = {"written": str(written), "report": str(out.parent / "import-report.json"), **report}
     if as_json:
         _emit_json(payload)
         return
-    console.print(f"[green]verl profile imported[/green] {_esc(out)}")
+    style = "green" if report["status"] == "accepted" else "yellow"
+    console.print(f"[{style}]verl profile {report['status']}[/{style}] {_esc(written)}")
     console.print(f"  profile {_esc(profile)}")
     console.print(f"  report  {_esc(out.parent / 'import-report.json')}")
 
@@ -1044,7 +1066,7 @@ def export_verl_command(
     out: Path = typer.Option(..., "--out", help="New scale-out bundle directory."),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
-    """Export a self-checking Level-3 bundle of standard artifacts."""
+    """Export a self-checking miniVERL-defined Level-3 artifact bundle."""
     try:
         from miniverl.bridge.export import export_verl_bundle
 
@@ -1057,6 +1079,7 @@ def export_verl_command(
         return
     console.print(f"[green]verl bundle exported[/green] {_esc(out)}")
     console.print(f"  profile {_esc(report['profile'])}")
+    console.print("  launchable: false")
     console.print("  distributed execution: not tested")
 
 

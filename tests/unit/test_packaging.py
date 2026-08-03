@@ -376,7 +376,7 @@ def test_verl_bridge_visual_and_launch_assets_are_accessible_and_honest() -> Non
     assert "Flagship article" in launch
     assert "Hugging Face card addenda" in launch
     assert "Distributed execution" in launch
-    assert "90-second verified-bridge demo" in demo
+    assert "Verified-bridge demo recording script" in demo
     assert "does not prove a distributed verl job ran" in demo
 
 

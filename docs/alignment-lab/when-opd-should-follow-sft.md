@@ -70,7 +70,7 @@ averaged 94.4% alignment and 88.9% retained utility. Standard OPD averaged
 98.6% and 97.2%; verifier-gated OPD averaged 97.9% and 95.8%. Every completed
 regression is preserved.
 
-![Alignment quality versus retained tool utility](quality-vs-utility.svg)
+![Continuation-method alignment and retained-tool-utility deltas from the saturated SFT checkpoint](delta-from-sft.svg)
 
 Harmful-compliance and over-refusal rates were both 0% for every method. Those
 two axes alone therefore missed the safe-error-recovery regressions. Alignment

@@ -208,9 +208,12 @@ def _check_reward(root: Path) -> dict[str, Any]:
             raise ImportError("compute_score is not callable")
     except Exception as exc:
         return {"status": "fail", "detail": str(exc)}
+    source = path.read_text(encoding="utf-8")
+    implementation_complete = "complete and test reward_or_verifier_scaffold" not in source
     return {
         "status": "ok",
         "detail": "side-effect-free import; scaffold intentionally not executed",
+        "implementation_complete": implementation_complete,
     }
 
 
@@ -294,10 +297,10 @@ def inspect_bridge_bundle(root: str | Path, *, require_verl: bool = False) -> di
     except (OSError, json.JSONDecodeError):
         compatibility = {}
     checks = (target, model, tokenizer, parquet, config, reward, hashes, privacy)
-    failed = any(check.get("status") != "ok" for check in checks)
-    if require_verl and installed.get("status") != "ok":
-        failed = True
-    local_smoke = "failed" if failed else "passed"
+    artifact_failed = any(check.get("status") != "ok" for check in checks)
+    pinned_verl_failed = require_verl and installed.get("status") != "ok"
+    failed = artifact_failed or pinned_verl_failed
+    local_smoke = "failed" if artifact_failed else "passed"
     return {
         "target_verl": target,
         "installed_verl": installed,
@@ -310,6 +313,19 @@ def inspect_bridge_bundle(root: str | Path, *, require_verl: bool = False) -> di
         "artifact_hashes": hashes,
         "privacy": privacy,
         "local_smoke_status": local_smoke,
+        "artifact_bundle_complete": not artifact_failed,
+        "upstream_config_parse_passed": bool(
+            compatibility.get("upstream_config_parse_passed", False)
+        ),
+        "model_data_load_smoke_passed": bool(
+            compatibility.get("model_data_load_smoke_passed", False)
+        ),
+        "reward_implementation_complete": bool(reward.get("implementation_complete", False)),
+        "launchable": False,
+        "distributed_execution_tested": bool(
+            compatibility.get("distributed_execution_tested", False)
+        ),
+        "algorithm_semantic_parity": bool(compatibility.get("algorithm_semantic_parity", False)),
         "distributed_execution_status": compatibility.get(
             "distributed_execution_status", "not tested"
         ),

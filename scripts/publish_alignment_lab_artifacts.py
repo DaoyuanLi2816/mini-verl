@@ -50,12 +50,12 @@ LABELS = {
     "verifier_gated_opd": "verifier-gated OPD",
 }
 COLORS = {
-    "sft_checkpoint": "#94a3b8",
-    "continued_sft": "#60a5fa",
-    "dpo": "#a78bfa",
-    "offline_distillation": "#fbbf24",
-    "standard_opd": "#fb7185",
-    "verifier_gated_opd": "#34d399",
+    "sft_checkpoint": "#A7A9AC",
+    "continued_sft": "#0072B2",
+    "dpo": "#CC79A7",
+    "offline_distillation": "#E69F00",
+    "standard_opd": "#D55E00",
+    "verifier_gated_opd": "#009E73",
 }
 
 
@@ -571,240 +571,415 @@ def _load_result(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _svg_shell(title: str, description: str, subtitle: str, body: list[str]) -> str:
+def _svg_shell(
+    title: str, description: str, subtitle: str, body: list[str], *, height: int = 720
+) -> str:
     style = (
-        "text{font-family:Inter,'Segoe UI',sans-serif;fill:#edf4ff}"
-        ".title{font-size:29px;font-weight:760}.sub{font-size:16px;fill:#9fb0cc}"
-        ".axis{font-size:14px;fill:#8fa2bf}.label{font-size:15px;font-weight:650}"
-        ".value{font-size:15px;font-weight:760}.foot{font-size:15px;fill:#91a1bd}"
+        "text{font-family:'DejaVu Sans','Segoe UI',sans-serif;fill:#edf4ff}"
+        ".title{font-size:31px;font-weight:760}.sub{font-size:17px;fill:#aebbd2}"
+        ".axis{font-size:17px;fill:#aebbd2}.label{font-size:18px;font-weight:650}"
+        ".value{font-size:17px;font-weight:760}.small{font-size:16px;fill:#b9c5d8}"
+        ".header{font-size:17px;font-weight:700;fill:#dce7f8}"
     )
     return "".join(
         [
-            '<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="620" '
-            'viewBox="0 0 1120 620" role="img" aria-labelledby="title desc">',
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="{height}" '
+            f'viewBox="0 0 1120 {height}" role="img" aria-labelledby="title desc">',
             f'<title id="title">{escape(title)}</title>',
             f'<desc id="desc">{escape(description)}</desc>',
-            '<rect width="1120" height="620" rx="24" fill="#060a14"/>',
-            '<rect x="20" y="20" width="1080" height="580" rx="20" fill="#0a1222" stroke="#20304f"/>',
+            f'<rect width="1120" height="{height}" rx="24" fill="#060a14"/>',
+            f'<rect x="20" y="20" width="1080" height="{height - 40}" rx="20" '
+            'fill="#0a1222" stroke="#20304f"/>',
             f"<style>{style}</style>",
-            f'<text class="title" x="52" y="68">{escape(title)}</text>',
-            f'<text class="sub" x="52" y="99">{escape(subtitle)}</text>',
+            f'<text class="title" x="48" y="66">{escape(title)}</text>',
+            f'<text class="sub" x="48" y="98">{escape(subtitle)}</text>',
             *body,
             "</svg>\n",
         ]
     )
 
 
-def _scatter_axes(*, x_label: str, y_label: str) -> list[str]:
-    body: list[str] = []
-    left, right, top, bottom = 110, 840, 155, 500
-    for tick in range(6):
-        px = left + tick * (right - left) / 5
-        py = bottom - tick * (bottom - top) / 5
-        value = tick / 5
-        body.extend(
-            [
-                f'<line x1="{px:.1f}" y1="{top}" x2="{px:.1f}" y2="{bottom}" stroke="#1f2d47"/>',
-                f'<text class="axis" x="{px:.1f}" y="525" text-anchor="middle">{value:.1f}</text>',
-                f'<line x1="{left}" y1="{py:.1f}" x2="{right}" y2="{py:.1f}" stroke="#1f2d47"/>',
-                f'<text class="axis" x="91" y="{py + 5:.1f}" text-anchor="end">{value:.1f}</text>',
-            ]
-        )
-    body.extend(
-        [
-            f'<text class="axis" x="475" y="557" text-anchor="middle">{escape(x_label)}</text>',
-            f'<text class="axis" x="35" y="328" transform="rotate(-90 35 328)" text-anchor="middle">{escape(y_label)}</text>',
-        ]
-    )
-    return body
-
-
-def _legend() -> list[str]:
-    body: list[str] = []
-    for index, method in enumerate(METHODS):
-        y = 171 + index * 48
-        body.extend(
-            [
-                f'<circle cx="888" cy="{y}" r="7" fill="{COLORS[method]}"/>',
-                f'<text class="label" x="906" y="{y + 5}">{escape(LABELS[method])}</text>',
-            ]
-        )
-    return body
-
-
-def _xy(value: float, *, low: float, high: float, start: float, end: float) -> float:
-    if math.isclose(low, high):
-        return (start + end) / 2
+def _scale(value: float, *, low: float, high: float, start: float, end: float) -> float:
+    if value < low - 1e-9 or value > high + 1e-9:
+        raise ValueError(f"quantitative value {value} lies outside [{low}, {high}]")
     return start + (value - low) * (end - start) / (high - low)
 
 
-def _quality_utility(payload: dict[str, Any], source: str) -> str:
-    body = _scatter_axes(x_label="tool utility retention", y_label="alignment score")
-    for index, row in enumerate(payload["method_summary"]):
-        method = row["method"]
-        x = 110 + float(row["tool_utility_retention_mean"]) * 730
-        y = 500 - float(row["alignment_score_mean"]) * 345
-        # Concentric rings keep methods visible when their means overlap exactly.
-        radius = 9 + index * 4
-        body.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{radius}" fill="none" '
-            f'stroke="{COLORS[method]}" stroke-width="3"/>'
-        )
-    body.extend(_legend())
-    perfect = sum(
-        1
-        for row in payload["method_summary"]
-        if math.isclose(float(row["alignment_score_mean"]), 1.0)
-        and math.isclose(float(row["tool_utility_retention_mean"]), 1.0)
+def _seed_mark(*, x: float, y: float, method: str, seed: int, value: float) -> str:
+    color = COLORS[method]
+    common = (
+        f'data-encoding="seed-point" data-seed="{seed}" data-value="{value:.10g}" '
+        f'fill="{color}" stroke="#07111f" stroke-width="1.5"'
     )
-    body.extend(
-        [
-            '<rect x="860" y="474" width="210" height="58" rx="12" fill="#101b33" stroke="#294263"/>',
-            f'<text class="value" x="965" y="500" text-anchor="middle">{perfect} / 6 methods</text>',
-            '<text class="axis" x="965" y="521" text-anchor="middle">at the 1.0 / 1.0 ceiling</text>',
-            '<line x1="52" y1="568" x2="1068" y2="568" stroke="#20304f"/>',
-            f'<text class="foot" x="52" y="591">Concentric rings denote exact overlap · source SHA-256 {source[:16]}</text>',
-        ]
-    )
-    return _svg_shell(
-        "SFT starts at the ceiling; continuation adds no gain",
-        "Mean alignment score versus retained tool utility for six methods across three seeds.",
-        "Qwen3-0.6B · 48 paired test tasks · 3 seeds · deterministic Minipolicy v1",
-        body,
+    if seed == SEEDS[0]:
+        return f'<circle cx="{x:.1f}" cy="{y:.1f}" r="4.5" {common}/>'
+    if seed == SEEDS[1]:
+        points = f"{x:.1f},{y - 5:.1f} {x + 5:.1f},{y:.1f} {x:.1f},{y + 5:.1f} {x - 5:.1f},{y:.1f}"
+        return f'<polygon points="{points}" {common}/>'
+    return (
+        f'<path d="M{x - 4.5:.1f},{y - 4.5:.1f} L{x + 4.5:.1f},{y + 4.5:.1f} '
+        f'M{x + 4.5:.1f},{y - 4.5:.1f} L{x - 4.5:.1f},{y + 4.5:.1f}" '
+        f'data-encoding="seed-point" data-seed="{seed}" data-value="{value:.10g}" '
+        f'fill="none" stroke="{color}" stroke-width="3"/>'
     )
 
 
-def _safety_overrefusal(payload: dict[str, Any], source: str) -> str:
-    body = _scatter_axes(x_label="over-refusal rate", y_label="harmful-compliance rate")
-    for index, row in enumerate(payload["method_summary"]):
-        method = row["method"]
-        x = 110 + float(row["over_refusal_rate_mean"]) * 730
-        y = 500 - float(row["harmful_compliance_rate_mean"]) * 345
-        radius = 9 + index * 4
-        body.append(
-            f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{radius}" fill="none" '
-            f'stroke="{COLORS[method]}" stroke-width="3"/>'
-        )
-    body.extend(_legend())
-    body.extend(
-        [
-            '<rect x="860" y="474" width="210" height="58" rx="12" fill="#101b33" stroke="#294263"/>',
-            '<text class="value" x="965" y="500" text-anchor="middle">0% / 0%</text>',
-            '<text class="axis" x="965" y="521" text-anchor="middle">harmful / over-refusal</text>',
-            '<line x1="52" y1="568" x2="1068" y2="568" stroke="#20304f"/>',
-            f'<text class="foot" x="52" y="591">Deterministic sandbox policy checks, not a broad safety benchmark · source {source[:16]}</text>',
-        ]
+def _method_arms(payload: dict[str, Any], method: str) -> list[dict[str, Any]]:
+    rows = sorted(
+        (arm for arm in payload["arms"] if arm["method"] == method),
+        key=lambda arm: SEEDS.index(int(arm["seed"])),
     )
-    return _svg_shell(
-        "Safety-policy checks can pass while benign utility regresses",
-        "Harmful compliance and over-refusal do not capture every policy or utility failure.",
-        "Exact validators · 48 paired tasks per seed · no real destructive actions",
-        body,
-    )
+    if [int(row["seed"]) for row in rows] != list(SEEDS):
+        raise ValueError(f"method {method} does not contain the three measured seeds")
+    return rows
 
 
-def _preference_cost(payload: dict[str, Any], source: str) -> str:
-    rows = payload["method_summary"]
-    max_cost = max(float(row["gpu_seconds_mean"]) for row in rows) * 1.15
-    body: list[str] = []
-    left, right, top, bottom = 110, 840, 155, 500
-    for tick in range(6):
-        value = max_cost * tick / 5
-        px = left + tick * (right - left) / 5
+def _pp(value: float) -> str:
+    return "0.0" if math.isclose(value, 0.0, abs_tol=5e-5) else f"{value:+.1f}"
+
+
+def _delta_from_sft(payload: dict[str, Any]) -> str:
+    body: list[str] = [
+        '<text class="header" x="48" y="135">Continuation method</text>',
+        '<text class="header" x="370" y="135">delta from the same-seed SFT checkpoint (percentage points)</text>',
+        '<circle cx="904" cy="130" r="7" fill="#edf4ff"/>',
+        '<text class="small" x="918" y="136">alignment mean</text>',
+        '<rect x="1020" y="123" width="14" height="14" fill="#edf4ff"/>',
+        '<text class="small" x="1040" y="136">utility</text>',
+    ]
+    left, right = 370.0, 1040.0
+    low, high = -40.0, 5.0
+    for tick in (-40, -30, -20, -10, 0, 5):
+        x = _scale(float(tick), low=low, high=high, start=left, end=right)
+        stroke = "#f4f7fb" if tick == 0 else "#233553"
+        width = 2.5 if tick == 0 else 1
         body.extend(
             [
-                f'<line x1="{px:.1f}" y1="{top}" x2="{px:.1f}" y2="{bottom}" stroke="#1f2d47"/>',
-                f'<text class="axis" x="{px:.1f}" y="525" text-anchor="middle">{value:.0f}</text>',
+                f'<line x1="{x:.1f}" y1="151" x2="{x:.1f}" y2="625" stroke="{stroke}" stroke-width="{width}" data-axis-domain="-40,5"/>',
+                f'<text class="axis" x="{x:.1f}" y="656" text-anchor="middle">{tick:+d}</text>',
             ]
         )
-    for value in (0.8, 0.9, 1.0):
-        py = _xy(value, low=0.8, high=1.0, start=bottom, end=top)
-        body.extend(
-            [
-                f'<line x1="{left}" y1="{py:.1f}" x2="{right}" y2="{py:.1f}" stroke="#1f2d47"/>',
-                f'<text class="axis" x="91" y="{py + 5:.1f}" text-anchor="end">{value:.1f}</text>',
-            ]
-        )
-    body.extend(
-        [
-            '<text class="axis" x="475" y="557" text-anchor="middle">continuation GPU time (seconds, mean)</text>',
-            '<text class="axis" x="35" y="328" transform="rotate(-90 35 328)" text-anchor="middle">preference win rate</text>',
-        ]
+    body.append(
+        f'<text class="small" x="{_scale(0, low=low, high=high, start=left, end=right) + 8:.1f}" y="174">zero baseline</text>'
     )
-    for index, row in enumerate(rows):
-        method = row["method"]
-        px = _xy(float(row["gpu_seconds_mean"]), low=0, high=max_cost, start=left, end=right)
-        py = (
-            _xy(
-                float(row["preference_win_rate_mean"]),
-                low=0.8,
-                high=1.0,
-                start=bottom,
-                end=top,
+    baseline = {int(arm["seed"]): arm for arm in _method_arms(payload, "sft_checkpoint")}
+    for index, method in enumerate(METHODS[1:]):
+        y = 210 + index * 86
+        arms = _method_arms(payload, method)
+        alignment = [
+            100
+            * (
+                float(arm["metrics"]["alignment_score"])
+                - float(baseline[int(arm["seed"])]["metrics"]["alignment_score"])
             )
-            + (index - 2.5) * 5
-        )
+            for arm in arms
+        ]
+        utility = [
+            100
+            * (
+                float(arm["metrics"]["tool_utility_retention"])
+                - float(baseline[int(arm["seed"])]["metrics"]["tool_utility_retention"])
+            )
+            for arm in arms
+        ]
+        align_mean = statistics.fmean(alignment)
+        utility_mean = statistics.fmean(utility)
         body.extend(
             [
-                f'<circle cx="{px:.1f}" cy="{py:.1f}" r="8" fill="#0a1222" stroke="{COLORS[method]}" stroke-width="4"/>',
-                f'<text class="value" x="{px:.1f}" y="{py - 14:.1f}" text-anchor="middle">{float(row["gpu_seconds_mean"]):.1f}s</text>',
+                f'<text class="label" data-role="chart-label" x="48" y="{y - 14}">{escape(LABELS[method])}</text>',
+                f'<text class="small" data-role="chart-label" x="48" y="{y + 11}">A seeds: {" / ".join(_pp(v) for v in alignment)}</text>',
+                f'<text class="small" data-role="chart-label" x="48" y="{y + 34}">U seeds: {" / ".join(_pp(v) for v in utility)}</text>',
+                f'<line x1="{left}" y1="{y}" x2="{right}" y2="{y}" stroke="#182a46"/>',
             ]
         )
-    body.extend(_legend())
-    body.extend(
-        [
-            '<line x1="52" y1="568" x2="1068" y2="568" stroke="#20304f"/>',
-            f'<text class="foot" x="52" y="591">DPO includes external TRL training; evaluation excluded from GPU-time axis · source {source[:16]}</text>',
-        ]
-    )
-    return _svg_shell(
-        "No method beats the starting policy; continuation cost differs",
-        "Preference outcome versus continuation GPU time for six methods.",
-        "Three-seed means · four continuation updates except the frozen SFT checkpoint",
-        body,
-    )
-
-
-def _quality_query(payload: dict[str, Any], source: str) -> str:
-    rows = payload["method_summary"]
-    body = _scatter_axes(x_label="teacher queried-position ratio", y_label="alignment score")
-    non_teacher_y = 1.0
-    for index, row in enumerate(rows):
-        method = row["method"]
-        ratio = row["teacher_query_ratio_mean"]
-        if ratio is None:
-            ratio = 0.0
-        px = 110 + float(ratio) * 730
-        py = 500 - float(row["alignment_score_mean"]) * 345 + (index - 2.5) * 5
-        body.append(
-            f'<circle cx="{px:.1f}" cy="{py:.1f}" r="8" fill="#0a1222" '
-            f'stroke="{COLORS[method]}" stroke-width="4"/>'
+        for arm, value in zip(arms, alignment, strict=True):
+            body.append(
+                _seed_mark(
+                    x=_scale(value, low=low, high=high, start=left, end=right),
+                    y=y - 11,
+                    method=method,
+                    seed=int(arm["seed"]),
+                    value=value,
+                )
+            )
+        for arm, value in zip(arms, utility, strict=True):
+            body.append(
+                _seed_mark(
+                    x=_scale(value, low=low, high=high, start=left, end=right),
+                    y=y + 11,
+                    method=method,
+                    seed=int(arm["seed"]),
+                    value=value,
+                )
+            )
+        ax = _scale(align_mean, low=low, high=high, start=left, end=right)
+        ux = _scale(utility_mean, low=low, high=high, start=left, end=right)
+        body.extend(
+            [
+                f'<circle cx="{ax:.1f}" cy="{y - 11}" r="8" fill="none" stroke="{COLORS[method]}" stroke-width="3" data-value="{align_mean:.10g}"/>',
+                f'<rect x="{ux - 8:.1f}" y="{y + 3:.1f}" width="16" height="16" fill="none" stroke="{COLORS[method]}" stroke-width="3" data-value="{utility_mean:.10g}"/>',
+                f'<text class="value" data-role="chart-label" x="{max(left + 8, min(ax - 12, right - 75)):.1f}" y="{y - 27}" text-anchor="end">A {_pp(align_mean)}</text>',
+                f'<text class="value" data-role="chart-label" x="{max(left + 8, min(ux - 12, right - 75)):.1f}" y="{y + 29}" text-anchor="end">U {_pp(utility_mean)}</text>',
+            ]
         )
-        if row["teacher_query_ratio_mean"] is None:
-            non_teacher_y = py
-    body.extend(_legend())
+    body.append(
+        '<text class="small" x="48" y="688">Seed shapes: ● 1234 · ◆ 20260727 · × 20260801. A = alignment; U = retained tool utility.</text>'
+    )
+    return _svg_shell(
+        "Continuation could not improve the saturated SFT checkpoint",
+        (
+            "Forest chart of alignment-score and retained-tool-utility percentage-point deltas "
+            "for five continuation methods. Every seed is shown at its exact x value."
+        ),
+        "48 paired sandbox tasks per seed · mean marks plus all three measured seeds · zero = starting SFT",
+        body,
+    )
+
+
+def _matrix_cell(
+    *,
+    payload: dict[str, Any],
+    x: float,
+    y: float,
+    values: list[float],
+    mean: float,
+    domain_high: float,
+    method: str,
+    formatter: Any,
+    main: float | None = None,
+) -> list[str]:
+    bar_width = 84.0
+    main_value = mean if main is None else main
+    main_x = _scale(main_value, low=0.0, high=domain_high, start=x, end=x + bar_width)
+    body = [
+        f'<rect x="{x:.1f}" y="{y - 9:.1f}" width="{bar_width}" height="18" rx="4" fill="#132541"/>',
+        f'<rect x="{x:.1f}" y="{y - 9:.1f}" width="{max(0.0, main_x - x):.1f}" height="18" rx="4" fill="{COLORS[method]}" opacity="0.72" data-value="{main_value:.10g}" data-axis-domain="0,{domain_high:.10g}"/>',
+    ]
+    for arm, value in zip(_method_arms(payload, method), values, strict=True):
+        body.append(
+            _seed_mark(
+                x=_scale(value, low=0.0, high=domain_high, start=x, end=x + bar_width),
+                y=y,
+                method=method,
+                seed=int(arm["seed"]),
+                value=value,
+            )
+        )
+    body.append(
+        f'<text class="value" data-role="chart-label" x="{x + 145:.1f}" y="{y + 6:.1f}" text-anchor="end">{escape(formatter(main_value))}</text>'
+    )
+    return body
+
+
+def _outcome_cost_matrix(payload: dict[str, Any]) -> str:
+    columns = (250.0, 415.0, 580.0, 745.0, 910.0)
+    body: list[str] = [
+        '<text class="header" x="48" y="142">Method</text>',
+        '<text class="header" x="250" y="132">Alignment</text>',
+        '<text class="small" x="250" y="154">0–100%</text>',
+        '<text class="header" x="415" y="132">Tool utility</text>',
+        '<text class="small" x="415" y="154">0–100%</text>',
+        '<text class="header" x="580" y="132">Teacher query</text>',
+        '<text class="small" x="580" y="154">0–100%</text>',
+        '<text class="header" x="745" y="132">GPU time</text>',
+        '<text class="small" x="745" y="154">0–100 seconds</text>',
+        '<text class="header" x="910" y="132">Peak VRAM</text>',
+        '<text class="small" x="910" y="154">0–2 GiB</text>',
+    ]
+    summary = {row["method"]: row for row in payload["method_summary"]}
+    for index, method in enumerate(METHODS):
+        y = 195 + index * 78
+        arms = _method_arms(payload, method)
+        row = summary[method]
+        alignment = [100 * float(arm["metrics"]["alignment_score"]) for arm in arms]
+        utility = [100 * float(arm["metrics"]["tool_utility_retention"]) for arm in arms]
+        time_values = [float(arm["cost"]["gpu_seconds"]) for arm in arms]
+        vram_values = [float(arm["cost"]["peak_vram_bytes"]) / 2**30 for arm in arms]
+        body.extend(
+            [
+                f'<rect x="36" y="{y - 31}" width="1048" height="62" rx="10" fill="{("#0d192d" if index % 2 == 0 else "#0a1426")}"/>',
+                f'<rect x="48" y="{y - 11}" width="12" height="22" rx="3" fill="{COLORS[method]}"/>',
+                f'<text class="label" data-role="chart-label" x="70" y="{y + 6}">{escape(LABELS[method])}</text>',
+            ]
+        )
+        body.extend(
+            _matrix_cell(
+                payload=payload,
+                x=columns[0],
+                y=y,
+                values=alignment,
+                mean=statistics.fmean(alignment),
+                domain_high=100,
+                method=method,
+                formatter=lambda value: f"{value:.1f}%",
+            )
+        )
+        body.extend(
+            _matrix_cell(
+                payload=payload,
+                x=columns[1],
+                y=y,
+                values=utility,
+                mean=statistics.fmean(utility),
+                domain_high=100,
+                method=method,
+                formatter=lambda value: f"{value:.1f}%",
+            )
+        )
+        query_values = [arm["metrics"]["teacher_query_ratio"] for arm in arms]
+        if all(value is None for value in query_values):
+            body.append(
+                f'<text class="small" data-role="chart-label" data-applicable="false" x="{columns[2]}" y="{y + 6}">—  not applicable</text>'
+            )
+        elif any(value is None for value in query_values):
+            raise ValueError(f"method {method} mixes applicable and non-applicable query ratios")
+        else:
+            query_percent = [100 * float(value) for value in query_values]
+            body.extend(
+                _matrix_cell(
+                    payload=payload,
+                    x=columns[2],
+                    y=y,
+                    values=query_percent,
+                    mean=statistics.fmean(query_percent),
+                    domain_high=100,
+                    method=method,
+                    formatter=lambda value: f"{value:.1f}%",
+                )
+            )
+        body.extend(
+            _matrix_cell(
+                payload=payload,
+                x=columns[3],
+                y=y,
+                values=time_values,
+                mean=float(row["gpu_seconds_mean"]),
+                domain_high=100,
+                method=method,
+                formatter=lambda value: f"{value:.1f}s",
+            )
+        )
+        body.extend(
+            _matrix_cell(
+                payload=payload,
+                x=columns[4],
+                y=y,
+                values=vram_values,
+                mean=statistics.fmean(vram_values),
+                main=float(row["peak_vram_bytes_max"]) / 2**30,
+                domain_high=2,
+                method=method,
+                formatter=lambda value: f"{value:.2f} GiB",
+            )
+        )
     body.extend(
         [
-            f'<text class="axis" x="124" y="{non_teacher_y + 39:.1f}">no teacher calls</text>',
-            '<line x1="52" y1="568" x2="1068" y2="568" stroke="#20304f"/>',
-            f'<text class="foot" x="52" y="591">Query ratio counts selected positions, not teacher backbone FLOPs · source {source[:16]}</text>',
+            '<text class="small" x="48" y="684">Bars show the three-seed mean except VRAM, whose main bar is the observed maximum; seed shapes show every run.</text>',
+            '<text class="small" x="48" y="707">Query ratio is selected target positions, not teacher FLOPs. DPO time includes its pinned TRL job.</text>',
         ]
     )
     return _svg_shell(
-        "Fewer teacher targets do not guarantee better alignment",
-        "Alignment outcome versus measured teacher queried-position ratio.",
-        "Three-seed means · ratios are measured selected positions / generated positions",
+        "Outcome and continuation-cost matrix",
+        (
+            "Row matrix of alignment, retained tool utility, teacher-query ratio, continuation "
+            "GPU time and peak VRAM for every method and seed."
+        ),
+        "Direct labels + seed marks · non-teacher methods remain not applicable, never zero",
+        body,
+        height=740,
+    )
+
+
+def _metric_coverage_matrix(payload: dict[str, Any]) -> str:
+    summary = {row["method"]: row for row in payload["method_summary"]}
+    baseline = {int(arm["seed"]): arm for arm in _method_arms(payload, "sft_checkpoint")}
+    body: list[str] = [
+        '<text class="header" x="48" y="144">Method</text>',
+        '<text class="header" x="300" y="132">Harmful compliance</text>',
+        '<text class="small" x="300" y="154">seed values</text>',
+        '<text class="header" x="510" y="132">Over-refusal</text>',
+        '<text class="small" x="510" y="154">seed values</text>',
+        '<text class="header" x="665" y="132">Tool utility Δ</text>',
+        '<text class="small" x="665" y="154">mean · seeds (pp)</text>',
+        '<text class="header" x="850" y="132">Sandbox endpoint</text>',
+        '<text class="small" x="850" y="154">measured?</text>',
+        '<text class="header" x="1080" y="132" text-anchor="end">External safety</text>',
+        '<text class="small" x="1080" y="154" text-anchor="end">executed?</text>',
+    ]
+    for index, method in enumerate(METHODS):
+        y = 196 + index * 67
+        arms = _method_arms(payload, method)
+        harmful = [100 * float(arm["metrics"]["harmful_compliance_rate"]) for arm in arms]
+        refusal = [100 * float(arm["metrics"]["over_refusal_rate"]) for arm in arms]
+        utility_delta = [
+            100
+            * (
+                float(arm["metrics"]["tool_utility_retention"])
+                - float(baseline[int(arm["seed"])]["metrics"]["tool_utility_retention"])
+            )
+            for arm in arms
+        ]
+        body.extend(
+            [
+                f'<rect x="36" y="{y - 27}" width="1048" height="54" rx="9" fill="{("#0d192d" if index % 2 == 0 else "#0a1426")}"/>',
+                f'<rect x="48" y="{y - 9}" width="12" height="18" rx="3" fill="{COLORS[method]}"/>',
+                f'<text class="label" data-role="chart-label" x="70" y="{y + 6}">{escape(LABELS[method])}</text>',
+                f'<text class="small" data-role="chart-label" data-encoding="seed-point" x="300" y="{y + 6}">{" · ".join(f"{v:.0f}%" for v in harmful)}</text>',
+                f'<text class="small" data-role="chart-label" data-encoding="seed-point" x="510" y="{y + 6}">{" · ".join(f"{v:.0f}%" for v in refusal)}</text>',
+                f'<text class="value" data-role="chart-label" x="665" y="{y + 6}">{_pp(100 * (float(summary[method]["tool_utility_retention_mean"]) - 1.0))}</text>',
+                f'<text class="small" data-role="chart-label" data-encoding="seed-point" x="716" y="{y + 6}">{" / ".join(_pp(v) for v in utility_delta)}</text>',
+                f'<text class="value" data-role="chart-label" x="850" y="{y + 6}" fill="#009E73">YES</text>',
+                f'<text class="value" data-role="chart-label" x="1005" y="{y + 6}" fill="#E69F00">NOT RUN</text>',
+            ]
+        )
+    body.extend(
+        [
+            '<rect x="48" y="594" width="1024" height="78" rx="14" fill="#111f37" stroke="#365276"/>',
+            '<text class="value" data-role="chart-label" x="560" y="626" text-anchor="middle">The two sandbox safety checks tied at zero while utility still regressed.</text>',
+            '<text class="small" data-role="chart-label" x="560" y="653" text-anchor="middle">IFEval, XSTest, HarmBench and RewardBench were not executed; this is not a broad safety benchmark.</text>',
+        ]
+    )
+    return _svg_shell(
+        "Metric coverage: zero sandbox failures did not imply full utility retention",
+        (
+            "Coverage matrix showing zero harmful-compliance and over-refusal rates, observed "
+            "tool-utility deltas, measured sandbox endpoints and unexecuted external benchmarks."
+        ),
+        "All three measured seeds are printed · deterministic Minipolicy checks only",
         body,
     )
+
+
+def assert_chart_suitability(figures: dict[str, str]) -> None:
+    """Reject known misleading fallbacks in generated Alignment Lab figures."""
+    expected = {
+        "delta-from-sft.svg",
+        "outcome-cost-matrix.svg",
+        "metric-coverage-matrix.svg",
+    }
+    if set(figures) != expected:
+        raise ValueError(f"Alignment Lab must publish exactly {sorted(expected)}")
+    combined = "\n".join(figures.values()).lower()
+    if "concentric" in combined or 'data-encoding="jitter"' in combined:
+        raise ValueError("method-order rings and unlabelled jitter are forbidden")
+    outcome = figures["outcome-cost-matrix.svg"]
+    if "—  not applicable" not in outcome or 'data-applicable="false"' not in outcome:
+        raise ValueError("non-teacher query ratios must remain explicitly not applicable")
+    if 'data-applicable="false" data-value="0"' in outcome:
+        raise ValueError("not-applicable query ratios must never be coerced to zero")
+    if 'data-encoding="seed-point"' not in combined:
+        raise ValueError("every chart set must expose the measured seed values")
 
 
 def render_figures(payload: dict[str, Any], source_sha256: str) -> dict[str, str]:
-    return {
-        "quality-vs-utility.svg": _quality_utility(payload, source_sha256),
-        "safety-vs-overrefusal.svg": _safety_overrefusal(payload, source_sha256),
-        "preference-vs-gpu-time.svg": _preference_cost(payload, source_sha256),
-        "quality-vs-teacher-query.svg": _quality_query(payload, source_sha256),
+    del source_sha256  # hashes live in the report provenance block, never in the plot canvas
+    rendered = {
+        "delta-from-sft.svg": _delta_from_sft(payload),
+        "outcome-cost-matrix.svg": _outcome_cost_matrix(payload),
+        "metric-coverage-matrix.svg": _metric_coverage_matrix(payload),
     }
+    assert_chart_suitability(rendered)
+    return rendered
 
 
 def render_cards(payload: dict[str, Any], source_sha256: str) -> dict[str, str]:
@@ -937,7 +1112,7 @@ def render_report(payload: dict[str, Any], source_sha256: str) -> str:
         )
     else:
         negative_rows = "- None; all continuation arms tied the saturated baseline."
-    return f"""# Online Policy Distillation After SFT on One Consumer GPU
+    return f"""# Alignment Lab v1: a saturated tool-policy case study
 
 ## Abstract
 
@@ -969,6 +1144,9 @@ student never receives that context. All actions are synthetic sandbox actions;
 no real destructive operation is executed. IFEval, XSTest, HarmBench and
 RewardBench are represented by pinned metadata adapters only and are **not**
 measured endpoints in this artifact.
+“Preference win rate” is the deterministic Minipolicy paired outcome, not a
+human-preference measurement. Harmful compliance and over-refusal are sandbox
+policy checks, not a broad safety result.
 
 ## Final result
 
@@ -976,13 +1154,20 @@ measured endpoints in this artifact.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 {chr(10).join(rows)}
 
-![Alignment quality versus utility retention](quality-vs-utility.svg)
+![Forest chart of alignment and tool-utility deltas from the saturated SFT checkpoint, with every seed and the three-seed means](delta-from-sft.svg)
 
-![Safety-policy outcome versus over-refusal](safety-vs-overrefusal.svg)
+![Row matrix of alignment, retained tool utility, teacher-query ratio, continuation GPU time and peak VRAM, including every measured seed](outcome-cost-matrix.svg)
 
-![Preference outcome versus continuation GPU time](preference-vs-gpu-time.svg)
+![Coverage matrix showing tied zero sandbox safety checks, utility regressions and external safety benchmarks not executed](metric-coverage-matrix.svg)
 
-![Alignment quality versus teacher-query ratio](quality-vs-teacher-query.svg)
+<details>
+<summary>Figure provenance</summary>
+
+- Result SHA-256: `{source_sha256}`
+- Task-level result SHA-256: `{payload["task_results_sha256"]}`
+- Three seed identities: `1234`, `20260727`, `20260801`
+
+</details>
 
 The starting checkpoint defines a ceiling; overlapping continuation points are
 not evidence of algorithmic equivalence, and every non-overlapping regression

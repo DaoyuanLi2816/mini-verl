@@ -61,7 +61,7 @@ def _anchors(path: Path) -> set[str]:
 
 def check_markdown_links(root: Path) -> list[str]:
     """Return every broken repository-local target."""
-    ignored_parts = {".git", ".venv", "dist", "build", "runs"}
+    ignored_parts = {".artifacts", ".git", ".venv", "dist", "build", "runs", "site"}
     files = [
         path
         for path in root.rglob("*.md")
@@ -73,10 +73,10 @@ def check_markdown_links(root: Path) -> list[str]:
         lines = _active_lines(source)
         for number, line in enumerate(lines, start=1):
             targets = [
-                *_MARKDOWN_TARGET.findall(line),
-                *_HTML_TARGET.findall(line),
+                *((target, False) for target in _MARKDOWN_TARGET.findall(line)),
+                *((target, True) for target in _HTML_TARGET.findall(line)),
             ]
-            for raw_target in targets:
+            for raw_target, is_raw_html in targets:
                 if raw_target.startswith(("http://", "https://", "mailto:", "data:")):
                     continue
                 if raw_target.startswith("#"):
@@ -84,7 +84,18 @@ def check_markdown_links(root: Path) -> list[str]:
                     fragment = raw_target[1:]
                 else:
                     path_text, separator, fragment = raw_target.partition("#")
-                    target_path = (source.parent / unquote(path_text)).resolve()
+                    relative_base = source.parent
+                    if (
+                        is_raw_html
+                        and source.suffix.lower() == ".md"
+                        and (root.resolve() / "docs") in source.parents
+                    ):
+                        relative_base = (
+                            source.parent
+                            if source.name.lower() == "index.md"
+                            else source.parent / source.stem
+                        )
+                    target_path = (relative_base / unquote(path_text)).resolve()
                     if not separator:
                         fragment = ""
                 try:

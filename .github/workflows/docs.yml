@@ -2,12 +2,11 @@ name: docs
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
-    paths:
-      - "docs/**"
-      - "mkdocs.yml"
-      - ".github/workflows/docs.yml"
+    tags: ["v*"]
 
 permissions:
   contents: read
@@ -15,25 +14,80 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: docs-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
+  visual:
+    name: strict build and browser visual gate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install pinned docs dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Verify generated documentation artifacts
+        run: |
+          python scripts/publish_alignment_lab_artifacts.py --check
+          python scripts/publish_verl_bridge_diagrams.py --check
+      - name: Build complete development site strictly
+        run: mkdocs build --strict
+      - name: Install deterministic Chromium
+        run: playwright install --with-deps chromium
+      - name: Inspect four documentation viewports
+        run: python scripts/check_docs_visual.py --site site --screenshots docs-visual-screenshots
+      - name: Upload browser screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: docs-visual-screenshots
+          path: docs-visual-screenshots
+          if-no-files-found: error
+
+  build:
+    name: build stable root and development subsite
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: visual
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
           cache: pip
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b
-      - run: python -m pip install "mkdocs>=1.6,<2"
-      - run: mkdocs build
+      - name: Install pinned docs dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Build current development docs strictly
+        run: mkdocs build --strict --site-dir "${RUNNER_TEMP}/dev-site"
+      - name: Build the latest immutable release at the site root
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            stable_tag="${GITHUB_REF_NAME}"
+          else
+            stable_tag="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          fi
+          test -n "$stable_tag"
+          git worktree add --detach "${RUNNER_TEMP}/stable-checkout" "$stable_tag"
+          (
+            cd "${RUNNER_TEMP}/stable-checkout"
+            mkdocs build --strict --site-dir "${GITHUB_WORKSPACE}/site"
+          )
+          mkdir -p "${GITHUB_WORKSPACE}/site/dev"
+          cp -a "${RUNNER_TEMP}/dev-site/." "${GITHUB_WORKSPACE}/site/dev/"
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
         with:
           path: site
+
   deploy:
+    name: deploy versioned documentation
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
