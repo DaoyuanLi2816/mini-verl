@@ -1,7 +1,7 @@
 schema_version: 1
 name: alignment-lab-v1
 status: preregistered_before_final_test
-preregistration_revision: 1.3
+preregistration_revision: 1.4
 implementation_commit: 318d6339bfbee8bb25d04ec07e7a641bb17601a2
 registered_at_utc: 2026-08-03T03:00:38Z
 
@@ -46,6 +46,28 @@ amendments:
       The first eval-only card divided queried positions only by positions on
       qualified trajectories and therefore displayed 100%. The corrected audit
       value is 185/470 (39.36%). No final-test task was read.
+  - id: final-test-split-capacity-recovery
+    revision: 1.4
+    implementation_commit: ef676d5cbabd636c69f442bfeb08564ff700b93a
+    timing: after_one_undersized_baseline_segment_before_other_final_evaluations
+    locked_change: >-
+      Override train/eval/test split capacities from this preregistration and
+      reject any evaluation slice that exceeds its declared split. Add an
+      explicit task offset solely to complete the disjoint second half of the
+      frozen SFT baseline. Models, tensors, prompts, budgets, gates, methods,
+      seeds, thresholds and primary endpoints remain unchanged.
+    observed_deviation: >-
+      The first SFT-checkpoint arm evaluated test tasks 0-23 and reported 24/24
+      because the base recipe allocated only 24 test tasks. The harness stopped
+      before any other method evaluated test. A continued-SFT process completed
+      training but was terminated before evaluation and is retained as an
+      interrupted partial run.
+    recovery_rule: >-
+      Preserve the original 24-task SFT segment, verify it is the exact prefix
+      of the frozen 48-task set, evaluate only tasks 24-47 once, and combine the
+      two disjoint segments. Evaluate every other method/seed on all 48 tasks
+      exactly once. Do not rerun the observed prefix or change any decision
+      after seeing its 24/24 outcome.
 
 question: >-
   After one shared SFT checkpoint, how do continued SFT, DPO, frozen-state soft
