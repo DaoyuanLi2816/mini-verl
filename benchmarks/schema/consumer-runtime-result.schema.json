@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DaoyuanLi2816/mini-verl/benchmarks/schema/consumer-runtime-result.schema.json",
+  "title": "miniVERL consumer-runtime benchmark result",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "name",
+    "measurement_status",
+    "preregistration_sha256",
+    "code_commit",
+    "frozen_calculator_sha256",
+    "environment",
+    "workload_invariants",
+    "cells",
+    "larger_model_diagnostic"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "name": {"const": "consumer-runtime-v1"},
+    "measurement_status": {
+      "enum": ["quick_diagnostic", "measured_final", "invalidated_invariant_mismatch"]
+    },
+    "preregistration_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "code_commit": {"type": ["string", "null"]},
+    "frozen_calculator_sha256": {
+      "const": "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc"
+    },
+    "environment": {"type": "object"},
+    "workload_invariants": {
+      "type": "object",
+      "required": ["trajectory_digests_identical", "teacher_target_digests_identical"],
+      "properties": {
+        "trajectory_digests_identical": {"type": "boolean"},
+        "teacher_target_digests_identical": {"type": "boolean"},
+        "trajectory_digest": {"type": ["string", "null"]},
+        "teacher_target_digest": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 9,
+      "items": {
+        "type": "object",
+        "required": ["runtime", "batch_size", "status"],
+        "properties": {
+          "runtime": {
+            "enum": ["dual_model", "shared_backbone", "dual_model_swap"]
+          },
+          "batch_size": {"type": ["integer", "string"]},
+          "status": {"enum": ["completed", "oom", "not_run"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "larger_model_diagnostic": {"type": "array", "minItems": 2}
+  },
+  "additionalProperties": false
+}

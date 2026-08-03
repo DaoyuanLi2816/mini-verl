@@ -262,6 +262,7 @@ class HFBackend(CausalLMBackend):
                     quantized=quant_config is not None,
                     gradient_checkpointing=gradient_checkpointing,
                     adapter_name=student_adapter_name,
+                    prepare_kbit_training=getattr(spec, "prepare_kbit_training", True),
                 )
                 lora_enabled = True
             if gradient_checkpointing:
@@ -318,12 +319,19 @@ class HFBackend(CausalLMBackend):
         quantized: bool,
         gradient_checkpointing: bool,
         adapter_name: str = "default",
+        prepare_kbit_training: bool = True,
     ) -> Any:
         peft = require_peft("LoRA / QLoRA training")
-        if quantized:
+        if quantized and prepare_kbit_training:
             model = peft.prepare_model_for_kbit_training(
                 model, use_gradient_checkpointing=gradient_checkpointing
             )
+        elif quantized:
+            # Keep the one physical base byte/dtype-equivalent to a frozen
+            # separately loaded teacher. PEFT will mark the newly attached LoRA
+            # trainable; the quantized base itself remains frozen.
+            for parameter in model.parameters():
+                parameter.requires_grad_(False)
         config = peft.LoraConfig(
             r=spec.r,
             lora_alpha=spec.alpha,

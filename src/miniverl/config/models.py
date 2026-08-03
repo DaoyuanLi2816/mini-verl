@@ -233,6 +233,10 @@ class StudentModelConfig(_Base):
     quantization: Quantization = Quantization.NONE
     attn_implementation: str = Field(default="sdpa", pattern="^(sdpa|eager)$")
     gradient_checkpointing: bool = False
+    #: Standard PEFT k-bit preparation casts selected base parameters to fp32.
+    #: Shared-backbone role switching disables that cast so the frozen teacher
+    #: remains numerically identical to a separately loaded base+adapter.
+    prepare_kbit_training: bool = True
     lora: LoRAConfig = Field(default_factory=LoRAConfig)
     toy: ToyModelConfig = Field(default_factory=ToyModelConfig)
     trust_remote_code: bool = False
@@ -340,6 +344,8 @@ class ModelsConfig(_Base):
             raise ValueError("shared_backbone is available only for the Hugging Face backend")
         if not self.student.lora.enabled:
             raise ValueError("shared_backbone requires a trainable student LoRA adapter")
+        if self.student.prepare_kbit_training:
+            self.student = self.student.model_copy(update={"prepare_kbit_training": False})
         if self.teacher.adapter is None:
             raise ValueError("shared_backbone requires a frozen teacher adapter")
         if (self.student.model_id, self.student.revision) != (

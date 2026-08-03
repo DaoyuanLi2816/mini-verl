@@ -127,6 +127,35 @@ def test_selected_position_projection_avoids_full_sequence_logits(tiny_model, ti
         assert torch.allclose(logits[i], reference[position], atol=1e-4)
 
 
+def test_hf_padded_forward_matches_isolated_sequences_and_masks_padding(tiny_model, tiny_tokenizer):
+    from miniverl.training.batching import build_padded_trajectory_batch
+
+    backend = _backend(tiny_model, tiny_tokenizer)
+    sequences = [tiny_tokenizer.encode("short"), tiny_tokenizer.encode("a much longer row")]
+    positions = [[0, len(sequences[0]) - 1], [1, len(sequences[1]) - 1]]
+    batch = build_padded_trajectory_batch(
+        token_ids=sequences,
+        selected_positions=positions,
+        pad_token_id=tiny_tokenizer.pad_token_id,
+        device="cpu",
+    )
+    expected = torch.cat(
+        [
+            backend.hidden_states_at(sequence, selected, with_grad=False)
+            for sequence, selected in zip(sequences, positions, strict=True)
+        ]
+    )
+    actual = backend.hidden_states_at_batch(batch, with_grad=False)
+    changed_ids = batch.input_ids.clone()
+    changed_ids[0, len(sequences[0]) :] = (
+        changed_ids[0, len(sequences[0]) :] + 13
+    ) % tiny_tokenizer.vocab_size
+    changed = backend.hidden_states_at_batch(batch.with_input_ids(changed_ids), with_grad=False)
+
+    assert torch.allclose(actual, expected, atol=1e-5, rtol=1e-5)
+    assert torch.allclose(changed, expected, atol=1e-5, rtol=1e-5)
+
+
 def test_generation_uses_the_kv_cache_and_honours_stop_strings(tiny_model, tiny_tokenizer):
     backend = _backend(tiny_model, tiny_tokenizer)
     prefix = tiny_tokenizer.encode("<|im_start|>assistant\n")

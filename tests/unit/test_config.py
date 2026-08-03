@@ -136,6 +136,7 @@ def _shared_models(**overrides: Any) -> dict[str, Any]:
 def test_shared_backbone_config_requires_hf_one_base_and_a_teacher_adapter() -> None:
     config = RunConfig.from_mapping(_payload(models=_shared_models()))
     assert config.models.runtime.value == "shared_backbone"
+    assert config.models.student.prepare_kbit_training is False
 
     _rejects(
         _payload(models=_shared_models(backend="toy")),
