@@ -53,9 +53,10 @@ implementation of anything listed above. It has no Ray integration, no FSDP or
 Megatron backend, no vLLM or SGLang rollout engine, no tensor or pipeline
 parallelism, and no multi-node story of any kind. Rollouts come from a custom
 sampling loop that decodes one sequence at a time with a KV cache, projecting a
-single position through the LM head per step, and the update path processes one
-trajectory per forward pass with no padded batching, so
-`train.gradient_accumulation_steps` is the effective batch size. There is no
+single position through the LM head per step. The update path supports local
+mask-isolated padded batches, but has no continuous rollout batching or remote
+workers. `train.gradient_accumulation_steps` is the optimizer-group size and
+`train.trajectory_batch_size` is only the physical update-forward size. There is no
 PPO, no GRPO and no reward model. The three environments are synthetic and
 generated in-process; there is no dataset loader, no containerized or networked
 tool sandbox, and no support for vision-language models. Capability results in

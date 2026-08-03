@@ -100,6 +100,94 @@ def _write(tmp_path: Path, name: str, text: str) -> Path:
     return target
 
 
+def test_trajectory_batch_size_defaults_to_sequential_and_accepts_auto() -> None:
+    sequential = RunConfig.from_mapping(_payload())
+    automatic = RunConfig.from_mapping(_payload(train={"trajectory_batch_size": "auto"}))
+    explicit = RunConfig.from_mapping(_payload(train={"trajectory_batch_size": 4}))
+
+    assert sequential.train.trajectory_batch_size == 1
+    assert automatic.train.trajectory_batch_size == "auto"
+    assert explicit.train.trajectory_batch_size == 4
+
+
+def test_trajectory_batch_size_rejects_zero_and_unknown_strings() -> None:
+    _rejects(_payload(train={"trajectory_batch_size": 0}), "integer >= 1")
+    _rejects(_payload(train={"trajectory_batch_size": "largest"}), "trajectory_batch_size")
+
+
+def _shared_models(**overrides: Any) -> dict[str, Any]:
+    models: dict[str, Any] = {
+        "backend": "hf",
+        "runtime": "shared_backbone",
+        "student": {"model_id": "org/base", "revision": "base-rev"},
+        "teacher": {
+            "model_id": "org/base",
+            "revision": "base-rev",
+            "adapter": {
+                "path": "org/teacher-adapter",
+                "source": "hub",
+                "revision": "teacher-rev",
+            },
+        },
+    }
+    return _deep_merge(models, overrides)
+
+
+def test_shared_backbone_config_requires_hf_one_base_and_a_teacher_adapter() -> None:
+    config = RunConfig.from_mapping(_payload(models=_shared_models()))
+    assert config.models.runtime.value == "shared_backbone"
+    assert config.models.student.prepare_kbit_training is False
+
+    _rejects(
+        _payload(models=_shared_models(backend="toy")),
+        "shared_backbone is available only for the Hugging Face backend",
+    )
+    _rejects(
+        _payload(models=_shared_models(teacher={"model_id": "org/other"})),
+        "same model_id and revision",
+    )
+    _rejects(
+        _payload(models=_shared_models(teacher={"adapter": None})),
+        "requires a frozen teacher adapter",
+    )
+
+
+def test_shared_backbone_reference_is_an_optional_distinct_adapter_role() -> None:
+    config = RunConfig.from_mapping(
+        _payload(
+            models=_shared_models(
+                reference={
+                    "model_id": "org/base",
+                    "revision": "base-rev",
+                    "adapter": {
+                        "path": "org/reference-adapter",
+                        "source": "hub",
+                        "revision": "reference-rev",
+                    },
+                }
+            )
+        )
+    )
+    assert config.models.reference is not None
+    assert config.models.reference.adapter.path == "org/reference-adapter"
+
+    _rejects(
+        _payload(
+            models=_shared_models(
+                reference={
+                    "model_id": "org/other",
+                    "adapter": {
+                        "path": "org/reference-adapter",
+                        "source": "hub",
+                        "revision": "reference-rev",
+                    },
+                }
+            )
+        ),
+        "reference must use the shared base",
+    )
+
+
 def _assert_same_leaves(raw: dict[str, Any], dumped: dict[str, Any], prefix: str = "") -> None:
     """Every leaf written in the recipe must survive parsing unchanged."""
     for key, expected in raw.items():

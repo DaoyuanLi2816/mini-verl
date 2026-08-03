@@ -11,6 +11,8 @@ RTX 4080. Its portable defaults are:
 - `dtype: auto` selects bfloat16 when the device supports it and float16
   otherwise;
 - NF4 student weights and paged 8-bit Adam reduce the trainable-model footprint;
+- `train.trajectory_batch_size: 1` is the conservative compatibility default;
+  `2` or `4` can improve update throughput when measured headroom permits;
 - `memory.strategy: auto` resolves the supported resident/swap policy;
 - an out-of-memory error may reduce only the vocabulary-loss chunk size and
   retry the gradient phase. It never silently changes the objective, model,
@@ -46,6 +48,15 @@ miniverl train recipes/qwen_consumer_gpu_calc.yaml
 provenance and the resolved configuration. It does not prove that every phase
 will fit; only an actual run can do that.
 
+The default calculator recipe owns separate 0.6B student and 1.7B teacher
+models, so it uses `models.runtime: dual_model`. When student and teacher use
+the same base revision, `models.runtime: shared_backbone` can instead keep one
+base with separate adapters. The shipped
+[`qwen_consumer_gpu_shared.yaml`](../recipes/qwen_consumer_gpu_shared.yaml)
+demonstrates the wiring and batch-4 update path; its frozen teacher is a systems
+artifact, not a newly quality-qualified recipe. See the
+[measured runtime report](consumer-runtime-v1.md) before adapting it.
+
 ## What different cards change
 
 These are starting points, not benchmark claims:
@@ -68,11 +79,13 @@ Work down this list and preserve the resulting YAML with the run:
 1. Close other GPU processes and re-run `nvidia-smi`.
 2. Reduce `loss.chunk_size`; the automatic OOM retry can do this down to
    `memory.min_chunk_size`.
-3. Reduce rollout token limits or the number of rollouts accumulated in a
+3. Reduce `train.trajectory_batch_size` to `2` or `1`; this changes physical
+   execution without changing the optimizer-group objective.
+4. Reduce rollout token limits or the number of rollouts accumulated in a
    cycle. This changes the experiment budget, so label the run accordingly.
-4. Choose a smaller teacher/student pair with byte-identical tokenizers and
+5. Choose a smaller teacher/student pair with byte-identical tokenizers and
    compatible output vocabularies.
-5. For an unquantized student, evaluate `memory.strategy: swap`. Quantized
+6. For an unquantized student, evaluate `memory.strategy: swap`. Quantized
    students remain resident because moving bitsandbytes modules between
    devices is not a supported lifecycle.
 

@@ -6,13 +6,20 @@ from dataclasses import dataclass
 from typing import Any
 
 from miniverl.agent.transcript import TokenizerLike
-from miniverl.config.models import ModelBackend, ModelsConfig, RunConfig
+from miniverl.config.models import ModelBackend, ModelRuntime, ModelsConfig, RunConfig
 from miniverl.errors import ConfigError, TokenizerMismatchError
 from miniverl.models.base import CausalLMBackend
 from miniverl.models.tokenizers import HFTokenizerAdapter, ToyTokenizer, assert_same_tokenizer
 from miniverl.utils.lazy import have_module
 
-__all__ = ["BackendBundle", "resolve_device", "build_tokenizer", "build_student", "build_teacher"]
+__all__ = [
+    "BackendBundle",
+    "resolve_device",
+    "build_tokenizer",
+    "build_student",
+    "build_teacher",
+    "build_shared_backends",
+]
 
 
 @dataclass
@@ -134,6 +141,9 @@ def build_student(
         tokenizer=tokenizer,
         trainable=True,
         local_files_only=local_files_only,
+        student_adapter_name=(
+            "student" if models.runtime is ModelRuntime.SHARED_BACKBONE else "default"
+        ),
     )
 
 
@@ -173,4 +183,24 @@ def build_teacher(
         trainable=False,
         local_files_only=local_files_only,
         protocol_version=str(config.environment.params.get("protocol_version", "v1")),
+    )
+
+
+def build_shared_backends(
+    config: RunConfig,
+    tokenizer: TokenizerLike,
+    *,
+    device: str,
+    local_files_only: bool = False,
+    include_teacher: bool = True,
+) -> tuple[CausalLMBackend, CausalLMBackend | None, CausalLMBackend | None]:
+    """Load the shared-base student, teacher and optional reference role views."""
+    from miniverl.models.shared import load_shared_adapter_backends
+
+    return load_shared_adapter_backends(
+        config,
+        tokenizer,
+        device=device,
+        local_files_only=local_files_only,
+        include_teacher=include_teacher,
     )

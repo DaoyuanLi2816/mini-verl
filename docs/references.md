@@ -28,6 +28,10 @@ agent loop with tool support (`verl/experimental/agent_loop/`, including
 `tool_agent_loop.py` and `tool_parser.py`). Ray is an unconditional dependency
 (`ray[default]` in `requirements.txt`). See
 [comparisons.md](comparisons.md) for when to use verl instead of this project.
+The v0.4 local role graph borrows only the semantic separation among actor,
+rollout, teacher/reference, reward/verifier and update responsibilities. Its
+implementations remain existing in-process miniVERL components; the names do
+not imply DataProto, worker, placement or runtime compatibility.
 
 ## On-policy distillation
 

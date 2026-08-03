@@ -85,6 +85,7 @@ class ToyAttention(nn.Module):
         past: tuple[torch.Tensor, torch.Tensor] | None,
         cos: torch.Tensor,
         sin: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
         """Attend over ``x`` plus any cached keys/values."""
         b, t, _ = x.shape
@@ -95,9 +96,15 @@ class ToyAttention(nn.Module):
         if past is not None:
             k = torch.cat([past[0], k], dim=2)
             v = torch.cat([past[1], v], dim=2)
-        is_causal = past is None and t > 1
+        is_causal = past is None and t > 1 and attention_mask is None
         attn_mask = None
-        if not is_causal and t > 1:
+        if attention_mask is not None:
+            total = k.shape[2]
+            offset = total - t
+            causal = torch.ones(t, total, dtype=torch.bool, device=x.device).tril(diagonal=offset)
+            keys = attention_mask[:, None, None, :total].to(dtype=torch.bool, device=x.device)
+            attn_mask = causal[None, None, :, :] & keys
+        elif not is_causal and t > 1:
             total = k.shape[2]
             offset = total - t
             attn_mask = torch.ones(t, total, dtype=torch.bool, device=x.device).tril(
@@ -140,9 +147,12 @@ class ToyBlock(nn.Module):
         past: tuple[torch.Tensor, torch.Tensor] | None,
         cos: torch.Tensor,
         sin: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor]]:
         """One residual block."""
-        attn_out, present = self.self_attn(self.input_layernorm(x), past, cos, sin)
+        attn_out, present = self.self_attn(
+            self.input_layernorm(x), past, cos, sin, attention_mask=attention_mask
+        )
         x = x + attn_out
         x = x + self.mlp(self.post_attention_layernorm(x))
         return x, present
@@ -197,6 +207,7 @@ class ToyCausalLM(nn.Module):
         input_ids: torch.Tensor,
         past_key_values: list[tuple[torch.Tensor, torch.Tensor]] | None = None,
         use_cache: bool = False,
+        attention_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, list[tuple[torch.Tensor, torch.Tensor]] | None]:
         """Return final hidden states ``[B, T, H]`` and the updated cache."""
         _, t = input_ids.shape
@@ -217,7 +228,7 @@ class ToyCausalLM(nn.Module):
         presents: list[tuple[torch.Tensor, torch.Tensor]] = []
         for i, layer in enumerate(self.layers):
             past = past_key_values[i] if past_key_values is not None else None
-            x, present = layer(x, past, cos, sin)
+            x, present = layer(x, past, cos, sin, attention_mask=attention_mask)
             if use_cache:
                 presents.append(present)
         x = self.norm(x)
@@ -338,6 +349,23 @@ class ToyBackend(CausalLMBackend):
         with context:
             hidden, _ = self.model(ids, past_key_values=None, use_cache=False)
             return hidden[0].index_select(0, index)
+
+    def hidden_states_at_batch(
+        self,
+        batch: Any,
+        *,
+        with_grad: bool = False,
+    ) -> torch.Tensor:
+        """Gather all selected states from one masked padded backbone forward."""
+        context = torch.enable_grad() if with_grad else torch.no_grad()
+        with context:
+            hidden, _ = self.model(
+                batch.input_ids,
+                past_key_values=None,
+                use_cache=False,
+                attention_mask=batch.attention_mask,
+            )
+            return hidden[batch.selected_batch_indices, batch.selected_positions]
 
     def project(self, hidden: torch.Tensor) -> torch.Tensor:
         """Apply the LM head."""

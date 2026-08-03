@@ -1,0 +1,119 @@
+# Shared-backbone single-GPU systems example.
+#
+# One Qwen3-0.6B NF4 base owns a trainable student adapter and a frozen teacher
+# adapter. The teacher artifact is pinned for runtime reproducibility but has
+# NOT passed a new policy-quality gate; use this recipe to exercise ownership,
+# batching and export, not as evidence that this teacher improves the task.
+#
+#   miniverl validate recipes/qwen_consumer_gpu_shared.yaml
+#   miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run
+#   miniverl train recipes/qwen_consumer_gpu_shared.yaml
+
+schema_version: 1
+
+run:
+  name: qwen3-sqlite-shared-backbone
+  mode: opd
+  seed: 20260801
+  output_dir: runs
+  deterministic: true
+  tags: [single-gpu, shared-backbone, padded-update, systems-example]
+
+models:
+  backend: hf
+  runtime: shared_backbone
+  device: auto
+  student:
+    model_id: Qwen/Qwen3-0.6B
+    revision: c1899de289a04d12100db370d81485cdf75e47ca
+    tokenizer_revision: c1899de289a04d12100db370d81485cdf75e47ca
+    dtype: auto
+    quantization: nf4
+    attn_implementation: sdpa
+    gradient_checkpointing: true
+    prepare_kbit_training: false
+    lora:
+      enabled: true
+      r: 16
+      alpha: 32
+      dropout: 0.0
+      target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  teacher:
+    model_id: Qwen/Qwen3-0.6B
+    revision: c1899de289a04d12100db370d81485cdf75e47ca
+    tokenizer_revision: c1899de289a04d12100db370d81485cdf75e47ca
+    dtype: auto
+    quantization: nf4
+    attn_implementation: sdpa
+    adapter:
+      source: hub
+      path: DaoyuanLi/mini-verl-qwen3-0.6b-consumer-runtime-teacher
+      revision: e277b92d8c1fdb76cd133f872f0ddd2c47a4ab8c
+      base_model_revision: c1899de289a04d12100db370d81485cdf75e47ca
+
+environment:
+  name: sqlite_recovery
+  difficulty: hard
+  train_tasks: 64
+  eval_tasks: 24
+  test_tasks: 24
+  split_seed: 20260801
+  params:
+    protocol_version: v2
+
+rollout:
+  max_turns: 5
+  max_new_tokens_per_turn: 64
+  max_total_tokens: 896
+  temperature: 0.8
+  top_p: 0.95
+
+selection:
+  selector: all_model_tokens
+
+loss:
+  mode: bucketed_topk_tail
+  divergence: reverse_kl
+  temperature: 1.0
+  top_k: 64
+  chunk_size: 64
+
+train:
+  cycles: 8
+  rollouts_per_cycle: 8
+  gradient_accumulation_steps: 8
+  trajectory_batch_size: 4
+  length_bucketing: true
+  opd_freshness: strict
+  learning_rate: 1.0e-4
+  weight_decay: 0.0
+  max_grad_norm: 1.0
+  optimizer: adamw8bit
+  save_every_cycles: 4
+  eval_every_cycles: 4
+
+memory:
+  strategy: resident
+  oom_retries: 3
+  min_chunk_size: 16
+  empty_cache_between_phases: true
+
+cache:
+  entries_per_shard: 8
+  strict_policy_version: true
+  reuse_across_policy_versions: false
+  dtype: float16
+  keep_cycles: 2
+  verify_checksums_on_load: true
+
+eval:
+  enabled: true
+  split: eval
+  tasks: 24
+  temperature: 0.0
+  seed: 0
+
+report:
+  enabled: true
+  max_trajectories: 4
+  max_tokens_per_trajectory: 400

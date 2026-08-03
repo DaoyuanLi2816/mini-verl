@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
@@ -28,6 +28,7 @@ __all__ = [
     "OPDFreshness",
     "AdapterSource",
     "ModelBackend",
+    "ModelRuntime",
     "Precision",
     "Quantization",
     "TeacherContextMode",
@@ -41,6 +42,7 @@ __all__ = [
     "LoRAConfig",
     "StudentModelConfig",
     "TeacherModelConfig",
+    "ReferenceModelConfig",
     "TeacherAdapterConfig",
     "ModelsConfig",
     "LossConfig",
@@ -96,6 +98,13 @@ class ModelBackend(str, Enum):
 
     TOY = "toy"
     HF = "hf"
+
+
+class ModelRuntime(str, Enum):
+    """Physical model ownership for local policy roles."""
+
+    DUAL_MODEL = "dual_model"
+    SHARED_BACKBONE = "shared_backbone"
 
 
 class Precision(str, Enum):
@@ -224,6 +233,10 @@ class StudentModelConfig(_Base):
     quantization: Quantization = Quantization.NONE
     attn_implementation: str = Field(default="sdpa", pattern="^(sdpa|eager)$")
     gradient_checkpointing: bool = False
+    #: Standard PEFT k-bit preparation casts selected base parameters to fp32.
+    #: Shared-backbone role switching disables that cast so the frozen teacher
+    #: remains numerically identical to a separately loaded base+adapter.
+    prepare_kbit_training: bool = True
     lora: LoRAConfig = Field(default_factory=LoRAConfig)
     toy: ToyModelConfig = Field(default_factory=ToyModelConfig)
     trust_remote_code: bool = False
@@ -297,13 +310,95 @@ class TeacherModelConfig(_Base):
     toy_pretrain_lr: float = Field(default=3e-3, gt=0.0, le=1.0)
 
 
+class ReferenceModelConfig(_Base):
+    """Optional frozen policy-reference adapter on a shared base model."""
+
+    model_id: str
+    revision: str | None = None
+    tokenizer_id: str | None = None
+    tokenizer_revision: str | None = None
+    dtype: Precision = Precision.AUTO
+    quantization: Quantization = Quantization.NONE
+    attn_implementation: str = Field(default="sdpa", pattern="^(sdpa|eager)$")
+    trust_remote_code: bool = False
+    adapter: TeacherAdapterConfig
+
+
 class ModelsConfig(_Base):
     """Student/teacher pair. The current implementation requires one tokenizer."""
 
     backend: ModelBackend = ModelBackend.TOY
+    runtime: ModelRuntime = ModelRuntime.DUAL_MODEL
     device: str = Field(default="auto", pattern="^(auto|cpu|cuda)$")
     student: StudentModelConfig
     teacher: TeacherModelConfig
+    reference: ReferenceModelConfig | None = None
+
+    @model_validator(mode="after")
+    def _validate_runtime(self) -> ModelsConfig:
+        if self.runtime is ModelRuntime.DUAL_MODEL:
+            if self.reference is not None:
+                raise ValueError("models.reference is supported only with runtime=shared_backbone")
+            return self
+        if self.backend is not ModelBackend.HF:
+            raise ValueError("shared_backbone is available only for the Hugging Face backend")
+        if not self.student.lora.enabled:
+            raise ValueError("shared_backbone requires a trainable student LoRA adapter")
+        if self.student.prepare_kbit_training:
+            self.student = self.student.model_copy(update={"prepare_kbit_training": False})
+        if self.teacher.adapter is None:
+            raise ValueError("shared_backbone requires a frozen teacher adapter")
+        if (self.student.model_id, self.student.revision) != (
+            self.teacher.model_id,
+            self.teacher.revision,
+        ):
+            raise ValueError(
+                "shared_backbone student and teacher must use the same model_id and revision"
+            )
+        student_settings = (
+            self.student.dtype,
+            self.student.quantization,
+            self.student.attn_implementation,
+            self.student.trust_remote_code,
+        )
+        teacher_settings = (
+            self.teacher.dtype,
+            self.teacher.quantization,
+            self.teacher.attn_implementation,
+            self.teacher.trust_remote_code,
+        )
+        if student_settings != teacher_settings:
+            raise ValueError(
+                "shared_backbone student and teacher must use identical precision, "
+                "quantization, attention and trust_remote_code settings"
+            )
+        student_tokenizer = (
+            self.student.tokenizer_id or self.student.model_id,
+            self.student.tokenizer_revision or self.student.revision,
+        )
+        teacher_tokenizer = (
+            self.teacher.tokenizer_id or self.teacher.model_id,
+            self.teacher.tokenizer_revision or self.teacher.revision,
+        )
+        if student_tokenizer != teacher_tokenizer:
+            raise ValueError("shared_backbone roles must use one tokenizer identity")
+        if self.reference is not None:
+            if (self.reference.model_id, self.reference.revision) != (
+                self.student.model_id,
+                self.student.revision,
+            ):
+                raise ValueError("shared_backbone reference must use the shared base")
+            reference_settings = (
+                self.reference.dtype,
+                self.reference.quantization,
+                self.reference.attn_implementation,
+                self.reference.trust_remote_code,
+            )
+            if reference_settings != student_settings:
+                raise ValueError(
+                    "shared_backbone reference must use the shared base runtime settings"
+                )
+        return self
 
 
 class LossConfig(_Base):
@@ -417,10 +512,16 @@ class TrainConfig(_Base):
     #: The benchmark harness uses it for a pure cold-start arm.
     cycles: int = Field(default=4, ge=0, le=100000)
     rollouts_per_cycle: int = Field(default=8, ge=1, le=8192)
-    #: Trajectories per optimizer step. The trainer runs one trajectory per forward
-    #: pass (no padded batching), so this *is* the effective batch size and the
-    #: number of steps per cycle is ``ceil(rollouts_per_cycle / this)``.
+    #: Trajectories per optimizer step. This remains the mathematical effective
+    #: batch size independently of the padded forward micro-batch below.
     gradient_accumulation_steps: int = Field(default=8, ge=1, le=1024)
+    #: Trajectories per padded backbone forward. ``1`` preserves the sequential
+    #: reference path; ``auto`` uses the full optimizer group. The objective and
+    #: effective optimizer batch remain independent of this physical batch.
+    trajectory_batch_size: int | Literal["auto"] = 1
+    #: Stable shortest-first packing reduces padding without changing which
+    #: trajectories share an optimizer update.
+    length_bucketing: bool = True
     #: ``strict`` permits one optimizer update per freshly sampled rollout
     #: batch. ``replay`` explicitly permits multiple updates from that batch and
     #: must never be reported as genuine on-policy distillation.
@@ -451,6 +552,15 @@ class TrainConfig(_Base):
                 "train accepts at most one continuation stop budget: selected tokens or wall time"
             )
         return self
+
+    @field_validator("trajectory_batch_size")
+    @classmethod
+    def _valid_trajectory_batch_size(cls, value: int | str) -> int | str:
+        if value == "auto":
+            return value
+        if not isinstance(value, int) or not 1 <= value <= 1024:
+            raise ValueError("trajectory_batch_size must be 'auto' or an integer >= 1 and <= 1024")
+        return value
 
 
 class MemoryConfig(_Base):

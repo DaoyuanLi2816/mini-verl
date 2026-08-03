@@ -14,6 +14,7 @@ from miniverl.cache.store import sha256_file
 from miniverl.config.models import (
     AdapterSource,
     MemoryStrategy,
+    ModelRuntime,
     Quantization,
     RunConfig,
     TeacherAdapterConfig,
@@ -441,7 +442,21 @@ def export_adapter(
     save_pretrained = getattr(model, "save_pretrained", None)
     if not callable(save_pretrained):
         raise BackendError("loaded student is not a PEFT model and cannot export an adapter")
-    save_pretrained(target, safe_serialization=True)
+    selected_adapter = "student" if config.models.runtime is ModelRuntime.SHARED_BACKBONE else None
+    save_pretrained(
+        target,
+        safe_serialization=True,
+        **({"selected_adapters": [selected_adapter]} if selected_adapter else {}),
+    )
+    if selected_adapter is not None:
+        nested = target / selected_adapter
+        if nested.is_dir():
+            for source in nested.iterdir():
+                destination = target / source.name
+                if destination.exists():
+                    destination.unlink()
+                source.replace(destination)
+            nested.rmdir()
     missing = [
         name for name in (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS) if not (target / name).is_file()
     ]

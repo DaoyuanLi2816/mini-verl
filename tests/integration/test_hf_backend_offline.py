@@ -127,6 +127,35 @@ def test_selected_position_projection_avoids_full_sequence_logits(tiny_model, ti
         assert torch.allclose(logits[i], reference[position], atol=1e-4)
 
 
+def test_hf_padded_forward_matches_isolated_sequences_and_masks_padding(tiny_model, tiny_tokenizer):
+    from miniverl.training.batching import build_padded_trajectory_batch
+
+    backend = _backend(tiny_model, tiny_tokenizer)
+    sequences = [tiny_tokenizer.encode("short"), tiny_tokenizer.encode("a much longer row")]
+    positions = [[0, len(sequences[0]) - 1], [1, len(sequences[1]) - 1]]
+    batch = build_padded_trajectory_batch(
+        token_ids=sequences,
+        selected_positions=positions,
+        pad_token_id=tiny_tokenizer.pad_token_id,
+        device="cpu",
+    )
+    expected = torch.cat(
+        [
+            backend.hidden_states_at(sequence, selected, with_grad=False)
+            for sequence, selected in zip(sequences, positions, strict=True)
+        ]
+    )
+    actual = backend.hidden_states_at_batch(batch, with_grad=False)
+    changed_ids = batch.input_ids.clone()
+    changed_ids[0, len(sequences[0]) :] = (
+        changed_ids[0, len(sequences[0]) :] + 13
+    ) % tiny_tokenizer.vocab_size
+    changed = backend.hidden_states_at_batch(batch.with_input_ids(changed_ids), with_grad=False)
+
+    assert torch.allclose(actual, expected, atol=1e-5, rtol=1e-5)
+    assert torch.allclose(changed, expected, atol=1e-5, rtol=1e-5)
+
+
 def test_generation_uses_the_kv_cache_and_honours_stop_strings(tiny_model, tiny_tokenizer):
     backend = _backend(tiny_model, tiny_tokenizer)
     prefix = tiny_tokenizer.encode("<|im_start|>assistant\n")
@@ -340,6 +369,212 @@ def local_teacher_adapter(tmp_path: Path, tiny_model, tiny_tokenizer):
         },
     )
     return base, adapter, wrapped
+
+
+def _shared_config(base: Path, adapter: Path, *, include_reference: bool = False):
+    from miniverl.config import RunConfig
+
+    common = {
+        "model_id": str(base),
+        "dtype": "float32",
+        "quantization": "none",
+        "attn_implementation": "eager",
+    }
+    models = {
+        "backend": "hf",
+        "runtime": "shared_backbone",
+        "device": "cpu",
+        "student": {
+            **common,
+            "lora": {
+                "enabled": True,
+                "r": 4,
+                "alpha": 8,
+                "target_modules": ["q_proj", "v_proj"],
+            },
+        },
+        "teacher": {
+            **common,
+            "adapter": {"path": str(adapter)},
+        },
+    }
+    if include_reference:
+        models["reference"] = {
+            **common,
+            "adapter": {"path": str(adapter)},
+        }
+    return RunConfig.from_mapping(
+        {
+            "run": {"mode": "opd"},
+            "models": models,
+            "environment": {"name": "calculator", "train_tasks": 2, "eval_tasks": 1},
+            "train": {
+                "cycles": 1,
+                "rollouts_per_cycle": 2,
+                "gradient_accumulation_steps": 2,
+            },
+            "memory": {"strategy": "resident"},
+            "eval": {"enabled": False},
+            "report": {"enabled": False},
+        }
+    )
+
+
+@requires_peft
+def test_shared_backbone_loads_one_base_and_matches_separate_teacher_logits(
+    local_teacher_adapter,
+    tiny_tokenizer,
+    monkeypatch,
+):
+    import transformers
+
+    from miniverl.config.models import TeacherAdapterConfig, TeacherModelConfig
+    from miniverl.models.hf import HFBackend
+    from miniverl.models.shared import PolicyRole, load_shared_adapter_backends
+
+    base, adapter, _ = local_teacher_adapter
+    config = _shared_config(base, adapter)
+    original = transformers.AutoModelForCausalLM.from_pretrained
+    loads = 0
+
+    def counted(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal loads
+        loads += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(transformers.AutoModelForCausalLM, "from_pretrained", counted)
+    actor, teacher, reference = load_shared_adapter_backends(
+        config,
+        tiny_tokenizer,
+        device="cpu",
+        local_files_only=True,
+    )
+    assert loads == 1
+    assert teacher is not None
+    assert reference is None
+    assert actor.model is teacher.model
+    assert actor.controller.active_role is PolicyRole.ACTOR
+    assert actor.trainable_parameters()
+    assert teacher.trainable_parameters() == []
+
+    separate = HFBackend.load(
+        TeacherModelConfig(
+            model_id=str(base),
+            dtype="float32",
+            attn_implementation="eager",
+            adapter=TeacherAdapterConfig(path=str(adapter)),
+        ),
+        device="cpu",
+        tokenizer=tiny_tokenizer,
+        trainable=False,
+        local_files_only=True,
+    )
+    ids = tiny_tokenizer.encode("shared teacher role")
+    positions = [0, 2, len(ids) - 1]
+    shared_logits = teacher.logits_at(ids, positions, chunk_size=2)
+    separate_logits = separate.logits_at(ids, positions, chunk_size=2)
+    assert torch.allclose(shared_logits, separate_logits, atol=1e-6, rtol=1e-6)
+    assert actor.controller.active_role is PolicyRole.ACTOR
+    assert all(parameter.requires_grad for parameter in actor.trainable_parameters())
+
+    separate.release()
+    teacher.release()
+
+
+@requires_peft
+def test_shared_backbone_reference_is_a_frozen_distinct_role(
+    local_teacher_adapter,
+    tiny_tokenizer,
+):
+    from miniverl.models.shared import PolicyRole, load_shared_adapter_backends
+
+    base, adapter, _ = local_teacher_adapter
+    config = _shared_config(base, adapter, include_reference=True)
+    actor, teacher, reference = load_shared_adapter_backends(
+        config,
+        tiny_tokenizer,
+        device="cpu",
+        local_files_only=True,
+    )
+    assert teacher is not None
+    assert reference is not None
+    assert actor.model is teacher.model is reference.model
+    assert reference.trainable_parameters() == []
+
+    ids = tiny_tokenizer.encode("fixed reference role")
+    positions = [0, len(ids) - 1]
+    teacher_logits = teacher.logits_at(ids, positions, chunk_size=2)
+    reference_logits = reference.logits_at(ids, positions, chunk_size=2)
+    assert torch.equal(reference_logits, teacher_logits)
+    assert actor.controller.active_role is PolicyRole.ACTOR
+    assert all(parameter.requires_grad for parameter in actor.trainable_parameters())
+
+    reference.release()
+
+
+@requires_peft
+def test_shared_and_dual_backbones_produce_equivalent_student_update(
+    local_teacher_adapter,
+    tiny_tokenizer,
+):
+    from miniverl.losses.bucketed import teacher_topk_targets
+    from miniverl.losses.chunked import BucketedTargetProvider, chunked_selected_position_loss
+    from miniverl.models.hf import HFBackend
+    from miniverl.models.shared import load_shared_adapter_backends
+
+    base, adapter, _ = local_teacher_adapter
+    config = _shared_config(base, adapter)
+    torch.manual_seed(2026)
+    shared_actor, shared_teacher, _ = load_shared_adapter_backends(
+        config,
+        tiny_tokenizer,
+        device="cpu",
+        local_files_only=True,
+    )
+    assert shared_teacher is not None
+    torch.manual_seed(2026)
+    dual_actor = HFBackend.load(
+        config.models.student,
+        device="cpu",
+        tokenizer=tiny_tokenizer,
+        trainable=True,
+        local_files_only=True,
+        student_adapter_name="student",
+    )
+
+    ids = tiny_tokenizer.encode("equivalent shared and dual update")
+    positions = [0, 2, 4, len(ids) - 1]
+    teacher_logits = shared_teacher.logits_at(ids, positions, chunk_size=2)
+    indices, log_probs, tail = teacher_topk_targets(teacher_logits, top_k=8)
+    targets = torch.tensor([ids[min(position + 1, len(ids) - 1)] for position in positions])
+
+    def update(backend):  # type: ignore[no-untyped-def]
+        optimizer = torch.optim.AdamW(backend.trainable_parameters(), lr=1e-3)
+        hidden = backend.hidden_states_at(ids, positions, with_grad=True)
+        chunked_selected_position_loss(
+            hidden_states=hidden,
+            lm_head=backend.project,
+            weights=torch.ones(len(positions)),
+            provider=BucketedTargetProvider(
+                topk_indices=indices,
+                topk_log_probs=log_probs,
+                tail_log_prob=tail,
+            ),
+            target_token_ids=targets,
+            chunk_size=2,
+            backward=True,
+        )
+        optimizer.step()
+        optimizer.zero_grad(set_to_none=True)
+        return backend.logits_at(ids, positions, chunk_size=2)
+
+    shared_logits = update(shared_actor)
+    dual_logits = update(dual_actor)
+    assert torch.allclose(shared_logits, dual_logits, atol=2e-6, rtol=2e-5)
+    assert all(parameter.grad is None for parameter in shared_teacher.model.parameters())
+
+    dual_actor.release()
+    shared_teacher.release()
 
 
 @requires_peft

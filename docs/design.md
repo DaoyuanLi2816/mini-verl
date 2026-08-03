@@ -183,6 +183,23 @@ one-protocol package.
 `models/toy.py` also imports `chunked_selected_position_loss` inside
 `fit_toy_model`, a function-local import rather than a module-level dependency.
 
+### 2.3 Local role graph
+
+The orchestration layer names the boundaries needed to reason about a verl-like
+workflow without importing its distributed runtime: `ActorPolicy`,
+`RolloutRuntime`, `TeacherPolicy`, `ReferencePolicy`, `RewardOrVerifier`,
+`TargetBuilder`, `UpdateRuntime`, `EvaluationRuntime` and `ArtifactBridge`.
+`LocalRoleGraph` maps existing miniVERL objects onto those typed roles and is
+recorded in the manifest. Teacher and reference remain different roles: the
+teacher supplies distillation targets; the reference is a fixed comparison
+policy for objectives that request one.
+
+`models.runtime: dual_model` preserves independently owned backends.
+`shared_backbone` instead loads one Hugging Face base and gives actor, teacher
+and optional reference adapters failure-safe role-scoped views. Only actor
+adapter parameters enter the optimizer. This is a local single-device ownership
+graph, not Ray workers, DataProto, FSDP placement or a verified verl runtime.
+
 ---
 
 ## 3. One OPD cycle, end to end
@@ -212,7 +229,7 @@ flowchart TD
     H5 --> I["_optimize(samples, phase='opd')"]
     I --> I1["run_with_oom_retry(...)"]
     I1 --> I2["_compute_group_gradients(group, chunk_size)"]
-    I2 --> I3["student.hidden_states_at(with_grad=True)"]
+    I2 --> I3["build_padded_trajectory_batch()<br/>student.hidden_states_at_batch(with_grad=True)"]
     I3 --> I4["chunked_selected_position_loss()<br/>provider.divergence per chunk, backward=True"]
     I4 --> I5["_commit_update()<br/>clip_grad_norm_ + schedule.lr_at + optimizer.step()"]
     I5 --> I6["metrics_log.write(record)"]
@@ -343,25 +360,32 @@ install with no tensor framework present.
 
 ### 3.7 Update
 
-`_optimize` groups samples into `train.gradient_accumulation_steps`-sized batches
-and runs each through `run_with_oom_retry`. Inside `_run_group`, condensed
+`_optimize` groups samples into `train.gradient_accumulation_steps`-sized
+optimizer groups and runs each through `run_with_oom_retry`. Deterministic
+length buckets then contain up to `train.trajectory_batch_size` trajectories
+(`1`, an integer or `auto`). Inside `_compute_group_gradients`, condensed
 (`...` marks arguments elided for readability):
 
 ```python
-# src/miniverl/training/trainer.py, inside _run_group
-hidden = student.hidden_states_at(
-    traj.token_ids, alignment.student_prediction_positions, with_grad=True
-)  # [N, H]
+# src/miniverl/training/trainer.py, inside _compute_group_gradients
+batch = build_padded_trajectory_batch(
+    token_ids=[sample.trajectory.token_ids for sample in rows],
+    selected_positions=[sample.alignment.student_prediction_positions for sample in rows],
+    pad_token_id=tokenizer.pad_token_id,
+    device=student.device,
+)
+hidden = student.hidden_states_at_batch(batch, with_grad=True)  # [selected, H]
 chunked_selected_position_loss(
     hidden_states=hidden,
     lm_head=student.project,
-    weights=...,  # [N]
-    provider=sample.teacher.provider,
-    target_token_ids=...,  # [N]
+    weights=normalize_trajectory_weights(weight_rows),  # each row sums to one
+    weight_normalizer=len(rows),
+    provider=...,  # exact or top-k + tail targets, concatenated by row
+    target_token_ids=...,
     ce_weight=config.loss.sampled_token_nll_weight,
     chunk_size=chunk,
     backward=True,
-    loss_scale=1 / len(group),
+    loss_scale=len(rows) / len(group),  # preserves the group mean
 )
 ```
 
@@ -443,14 +467,16 @@ The distinction is enforced by config validation, not documentation:
 `cache.reuse_across_policy_versions`, and `opd` is required to set
 `cache.strict_policy_version`.
 
-miniVERL runs one trajectory per forward pass, so
-`train.gradient_accumulation_steps` *is* the effective batch size and
-`ceil(rollouts_per_cycle / it)` is the number of optimizer steps per cycle.
-With the default `train.opd_freshness: strict`, validation rejects any OPD
-configuration that would take more than one optimizer step from one freshly
-sampled rollout batch. Setting `opd_freshness: replay` permits that schedule,
-records the rollout policy version on each step and labels the objective
-`online_distillation_with_replay`, never genuine on-policy distillation.
+`train.gradient_accumulation_steps` is the optimizer-group size, while
+`train.trajectory_batch_size` is the maximum number of trajectories sharing a
+padded backbone forward. The latter is a mathematically neutral physical
+batching knob and does not multiply the effective objective batch. The number
+of optimizer steps per cycle remains
+`ceil(rollouts_per_cycle / gradient_accumulation_steps)`. With the default
+`train.opd_freshness: strict`, validation rejects more than one optimizer step
+from one freshly sampled rollout batch. Explicit replay records the rollout
+policy version and labels the objective `online_distillation_with_replay`,
+never genuine on-policy distillation.
 
 ### 4.1 The cold start does more than the OPD phase, and the run says so
 
@@ -642,9 +668,9 @@ best-effort mapping would not be.
 typed spans. Images would need a second modality in the schema, in the
 transcript codec, in the alignment map and in the cache. None of that exists.
 
-**Padded batching.** One trajectory per forward pass. This costs throughput and
-buys the property that a selected position index means exactly one thing
-everywhere in the codebase.
+**Batched rollout generation.** Update forwards can be padded and mask-isolated,
+but rollout decoding remains one sequence at a time. There is no continuous
+batching scheduler or external inference engine.
 
 **Telemetry.** There is none. `utils/logging.py` writes to the console and to
 `events.jsonl` and nowhere else.
@@ -663,7 +689,7 @@ not have to search the source to find out.
   entropy per selected position and reports it, but the loss does not use it to
   switch or blend divergences.
 - **Cross-tokenizer distillation.** Currently refused with an actionable error.
-- **Padded multi-trajectory batching.**
+- **Batched or engine-backed rollout decoding.**
 - **Distributed or multi-GPU execution of any kind.**
 - **A vision or audio modality.**
 

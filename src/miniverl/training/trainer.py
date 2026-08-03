@@ -39,6 +39,7 @@ from miniverl.config.models import (
     LossMode,
     MemoryStrategy,
     ModelBackend,
+    ModelRuntime,
     OfflineKDTrajectorySource,
     OPDFreshness,
     Quantization,
@@ -56,7 +57,13 @@ from miniverl.errors import (
     LifecycleError,
     MiniVerlError,
 )
-from miniverl.models.factory import build_student, build_teacher, build_tokenizer, resolve_device
+from miniverl.models.factory import (
+    build_shared_backends,
+    build_student,
+    build_teacher,
+    build_tokenizer,
+    resolve_device,
+)
 from miniverl.schemas.alignment import AlignmentMap
 from miniverl.schemas.trajectory import Trajectory
 from miniverl.selection.selectors import (
@@ -177,6 +184,7 @@ class OPDTrainer:
         tokenizer: Any,
         student: Any,
         teacher: Any | None,
+        reference: Any | None,
         plan: MemoryPlan,
         run_lock: RunLock,
         evaluation_only: bool = False,
@@ -228,6 +236,21 @@ class OPDTrainer:
             )
         else:
             self.scorer = None
+        from miniverl.runtime.roles import LocalArtifactBridge, LocalRoleGraph
+
+        self.reference = reference
+        self.artifact_bridge = LocalArtifactBridge(paths.root)
+        self.role_graph = LocalRoleGraph(
+            actor_policy=self.student,
+            rollout_runtime=self.runner,
+            teacher_policy=self.teacher,
+            reference_policy=self.reference,
+            reward_or_verifier=self.environment,
+            target_builder=self.scorer,
+            update_runtime=self,
+            evaluation_runtime=self,
+            artifact_bridge=self.artifact_bridge,
+        )
         self.optimizer = (
             None
             if evaluation_only
@@ -371,6 +394,21 @@ class OPDTrainer:
             or config.models.teacher.quantization is not Quantization.NONE
         )
         memory_config = config.memory
+        if (
+            config.models.runtime is ModelRuntime.SHARED_BACKBONE
+            and memory_config.strategy is MemoryStrategy.SWAP
+        ):
+            raise ConfigError(
+                "memory.strategy=swap is unavailable with shared_backbone because all "
+                "policy roles own one resident physical base",
+                hint="use memory.strategy: resident/auto, or models.runtime: dual_model "
+                "when host/device teacher swapping is required",
+            )
+        if (
+            config.models.runtime is ModelRuntime.SHARED_BACKBONE
+            and memory_config.strategy is MemoryStrategy.AUTO
+        ):
+            memory_config = memory_config.model_copy(update={"strategy": MemoryStrategy.RESIDENT})
         if quantized and memory_config.strategy is MemoryStrategy.SWAP:
             raise ConfigError(
                 "memory.strategy=swap cannot be used with a quantized model: "
@@ -424,6 +462,7 @@ class OPDTrainer:
         environment: ToolEnvironment | None = None
         student: Any | None = None
         teacher: Any | None = None
+        reference: Any | None = None
         loaded_teachers: list[Any] = []
         trainer: OPDTrainer | None = None
         try:
@@ -455,17 +494,32 @@ class OPDTrainer:
 
             device = resolve_device(config.models)
             tokenizer = build_tokenizer(config, local_files_only=local_files_only)
-            student = build_student(
-                config, tokenizer, device=device, local_files_only=local_files_only
-            )
-
             plan = resolve_strategy(memory_config, device=device, chunk_size=config.loss.chunk_size)
+            if config.models.runtime is ModelRuntime.SHARED_BACKBONE:
+                student, teacher, reference = build_shared_backends(
+                    config,
+                    tokenizer,
+                    device=device,
+                    local_files_only=local_files_only,
+                    include_teacher=(
+                        config.run.mode is not TrainingMode.SFT and not for_evaluation
+                    ),
+                )
+                plan.reason = "shared_backbone -> resident: all policy roles share one base"
+            else:
+                student = build_student(
+                    config, tokenizer, device=device, local_files_only=local_files_only
+                )
             if quantized and config.memory.strategy is MemoryStrategy.AUTO:
                 plan.reason = (
                     "auto -> resident: a quantized model cannot be moved off the "
                     "accelerator, so swap is unavailable"
                 )
-            if config.run.mode is not TrainingMode.SFT and not for_evaluation:
+            if (
+                config.models.runtime is ModelRuntime.DUAL_MODEL
+                and config.run.mode is not TrainingMode.SFT
+                and not for_evaluation
+            ):
                 if memory_config.strategy is MemoryStrategy.AUTO and device.startswith("cuda"):
 
                     def teacher_fits() -> bool:
@@ -517,6 +571,7 @@ class OPDTrainer:
                 tokenizer=tokenizer,
                 student=student,
                 teacher=teacher,
+                reference=reference,
                 plan=plan,
                 run_lock=run_lock,
                 evaluation_only=for_evaluation,
@@ -557,7 +612,7 @@ class OPDTrainer:
                 except LifecycleError as cleanup_error:
                     logger.warning("cleanup after trainer construction failure: %s", cleanup_error)
             else:
-                owned_teachers = [teacher, *loaded_teachers]
+                owned_teachers = [reference, teacher, *loaded_teachers]
                 seen: set[int] = set()
                 for backend in [*owned_teachers, student]:
                     if backend is None or id(backend) in seen:
@@ -574,6 +629,7 @@ class OPDTrainer:
                 owned_teachers.clear()
                 loaded_teachers.clear()
                 teacher = None
+                reference = None
                 student = None
                 if environment is not None:
                     closer = getattr(environment, "close", None)
@@ -778,6 +834,7 @@ class OPDTrainer:
             },
             "models": {
                 "backend": config.models.backend.value,
+                "runtime": config.models.runtime.value,
                 "device": self.plan.device,
                 "student": {
                     "model_id": config.models.student.model_id,
@@ -801,6 +858,28 @@ class OPDTrainer:
                     if self.teacher is not None
                     else None
                 ),
+                "reference": (
+                    {
+                        "model_id": config.models.reference.model_id,
+                        "revision": config.models.reference.revision,
+                        "tokenizer_revision": config.models.reference.tokenizer_revision,
+                        "quantization": config.models.reference.quantization.value,
+                        "precision": config.models.reference.dtype.value,
+                        "adapter": getattr(self.reference, "adapter_provenance", None),
+                        "capabilities": self.reference.capabilities.to_dict(),
+                    }
+                    if self.reference is not None and config.models.reference is not None
+                    else None
+                ),
+                "role_residency": (
+                    "one resident physical base with adapter role switching"
+                    if config.models.runtime is ModelRuntime.SHARED_BACKBONE
+                    else (
+                        "separate resident role models"
+                        if self.plan.strategy is MemoryStrategy.RESIDENT
+                        else "separate role models with teacher host/device swapping"
+                    )
+                ),
                 "tokenizer_fingerprint": self.tokenizer.fingerprint,
                 "tokenizer_identity": getattr(self.tokenizer, "identity", {}),
                 "tokenizer_vocab_size": self.tokenizer.vocab_size,
@@ -810,6 +889,11 @@ class OPDTrainer:
                 ),
             },
             "objective": objective,
+            "runtime_role_graph": self.role_graph.describe(),
+            "artifact_bridge": {
+                "kind": "local_filesystem",
+                "run_root": self.paths.root.name,
+            },
             "memory": self.plan.to_dict(),
             "global_optimizer_step": self.global_step,
             "parameter_version": self.parameter_version,
@@ -1415,6 +1499,12 @@ class OPDTrainer:
         import torch
 
         from miniverl.losses.chunked import chunked_selected_position_loss
+        from miniverl.training.batching import (
+            build_padded_trajectory_batch,
+            concatenate_target_providers,
+            deterministic_length_batches,
+            normalize_trajectory_weights,
+        )
 
         config = self.config
         optimizer = self.optimizer
@@ -1434,72 +1524,129 @@ class OPDTrainer:
         divergence_available = False
         sampled_nll_available = False
         oracle_ce_available = False
-        scale = 1.0 / max(len(group), 1)
-
-        for sample in group:
-            alignment = sample.alignment
-            hidden = self.student.hidden_states_at(
-                sample.trajectory.token_ids,
-                alignment.student_prediction_positions,
-                with_grad=True,
+        group_scale = 1.0 / max(len(group), 1)
+        requested_batch_size = config.train.trajectory_batch_size
+        physical_batch_size = (
+            len(group) if requested_batch_size == "auto" else int(requested_batch_size)
+        )
+        physical_batch_size = max(1, min(physical_batch_size, max(len(group), 1)))
+        if config.train.length_bucketing:
+            batch_indices = deterministic_length_batches(
+                [len(sample.trajectory.token_ids) for sample in group],
+                batch_size=physical_batch_size,
             )
-            weights = torch.tensor(alignment.token_weights, dtype=torch.float32, device=device)
-            targets = torch.tensor(alignment.target_token_ids, dtype=torch.long, device=device)
-            provider = sample.teacher.provider if sample.teacher is not None else None
+        else:
+            batch_indices = tuple(
+                tuple(range(start, min(start + physical_batch_size, len(group))))
+                for start in range(0, len(group), physical_batch_size)
+            )
+
+        for index_group in batch_indices:
+            samples = [group[index] for index in index_group]
+            alignments = [sample.alignment for sample in samples]
+            batch = build_padded_trajectory_batch(
+                token_ids=[sample.trajectory.token_ids for sample in samples],
+                selected_positions=[
+                    alignment.student_prediction_positions for alignment in alignments
+                ],
+                pad_token_id=self.tokenizer.pad_token_id,
+                device=device,
+            )
+            hidden = self.student.hidden_states_at_batch(batch, with_grad=True)
+            weight_rows = [
+                torch.tensor(alignment.token_weights, dtype=torch.float32, device=device)
+                for alignment in alignments
+            ]
+            targets = torch.cat(
+                [
+                    torch.tensor(
+                        alignment.target_token_ids,
+                        dtype=torch.long,
+                        device=device,
+                    )
+                    for alignment in alignments
+                ]
+            )
+            providers = [
+                sample.teacher.provider if sample.teacher is not None else None
+                for sample in samples
+            ]
+            if all(provider is None for provider in providers):
+                provider = None
+            elif all(provider is not None for provider in providers):
+                provider = concatenate_target_providers(
+                    [provider for provider in providers if provider is not None],
+                    [alignment.num_positions for alignment in alignments],
+                )
+            else:
+                raise LifecycleError(
+                    "one padded trajectory batch cannot mix SFT and distillation targets"
+                )
             ce_weight = 1.0 if provider is None else config.loss.sampled_token_nll_weight
+            microbatch_scale = len(samples) * group_scale
             output = chunked_selected_position_loss(
                 hidden_states=hidden,
                 lm_head=self.student.project,
-                weights=weights,
+                weights=normalize_trajectory_weights(weight_rows),
+                weight_normalizer=float(len(samples)),
                 provider=provider,
                 target_token_ids=targets,
                 ce_weight=ce_weight,
                 chunk_size=chunk_size,
                 backward=True,
-                loss_scale=scale,
+                loss_scale=microbatch_scale,
             )
-            loss_total += float(output.loss) * scale
+            loss_total += float(output.loss) * microbatch_scale
             positions_total += output.num_positions
-            for name, (numerator, denominator) in self._loss_by_span_type(
-                sample,
-                output.per_token_objective,
-            ).items():
-                entry = span_losses.setdefault(name, [0.0, 0.0])
-                entry[0] += numerator
-                entry[1] += denominator
-            weight_tensor = weights.to(torch.float32)
-            tensor_denominator = weight_tensor.sum().clamp_min(1e-12)
-            if output.per_token_divergence is not None:
-                divergence_available = True
-                divergence_total += (
-                    float(
-                        (output.per_token_divergence.to(device) * weight_tensor).sum()
-                        / tensor_denominator
+            for sample_index, (sample, weight_tensor) in enumerate(
+                zip(samples, weight_rows, strict=True)
+            ):
+                start = batch.selected_offsets[sample_index]
+                end = batch.selected_offsets[sample_index + 1]
+                for name, (numerator, denominator) in self._loss_by_span_type(
+                    sample,
+                    output.per_token_objective[start:end],
+                ).items():
+                    entry = span_losses.setdefault(name, [0.0, 0.0])
+                    entry[0] += numerator
+                    entry[1] += denominator
+                tensor_denominator = weight_tensor.sum().clamp_min(1e-12)
+                if output.per_token_divergence is not None:
+                    divergence_available = True
+                    divergence_total += (
+                        float(
+                            (
+                                output.per_token_divergence[start:end].to(device) * weight_tensor
+                            ).sum()
+                            / tensor_denominator
+                        )
+                        * group_scale
                     )
-                    * scale
-                )
-            if output.per_token_ce is not None:
-                component = (
-                    float(
-                        (output.per_token_ce.to(device) * weight_tensor).sum() / tensor_denominator
+                if output.per_token_ce is not None:
+                    component = (
+                        float(
+                            (output.per_token_ce[start:end].to(device) * weight_tensor).sum()
+                            / tensor_denominator
+                        )
+                        * group_scale
                     )
-                    * scale
-                )
-                if provider is None:
-                    oracle_ce_available = True
-                    oracle_ce_total += component
-                else:
-                    sampled_nll_available = True
-                    sampled_nll_total += component
-            if sample.teacher is not None and sample.teacher.teacher_entropy.numel():
-                entropy_sum += float(sample.teacher.teacher_entropy.sum())
-                entropy_count += int(sample.teacher.teacher_entropy.numel())
+                    if provider is None:
+                        oracle_ce_available = True
+                        oracle_ce_total += component
+                    else:
+                        sampled_nll_available = True
+                        sampled_nll_total += component
+                if sample.teacher is not None and sample.teacher.teacher_entropy.numel():
+                    entropy_sum += float(sample.teacher.teacher_entropy.sum())
+                    entropy_count += int(sample.teacher.teacher_entropy.numel())
             del hidden, output
 
         return {
             "loss": loss_total,
             "selected_positions": positions_total,
             "trajectories_in_step": len(group),
+            "physical_trajectory_batches": len(batch_indices),
+            "padded_trajectory_batch_size": physical_batch_size,
             "teacher_entropy_mean": (entropy_sum / entropy_count) if entropy_count else None,
             "divergence_loss": divergence_total if divergence_available else None,
             "sampled_token_nll_loss": (sampled_nll_total if sampled_nll_available else None),
@@ -2542,6 +2689,7 @@ class OPDTrainer:
         # drop them before releasing the backends themselves.
         self.runner = None  # type: ignore[assignment]  # destructive close
         self.scorer = None
+        self.role_graph = None  # type: ignore[assignment]  # destructive close
 
         optimizer = self.optimizer
         self.optimizer = None
@@ -2560,6 +2708,12 @@ class OPDTrainer:
 
             cleanup("optimizer state clear", clear_optimizer)
         optimizer = None
+
+        reference = self.reference
+        self.reference = None
+        if reference is not None:
+            cleanup("reference release", reference.release)
+        reference = None
 
         teacher = self.teacher
         self.teacher = None

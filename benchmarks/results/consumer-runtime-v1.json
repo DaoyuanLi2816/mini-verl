@@ -1,0 +1,1051 @@
+{
+  "cells": [
+    {
+      "adapter_switch_microseconds": null,
+      "batch_size": 1,
+      "end_to_end_seconds_median": 3.376496099983342,
+      "end_to_end_seconds_min": 3.314520000014454,
+      "equivalence_to_dual_sequential": {
+        "gradient": {
+          "cosine_similarity": 1.0,
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0,
+          "relative_l2_difference": 0.0
+        },
+        "loss_absolute_difference": 0.0,
+        "updated_logits": {
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0
+        }
+      },
+      "loss_values": [
+        1.9491355055943131,
+        1.9491355055943131,
+        1.9491355055943131
+      ],
+      "measurements": [
+        {
+          "divergence_loss": 1.9491354376077652,
+          "end_to_end_seconds": 3.456390800070949,
+          "grad_norm": 8.44583797454834,
+          "loss": 1.9491355055943131,
+          "loss_by_span_type": {
+            "assistant_final": 1.824070410522392,
+            "assistant_tool_call": 1.887752538415959
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 1,
+          "peak_allocated_bytes": 2169126400,
+          "peak_reserved_bytes": 2738880512,
+          "physical_trajectory_batches": 8,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.5857618999434635,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.6118897000560537,
+          "trajectories_in_step": 8,
+          "update_seconds": 2.746440399903804
+        },
+        {
+          "divergence_loss": 1.9491354376077652,
+          "end_to_end_seconds": 3.376496099983342,
+          "grad_norm": 8.44583797454834,
+          "loss": 1.9491355055943131,
+          "loss_by_span_type": {
+            "assistant_final": 1.824070410522392,
+            "assistant_tool_call": 1.887752538415959
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 1,
+          "peak_allocated_bytes": 2169126400,
+          "peak_reserved_bytes": 2738880512,
+          "physical_trajectory_batches": 8,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.6120747000677511,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.5925798999378458,
+          "trajectories_in_step": 8,
+          "update_seconds": 2.7827710999408737
+        },
+        {
+          "divergence_loss": 1.9491354376077652,
+          "end_to_end_seconds": 3.314520000014454,
+          "grad_norm": 8.44583797454834,
+          "loss": 1.9491355055943131,
+          "loss_by_span_type": {
+            "assistant_final": 1.824070410522392,
+            "assistant_tool_call": 1.887752538415959
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 1,
+          "peak_allocated_bytes": 2169126400,
+          "peak_reserved_bytes": 2738880512,
+          "physical_trajectory_batches": 8,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.5764589000027627,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.6027167000574991,
+          "trajectories_in_step": 8,
+          "update_seconds": 2.7105917999288067
+        }
+      ],
+      "padding_tokens": 0,
+      "peak_allocated_bytes": 2169126400,
+      "peak_reserved_bytes": 2738880512,
+      "physical_batches": 8,
+      "runtime": "dual_model",
+      "selected_positions": 863,
+      "selected_positions_per_second": 255.59040331906726,
+      "status": "completed",
+      "student_forward_seconds_median": 0.5857618999434635,
+      "student_trajectories_per_second": 13.657426337855266,
+      "teacher_positions_per_second": 1431.850154338962,
+      "teacher_scoring_seconds_median": 0.6027167000574991,
+      "teacher_target_digest": "cc761d789a9dc2c17440d03eb72be16c48ff86ffcdceb2b8c10a4745a8f0f995",
+      "teacher_target_digests_identical": true,
+      "trajectories": 8,
+      "trajectories_per_second": 2.369320077117657,
+      "trajectory_digest": "5d66d5c903c0633acb5c14898956df654197aebf3df365b972dce6e09c04cf04",
+      "update_seconds_median": 2.746440399903804
+    },
+    {
+      "adapter_switch_microseconds": null,
+      "batch_size": 2,
+      "end_to_end_seconds_median": 2.270638499991037,
+      "end_to_end_seconds_min": 2.1587102999910712,
+      "equivalence_to_dual_sequential": {
+        "gradient": {
+          "cosine_similarity": 0.9999999936460533,
+          "max_absolute_difference": 3.1676609069108963e-06,
+          "max_relative_to_reference_max": 1.2283925701761128e-05,
+          "relative_l2_difference": 1.027691608585292e-05
+        },
+        "loss_absolute_difference": 7.208018359960988e-07,
+        "updated_logits": {
+          "max_absolute_difference": 7.319450378417969e-05,
+          "max_relative_to_reference_max": 2.2267508354304927e-06
+        }
+      },
+      "loss_values": [
+        1.9491362263961491,
+        1.9491362263961491,
+        1.9491362263961491
+      ],
+      "measurements": [
+        {
+          "divergence_loss": 1.9491362273693085,
+          "end_to_end_seconds": 2.3138189000310376,
+          "grad_norm": 8.44585132598877,
+          "loss": 1.9491362263961491,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240704259762848,
+            "assistant_tool_call": 1.8877531072721814
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 2,
+          "peak_allocated_bytes": 2445559296,
+          "peak_reserved_bytes": 3105882112,
+          "physical_trajectory_batches": 4,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.383002300048247,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.6062203000765294,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.5902763999765739
+        },
+        {
+          "divergence_loss": 1.9491362273693085,
+          "end_to_end_seconds": 2.270638499991037,
+          "grad_norm": 8.44585132598877,
+          "loss": 1.9491362263961491,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240704259762848,
+            "assistant_tool_call": 1.8877531072721814
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 2,
+          "peak_allocated_bytes": 2445559296,
+          "peak_reserved_bytes": 3105882112,
+          "physical_trajectory_batches": 4,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.4471722999587655,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.631529500009492,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.6374873999739066
+        },
+        {
+          "divergence_loss": 1.9491362273693085,
+          "end_to_end_seconds": 2.1587102999910712,
+          "grad_norm": 8.44585132598877,
+          "loss": 1.9491362263961491,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240704259762848,
+            "assistant_tool_call": 1.8877531072721814
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 2,
+          "peak_allocated_bytes": 2445559296,
+          "peak_reserved_bytes": 3105882112,
+          "physical_trajectory_batches": 4,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.3980319000547752,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.651307399966754,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.5059746000915766
+        }
+      ],
+      "padding_tokens": 270,
+      "peak_allocated_bytes": 2445559296,
+      "peak_reserved_bytes": 3105882112,
+      "physical_batches": 4,
+      "runtime": "dual_model",
+      "selected_positions": 863,
+      "selected_positions_per_second": 380.06930649832924,
+      "status": "completed",
+      "student_forward_seconds_median": 0.3980319000547752,
+      "student_trajectories_per_second": 20.09889156848755,
+      "teacher_positions_per_second": 1366.523654060545,
+      "teacher_scoring_seconds_median": 0.631529500009492,
+      "teacher_target_digest": "cc761d789a9dc2c17440d03eb72be16c48ff86ffcdceb2b8c10a4745a8f0f995",
+      "teacher_target_digests_identical": true,
+      "trajectories": 8,
+      "trajectories_per_second": 3.523238067191928,
+      "trajectory_digest": "5d66d5c903c0633acb5c14898956df654197aebf3df365b972dce6e09c04cf04",
+      "update_seconds_median": 1.5902763999765739
+    },
+    {
+      "adapter_switch_microseconds": null,
+      "batch_size": 4,
+      "end_to_end_seconds_median": 2.0693016999866813,
+      "end_to_end_seconds_min": 2.0502641999628395,
+      "equivalence_to_dual_sequential": {
+        "gradient": {
+          "cosine_similarity": 0.9999999955807889,
+          "max_absolute_difference": 4.25335019826889e-06,
+          "max_relative_to_reference_max": 1.6494138531405533e-05,
+          "relative_l2_difference": 1.4381439053714819e-05
+        },
+        "loss_absolute_difference": 5.569308996200562e-07,
+        "updated_logits": {
+          "max_absolute_difference": 0.00011301040649414062,
+          "max_relative_to_reference_max": 3.4380452638242786e-06
+        }
+      },
+      "loss_values": [
+        1.9491360625252128,
+        1.9491360625252128,
+        1.9491360625252128
+      ],
+      "measurements": [
+        {
+          "divergence_loss": 1.949136033654213,
+          "end_to_end_seconds": 2.339139699935913,
+          "grad_norm": 8.445860862731934,
+          "loss": 1.9491360625252128,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703897808672,
+            "assistant_tool_call": 1.8877531573161679
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 4,
+          "peak_allocated_bytes": 2996182528,
+          "peak_reserved_bytes": 3258974208,
+          "physical_trajectory_batches": 2,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.41182190005201846,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.6547877999255434,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.5601205999264494
+        },
+        {
+          "divergence_loss": 1.949136033654213,
+          "end_to_end_seconds": 2.0693016999866813,
+          "grad_norm": 8.445860862731934,
+          "loss": 1.9491360625252128,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703897808672,
+            "assistant_tool_call": 1.8877531573161679
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 4,
+          "peak_allocated_bytes": 2996182528,
+          "peak_reserved_bytes": 3258974208,
+          "physical_trajectory_batches": 2,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.41824499994982034,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.6010816999478266,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.466974399983883
+        },
+        {
+          "divergence_loss": 1.949136033654213,
+          "end_to_end_seconds": 2.0502641999628395,
+          "grad_norm": 8.445860862731934,
+          "loss": 1.9491360625252128,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703897808672,
+            "assistant_tool_call": 1.8877531573161679
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 4,
+          "peak_allocated_bytes": 2996182528,
+          "peak_reserved_bytes": 3258974208,
+          "physical_trajectory_batches": 2,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.4165886000264436,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.5835390000138432,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.4654665000271052
+        }
+      ],
+      "padding_tokens": 616,
+      "peak_allocated_bytes": 2996182528,
+      "peak_reserved_bytes": 3258974208,
+      "physical_batches": 2,
+      "runtime": "dual_model",
+      "selected_positions": 863,
+      "selected_positions_per_second": 417.048901088495,
+      "status": "completed",
+      "student_forward_seconds_median": 0.4165886000264436,
+      "student_trajectories_per_second": 19.2035979848997,
+      "teacher_positions_per_second": 1435.7449246498566,
+      "teacher_scoring_seconds_median": 0.6010816999478266,
+      "teacher_target_digest": "cc761d789a9dc2c17440d03eb72be16c48ff86ffcdceb2b8c10a4745a8f0f995",
+      "teacher_target_digests_identical": true,
+      "trajectories": 8,
+      "trajectories_per_second": 3.866038480542248,
+      "trajectory_digest": "5d66d5c903c0633acb5c14898956df654197aebf3df365b972dce6e09c04cf04",
+      "update_seconds_median": 1.466974399983883
+    },
+    {
+      "adapter_switch_microseconds": null,
+      "batch_size": "auto",
+      "end_to_end_seconds_median": 2.601577499997802,
+      "end_to_end_seconds_min": 2.5704367000143975,
+      "equivalence_to_dual_sequential": {
+        "gradient": {
+          "cosine_similarity": 0.999999992944447,
+          "max_absolute_difference": 7.227063179016113e-06,
+          "max_relative_to_reference_max": 2.802595029641054e-05,
+          "relative_l2_difference": 2.5128261429827355e-05
+        },
+        "loss_absolute_difference": 1.2479722499847412e-06,
+        "updated_logits": {
+          "max_absolute_difference": 0.00012993812561035156,
+          "max_relative_to_reference_max": 3.953026727392894e-06
+        }
+      },
+      "loss_values": [
+        1.9491367535665631,
+        1.9491367535665631,
+        1.9491367535665631
+      ],
+      "measurements": [
+        {
+          "divergence_loss": 1.9491367042064667,
+          "end_to_end_seconds": 2.66017439996358,
+          "grad_norm": 8.445951461791992,
+          "loss": 1.9491367535665631,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703353292929,
+            "assistant_tool_call": 1.887753747336743
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 8,
+          "peak_allocated_bytes": 4058249728,
+          "peak_reserved_bytes": 4905238528,
+          "physical_trajectory_batches": 1,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.5600467000622302,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.5930890999734402,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.9670102000236511
+        },
+        {
+          "divergence_loss": 1.9491367042064667,
+          "end_to_end_seconds": 2.5704367000143975,
+          "grad_norm": 8.445951461791992,
+          "loss": 1.9491367535665631,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703353292929,
+            "assistant_tool_call": 1.887753747336743
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 8,
+          "peak_allocated_bytes": 4057992192,
+          "peak_reserved_bytes": 4905238528,
+          "physical_trajectory_batches": 1,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.5660576999653131,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.6244341999990866,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.9447955000214279
+        },
+        {
+          "divergence_loss": 1.9491367042064667,
+          "end_to_end_seconds": 2.601577499997802,
+          "grad_norm": 8.445951461791992,
+          "loss": 1.9491367535665631,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703353292929,
+            "assistant_tool_call": 1.887753747336743
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 8,
+          "peak_allocated_bytes": 4057992192,
+          "peak_reserved_bytes": 4905238528,
+          "physical_trajectory_batches": 1,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.5592988999560475,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.658686300041154,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.9411499999696389
+        }
+      ],
+      "padding_tokens": 1636,
+      "peak_allocated_bytes": 4058249728,
+      "peak_reserved_bytes": 4905238528,
+      "physical_batches": 1,
+      "runtime": "dual_model",
+      "selected_positions": 863,
+      "selected_positions_per_second": 331.7218110937418,
+      "status": "completed",
+      "student_forward_seconds_median": 0.5600467000622302,
+      "student_trajectories_per_second": 14.284523056936271,
+      "teacher_positions_per_second": 1382.0511432609912,
+      "teacher_scoring_seconds_median": 0.6244341999990866,
+      "teacher_target_digest": "cc761d789a9dc2c17440d03eb72be16c48ff86ffcdceb2b8c10a4745a8f0f995",
+      "teacher_target_digests_identical": true,
+      "trajectories": 8,
+      "trajectories_per_second": 3.0750573450173055,
+      "trajectory_digest": "5d66d5c903c0633acb5c14898956df654197aebf3df365b972dce6e09c04cf04",
+      "update_seconds_median": 1.9447955000214279
+    },
+    {
+      "adapter_switch_microseconds": 23596.54599975329,
+      "batch_size": 1,
+      "end_to_end_seconds_median": 3.5539496999699622,
+      "end_to_end_seconds_min": 3.497395799960941,
+      "equivalence_to_dual_sequential": {
+        "gradient": {
+          "cosine_similarity": 1.0,
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0,
+          "relative_l2_difference": 0.0
+        },
+        "loss_absolute_difference": 0.0,
+        "updated_logits": {
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0
+        }
+      },
+      "equivalence_to_same_batch_dual": {
+        "gradient": {
+          "cosine_similarity": 1.0,
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0,
+          "relative_l2_difference": 0.0
+        },
+        "loss_absolute_difference": 0.0,
+        "updated_logits": {
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0
+        }
+      },
+      "loss_values": [
+        1.9491355055943131,
+        1.9491355055943131,
+        1.9491355055943131
+      ],
+      "measurements": [
+        {
+          "divergence_loss": 1.9491354376077652,
+          "end_to_end_seconds": 3.7711021000286564,
+          "grad_norm": 8.44583797454834,
+          "loss": 1.9491355055943131,
+          "loss_by_span_type": {
+            "assistant_final": 1.824070410522392,
+            "assistant_tool_call": 1.887752538415959
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 1,
+          "peak_allocated_bytes": 1319874048,
+          "peak_reserved_bytes": 2386558976,
+          "physical_trajectory_batches": 8,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.5854032998904586,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.7823508000001311,
+          "trajectories_in_step": 8,
+          "update_seconds": 2.887897399952635
+        },
+        {
+          "divergence_loss": 1.9491354376077652,
+          "end_to_end_seconds": 3.5539496999699622,
+          "grad_norm": 8.44583797454834,
+          "loss": 1.9491355055943131,
+          "loss_by_span_type": {
+            "assistant_final": 1.824070410522392,
+            "assistant_tool_call": 1.887752538415959
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 1,
+          "peak_allocated_bytes": 1319874048,
+          "peak_reserved_bytes": 2386558976,
+          "physical_trajectory_batches": 8,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.6078682000515983,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.7816963000223041,
+          "trajectories_in_step": 8,
+          "update_seconds": 2.7710448999423534
+        },
+        {
+          "divergence_loss": 1.9491354376077652,
+          "end_to_end_seconds": 3.497395799960941,
+          "grad_norm": 8.44583797454834,
+          "loss": 1.9491355055943131,
+          "loss_by_span_type": {
+            "assistant_final": 1.824070410522392,
+            "assistant_tool_call": 1.887752538415959
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 1,
+          "peak_allocated_bytes": 1319874048,
+          "peak_reserved_bytes": 2386558976,
+          "physical_trajectory_batches": 8,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.6002531999256462,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.8212398999603465,
+          "trajectories_in_step": 8,
+          "update_seconds": 2.6748958999523893
+        }
+      ],
+      "padding_tokens": 0,
+      "peak_allocated_bytes": 1319874048,
+      "peak_reserved_bytes": 2386558976,
+      "physical_batches": 8,
+      "runtime": "shared_backbone",
+      "selected_positions": 863,
+      "selected_positions_per_second": 242.82842270032523,
+      "status": "completed",
+      "student_forward_seconds_median": 0.6002531999256462,
+      "student_trajectories_per_second": 13.327709041769317,
+      "teacher_positions_per_second": 1103.0857257381924,
+      "teacher_scoring_seconds_median": 0.7823508000001311,
+      "teacher_target_digest": "cc761d789a9dc2c17440d03eb72be16c48ff86ffcdceb2b8c10a4745a8f0f995",
+      "teacher_target_digests_identical": true,
+      "trajectories": 8,
+      "trajectories_per_second": 2.251016664661184,
+      "trajectory_digest": "5d66d5c903c0633acb5c14898956df654197aebf3df365b972dce6e09c04cf04",
+      "update_seconds_median": 2.7710448999423534
+    },
+    {
+      "adapter_switch_microseconds": 24466.655500000343,
+      "batch_size": 2,
+      "end_to_end_seconds_median": 2.4457248999970034,
+      "end_to_end_seconds_min": 2.3067156999604777,
+      "equivalence_to_dual_sequential": {
+        "gradient": {
+          "cosine_similarity": 0.9999999936460533,
+          "max_absolute_difference": 3.1676609069108963e-06,
+          "max_relative_to_reference_max": 1.2283925701761128e-05,
+          "relative_l2_difference": 1.027691608585292e-05
+        },
+        "loss_absolute_difference": 7.208018359960988e-07,
+        "updated_logits": {
+          "max_absolute_difference": 7.319450378417969e-05,
+          "max_relative_to_reference_max": 2.2267508354304927e-06
+        }
+      },
+      "equivalence_to_same_batch_dual": {
+        "gradient": {
+          "cosine_similarity": 1.0,
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0,
+          "relative_l2_difference": 0.0
+        },
+        "loss_absolute_difference": 0.0,
+        "updated_logits": {
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0
+        }
+      },
+      "loss_values": [
+        1.9491362263961491,
+        1.9491362263961491,
+        1.9491362263961491
+      ],
+      "measurements": [
+        {
+          "divergence_loss": 1.9491362273693085,
+          "end_to_end_seconds": 2.4457248999970034,
+          "grad_norm": 8.44585132598877,
+          "loss": 1.9491362263961491,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240704259762848,
+            "assistant_tool_call": 1.8877531072721814
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 2,
+          "peak_allocated_bytes": 1594528768,
+          "peak_reserved_bytes": 2388656128,
+          "physical_trajectory_batches": 4,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.38430629996582866,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.7883453000104055,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.5763951000990346
+        },
+        {
+          "divergence_loss": 1.9491362273693085,
+          "end_to_end_seconds": 2.3067156999604777,
+          "grad_norm": 8.44585132598877,
+          "loss": 1.9491362263961491,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240704259762848,
+            "assistant_tool_call": 1.8877531072721814
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 2,
+          "peak_allocated_bytes": 1594528768,
+          "peak_reserved_bytes": 2388656128,
+          "physical_trajectory_batches": 4,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.4269784999778494,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.7848624000325799,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.5206299999263138
+        },
+        {
+          "divergence_loss": 1.9491362273693085,
+          "end_to_end_seconds": 2.470254899933934,
+          "grad_norm": 8.44585132598877,
+          "loss": 1.9491362263961491,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240704259762848,
+            "assistant_tool_call": 1.8877531072721814
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 2,
+          "peak_allocated_bytes": 1594528768,
+          "peak_reserved_bytes": 2388656128,
+          "physical_trajectory_batches": 4,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.38478920003399253,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.7839074999792501,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.6850916999392211
+        }
+      ],
+      "padding_tokens": 270,
+      "peak_allocated_bytes": 1594528768,
+      "peak_reserved_bytes": 2388656128,
+      "physical_batches": 4,
+      "runtime": "shared_backbone",
+      "selected_positions": 863,
+      "selected_positions_per_second": 352.86061813454876,
+      "status": "completed",
+      "student_forward_seconds_median": 0.38478920003399253,
+      "student_trajectories_per_second": 20.790604308263525,
+      "teacher_positions_per_second": 1099.555794702583,
+      "teacher_scoring_seconds_median": 0.7848624000325799,
+      "teacher_target_digest": "cc761d789a9dc2c17440d03eb72be16c48ff86ffcdceb2b8c10a4745a8f0f995",
+      "teacher_target_digests_identical": true,
+      "trajectories": 8,
+      "trajectories_per_second": 3.271013841339965,
+      "trajectory_digest": "5d66d5c903c0633acb5c14898956df654197aebf3df365b972dce6e09c04cf04",
+      "update_seconds_median": 1.5763951000990346
+    },
+    {
+      "adapter_switch_microseconds": 23624.248999985866,
+      "batch_size": 4,
+      "end_to_end_seconds_median": 2.3022483000531793,
+      "end_to_end_seconds_min": 2.2852601000340655,
+      "equivalence_to_dual_sequential": {
+        "gradient": {
+          "cosine_similarity": 0.9999999955807889,
+          "max_absolute_difference": 4.25335019826889e-06,
+          "max_relative_to_reference_max": 1.6494138531405533e-05,
+          "relative_l2_difference": 1.4381439053714819e-05
+        },
+        "loss_absolute_difference": 5.569308996200562e-07,
+        "updated_logits": {
+          "max_absolute_difference": 0.00011301040649414062,
+          "max_relative_to_reference_max": 3.4380452638242786e-06
+        }
+      },
+      "equivalence_to_same_batch_dual": {
+        "gradient": {
+          "cosine_similarity": 1.0,
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0,
+          "relative_l2_difference": 0.0
+        },
+        "loss_absolute_difference": 0.0,
+        "updated_logits": {
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0
+        }
+      },
+      "loss_values": [
+        1.9491360625252128,
+        1.9491360625252128,
+        1.9491360625252128
+      ],
+      "measurements": [
+        {
+          "divergence_loss": 1.949136033654213,
+          "end_to_end_seconds": 2.4230040000984445,
+          "grad_norm": 8.445860862731934,
+          "loss": 1.9491360625252128,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703897808672,
+            "assistant_tool_call": 1.8877531573161679
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 4,
+          "peak_allocated_bytes": 2146659840,
+          "peak_reserved_bytes": 2390753280,
+          "physical_trajectory_batches": 2,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.41636959998868406,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.8162758001126349,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.5212351999944076
+        },
+        {
+          "divergence_loss": 1.949136033654213,
+          "end_to_end_seconds": 2.2852601000340655,
+          "grad_norm": 8.445860862731934,
+          "loss": 1.9491360625252128,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703897808672,
+            "assistant_tool_call": 1.8877531573161679
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 4,
+          "peak_allocated_bytes": 2146659840,
+          "peak_reserved_bytes": 2390753280,
+          "physical_trajectory_batches": 2,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.42093519994523376,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.8074053999735042,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.4762418000027537
+        },
+        {
+          "divergence_loss": 1.949136033654213,
+          "end_to_end_seconds": 2.3022483000531793,
+          "grad_norm": 8.445860862731934,
+          "loss": 1.9491360625252128,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703897808672,
+            "assistant_tool_call": 1.8877531573161679
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 4,
+          "peak_allocated_bytes": 2146659840,
+          "peak_reserved_bytes": 2390753280,
+          "physical_trajectory_batches": 2,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.41576260002329946,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.8167387000285089,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.484146900009364
+        }
+      ],
+      "padding_tokens": 616,
+      "peak_allocated_bytes": 2146659840,
+      "peak_reserved_bytes": 2390753280,
+      "physical_batches": 2,
+      "runtime": "shared_backbone",
+      "selected_positions": 863,
+      "selected_positions_per_second": 374.85096632716187,
+      "status": "completed",
+      "student_forward_seconds_median": 0.41636959998868406,
+      "student_trajectories_per_second": 19.213698599075006,
+      "teacher_positions_per_second": 1057.240702077555,
+      "teacher_scoring_seconds_median": 0.8162758001126349,
+      "teacher_target_digest": "cc761d789a9dc2c17440d03eb72be16c48ff86ffcdceb2b8c10a4745a8f0f995",
+      "teacher_target_digests_identical": true,
+      "trajectories": 8,
+      "trajectories_per_second": 3.474864114272648,
+      "trajectory_digest": "5d66d5c903c0633acb5c14898956df654197aebf3df365b972dce6e09c04cf04",
+      "update_seconds_median": 1.484146900009364
+    },
+    {
+      "adapter_switch_microseconds": 23651.550500071608,
+      "batch_size": "auto",
+      "end_to_end_seconds_median": 2.7547660999698564,
+      "end_to_end_seconds_min": 2.7372257000533864,
+      "equivalence_to_dual_sequential": {
+        "gradient": {
+          "cosine_similarity": 0.999999992944447,
+          "max_absolute_difference": 7.227063179016113e-06,
+          "max_relative_to_reference_max": 2.802595029641054e-05,
+          "relative_l2_difference": 2.5128261429827355e-05
+        },
+        "loss_absolute_difference": 1.2479722499847412e-06,
+        "updated_logits": {
+          "max_absolute_difference": 0.00012993812561035156,
+          "max_relative_to_reference_max": 3.953026727392894e-06
+        }
+      },
+      "equivalence_to_same_batch_dual": {
+        "gradient": {
+          "cosine_similarity": 1.0,
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0,
+          "relative_l2_difference": 0.0
+        },
+        "loss_absolute_difference": 0.0,
+        "updated_logits": {
+          "max_absolute_difference": 0.0,
+          "max_relative_to_reference_max": 0.0
+        }
+      },
+      "loss_values": [
+        1.9491367535665631,
+        1.9491367535665631,
+        1.9491367535665631
+      ],
+      "measurements": [
+        {
+          "divergence_loss": 1.9491367042064667,
+          "end_to_end_seconds": 2.8808200999628752,
+          "grad_norm": 8.445951461791992,
+          "loss": 1.9491367535665631,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703353292929,
+            "assistant_tool_call": 1.887753747336743
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 8,
+          "peak_allocated_bytes": 3207809024,
+          "peak_reserved_bytes": 4116709376,
+          "physical_trajectory_batches": 1,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.5630065000150353,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.7938374999212101,
+          "trajectories_in_step": 8,
+          "update_seconds": 2.0005987000185996
+        },
+        {
+          "divergence_loss": 1.9491367042064667,
+          "end_to_end_seconds": 2.7547660999698564,
+          "grad_norm": 8.445951461791992,
+          "loss": 1.9491367535665631,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703353292929,
+            "assistant_tool_call": 1.887753747336743
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 8,
+          "peak_allocated_bytes": 3207551488,
+          "peak_reserved_bytes": 4116709376,
+          "physical_trajectory_batches": 1,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.5653833999531344,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.8155830999603495,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.9380290999542922
+        },
+        {
+          "divergence_loss": 1.9491367042064667,
+          "end_to_end_seconds": 2.7372257000533864,
+          "grad_norm": 8.445951461791992,
+          "loss": 1.9491367535665631,
+          "loss_by_span_type": {
+            "assistant_final": 1.8240703353292929,
+            "assistant_tool_call": 1.887753747336743
+          },
+          "lr": 0.0001,
+          "oracle_ce_loss": null,
+          "padded_trajectory_batch_size": 8,
+          "peak_allocated_bytes": 3207551488,
+          "peak_reserved_bytes": 4116709376,
+          "physical_trajectory_batches": 1,
+          "sampled_token_nll_loss": null,
+          "selected_positions": 863,
+          "student_forward_seconds": 0.5632106999401003,
+          "teacher_entropy_mean": 0.015114305055293396,
+          "teacher_scoring_seconds": 0.7871545000234619,
+          "trajectories_in_step": 8,
+          "update_seconds": 1.9489293999504298
+        }
+      ],
+      "padding_tokens": 1636,
+      "peak_allocated_bytes": 3207809024,
+      "peak_reserved_bytes": 4116709376,
+      "physical_batches": 1,
+      "runtime": "shared_backbone",
+      "selected_positions": 863,
+      "selected_positions_per_second": 313.2752359662925,
+      "status": "completed",
+      "student_forward_seconds_median": 0.5632106999401003,
+      "student_trajectories_per_second": 14.204275594996387,
+      "teacher_positions_per_second": 1087.124254127141,
+      "teacher_scoring_seconds_median": 0.7938374999212101,
+      "teacher_target_digest": "cc761d789a9dc2c17440d03eb72be16c48ff86ffcdceb2b8c10a4745a8f0f995",
+      "teacher_target_digests_identical": true,
+      "trajectories": 8,
+      "trajectories_per_second": 2.904057807335272,
+      "trajectory_digest": "5d66d5c903c0633acb5c14898956df654197aebf3df365b972dce6e09c04cf04",
+      "update_seconds_median": 1.9489293999504298
+    },
+    {
+      "batch_size": "auto",
+      "reason": "NF4 models are device-pinned; swap is explicitly unsupported",
+      "runtime": "dual_model_swap",
+      "status": "not_run"
+    }
+  ],
+  "code_commit": "e44584b04837a05b0dd834c7948666d843908486",
+  "environment": {
+    "cpu_count": 24,
+    "git_commit": "e44584b04837a05b0dd834c7948666d843908486",
+    "gpu": {
+      "available": true,
+      "capability": "8.9",
+      "device_count": 1,
+      "device_index": 0,
+      "driver_version": null,
+      "multi_processor_count": 76,
+      "name": "NVIDIA GeForce RTX 4080",
+      "torch_cuda_version": "13.0",
+      "torch_version": "2.13.0+cu130",
+      "total_memory_bytes": 17170956288,
+      "total_memory_gib": 15.992
+    },
+    "machine": "AMD64",
+    "os": "Windows",
+    "os_release": "11",
+    "packages": {
+      "accelerate": "1.14.0",
+      "bitsandbytes": "0.50.0",
+      "miniverl": "0.4.0.dev0",
+      "numpy": "2.5.1",
+      "peft": "0.19.1",
+      "pydantic": "2.13.4",
+      "rich": "15.0.0",
+      "safetensors": "0.8.0",
+      "torch": "2.13.0+cu130",
+      "transformers": "5.14.1",
+      "typer": "0.27.0"
+    },
+    "platform": "Windows-11",
+    "processor_family": "AMD64",
+    "python_implementation": "CPython",
+    "python_version": "3.12.13",
+    "tracked_env_vars": {
+      "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+    }
+  },
+  "equivalence_gate": {
+    "comparisons_expected": 12,
+    "comparisons_observed": 12,
+    "failures": [],
+    "max_observed": {
+      "gradient_max_absolute_difference": 7.227063179016113e-06,
+      "gradient_max_relative_to_reference_max": 2.802595029641054e-05,
+      "loss_absolute_difference": 1.2479722499847412e-06,
+      "updated_logit_max_absolute_difference": 0.00012993812561035156,
+      "updated_logit_max_relative_to_reference_max": 3.953026727392894e-06
+    },
+    "passed": true,
+    "tolerances": {
+      "gradient_absolute_tolerance": 0.0003,
+      "gradient_relative_tolerance": 0.003,
+      "loss_absolute_tolerance": 1e-05,
+      "teacher_logit_absolute_tolerance": 0.002,
+      "updated_logit_absolute_tolerance": 0.003,
+      "updated_logit_relative_tolerance": 0.003
+    }
+  },
+  "frozen_calculator_sha256": "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc",
+  "larger_model_diagnostic": [
+    {
+      "reason": "no preregistered compatible frozen teacher adapter",
+      "size": "4B",
+      "status": "not_run"
+    },
+    {
+      "reason": "no preregistered compatible frozen teacher adapter",
+      "size": "7B",
+      "status": "not_run"
+    }
+  ],
+  "measurement_status": "measured_final",
+  "name": "consumer-runtime-v1",
+  "preregistration_sha256": "97303ce1a3528949fa8607f760a5a141a0eff65c26bb63c1aff55fec82a8ac6c",
+  "schema_version": 1,
+  "workload_invariants": {
+    "teacher_target_digest": "cc761d789a9dc2c17440d03eb72be16c48ff86ffcdceb2b8c10a4745a8f0f995",
+    "teacher_target_digests_identical": true,
+    "trajectory_digest": "5d66d5c903c0633acb5c14898956df654197aebf3df365b972dce6e09c04cf04",
+    "trajectory_digests_identical": true
+  }
+}

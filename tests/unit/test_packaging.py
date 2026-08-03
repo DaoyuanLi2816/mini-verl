@@ -40,6 +40,7 @@ REQUIRED_SUBPACKAGES = (
     "losses",
     "models",
     "reporting",
+    "runtime",
     "schemas",
     "selection",
     "teachers",
@@ -80,6 +81,8 @@ TORCH_FREE_MODULES = (
     "miniverl.reporting.data",
     "miniverl.reporting.html",
     "miniverl.reporting.markdown",
+    "miniverl.runtime",
+    "miniverl.runtime.roles",
     "miniverl.utils",
     "miniverl.utils.env",
     "miniverl.utils.gpu",
@@ -215,12 +218,17 @@ def test_every_published_benchmark_result_validates_against_the_schema():
     jsonschema.Draft202012Validator.check_schema(schema)
     validator = jsonschema.Draft202012Validator(schema)
 
-    # RecoveryBench's paired analysis has its own exact, data-binding contract
-    # in test_recoverybench_publish; it is not a BenchmarkResult document.
+    # RecoveryBench's paired analysis and both consumer-runtime artifacts have
+    # dedicated exact/schema contracts; none is a BenchmarkResult document.
     results = sorted(
         path
         for path in (root / "benchmarks" / "results").glob("*.json")
-        if path.name != "recoverybench-v1-analysis.json"
+        if path.name
+        not in {
+            "recoverybench-v1-analysis.json",
+            "consumer-runtime-v1.json",
+            "consumer-runtime-v1-profiler.json",
+        }
     )
     assert results, "benchmarks/results/ has no published result to validate"
     for path in results:

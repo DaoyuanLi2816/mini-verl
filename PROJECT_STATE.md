@@ -4,7 +4,23 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-01.
+Last updated: 2026-08-02.
+
+## v0.4.0 Consumer Runtime development
+
+| item | current state |
+| --- | --- |
+| phase boundary | v0.3.0 was released and state-synced to `0.4.0.dev0` before this work began; v0.4 must merge, release and advance main to `0.5.0.dev0` before alignment-lab experiments begin |
+| implementation | typed padded batches support variable lengths, causal mask isolation, padding-free selected-position loss, per-trajectory normalization, deterministic length bucketing, SFT/offline-KD/strict-OPD and exact/top-k-plus-tail objectives |
+| local role graph | typed actor, rollout, teacher, reference, verifier, target, update, evaluation and artifact roles map existing components without importing Ray, DataProto, FSDP placement or distributed APIs |
+| shared ownership | `models.runtime: shared_backbone` loads one quantized base with trainable student, frozen teacher and optional frozen reference adapters; optimizer visibility, failure restoration, one-base loading, reference isolation and standard PEFT student export are covered by CPU/HF tests |
+| public systems adapter | `DaoyuanLi/mini-verl-qwen3-0.6b-consumer-runtime-teacher@e277b92d8c1fdb76cd133f872f0ddd2c47a4ab8c` is immutable and independently re-downloaded; it is a runtime benchmark artifact, not a newly qualified teacher |
+| preregistration | revision 1.2 at public PR head `e44584b04837a05b0dd834c7948666d843908486` retains eager attention and NF4 weights with FP32 compute after two explicitly non-headline diagnostics exposed nondeterministic SDPA and BF16 batch-shape drift |
+| final measurement | all eight dual/shared × sequential/2/4/auto cells completed on one RTX 4080; trajectory and teacher-target digests match, and 12/12 declared loss/full-gradient/post-update-logit equivalence comparisons pass |
+| performance result | dual batch-4 reached 3.866 trajectories/s at 3.035 GiB reserved (1.63× sequential); shared batch-4 reached 3.475 trajectories/s at 2.227 GiB (1.54× sequential and 26.6% less memory than dual batch-4, but 10.1% slower) |
+| frozen artifacts | result `a302da31af99f1d29f1efd4e6b3dbeb6ea4ac956bba102ca8a1bee8dff0319eb`; profiler `66111cd7fc876cf1befea3297a1a51bcd99252c0bf8989c029381e1dc155a98b`; SVG `98645a668a7832423d28b621262292619615917f037adf7219ff1bf071fb2fea` |
+| immutable baseline | calculator benchmark remains byte-identical at `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; every v0.3 artifact and negative result remains unchanged |
+| release state | development PR #30 is open; merge, full post-merge validation, release metadata, `v0.4.0` publication and `0.5.0.dev0` state sync remain pending |
 
 ## v0.3.0 RecoveryBench release
 

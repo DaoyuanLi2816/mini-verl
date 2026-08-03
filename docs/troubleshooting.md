@@ -166,9 +166,10 @@ swap is unavailable`.
 ```
 error CUDA ran out of memory and the 3 equivalence-preserving retries were
       exhausted (projection chunk size reached 16).
-hint  reduce rollout.max_total_tokens, reduce train.gradient_accumulation_steps,
-      lower loss.top_k, switch models.student.quantization to nf4, enable
-      models.student.gradient_checkpointing, or set memory.strategy: swap.
+hint  reduce train.trajectory_batch_size, reduce rollout.max_total_tokens,
+      reduce train.gradient_accumulation_steps, lower loss.top_k, switch
+      models.student.quantization to nf4, enable gradient checkpointing, or
+      set memory.strategy: swap.
 ```
 
 **Cause.** `run_with_oom_retry` in `src/miniverl/training/memory.py` catches
@@ -196,6 +197,7 @@ loss:
 rollout:
   max_total_tokens: 512        # shorter trajectories
 train:
+  trajectory_batch_size: 1       # fewer trajectories in each padded forward
   gradient_accumulation_steps: 3   # fewer trajectories held per optimizer step
 models:
   student:
@@ -213,6 +215,12 @@ batch. With the default `train.opd_freshness: strict`, `miniverl validate`
 rejects that schedule. Set `train.opd_freshness: replay` only when replay is
 intentional; the run is then labeled `online_distillation_with_replay`, not
 genuine on-policy distillation.
+
+Reducing `train.trajectory_batch_size` is the first neutral batching lever: it
+preserves the same optimizer group, targets and objective, but splits that group
+into more physical backbone forwards. Prefer a measured integer such as `2` or
+`4` over assuming `auto` is best; padding the whole group can use more memory
+when sequence lengths differ.
 
 For strategy details and the measured peak-VRAM numbers, see `docs/memory.md`.
 A one-cycle GPU smoke test on this machine reached 4.251 GiB peak allocated and
@@ -539,6 +547,9 @@ into a GPU run. The checks currently enforced:
 | `eval.max_turns > 4 * rollout.max_turns` | implausible |
 | a quantized model with `memory.strategy: swap` | bitsandbytes parameters are device-pinned |
 | `models.student.quantization` set with `lora.enabled: false` | a quantized student must be trained with LoRA adapters |
+| `models.runtime: shared_backbone` with different student/teacher base revisions | shared roles must own one physical base identity |
+| `models.runtime: shared_backbone` without a teacher adapter | shared ownership requires distinct student and frozen teacher adapters |
+| `models.runtime: shared_backbone` with `memory.strategy: swap` | one quantized shared base is explicitly resident |
 | `models.teacher.mode: privileged_context` on an environment without one | the environment provides no privileged context |
 | `schema_version` other than 1 | not supported by this build |
 

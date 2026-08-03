@@ -1,0 +1,169 @@
+{
+  "code_commit": "e44584b04837a05b0dd834c7948666d843908486",
+  "name": "consumer-runtime-v1-profiler",
+  "profiles": {
+    "shared_backbone_auto": [
+      {
+        "calls": 2184,
+        "name": "aten::mm",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 52939.499999990716,
+        "self_device_memory_bytes": 47855149568,
+        "self_device_time_us": 783695.5769999983
+      },
+      {
+        "calls": 2640,
+        "name": "aten::mul",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 31821.499999998097,
+        "self_device_memory_bytes": 111046307328,
+        "self_device_time_us": 361196.81799999956
+      },
+      {
+        "calls": 293,
+        "name": "ampere_sgemm_128x64_tn",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 317202.32499999733
+      },
+      {
+        "calls": 364,
+        "name": "ampere_sgemm_128x128_tn",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 276676.7269999997
+      },
+      {
+        "calls": 225,
+        "name": "aten::bmm",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 6465.299999998544,
+        "self_device_memory_bytes": 32210128896,
+        "self_device_time_us": 191929.76699999854
+      },
+      {
+        "calls": 1412,
+        "name": "aten::add",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 14593.900000001795,
+        "self_device_memory_bytes": 44273183232,
+        "self_device_time_us": 191180.3760000011
+      },
+      {
+        "calls": 901,
+        "name": "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_13AUnaryFunctorIfffNS0_15binary_internal10MulFunctorIfEEEESt5arrayIPcLy2EEEEviT0_T1_",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 164499.53800000055
+      },
+      {
+        "calls": 1120,
+        "name": "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_15CUDAFunctor_addIfEESt5arrayIPcLy3EEEEviT0_T1_",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 143799.29400000087
+      },
+      {
+        "calls": 140,
+        "name": "_ZN7cutlass7Kernel2I43cutlass_80_simt_sgemm_256x128_8x4_nn_align1EEvNT_6ParamsE",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 140565.9290000029
+      },
+      {
+        "calls": 1058,
+        "name": "aten::copy_",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 6085.800000003204,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 120732.79999999783
+      },
+      {
+        "calls": 522,
+        "name": "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_13BinaryFunctorIfffNS0_15binary_internal10MulFunctorIfEEEESt5arrayIPcLy3EEEEviT0_T1_",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 106762.60300000146
+      },
+      {
+        "calls": 980,
+        "name": "_ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_kernel_impl_nocastINS0_15CUDAFunctor_addIfEEEEvRNS_18TensorIteratorBaseERKT_EUliE_EEviT1_",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 95234.38600000314
+      },
+      {
+        "calls": 1,
+        "name": "Optimizer.step#AdamW8bit.step",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 93331.3030000003
+      },
+      {
+        "calls": 1166,
+        "name": "_ZN2at6native18elementwise_kernelILi128ELi2EZNS0_22gpu_kernel_impl_nocastINS0_13BinaryFunctorIfffNS0_15binary_internal10MulFunctorIfEEEEEEvRNS_18TensorIteratorBaseERKT_EUliE_EEviT1_",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 89880.82099999755
+      },
+      {
+        "calls": 140,
+        "name": "ampere_sgemm_128x128_nn",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 78866.63699999845
+      },
+      {
+        "calls": 555,
+        "name": "Memcpy DtoD (Device -> Device)",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 66463.8659999987
+      },
+      {
+        "calls": 56,
+        "name": "aten::_softmax",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 1399.300000000243,
+        "self_device_memory_bytes": 16793735680,
+        "self_device_time_us": 62083.92300000026
+      },
+      {
+        "calls": 56,
+        "name": "_ZN43_GLOBAL__N__bcfaaeff_10_SoftMax_cu_0af7be2120softmax_warp_forwardIfffLi10ELb0ELb0ELi32EEEvPT0_PKT_iiiPKbib",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 62083.92300000026
+      },
+      {
+        "calls": 7472,
+        "name": "aten::fill_",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 25496.300000040002,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 56875.87699997755
+      },
+      {
+        "calls": 5287,
+        "name": "_ZN2at6native29vectorized_elementwise_kernelILi4ENS0_11FillFunctorIfEESt5arrayIPcLy1EEEEviT0_T1_",
+        "self_cpu_memory_bytes": 0,
+        "self_cpu_time_us": 0.0,
+        "self_device_memory_bytes": 0,
+        "self_device_time_us": 55293.43899998901
+      }
+    ]
+  },
+  "schema_version": 1
+}
