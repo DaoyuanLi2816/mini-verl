@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from miniverl.config.models import SelectionConfig, SelectorName
+from miniverl.config.models import GateConfig, GateSignal, SelectionConfig, SelectorName
 from miniverl.schemas.trajectory import (
     Span,
     SpanType,
@@ -209,7 +209,43 @@ def test_aggregate_of_nothing_is_zero_not_a_crash():
 def test_no_selector_ever_returns_a_context_token():
     traj = _trajectory()
     for selector in SelectorName:
-        result = select_positions(traj, SelectionConfig(selector=selector, ratio=0.9), run_seed=3)
+        gate = (
+            GateConfig(
+                version="policy-span-v1",
+                signal=GateSignal.POLICY_CRITICAL_SPAN,
+                frozen_before_test=True,
+            )
+            if selector is SelectorName.VERIFIER_GATED
+            else None
+        )
+        result = select_positions(
+            traj,
+            SelectionConfig(selector=selector, ratio=0.9, gate=gate),
+            run_seed=3,
+        )
         for position in result.positions:
             assert traj.model_generated_mask[position], (selector, position)
             assert position > 0
+
+
+def test_verifier_gate_selects_only_policy_sensitive_critical_spans() -> None:
+    sensitive = _trajectory("sensitive").model_copy(
+        update={"metadata": {"policy_sensitive": True, "policy_category": "authorization"}}
+    )
+    benign = _trajectory("benign").model_copy(
+        update={"metadata": {"policy_sensitive": False, "policy_category": "benign_completion"}}
+    )
+    config = SelectionConfig(
+        selector=SelectorName.VERIFIER_GATED,
+        gate=GateConfig(
+            version="policy-span-v1",
+            signal=GateSignal.POLICY_CRITICAL_SPAN,
+            frozen_before_test=True,
+        ),
+    )
+    selected = select_positions(sensitive, config)
+    skipped = select_positions(benign, config)
+    assert selected.positions == list(range(30, 40)) + list(range(50, 60))
+    assert selected.stats.gate_decision == "qualified"
+    assert skipped.positions == []
+    assert skipped.stats.gate_decision == "not_qualified"

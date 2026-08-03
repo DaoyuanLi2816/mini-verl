@@ -33,6 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: Every subpackage that must exist in an installed distribution.
 REQUIRED_SUBPACKAGES = (
     "agent",
+    "alignment",
     "cache",
     "config",
     "environments",

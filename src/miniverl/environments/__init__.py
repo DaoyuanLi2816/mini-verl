@@ -24,6 +24,7 @@ from miniverl.environments.registry import (
 )
 from miniverl.environments.sqlite_env import SqliteEnvironment
 from miniverl.environments.sqlite_recovery import SqliteRecoveryEnvironment
+from miniverl.environments.tool_policy import ToolPolicyEnvironment
 
 __all__ = [
     "FailureCategory",
@@ -41,6 +42,7 @@ __all__ = [
     "JsonNavEnvironment",
     "SqliteEnvironment",
     "SqliteRecoveryEnvironment",
+    "ToolPolicyEnvironment",
     "make_environment",
     "available_environments",
     "ENVIRONMENT_NAMES",

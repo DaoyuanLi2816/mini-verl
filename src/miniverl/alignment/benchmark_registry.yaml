@@ -1,0 +1,36 @@
+schema_version: 1
+audited_at: "2026-08-02"
+benchmarks:
+  - name: ifeval
+    dimensions: [instruction_following_retention]
+    repository: https://github.com/google-research/google-research/tree/master/instruction_following_eval
+    revision: 8dadc6c56e2c2e51a9dd7e0d4bf2840922b4b6c0
+    license: Apache-2.0 + CC-BY-4.0 data
+    redistribute_data: false
+    integration: external_responses
+    notes: Adapter metadata only; users obtain the official data at this exact repository revision.
+  - name: xstest
+    dimensions: [appropriate_refusal, over_refusal, benign_compliance]
+    repository: https://github.com/paul-rottger/xstest
+    revision: d7bb5bd738c1fcbc36edd83d5e7d1b71a3e2d84d
+    license: CC-BY-4.0
+    redistribute_data: false
+    integration: external_responses
+    notes: Adapter metadata only; prompts are not vendored in the package.
+  - name: harmbench
+    dimensions: [harmful_compliance, unsafe_action_rate]
+    repository: https://github.com/centerforaisafety/HarmBench
+    revision: 8e1604d1171fe8a48d8febecd22f600e462bdcdd
+    license: MIT code; safety-sensitive benchmark data governed upstream
+    redistribute_data: false
+    integration: metadata_only
+    notes: No harmful prompts or classifier weights are redistributed by miniVERL.
+  - name: rewardbench
+    dimensions: [preference_win_rate]
+    repository: https://github.com/allenai/reward-bench
+    revision: 05a9005efb607249822c193590c8ecab87c77052
+    license: Apache-2.0 code; dataset subsets retain upstream licenses
+    redistribute_data: false
+    integration: external_responses
+    notes: Record the upstream dataset subset and revision for every imported response file.
+

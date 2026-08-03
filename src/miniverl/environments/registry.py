@@ -15,6 +15,7 @@ from miniverl.environments.calculator import CalculatorEnvironment
 from miniverl.environments.jsonnav import JsonNavEnvironment
 from miniverl.environments.sqlite_env import SqliteEnvironment
 from miniverl.environments.sqlite_recovery import SqliteRecoveryEnvironment
+from miniverl.environments.tool_policy import ToolPolicyEnvironment
 from miniverl.errors import ConfigError
 
 __all__ = ["make_environment", "available_environments", "ENVIRONMENT_NAMES", "register"]
@@ -24,6 +25,7 @@ _REGISTRY: dict[str, type[ToolEnvironment]] = {
     JsonNavEnvironment.name: JsonNavEnvironment,
     SqliteEnvironment.name: SqliteEnvironment,
     SqliteRecoveryEnvironment.name: SqliteRecoveryEnvironment,
+    ToolPolicyEnvironment.name: ToolPolicyEnvironment,
 }
 
 #: Names accepted by ``environment.name`` in a recipe.

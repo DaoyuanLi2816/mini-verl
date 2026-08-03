@@ -60,6 +60,9 @@ class SelectionStats:
     selected_critical_tokens: int
     selector: str
     by_span_type: dict[str, int] = field(default_factory=dict)
+    gate_decision: str | None = None
+    gate_version: str | None = None
+    gate_signal: str | None = None
 
     @property
     def query_ratio(self) -> float:
@@ -68,7 +71,7 @@ class SelectionStats:
             return 0.0
         return self.selected_model_tokens / self.total_model_tokens
 
-    def to_dict(self) -> dict[str, float | int | str | dict[str, int]]:
+    def to_dict(self) -> dict[str, float | int | str | dict[str, int] | None]:
         """JSON-friendly view used by metrics and reports."""
         return {
             "selector": self.selector,
@@ -78,6 +81,9 @@ class SelectionStats:
             "selected_critical_tokens": self.selected_critical_tokens,
             "query_ratio": self.query_ratio,
             "by_span_type": dict(self.by_span_type),
+            "gate_decision": self.gate_decision,
+            "gate_version": self.gate_version,
+            "gate_signal": self.gate_signal,
         }
 
 
@@ -129,6 +135,7 @@ def select_positions(
     rng = random.Random(derive_seed(run_seed, trajectory.trajectory_id))
 
     selector = config.selector
+    gate_decision: str | None = None
     if selector is SelectorName.ALL_MODEL_TOKENS:
         chosen = list(model_positions)
     elif selector is SelectorName.TOOL_AND_FINAL:
@@ -151,6 +158,18 @@ def select_positions(
             chosen = sorted(chosen + _deterministic_sample(others, remaining, rng))
         else:
             chosen = sorted(chosen)
+    elif selector is SelectorName.VERIFIER_GATED:
+        gate = config.gate
+        if gate is None:  # Validation normally rejects this before selection.
+            raise ConfigError("selector=verifier_gated requires a frozen gate")
+        qualified = bool(
+            trajectory.metadata.get(
+                "policy_gate_qualified",
+                trajectory.metadata.get("policy_sensitive", False),
+            )
+        )
+        chosen = list(critical_positions) if qualified else []
+        gate_decision = "qualified" if qualified else "not_qualified"
     else:  # pragma: no cover - exhaustive over the enum
         raise ConfigError(f"unknown selector {selector!r}")
 
@@ -164,6 +183,9 @@ def select_positions(
         selected_critical_tokens=sum(1 for p in chosen if p in critical_set),
         selector=selector.value,
         by_span_type=positions_by_span_type(chosen, trajectory.spans),
+        gate_decision=gate_decision,
+        gate_version=config.gate.version if config.gate is not None else None,
+        gate_signal=config.gate.signal.value if config.gate is not None else None,
     )
     return SelectionResult(positions=chosen, weights=weights, stats=stats)
 

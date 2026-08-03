@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING, Any
 
 from miniverl import __version__
 from miniverl.agent.loop import RolloutRunner, RolloutStats
+from miniverl.alignment.workflow import build_alignment_stage_plan
 from miniverl.cache.store import TeacherCache
 from miniverl.config.models import (
     LossMode,
@@ -889,6 +890,14 @@ class OPDTrainer:
                 ),
             },
             "objective": objective,
+            "alignment_workflow": (
+                build_alignment_stage_plan(
+                    config.alignment,
+                    sft_warmup_cycles=config.train.sft_warmup_cycles,
+                )
+                if config.alignment is not None
+                else None
+            ),
             "runtime_role_graph": self.role_graph.describe(),
             "artifact_bridge": {
                 "kind": "local_filesystem",
@@ -1433,6 +1442,30 @@ class OPDTrainer:
 
         for traj in trajectories:
             selection = select_positions(traj, config.selection, run_seed=config.run.seed)
+            if selection.stats.gate_decision is not None:
+                selected = set(selection.positions)
+                self.events.emit(
+                    "alignment_gate_decision",
+                    trajectory_id=traj.trajectory_id,
+                    task_id=traj.task_id,
+                    gate_version=selection.stats.gate_version,
+                    gate_signal=selection.stats.gate_signal,
+                    decision=selection.stats.gate_decision,
+                    spans=[
+                        {
+                            "span_type": span.span_type.value,
+                            "start": span.start,
+                            "end": span.end,
+                            "selected_positions": sum(
+                                1
+                                for position in range(span.start, span.end)
+                                if position in selected
+                            ),
+                        }
+                        for span in traj.spans
+                        if span.is_critical
+                    ],
+                )
             if not selection.positions:
                 continue
             teacher_view: Trajectory | None = None

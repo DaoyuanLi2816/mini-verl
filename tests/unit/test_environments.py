@@ -896,8 +896,20 @@ def test_every_environment_contains_arbitrary_json_compatible_arguments(
 
 
 def test_available_environments_is_the_documented_set() -> None:
-    assert available_environments() == ["calculator", "jsonnav", "sqlite", "sqlite_recovery"]
-    assert ENVIRONMENT_NAMES == ("calculator", "jsonnav", "sqlite", "sqlite_recovery")
+    assert available_environments() == [
+        "calculator",
+        "jsonnav",
+        "sqlite",
+        "sqlite_recovery",
+        "tool_policy",
+    ]
+    assert ENVIRONMENT_NAMES == (
+        "calculator",
+        "jsonnav",
+        "sqlite",
+        "sqlite_recovery",
+        "tool_policy",
+    )
 
 
 def test_unknown_environment_lists_the_available_names() -> None:

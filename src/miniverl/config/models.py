@@ -19,11 +19,23 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
 
+from miniverl.alignment.schema import (
+    AlignmentConfig,
+    AlignmentMethod,
+    GateConfig,
+    GateSignal,
+    TeacherMode,
+)
 from miniverl.errors import ConfigError
 from miniverl.utils.runs import write_text
 
 __all__ = [
     "TrainingMode",
+    "AlignmentConfig",
+    "AlignmentMethod",
+    "GateConfig",
+    "GateSignal",
+    "TeacherMode",
     "OfflineKDTrajectorySource",
     "OPDFreshness",
     "AdapterSource",
@@ -154,6 +166,7 @@ class SelectorName(str, Enum):
     UNIFORM_RATIO = "uniform_ratio"
     UNIFORM_BUDGET = "uniform_budget"
     HYBRID = "hybrid"
+    VERIFIER_GATED = "verifier_gated"
 
 
 class MemoryStrategy(str, Enum):
@@ -453,6 +466,15 @@ class SelectionConfig(_Base):
     #: Relative weight applied to critical (tool-call / final) tokens.
     critical_weight: float = Field(default=1.0, gt=0.0, le=100.0)
     other_weight: float = Field(default=1.0, gt=0.0, le=100.0)
+    gate: GateConfig | None = None
+
+    @model_validator(mode="after")
+    def _gate_matches_selector(self) -> SelectionConfig:
+        if self.selector is SelectorName.VERIFIER_GATED and self.gate is None:
+            raise ValueError("selector=verifier_gated requires selection.gate")
+        if self.selector is not SelectorName.VERIFIER_GATED and self.gate is not None:
+            raise ValueError("selection.gate applies only to selector=verifier_gated")
+        return self
 
 
 class RolloutConfig(_Base):
@@ -668,6 +690,7 @@ class RunConfig(_Base):
     offline_kd: OfflineKDConfig = Field(default_factory=OfflineKDConfig)
     eval: EvalConfig = Field(default_factory=EvalConfig)
     report: ReportConfig = Field(default_factory=ReportConfig)
+    alignment: AlignmentConfig | None = None
 
     # -- cross-field validation ----------------------------------------
 
@@ -803,6 +826,55 @@ class RunConfig(_Base):
         if self.eval.max_turns is not None and self.eval.max_turns > self.rollout.max_turns * 4:
             raise ValueError("eval.max_turns is implausibly larger than rollout.max_turns")
 
+        alignment = self.alignment
+        if alignment is not None:
+            if alignment.starting_sft_checkpoint is None and self.train.sft_warmup_cycles == 0:
+                raise ValueError(
+                    "an alignment run requires alignment.starting_sft_checkpoint or an "
+                    "explicit train.sft_warmup_cycles stage"
+                )
+            expected_modes = {
+                AlignmentMethod.SFT_CHECKPOINT: TrainingMode.SFT,
+                AlignmentMethod.CONTINUED_SFT: TrainingMode.SFT,
+                AlignmentMethod.OFFLINE_DISTILLATION: TrainingMode.OFFLINE_KD,
+                AlignmentMethod.STANDARD_OPD: TrainingMode.OPD,
+                AlignmentMethod.VERIFIER_GATED_OPD: TrainingMode.OPD,
+            }
+            expected = expected_modes.get(alignment.method)
+            if expected is not None and mode is not expected:
+                raise ValueError(
+                    f"alignment.method={alignment.method.value} requires run.mode={expected.value}"
+                )
+            if alignment.method in {
+                AlignmentMethod.SFT_CHECKPOINT,
+                AlignmentMethod.DPO,
+            } and (self.train.cycles != 0 or self.train.sft_warmup_cycles != 0):
+                raise ValueError(
+                    f"alignment.method={alignment.method.value} imports/evaluates a frozen "
+                    "checkpoint and requires zero training cycles"
+                )
+            if (
+                alignment.teacher_mode is TeacherMode.POLICY_CONDITIONED
+                and self.models.teacher.mode is not TeacherContextMode.PRIVILEGED_CONTEXT
+            ):
+                raise ValueError(
+                    "policy_conditioned alignment requires models.teacher.mode=privileged_context"
+                )
+            if (
+                alignment.teacher_mode is TeacherMode.ALIGNED_ADAPTER
+                and self.models.teacher.adapter is None
+            ):
+                raise ValueError(
+                    "aligned_adapter alignment requires a frozen models.teacher.adapter"
+                )
+            if alignment.method is AlignmentMethod.VERIFIER_GATED_OPD:
+                if self.selection.selector is not SelectorName.VERIFIER_GATED:
+                    raise ValueError(
+                        "verifier_gated_opd requires selection.selector=verifier_gated"
+                    )
+                if self.selection.gate != alignment.gate:
+                    raise ValueError("alignment.gate and selection.gate must be identical")
+
         return self
 
     # -- convenience ----------------------------------------------------
@@ -853,6 +925,16 @@ class RunConfig(_Base):
             raise ConfigError(f"{p} is empty")
         if not isinstance(raw, dict):
             raise ConfigError(f"{p} must contain a YAML mapping at the top level")
+        alignment = raw.get("alignment")
+        if isinstance(alignment, dict):
+            for field_name in ("starting_sft_checkpoint", "dpo_adapter_path"):
+                local_path = alignment.get(field_name)
+                if (
+                    isinstance(local_path, str)
+                    and local_path
+                    and not Path(local_path).is_absolute()
+                ):
+                    alignment[field_name] = str((p.parent / local_path).resolve())
         config = cls.model_validate(raw)
         config._submitted_bytes = submitted
         config._source_path = p.resolve()
