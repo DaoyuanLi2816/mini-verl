@@ -6,7 +6,7 @@ and what it printed.
 
 Last updated: 2026-08-03.
 
-## v0.6.1 Visual integrity and bridge correctness release candidate
+## v0.6.1 Visual integrity and bridge correctness release
 
 | item | current state |
 | --- | --- |
@@ -16,10 +16,16 @@ Last updated: 2026-08-03.
 | import contract | every source field is classified as exact, derived, informational only, requiring user confirmation or unsupported; unresolved data/environment, teacher, objective or schedule semantics produce `needs_user_input` plus a non-executable template |
 | export status | artifact completeness, upstream parse/load, model/data smoke, reward implementation, launchability, distributed testing and algorithm parity are independent flags; the fail-closed reward scaffold remains non-launchable and uses `launch.template.sh` |
 | documentation | pinned Material 9.7.7 supplies stable/dev navigation, search, dark/light modes, command-copy controls and responsive tables/images; the landing page exposes Align, Distill locally and Scale out paths |
-| visual gate | Playwright checks five pages at 1440x900, 1024x768, 820x1000 and 390x844 for overflow, SVG bounds, label collisions, readable labels, tables and the responsive bridge; docs run [`30855762827`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30855762827) is green and its 20 Linux screenshots were manually inspected |
-| validation | local ruff, format, mypy, actionlint, full non-GPU/non-network, available GPU/network, strict MkDocs, browser visual, package/Twine, clean-install, extracted-sdist, bridge end-to-end, privacy, Markdown/link and generated-byte gates pass; PR-head CI [`30855762617`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30855762617), build [`30855763132`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30855763132) and pinned bridge [`30855762724`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30855762724) are green |
+| visual gate | Playwright checks five pages at 1440x900, 1024x768, 820x1000 and 390x844 for overflow, SVG bounds, label collisions, readable labels, tables and the responsive bridge; final PR docs run [`30856925490`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30856925490) is green and its 20 Linux screenshots were manually inspected |
+| validation | local ruff, format, mypy, actionlint, full non-GPU/non-network, available GPU/network, strict MkDocs, browser visual, package/Twine, clean-install, extracted-sdist, bridge end-to-end, privacy, Markdown/link and generated-byte gates pass; PR CI/build/bridge runs `30856925524` / `30856925481` / `30856925485` and synchronized-main CI/build/docs runs [`30857409920`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30857409920) / [`30857409926`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30857409926) / [`30857409918`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30857409918) are green |
 | immutable evidence | no result JSON/JSONL or frozen bridge-smoke record changed; calculator SHA-256 remains `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` and Alignment Lab result/task SHA-256 values remain `584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef` / `8d7fc723436d7377d196fc44046d960e3cb7f0aa81e03d49ef05b627eb84630f` |
-| release state | exact `0.6.1` metadata is being finalized on focused PR [#40](https://github.com/DaoyuanLi2816/mini-verl/pull/40); merge, tag and OIDC publication remain gated on the final head being green |
+| integration | focused PR [#40](https://github.com/DaoyuanLi2816/mini-verl/pull/40) was squash-merged as exact release commit `48b9e7d9231b5f6cd018f6e927f81df066258f17`; annotated tag `v0.6.1` resolves to that commit |
+| release execution | tag run [`30857762954`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30857762954) passed metadata, the full quality gate, one-time build, OIDC Trusted Publishing, public hashes/attestations, exact install and GitHub Release creation |
+| published wheel | [`miniverl-0.6.1-py3-none-any.whl`](https://pypi.org/project/miniverl/0.6.1/), SHA-256 `ef9ce5378e43c0d833b782e431248a0838e3841ace76a8b3a08781dd28007918` |
+| published sdist | [`miniverl-0.6.1.tar.gz`](https://pypi.org/project/miniverl/0.6.1/), SHA-256 `e5ffd7917035d1f3878b22415dd357cd47fe16b6c77ffdae260e0b85ad7e050f` |
+| independent public verification | PyPI and GitHub Release expose identical file hashes; the PyPI integrity API exposes one Trusted Publisher attestation for each distribution, and a clean Windows Python 3.12 install from the public wheel reported `miniverl 0.6.1`, kept torch absent and passed core doctor |
+| version transition | `v0.6.1` is immutable and public; this state-sync change identifies subsequent development as `0.6.2.dev0` |
+| release state | complete; PyPI and [`miniVERL v0.6.1`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.6.1) expose the verified release, and the synchronized docs workflow publishes v0.6.1 at the stable root plus current main under `/dev/` |
 
 ## v0.6.0 Verified verl Bridge release
 

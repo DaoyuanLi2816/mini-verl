@@ -52,10 +52,20 @@ after the exact release commit and its remote checks are green.
 
 ## After the tag
 
-- [ ] Verify the annotated tag, OIDC run, PyPI hashes and attestations, a clean
-      public install, the GitHub Release and versioned stable documentation.
-- [ ] Advance subsequent development to `0.6.2.dev0` in a separate green
-      state-sync pull request.
+- [x] Annotated tag `v0.6.1` resolves to release commit
+      `48b9e7d9231b5f6cd018f6e927f81df066258f17`; OIDC publication, one
+      attestation per file, public hashes, a clean public-wheel install and the
+      GitHub Release were verified by tag run
+      [`30857762954`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30857762954).
+- [x] This separate state-sync change advances subsequent development to
+      `0.6.2.dev0`; it merges only after remote checks are green.
+
+Published artifact identity:
+
+- `miniverl-0.6.1-py3-none-any.whl`: SHA-256
+  `ef9ce5378e43c0d833b782e431248a0838e3841ace76a8b3a08781dd28007918`
+- `miniverl-0.6.1.tar.gz`: SHA-256
+  `e5ffd7917035d1f3878b22415dd357cd47fe16b6c77ffdae260e0b85ad7e050f`
 
 ## v0.6.0 Verified verl Bridge release
 
