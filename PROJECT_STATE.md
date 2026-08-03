@@ -6,7 +6,7 @@ and what it printed.
 
 Last updated: 2026-08-03.
 
-## v0.6.0 Verified verl Bridge release candidate
+## v0.6.0 Verified verl Bridge release
 
 | item | current state |
 | --- | --- |
@@ -21,7 +21,13 @@ Last updated: 2026-08-03.
 | local release gates | ruff, format, mypy, actionlint, Markdown/link and generated-artifact checks pass; the full non-GPU/non-network suite passes 1548 tests with 6 deselected at 85.53% branch coverage; the available GPU and network gates each pass 3; package build, Twine, clean Python 3.10 wheel install and exact pinned-verl smoke pass |
 | integration source | Verified verl Bridge PR [#36](https://github.com/DaoyuanLi2816/mini-verl/pull/36) was squash-merged as `0d43310cca47db828b10a0e12facb33e8f0fd371`; synchronized main CI, build and docs runs `30794655713`, `30794655722` and `30794655822` are green; the latest PR bridge smoke is `30794329109` |
 | public documentation | GitHub Pages deployed successfully and returned HTTP 200 at `https://daoyuanli2816.github.io/mini-verl/` with the bridge documentation visible |
-| release state | development integration and post-merge validation are complete; this focused release-metadata change binds exact `0.6.0`, after which annotated-tag publication and `0.6.1.dev0` state sync remain |
+| release metadata | PR [#37](https://github.com/DaoyuanLi2816/mini-verl/pull/37) was squash-merged as exact commit `6cfbdbb7bbf5c6042def4cf154bfe3c3b6530eea`; annotated tag `v0.6.0` resolves to that commit |
+| release execution | tag run [`30796058250`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30796058250) passed metadata, the full quality gate, one-time build, OIDC Trusted Publishing with attestations, public PyPI verification, exact install and GitHub Release creation |
+| published wheel | [`miniverl-0.6.0-py3-none-any.whl`](https://pypi.org/project/miniverl/0.6.0/), SHA-256 `e5fbb99bf410c27d22d6959f9599dfa4fbac2e940dac63f55c9676f68264abd1` |
+| published sdist | [`miniverl-0.6.0.tar.gz`](https://pypi.org/project/miniverl/0.6.0/), SHA-256 `2e1d85556875f6d23152220897ba919d8b82bda35c5c78fd48efffa7ec22909d` |
+| independent public verification | PyPI and GitHub Release expose the same files and hashes; PyPI exposes one Trusted Publisher attestation bundle per distribution, bound to `release.yml`, environment `pypi` and commit `6cfbdbb7`; a clean Windows Python 3.10 install from `https://pypi.org/simple` reported `miniverl 0.6.0` and passed JSON `doctor` with the core path healthy and torch absent |
+| version transition | `v0.6.0` is immutable and public; this state-sync change identifies subsequent development as `0.6.1.dev0` |
+| release state | complete; PyPI, [`miniVERL v0.6.0`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.6.0) and the public documentation site expose the verified release |
 
 ## v0.5.0 One-GPU Alignment Lab release
 
