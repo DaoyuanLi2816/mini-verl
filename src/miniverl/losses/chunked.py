@@ -53,7 +53,10 @@ __all__ = [
 class ChunkTargetProvider(Protocol):
     """Supplies teacher supervision for a slice of selected positions."""
 
-    kind: str
+    @property
+    def kind(self) -> str:
+        """Stable target representation name."""
+        ...
 
     def divergence(self, start: int, end: int, student_logits: torch.Tensor) -> torch.Tensor:
         """Per-position divergence ``[end - start]`` for this chunk."""
@@ -174,6 +177,7 @@ def chunked_selected_position_loss(
     chunk_size: int = 256,
     backward: bool = False,
     loss_scale: float = 1.0,
+    weight_normalizer: float | None = None,
     collect_teacher_entropy: bool = False,
 ) -> LossOutput:
     """Evaluate (and optionally backpropagate) the objective in vocabulary chunks.
@@ -205,6 +209,10 @@ def chunked_selected_position_loss(
     loss_scale:
         Multiplier applied before ``backward`` (gradient accumulation).  The
         returned ``loss`` is the *unscaled* value.
+    weight_normalizer:
+        Optional explicit denominator. Padded trajectory batching passes the
+        number of trajectories after normalizing each row independently, which
+        preserves the sequential per-trajectory objective exactly.
     """
     if provider is None and ce_weight <= 0.0:
         raise ValueError("either a teacher target provider or ce_weight > 0 is required")
@@ -242,8 +250,13 @@ def chunked_selected_position_loss(
     if w.shape[0] != n:
         raise ValueError(f"weights has length {w.shape[0]} but hidden_states has {n} rows")
     total = w.sum()
-    # Only an exactly-zero weight sum uses the floor; see losses/reduction.py.
-    denom = torch.where(total > 0, total, torch.full_like(total, MIN_TOTAL_WEIGHT))
+    if weight_normalizer is not None:
+        if weight_normalizer <= 0.0:
+            raise ValueError(f"weight_normalizer must be > 0, got {weight_normalizer}")
+        denom = torch.tensor(float(weight_normalizer), dtype=torch.float32, device=device)
+    else:
+        # Only an exactly-zero weight sum uses the floor; see losses/reduction.py.
+        denom = torch.where(total > 0, total, torch.full_like(total, MIN_TOTAL_WEIGHT))
 
     use_two_stage = backward and hidden_states.requires_grad
     work = hidden_states.detach().requires_grad_(True) if use_two_stage else hidden_states

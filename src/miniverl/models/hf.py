@@ -175,6 +175,7 @@ class HFBackend(CausalLMBackend):
         trainable: bool,
         local_files_only: bool = False,
         protocol_version: str | None = None,
+        student_adapter_name: str = "default",
     ) -> HFBackend:
         """Load a model from a local path or the Hub."""
         transformers = require_transformers("Loading a Hugging Face causal LM")
@@ -260,6 +261,7 @@ class HFBackend(CausalLMBackend):
                     lora_spec,
                     quantized=quant_config is not None,
                     gradient_checkpointing=gradient_checkpointing,
+                    adapter_name=student_adapter_name,
                 )
                 lora_enabled = True
             if gradient_checkpointing:
@@ -310,7 +312,12 @@ class HFBackend(CausalLMBackend):
 
     @staticmethod
     def _attach_lora(
-        model: Any, spec: LoRAConfig, *, quantized: bool, gradient_checkpointing: bool
+        model: Any,
+        spec: LoRAConfig,
+        *,
+        quantized: bool,
+        gradient_checkpointing: bool,
+        adapter_name: str = "default",
     ) -> Any:
         peft = require_peft("LoRA / QLoRA training")
         if quantized:
@@ -326,7 +333,7 @@ class HFBackend(CausalLMBackend):
             task_type="CAUSAL_LM",
         )
         try:
-            return peft.get_peft_model(model, config)
+            return peft.get_peft_model(model, config, adapter_name=adapter_name)
         except ValueError as exc:
             raise BackendError(
                 f"could not attach LoRA adapters: {exc}",
@@ -340,11 +347,14 @@ class HFBackend(CausalLMBackend):
         self,
         input_ids: torch.Tensor,
         *,
+        attention_mask: torch.Tensor | None = None,
         past_key_values: Any = None,
         use_cache: bool = False,
     ) -> tuple[torch.Tensor, Any]:
         backbone = self.adapter.backbone
         kwargs: dict[str, Any] = {"input_ids": input_ids, "use_cache": use_cache}
+        if attention_mask is not None:
+            kwargs["attention_mask"] = attention_mask
         if past_key_values is not None:
             kwargs["past_key_values"] = past_key_values
         outputs = backbone(**kwargs)
@@ -415,6 +425,22 @@ class HFBackend(CausalLMBackend):
         with context:
             hidden, _ = self._backbone_forward(ids, use_cache=False)
             return hidden[0].index_select(0, index)
+
+    def hidden_states_at_batch(
+        self,
+        batch: Any,
+        *,
+        with_grad: bool = False,
+    ) -> torch.Tensor:
+        """Gather selected states from one masked padded backbone forward."""
+        context = torch.enable_grad() if with_grad else torch.no_grad()
+        with context:
+            hidden, _ = self._backbone_forward(
+                batch.input_ids,
+                attention_mask=batch.attention_mask,
+                use_cache=False,
+            )
+            return hidden[batch.selected_batch_indices, batch.selected_positions]
 
     def project(self, hidden: torch.Tensor) -> torch.Tensor:
         """Apply the LM head to selected hidden states."""

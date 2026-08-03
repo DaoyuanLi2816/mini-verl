@@ -120,6 +120,109 @@ def _train(config, run_id: str):
     return trainer, result
 
 
+def test_trainer_uses_one_padded_backbone_forward_for_two_trajectories(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from miniverl.trainer import OPDTrainer
+
+    config = _config(
+        tmp_path,
+        run={"mode": "sft"},
+        train={
+            "cycles": 1,
+            "rollouts_per_cycle": 2,
+            "gradient_accumulation_steps": 2,
+            "trajectory_batch_size": 2,
+        },
+        eval={"enabled": False},
+        report={"enabled": False},
+    )
+    trainer = OPDTrainer.from_config(config, run_id="padded-forward-count")
+    try:
+        trajectories, _ = trainer._collect(trainer.splits["train"][:2], oracle=True)
+        samples = trainer._build_samples_ce_only(trajectories)
+        calls = 0
+        original = trainer.student.model.forward
+
+        def counted_forward(*args, **kwargs):  # type: ignore[no-untyped-def]
+            nonlocal calls
+            calls += 1
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(trainer.student.model, "forward", counted_forward)
+        record = trainer._compute_group_gradients(samples, chunk_size=8)
+        assert calls == 1
+        assert record["physical_trajectory_batches"] == 1
+        assert record["padded_trajectory_batch_size"] == 2
+    finally:
+        trainer.close()
+
+
+@pytest.mark.parametrize(
+    ("mode", "loss_mode"),
+    [
+        ("sft", "bucketed_topk_tail"),
+        ("offline_kd", "bucketed_topk_tail"),
+        ("offline_kd", "exact_full_vocab"),
+        ("opd", "bucketed_topk_tail"),
+        ("opd", "exact_full_vocab"),
+    ],
+)
+def test_sequential_and_padded_training_updates_are_equivalent(
+    tmp_path: Path, mode: str, loss_mode: str
+) -> None:
+    import torch
+
+    from miniverl.trainer import OPDTrainer
+
+    common: dict[str, Any] = {
+        "run": {"mode": mode},
+        "train": {
+            "cycles": 1,
+            "rollouts_per_cycle": 2,
+            "gradient_accumulation_steps": 2,
+            "learning_rate": 0.001,
+        },
+        "loss": {
+            "mode": loss_mode,
+            "top_k": 1 if loss_mode == "exact_full_vocab" else 8,
+            "chunk_size": 8,
+        },
+        "eval": {"enabled": False},
+        "report": {"enabled": False},
+    }
+    if mode == "offline_kd":
+        common["cache"] = {
+            "reuse_across_policy_versions": True,
+            "strict_policy_version": False,
+        }
+
+    states = []
+    metrics = []
+    for batch_size in (1, 2):
+        overrides = dict(common)
+        overrides["train"] = {**common["train"], "trajectory_batch_size": batch_size}
+        config = _config(tmp_path, **overrides)
+        trainer = OPDTrainer.from_config(
+            config,
+            run_id=f"equivalence-{mode}-{loss_mode}-{batch_size}",
+        )
+        try:
+            result = trainer.train()
+            states.append(trainer.student.trainable_state_dict())
+            metrics.append(result.final_metrics)
+        finally:
+            trainer.close()
+
+    assert states[0].keys() == states[1].keys()
+    for name in states[0]:
+        # Padded and singleton GEMMs use different CPU kernels, so equivalence
+        # is numerical rather than bitwise while the objective is identical.
+        torch.testing.assert_close(states[0][name], states[1][name], atol=3e-5, rtol=5e-4)
+    assert metrics[0]["loss"] == pytest.approx(metrics[1]["loss"], abs=3e-6)
+    assert metrics[0]["selected_positions"] == metrics[1]["selected_positions"]
+
+
 # ------------------------------------------------------------- run modes
 
 

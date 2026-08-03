@@ -27,6 +27,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
     import torch
 
     from miniverl.agent.transcript import TokenizerLike
+    from miniverl.training.batching import PaddedTrajectoryBatch
 
 __all__ = ["GenerationOutput", "BackendCapabilities", "CausalLMBackend"]
 
@@ -198,3 +199,28 @@ class CausalLMBackend(ABC):
             if not outputs:
                 return _torch.zeros((0, self.vocab_size), dtype=_torch.float32)
             return _torch.cat(outputs, dim=0)
+
+    def hidden_states_at_batch(
+        self,
+        batch: PaddedTrajectoryBatch,
+        *,
+        with_grad: bool = False,
+    ) -> torch.Tensor:
+        """Selected states for a typed padded batch.
+
+        The compatibility implementation is sequential. Concrete consumer
+        runtimes override it with one masked backbone forward; keeping this
+        fallback avoids widening the minimum third-party backend contract.
+        """
+        import torch as _torch
+
+        parts = []
+        for batch_index, length in enumerate(batch.lengths):
+            start = batch.selected_offsets[batch_index]
+            end = batch.selected_offsets[batch_index + 1]
+            token_ids = batch.input_ids[batch_index, :length].tolist()
+            positions = batch.selected_positions[start:end].tolist()
+            parts.append(self.hidden_states_at(token_ids, positions, with_grad=with_grad))
+        if parts:
+            return _torch.cat(parts, dim=0)
+        return _torch.zeros((0, self.hidden_size), device=self.device)

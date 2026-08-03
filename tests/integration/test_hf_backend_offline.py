@@ -342,6 +342,175 @@ def local_teacher_adapter(tmp_path: Path, tiny_model, tiny_tokenizer):
     return base, adapter, wrapped
 
 
+def _shared_config(base: Path, adapter: Path):
+    from miniverl.config import RunConfig
+
+    common = {
+        "model_id": str(base),
+        "dtype": "float32",
+        "quantization": "none",
+        "attn_implementation": "eager",
+    }
+    return RunConfig.from_mapping(
+        {
+            "run": {"mode": "opd"},
+            "models": {
+                "backend": "hf",
+                "runtime": "shared_backbone",
+                "device": "cpu",
+                "student": {
+                    **common,
+                    "lora": {
+                        "enabled": True,
+                        "r": 4,
+                        "alpha": 8,
+                        "target_modules": ["q_proj", "v_proj"],
+                    },
+                },
+                "teacher": {
+                    **common,
+                    "adapter": {"path": str(adapter)},
+                },
+            },
+            "environment": {"name": "calculator", "train_tasks": 2, "eval_tasks": 1},
+            "train": {
+                "cycles": 1,
+                "rollouts_per_cycle": 2,
+                "gradient_accumulation_steps": 2,
+            },
+            "memory": {"strategy": "resident"},
+            "eval": {"enabled": False},
+            "report": {"enabled": False},
+        }
+    )
+
+
+@requires_peft
+def test_shared_backbone_loads_one_base_and_matches_separate_teacher_logits(
+    local_teacher_adapter,
+    tiny_tokenizer,
+    monkeypatch,
+):
+    import transformers
+
+    from miniverl.config.models import TeacherAdapterConfig, TeacherModelConfig
+    from miniverl.models.hf import HFBackend
+    from miniverl.models.shared import PolicyRole, load_shared_adapter_backends
+
+    base, adapter, _ = local_teacher_adapter
+    config = _shared_config(base, adapter)
+    original = transformers.AutoModelForCausalLM.from_pretrained
+    loads = 0
+
+    def counted(*args, **kwargs):  # type: ignore[no-untyped-def]
+        nonlocal loads
+        loads += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(transformers.AutoModelForCausalLM, "from_pretrained", counted)
+    actor, teacher, reference = load_shared_adapter_backends(
+        config,
+        tiny_tokenizer,
+        device="cpu",
+        local_files_only=True,
+    )
+    assert loads == 1
+    assert teacher is not None
+    assert reference is None
+    assert actor.model is teacher.model
+    assert actor.controller.active_role is PolicyRole.ACTOR
+    assert actor.trainable_parameters()
+    assert teacher.trainable_parameters() == []
+
+    separate = HFBackend.load(
+        TeacherModelConfig(
+            model_id=str(base),
+            dtype="float32",
+            attn_implementation="eager",
+            adapter=TeacherAdapterConfig(path=str(adapter)),
+        ),
+        device="cpu",
+        tokenizer=tiny_tokenizer,
+        trainable=False,
+        local_files_only=True,
+    )
+    ids = tiny_tokenizer.encode("shared teacher role")
+    positions = [0, 2, len(ids) - 1]
+    shared_logits = teacher.logits_at(ids, positions, chunk_size=2)
+    separate_logits = separate.logits_at(ids, positions, chunk_size=2)
+    assert torch.allclose(shared_logits, separate_logits, atol=1e-6, rtol=1e-6)
+    assert actor.controller.active_role is PolicyRole.ACTOR
+    assert all(parameter.requires_grad for parameter in actor.trainable_parameters())
+
+    separate.release()
+    teacher.release()
+
+
+@requires_peft
+def test_shared_and_dual_backbones_produce_equivalent_student_update(
+    local_teacher_adapter,
+    tiny_tokenizer,
+):
+    from miniverl.losses.bucketed import teacher_topk_targets
+    from miniverl.losses.chunked import BucketedTargetProvider, chunked_selected_position_loss
+    from miniverl.models.hf import HFBackend
+    from miniverl.models.shared import load_shared_adapter_backends
+
+    base, adapter, _ = local_teacher_adapter
+    config = _shared_config(base, adapter)
+    torch.manual_seed(2026)
+    shared_actor, shared_teacher, _ = load_shared_adapter_backends(
+        config,
+        tiny_tokenizer,
+        device="cpu",
+        local_files_only=True,
+    )
+    assert shared_teacher is not None
+    torch.manual_seed(2026)
+    dual_actor = HFBackend.load(
+        config.models.student,
+        device="cpu",
+        tokenizer=tiny_tokenizer,
+        trainable=True,
+        local_files_only=True,
+        student_adapter_name="student",
+    )
+
+    ids = tiny_tokenizer.encode("equivalent shared and dual update")
+    positions = [0, 2, 4, len(ids) - 1]
+    teacher_logits = shared_teacher.logits_at(ids, positions, chunk_size=2)
+    indices, log_probs, tail = teacher_topk_targets(teacher_logits, top_k=8)
+    targets = torch.tensor([ids[min(position + 1, len(ids) - 1)] for position in positions])
+
+    def update(backend):  # type: ignore[no-untyped-def]
+        optimizer = torch.optim.AdamW(backend.trainable_parameters(), lr=1e-3)
+        hidden = backend.hidden_states_at(ids, positions, with_grad=True)
+        chunked_selected_position_loss(
+            hidden_states=hidden,
+            lm_head=backend.project,
+            weights=torch.ones(len(positions)),
+            provider=BucketedTargetProvider(
+                topk_indices=indices,
+                topk_log_probs=log_probs,
+                tail_log_prob=tail,
+            ),
+            target_token_ids=targets,
+            chunk_size=2,
+            backward=True,
+        )
+        optimizer.step()
+        optimizer.zero_grad(set_to_none=True)
+        return backend.logits_at(ids, positions, chunk_size=2)
+
+    shared_logits = update(shared_actor)
+    dual_logits = update(dual_actor)
+    assert torch.allclose(shared_logits, dual_logits, atol=2e-6, rtol=2e-5)
+    assert all(parameter.grad is None for parameter in shared_teacher.model.parameters())
+
+    dual_actor.release()
+    shared_teacher.release()
+
+
 @requires_peft
 def test_hub_teacher_adapter_downloads_and_validates_miniverl_manifest(
     local_teacher_adapter,
