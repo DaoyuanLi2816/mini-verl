@@ -6,7 +6,7 @@ and what it printed.
 
 Last updated: 2026-08-02.
 
-## v0.4.0 Consumer Runtime development
+## v0.4.0 Consumer Runtime release
 
 | item | current state |
 | --- | --- |
@@ -20,8 +20,13 @@ Last updated: 2026-08-02.
 | performance result | dual batch-4 reached 3.866 trajectories/s at 3.035 GiB reserved (1.63× sequential); shared batch-4 reached 3.475 trajectories/s at 2.227 GiB (1.54× sequential and 26.6% less memory than dual batch-4, but 10.1% slower) |
 | frozen artifacts | result `a302da31af99f1d29f1efd4e6b3dbeb6ea4ac956bba102ca8a1bee8dff0319eb`; profiler `66111cd7fc876cf1befea3297a1a51bcd99252c0bf8989c029381e1dc155a98b`; SVG `98645a668a7832423d28b621262292619615917f037adf7219ff1bf071fb2fea` |
 | immutable baseline | calculator benchmark remains byte-identical at `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; every v0.3 artifact and negative result remains unchanged |
-| integration source | Consumer Runtime PR [#30](https://github.com/DaoyuanLi2816/mini-verl/pull/30) was squash-merged as `9914c6d358fd6b0acc5a945c0eab67aebb1b2b51`; synchronized main CI and build runs `30776659196` and `30776659178` are green |
-| release state | development integration and post-merge validation are complete; this focused release-metadata change binds exact `0.4.0`, after which annotated-tag publication and `0.5.0.dev0` state sync remain |
+| integration source | Consumer Runtime PR [#30](https://github.com/DaoyuanLi2816/mini-verl/pull/30) was squash-merged as `9914c6d358fd6b0acc5a945c0eab67aebb1b2b51`; release-metadata PR [#31](https://github.com/DaoyuanLi2816/mini-verl/pull/31) was squash-merged as `838ca0b5ab82be88440f2437fac2c2046bde672b`; annotated tag `v0.4.0` resolves to the latter exact commit |
+| version transition | `v0.4.0` is immutable and public; this state-sync change identifies subsequent development as `0.5.0.dev0` |
+| release execution | tag run [`30777530767`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30777530767) passed metadata, full tests, one-time build, OIDC publication with attestations, public verification, exact clean install and GitHub Release creation |
+| published wheel | [`miniverl-0.4.0-py3-none-any.whl`](https://pypi.org/project/miniverl/0.4.0/), SHA-256 `8204c2f015e017ff15aadb465d0afa689949979f4aeba3b9b3abcc3f01c2511a` |
+| published sdist | [`miniverl-0.4.0.tar.gz`](https://pypi.org/project/miniverl/0.4.0/), SHA-256 `b6f87ff3a2a97f926301683b983920082719c893bb22a31759b17b0309b1e053` |
+| independent public verification | GitHub Release downloads reproduce both public hashes; PyPI exposes provenance for both artifacts bound to `release.yml`, tag `v0.4.0` and commit `838ca0b5`; a refreshed clean Windows Python 3.10 install from `https://pypi.org/simple` reported `miniverl 0.4.0`, passed JSON `doctor`, and kept torch absent |
+| release state | complete; PyPI and [`miniVERL v0.4.0`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.4.0) expose the same verified wheel and sdist |
 
 ## v0.3.0 RecoveryBench release
 

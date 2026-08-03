@@ -37,6 +37,21 @@ after the exact release commit and its remote checks are green.
 - [x] Release metadata declares exact `0.4.0`; the intended annotated tag is
       exactly `v0.4.0` and will use the existing OIDC-only release workflow.
 
+## After the tag
+
+- [x] OIDC publication, public hashes/attestations, clean install and one
+      GitHub Release were verified from the same distributions by tag run
+      [`30777530767`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30777530767).
+- [x] This post-release state-sync change advances development to
+      `0.5.0.dev0`; it merges only after remote checks are green.
+
+Published artifact identity:
+
+- `miniverl-0.4.0-py3-none-any.whl`: SHA-256
+  `8204c2f015e017ff15aadb465d0afa689949979f4aeba3b9b3abcc3f01c2511a`
+- `miniverl-0.4.0.tar.gz`: SHA-256
+  `b6f87ff3a2a97f926301683b983920082719c893bb22a31759b17b0309b1e053`
+
 ## v0.3.0 RecoveryBench release
 
 - [x] Revision-1.3 preregistration predates the valid final run and remains
