@@ -4,6 +4,50 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.6.0 Verified verl Bridge release
+
+- [x] The documented `single-gpu-online-distillation-v1` profile is pinned to
+      official verl `v0.8.0` commit
+      `7aed6b230776f963fa09509c10d9c3a767d1102c`; the installed source reports
+      `0.8.0.dev0` and no moving branch or mutable revision is accepted.
+- [x] The fail-closed importer accepts only 14 named configuration fields; the
+      exported bundle supplies the six supported LoRA/reward fields and rejects
+      unsupported algorithm, optimizer, distributed-runtime and checkpoint
+      semantics instead of claiming PPO/GRPO parity.
+- [x] The exact Python 3.12 smoke parses and structurally merges the official
+      OmegaConf, loads standard PEFT LoRA and safetensors structure, reads both
+      Parquet splits, imports the fail-closed reward scaffold, verifies the
+      tokenizer identity, privacy and 14 artifact hashes, and records
+      distributed execution as `not tested`.
+- [x] Dataset conversion is reversible for the official prompt schema, keeps
+      miniVERL extensions in a checksummed sidecar and publishes Parquet through
+      a unique temporary file without masking the originating write error.
+- [x] Five packaged community records distinguish four existing measured
+      artifacts from one explicit `not_measured` preference-teacher template;
+      no external adoption, distributed execution or new benchmark result is
+      claimed.
+- [x] The calculator benchmark JSON remains byte-identical at SHA-256
+      `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`,
+      and its generated SVG byte comparison passes; prior tags, negative results
+      and public adapter revisions remain unchanged.
+- [x] Ruff check/format, mypy across 103 source files, actionlint 1.7.12,
+      Markdown/link checks, strict MkDocs, PyPI byte comparison and
+      `git diff --check` pass.
+- [x] Full non-GPU/non-network suite: **1548 passed**, 6 deselected, **85.53%**
+      branch coverage; the available GPU/non-network and network suites each
+      pass **3 tests**.
+- [x] The focused bridge/packaging suite passes 124 tests; wheel and sdist pass
+      Twine, a clean Python 3.10 wheel install passes doctor/community export,
+      and the wheel contains all bridge modules and five recipe records.
+- [x] The architecture SVG passed native and 820-pixel README inspection; the
+      1280 by 640 social preview passed native inspection; GitHub Pages deploy
+      run `30794655822` is green and the public site returns HTTP 200.
+- [x] Focused PR #36 is green and squash-merged as `0d43310`; synchronized main
+      CI and build runs `30794655713` and `30794655722` are green, and exact
+      pinned-verl PR smoke run `30794329109` is green.
+- [x] Release metadata declares exact `0.6.0`; the intended annotated tag is
+      exactly `v0.6.0` and will use the existing OIDC-only release workflow.
+
 ## v0.5.0 One-GPU Alignment Lab release
 
 - [x] Public preregistration revision 1.4 freezes three seeds, the common SFT
