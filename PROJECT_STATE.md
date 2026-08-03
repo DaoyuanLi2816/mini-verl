@@ -10,7 +10,7 @@ Last updated: 2026-08-02.
 
 | item | current state |
 | --- | --- |
-| phase boundary | v0.4.0 was released and state-synced to `0.5.0.dev0` before final Alignment Lab execution; v0.5 must merge, release and advance main to `0.6.0.dev0` before the verified verl bridge begins |
+| phase boundary | v0.4.0 was released and state-synced to `0.5.0.dev0` before final Alignment Lab execution; v0.5 is now released, and this state sync advances main to `0.6.0.dev0` before the verified verl bridge begins |
 | public workflow | `miniverl align` resolves base → SFT checkpoint → teacher/reference → alignment → evaluation → Alignment Card; `miniverl pilot` exposes versioned evidence, uncertainty, cost assumptions and a bounded method recommendation |
 | alignment roles | policy-conditioned self-distillation, frozen aligned-adapter teaching and shared-backbone execution are supported; continued SFT, pinned TRL DPO, offline soft distillation, standard OPD and verifier-gated OPD are explicit methods |
 | policy suite | Minipolicy v1 uses deterministic sandbox tools to check authorization, confirmation, instruction hierarchy, secret exclusion, safe refusal, benign completion and safe error recovery; no real destructive action is executed |
@@ -27,8 +27,13 @@ Last updated: 2026-08-02.
 | presentation | four data-bound dark SVGs passed native and 820-pixel inspection; banner and social preview passed raster inspection; the report PDF is deterministic, six pages, metadata-valid and visually inspected page by page |
 | local release gates | ruff, format, mypy, actionlint, generated-artifact checks, Markdown links and package/twine checks pass; the full non-GPU/non-network suite passes 1508 tests with 6 deselected at 86.13% branch coverage; the RTX 4080 gate passes 5 and the network gate passes 3; fresh core and CPU-training wheel installs, a real no-network toy demo, and all 1508 tests from an isolated extracted sdist pass |
 | immutable baseline | calculator benchmark remains byte-identical at `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; v0.3/v0.4 tags, RecoveryBench artifacts and public adapter revisions remain unchanged |
-| integration source | Alignment Lab PR [#33](https://github.com/DaoyuanLi2816/mini-verl/pull/33) was squash-merged as `f9dae54a203d303f6562101500343ead310d99e8`; synchronized main CI and build runs `30788116397` and `30788116373` are green |
-| release state | development integration and post-merge validation are complete; this focused release-metadata change binds exact `0.5.0`, after which annotated-tag publication and `0.6.0.dev0` state sync remain |
+| integration source | Alignment Lab PR [#33](https://github.com/DaoyuanLi2816/mini-verl/pull/33) was squash-merged as `f9dae54a203d303f6562101500343ead310d99e8`; release-metadata PR [#34](https://github.com/DaoyuanLi2816/mini-verl/pull/34) was squash-merged as `fd755ff351fe691531ed68b4af7793c4929ed89e`; annotated tag `v0.5.0` resolves to the latter exact commit |
+| version transition | `v0.5.0` is immutable and public; this state-sync change identifies subsequent development as `0.6.0.dev0` |
+| release execution | tag run [`30789267409`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30789267409) passed metadata, all release gates, one-time build, OIDC publication with attestations, public verification, exact clean install and GitHub Release creation |
+| published wheel | [`miniverl-0.5.0-py3-none-any.whl`](https://pypi.org/project/miniverl/0.5.0/), SHA-256 `ff60cb747e2ad1fd74575dd8920b11b48c6c16cc97743e94f9583d162d18819c` |
+| published sdist | [`miniverl-0.5.0.tar.gz`](https://pypi.org/project/miniverl/0.5.0/), SHA-256 `d3340e0526eb4b20bb9ee15960c27c740be0fdacb9a51b029627faa63ca5276d` |
+| independent public verification | workflow artifacts, PyPI and GitHub Release reproduce both hashes; PyPI exposes one attestation bundle for each distribution; a refreshed clean Windows Python 3.10 install from `https://pypi.org/simple` reported `miniverl 0.5.0`, passed JSON `doctor`, and kept torch absent |
+| release state | complete; PyPI and [`miniVERL v0.5.0`](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.5.0) expose the same verified wheel and sdist |
 
 ## v0.4.0 Consumer Runtime release
 
