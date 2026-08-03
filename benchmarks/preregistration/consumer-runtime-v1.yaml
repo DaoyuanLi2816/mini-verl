@@ -1,7 +1,7 @@
 schema_version: 1
 name: consumer-runtime-v1
 status: preregistered_before_headline_measurement
-preregistration_revision: 1.1
+preregistration_revision: 1.2
 implementation_commit: f0ddcf85226ce21eb53aa514b4c56363e9b810b5
 registered_at_utc: 2026-08-03T00:26:16Z
 
@@ -40,12 +40,27 @@ amendments:
       physical-batch equivalence gate ill-posed. The final matrix uses eager
       masked attention for deterministic, directly comparable losses and
       gradients; the diagnostic is retained outside headline artifacts.
+  - id: fp32-compute-equivalence
+    revision: 1.2
+    registered_at_utc: 2026-08-03T00:51:47Z
+    timing: after_quick_diagnostic_before_any_headline_measurement
+    locked_value: NF4 weights with float32 compute
+    rationale: >-
+      The deterministic eager-attention quick diagnostic showed that BF16/NF4
+      retained identical targets and exact same-batch dual/shared results, but
+      physical batch shape changed gradients by about 0.14 relative L2 and
+      amplified the first Adam update. A second diagnostic showed that float32
+      compute with the same NF4 weights reduced the worst loss, gradient
+      relative-L2 and updated-logit differences to about 1.25e-6, 2.52e-5 and
+      1.30e-4. The final matrix therefore uses float32 compute so the original
+      strict equivalence thresholds remain meaningful. Both diagnostics are
+      retained outside headline artifacts.
 
 model:
   base_id: Qwen/Qwen3-0.6B
   base_revision: c1899de289a04d12100db370d81485cdf75e47ca
   tokenizer_revision: c1899de289a04d12100db370d81485cdf75e47ca
-  dtype: bfloat16
+  dtype: float32
   quantization: nf4
   attention_implementation: eager
   student_adapter:

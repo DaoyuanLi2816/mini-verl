@@ -24,8 +24,10 @@ class _FakeMultiAdapterModel(torch.nn.Module):
         )
         self.active_adapter = "student"
         self.fail_on: str | None = None
+        self.set_adapter_calls: list[str] = []
 
     def set_adapter(self, name: str) -> None:
+        self.set_adapter_calls.append(name)
         self.active_adapter = name
         if name == self.fail_on:
             raise RuntimeError(f"cannot activate {name}")
@@ -76,6 +78,23 @@ def test_teacher_and_reference_switches_are_frozen_and_restore_actor() -> None:
     assert model.lora_A["student"].requires_grad
     assert not model.lora_A["teacher"].requires_grad
     assert not model.lora_A["reference"].requires_grad
+
+
+def test_nested_activation_of_the_current_role_is_a_noop() -> None:
+    from miniverl.models.shared import AdapterRoleController, PolicyRole
+
+    model = _FakeMultiAdapterModel()
+    controller = AdapterRoleController(
+        model,
+        role_adapters={PolicyRole.ACTOR: "student", PolicyRole.TEACHER: "teacher"},
+    )
+
+    with controller.activate(PolicyRole.TEACHER):
+        calls_after_outer_switch = list(model.set_adapter_calls)
+        with controller.activate(PolicyRole.TEACHER):
+            assert model.set_adapter_calls == calls_after_outer_switch
+
+    assert model.set_adapter_calls == ["student", "teacher", "student"]
 
 
 def test_role_switch_restores_actor_after_body_or_construction_failure() -> None:

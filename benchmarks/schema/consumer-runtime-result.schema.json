@@ -12,6 +12,7 @@
     "frozen_calculator_sha256",
     "environment",
     "workload_invariants",
+    "equivalence_gate",
     "cells",
     "larger_model_diagnostic"
   ],
@@ -19,7 +20,12 @@
     "schema_version": {"const": 1},
     "name": {"const": "consumer-runtime-v1"},
     "measurement_status": {
-      "enum": ["quick_diagnostic", "measured_final", "invalidated_invariant_mismatch"]
+      "enum": [
+        "quick_diagnostic",
+        "measured_final",
+        "invalidated_invariant_mismatch",
+        "invalidated_equivalence_mismatch"
+      ]
     },
     "preregistration_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
     "code_commit": {"type": ["string", "null"]},
@@ -35,6 +41,26 @@
         "teacher_target_digests_identical": {"type": "boolean"},
         "trajectory_digest": {"type": ["string", "null"]},
         "teacher_target_digest": {"type": ["string", "null"]}
+      },
+      "additionalProperties": false
+    },
+    "equivalence_gate": {
+      "type": "object",
+      "required": [
+        "passed",
+        "comparisons_expected",
+        "comparisons_observed",
+        "tolerances",
+        "max_observed",
+        "failures"
+      ],
+      "properties": {
+        "passed": {"type": "boolean"},
+        "comparisons_expected": {"type": "integer", "minimum": 1},
+        "comparisons_observed": {"type": "integer", "minimum": 0},
+        "tolerances": {"type": "object"},
+        "max_observed": {"type": "object"},
+        "failures": {"type": "array", "items": {"type": "string"}}
       },
       "additionalProperties": false
     },

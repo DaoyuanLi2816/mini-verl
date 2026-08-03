@@ -25,6 +25,8 @@ def test_consumer_runtime_preregistration_freezes_the_orthogonal_matrix() -> Non
     assert prereg["model"]["frozen_teacher_adapter"]["revision"] == (
         "e277b92d8c1fdb76cd133f872f0ddd2c47a4ab8c"
     )
+    assert prereg["preregistration_revision"] == 1.2
+    assert prereg["model"]["dtype"] == "float32"
 
 
 def test_consumer_runtime_result_schema_accepts_all_prespecified_statuses() -> None:
@@ -52,6 +54,14 @@ def test_consumer_runtime_result_schema_accepts_all_prespecified_statuses() -> N
             "teacher_target_digests_identical": True,
             "trajectory_digest": "c" * 64,
             "teacher_target_digest": "d" * 64,
+        },
+        "equivalence_gate": {
+            "passed": True,
+            "comparisons_expected": 12,
+            "comparisons_observed": 12,
+            "tolerances": {},
+            "max_observed": {},
+            "failures": [],
         },
         "cells": cells,
         "larger_model_diagnostic": [

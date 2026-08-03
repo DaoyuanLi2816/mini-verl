@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import Any
 
 import torch
@@ -116,7 +117,9 @@ class LocalTeacherScorer(TeacherScorer):
 
         exact_resident = self.loss.mode is LossMode.EXACT_FULL_VOCAB and self.keep_exact_resident
 
-        with torch.no_grad():
+        activate = getattr(self.backend, "activated", None)
+        role_context = activate() if callable(activate) else nullcontext()
+        with role_context, torch.no_grad():
             hidden = self.backend.hidden_states_at(source.token_ids, positions, with_grad=False)
 
             if exact_resident:

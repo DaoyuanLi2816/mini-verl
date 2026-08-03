@@ -92,6 +92,9 @@ class AdapterRoleController:
         """Activate one role and restore the prior role even after failure."""
         with self._lock:
             previous = self.active_role
+            if role is previous:
+                yield
+                return
             try:
                 self._apply(role)
             except BaseException:

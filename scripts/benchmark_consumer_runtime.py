@@ -66,7 +66,7 @@ def _config(*, runtime: str, batch_size: int | str, output_dir: Path) -> RunConf
         "tokenizer_revision": model["tokenizer_revision"],
         "dtype": model["dtype"],
         "quantization": model["quantization"],
-        "attn_implementation": "eager",
+        "attn_implementation": model["attention_implementation"],
     }
     mapping: dict[str, Any] = {
         "schema_version": 1,
@@ -234,17 +234,130 @@ def _reset_student(trainer: Any, state: dict[str, torch.Tensor]) -> None:
     )
 
 
-def _one_update(trainer: Any, samples: list[Any]) -> dict[str, Any]:
+def _canonical_gradient_name(name: str) -> str:
+    """Make equivalent PEFT student adapter names comparable across runtimes."""
+    return name.replace(".default.", ".student.")
+
+
+def _equivalence_gate(cells: list[dict[str, Any]], prereg: dict[str, Any]) -> dict[str, Any]:
+    tolerances = prereg["equivalence"]
+    failures: list[str] = []
+    observations: list[tuple[str, dict[str, Any]]] = []
+    for cell in cells:
+        if cell.get("status") != "completed":
+            continue
+        label = f"{cell['runtime']}/batch-{cell['batch_size']}"
+        observations.append((f"{label} vs dual/batch-1", cell["equivalence_to_dual_sequential"]))
+        if cell["runtime"] == "shared_backbone":
+            observations.append(
+                (f"{label} vs dual/same-batch", cell["equivalence_to_same_batch_dual"])
+            )
+
+    expected_observations = 12
+    if len(observations) != expected_observations:
+        failures.append(
+            f"expected {expected_observations} completed equivalence comparisons, "
+            f"observed {len(observations)}"
+        )
+
+    maxima = {
+        "loss_absolute_difference": 0.0,
+        "gradient_max_absolute_difference": 0.0,
+        "gradient_max_relative_to_reference_max": 0.0,
+        "updated_logit_max_absolute_difference": 0.0,
+        "updated_logit_max_relative_to_reference_max": 0.0,
+    }
+    for label, comparison in observations:
+        values = {
+            "loss_absolute_difference": float(comparison["loss_absolute_difference"]),
+            "gradient_max_absolute_difference": float(
+                comparison["gradient"]["max_absolute_difference"]
+            ),
+            "gradient_max_relative_to_reference_max": float(
+                comparison["gradient"]["max_relative_to_reference_max"]
+            ),
+            "updated_logit_max_absolute_difference": float(
+                comparison["updated_logits"]["max_absolute_difference"]
+            ),
+            "updated_logit_max_relative_to_reference_max": float(
+                comparison["updated_logits"]["max_relative_to_reference_max"]
+            ),
+        }
+        for key, value in values.items():
+            maxima[key] = max(maxima[key], value)
+        checks = {
+            "loss": (
+                values["loss_absolute_difference"],
+                float(tolerances["loss_absolute_tolerance"]),
+            ),
+            "gradient absolute": (
+                values["gradient_max_absolute_difference"],
+                float(tolerances["gradient_absolute_tolerance"]),
+            ),
+            "gradient relative": (
+                values["gradient_max_relative_to_reference_max"],
+                float(tolerances["gradient_relative_tolerance"]),
+            ),
+            "updated logit absolute": (
+                values["updated_logit_max_absolute_difference"],
+                float(tolerances["updated_logit_absolute_tolerance"]),
+            ),
+            "updated logit relative": (
+                values["updated_logit_max_relative_to_reference_max"],
+                float(tolerances["updated_logit_relative_tolerance"]),
+            ),
+        }
+        for metric, (observed, tolerance) in checks.items():
+            if observed > tolerance:
+                failures.append(
+                    f"{label}: {metric} difference {observed:.9g} exceeds {tolerance:.9g}"
+                )
+    return {
+        "passed": not failures,
+        "comparisons_expected": expected_observations,
+        "comparisons_observed": len(observations),
+        "tolerances": {
+            key: float(value) for key, value in tolerances.items() if key.endswith("_tolerance")
+        },
+        "max_observed": maxima,
+        "failures": failures,
+    }
+
+
+def _one_update(
+    trainer: Any, samples: list[Any], *, capture_equivalence: bool = False
+) -> dict[str, Any]:
     _sync()
     update_started = time.perf_counter()
     metrics = trainer._compute_group_gradients(samples, trainer.config.loss.chunk_size)
+    gradient_snapshot = None
+    if capture_equivalence:
+        gradient_snapshot = {
+            _canonical_gradient_name(name): parameter.grad.detach().to("cpu", torch.float32).clone()
+            for name, parameter in trainer.student.model.named_parameters()
+            if parameter.requires_grad and parameter.grad is not None
+        }
     commit = trainer._commit_update()
     _sync()
-    return {
+    output = {
         **metrics,
         **commit,
         "update_seconds": time.perf_counter() - update_started,
     }
+    if capture_equivalence:
+        probe_sample = samples[0]
+        probe_positions = probe_sample.alignment.student_prediction_positions[:4]
+        output["_gradient_snapshot"] = gradient_snapshot
+        output["_updated_logits"] = (
+            trainer.student.logits_at(
+                probe_sample.trajectory.token_ids,
+                probe_positions,
+                chunk_size=trainer.config.loss.chunk_size,
+            )
+            .to("cpu")
+            .clone()
+        )
+    return output
 
 
 def _profile_update(
@@ -286,7 +399,12 @@ def _run_cell(
     warmups: int,
     repetitions: int,
     profile: bool,
-) -> tuple[dict[str, Any], list[dict[str, Any]] | None]:
+) -> tuple[
+    dict[str, Any],
+    list[dict[str, Any]] | None,
+    dict[str, torch.Tensor] | None,
+    torch.Tensor | None,
+]:
     from miniverl.trainer import OPDTrainer
 
     config = _config(runtime=runtime, batch_size=batch_size, output_dir=work_dir)
@@ -316,6 +434,8 @@ def _run_cell(
 
         measurements: list[dict[str, Any]] = []
         target_digests: list[str] = []
+        gradient_snapshot: dict[str, torch.Tensor] | None = None
+        updated_logits: torch.Tensor | None = None
         for _ in range(repetitions):
             _reset_student(trainer, initial_state)
             forward_seconds = _student_forward_seconds(trainer, base_samples, physical_batch_size)
@@ -327,7 +447,14 @@ def _run_cell(
             _sync()
             teacher_seconds = time.perf_counter() - teacher_started
             target_digests.append(_teacher_target_digest(samples))
-            update = _one_update(trainer, samples)
+            update = _one_update(
+                trainer,
+                samples,
+                capture_equivalence=gradient_snapshot is None,
+            )
+            if gradient_snapshot is None:
+                gradient_snapshot = update.pop("_gradient_snapshot")
+                updated_logits = update.pop("_updated_logits")
             e2e_seconds = time.perf_counter() - e2e_started
             memory = gpu.snapshot()
             measurement = {
@@ -379,7 +506,7 @@ def _run_cell(
             "measurements": measurements,
         }
         profile_rows = _profile_update(trainer, base_samples, initial_state) if profile else None
-        return result, profile_rows
+        return result, profile_rows, gradient_snapshot, updated_logits
     finally:
         trainer.close()
         gpu.empty_cache()
@@ -411,10 +538,51 @@ def main() -> int:
     warmups = 0 if args.quick else int(prereg["measurement"]["warmup_updates"])
     cells: list[dict[str, Any]] = []
     profiler: dict[str, Any] = {}
+    sequential_gradient: dict[str, torch.Tensor] | None = None
+    sequential_logits: torch.Tensor | None = None
+    dual_equivalence: dict[str, tuple[dict[str, torch.Tensor], torch.Tensor]] = {}
+
+    def compare_gradients(
+        reference: dict[str, torch.Tensor], candidate: dict[str, torch.Tensor]
+    ) -> dict[str, float]:
+        if reference.keys() != candidate.keys():
+            raise RuntimeError("equivalence gradient parameter names changed")
+        max_abs = 0.0
+        reference_max = 0.0
+        squared_difference = 0.0
+        squared_reference = 0.0
+        dot = 0.0
+        squared_candidate = 0.0
+        for name in reference:
+            expected = reference[name]
+            actual = candidate[name]
+            difference = actual - expected
+            max_abs = max(max_abs, float(difference.abs().max()))
+            reference_max = max(reference_max, float(expected.abs().max()))
+            squared_difference += float((difference * difference).sum())
+            squared_reference += float((expected * expected).sum())
+            squared_candidate += float((actual * actual).sum())
+            dot += float((expected * actual).sum())
+        return {
+            "max_absolute_difference": max_abs,
+            "max_relative_to_reference_max": max_abs / max(reference_max, 1.0e-12),
+            "relative_l2_difference": (squared_difference / max(squared_reference, 1.0e-24)) ** 0.5,
+            "cosine_similarity": dot / max((squared_reference * squared_candidate) ** 0.5, 1.0e-24),
+        }
+
+    def compare_logits(reference: torch.Tensor, candidate: torch.Tensor) -> dict[str, float]:
+        difference = candidate.to(torch.float32) - reference.to(torch.float32)
+        max_abs = float(difference.abs().max())
+        reference_max = float(reference.to(torch.float32).abs().max())
+        return {
+            "max_absolute_difference": max_abs,
+            "max_relative_to_reference_max": max_abs / max(reference_max, 1.0e-12),
+        }
+
     for runtime in ("dual_model", "shared_backbone"):
         for batch_size in (1, 2, 4, "auto"):
             try:
-                cell, profile_rows = _run_cell(
+                cell, profile_rows, gradient_snapshot, updated_logits = _run_cell(
                     runtime=runtime,
                     batch_size=batch_size,
                     work_dir=args.work_dir,
@@ -423,6 +591,41 @@ def main() -> int:
                     repetitions=repetitions,
                     profile=runtime == "shared_backbone" and batch_size == "auto",
                 )
+                if gradient_snapshot is None or updated_logits is None:
+                    raise RuntimeError("equivalence snapshot was not captured")
+                batch_key = str(batch_size)
+                if sequential_gradient is None:
+                    sequential_gradient = gradient_snapshot
+                    sequential_logits = updated_logits
+                assert sequential_logits is not None
+                cell["equivalence_to_dual_sequential"] = {
+                    "loss_absolute_difference": abs(
+                        float(cell["loss_values"][0]) - float(cells[0]["loss_values"][0])
+                    )
+                    if cells
+                    else 0.0,
+                    "gradient": compare_gradients(sequential_gradient, gradient_snapshot),
+                    "updated_logits": compare_logits(sequential_logits, updated_logits),
+                }
+                if runtime == "dual_model":
+                    dual_equivalence[batch_key] = (gradient_snapshot, updated_logits)
+                else:
+                    dual_gradient, dual_logits = dual_equivalence[batch_key]
+                    cell["equivalence_to_same_batch_dual"] = {
+                        "loss_absolute_difference": abs(
+                            float(cell["loss_values"][0])
+                            - float(
+                                next(
+                                    row["loss_values"][0]
+                                    for row in cells
+                                    if row["runtime"] == "dual_model"
+                                    and str(row["batch_size"]) == batch_key
+                                )
+                            )
+                        ),
+                        "gradient": compare_gradients(dual_gradient, gradient_snapshot),
+                        "updated_logits": compare_logits(dual_logits, updated_logits),
+                    }
                 cells.append(cell)
                 if profile_rows is not None:
                     profiler["shared_backbone_auto"] = profile_rows
@@ -461,6 +664,7 @@ def main() -> int:
         for cell in cells
         if cell.get("status") == "completed"
     }
+    equivalence_gate = _equivalence_gate(cells, prereg)
     payload = {
         "schema_version": 1,
         "name": "consumer-runtime-v1",
@@ -475,6 +679,7 @@ def main() -> int:
             "trajectory_digest": next(iter(trajectory_digests), None),
             "teacher_target_digest": next(iter(target_digests), None),
         },
+        "equivalence_gate": equivalence_gate,
         "cells": cells,
         "larger_model_diagnostic": [
             {
@@ -489,8 +694,11 @@ def main() -> int:
             },
         ],
     }
-    if not args.quick and (len(trajectory_digests) != 1 or len(target_digests) != 1):
-        payload["measurement_status"] = "invalidated_invariant_mismatch"
+    if not args.quick:
+        if len(trajectory_digests) != 1 or len(target_digests) != 1:
+            payload["measurement_status"] = "invalidated_invariant_mismatch"
+        elif not equivalence_gate["passed"]:
+            payload["measurement_status"] = "invalidated_equivalence_mismatch"
     write_json(args.output, payload)
     write_json(
         args.profiler_output,
