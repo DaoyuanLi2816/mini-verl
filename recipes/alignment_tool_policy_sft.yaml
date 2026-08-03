@@ -97,7 +97,7 @@ cache:
 
 eval:
   enabled: true
-  baseline_enabled: true
+  baseline_enabled: false   # raw-base calibration is already preserved in the v0.5 report
   split: eval
   tasks: 24
   temperature: 0.0
