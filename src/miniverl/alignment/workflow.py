@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING, Any
 
 from miniverl.alignment.card import render_alignment_card
 from miniverl.alignment.evaluation import alignment_metrics
-from miniverl.alignment.schema import AlignmentConfig
+from miniverl.alignment.schema import AlignmentConfig, AlignmentMethod
 from miniverl.errors import ConfigError
 from miniverl.trajectory.io import read_trajectories
-from miniverl.utils.runs import read_json, write_json_atomic
+from miniverl.utils.runs import read_json, read_jsonl, write_json_atomic
 
 if TYPE_CHECKING:  # pragma: no cover
     from miniverl.config.models import RunConfig
@@ -240,6 +240,40 @@ def _reference_identity(config: RunConfig) -> dict[str, Any] | None:
     return reference.model_dump(mode="json") if reference is not None else None
 
 
+def _training_measurements(
+    trainer: OPDTrainer,
+    method: AlignmentMethod,
+) -> tuple[float, int | None, float | None, int | None]:
+    """Aggregate continuation cost and actual teacher-query work from JSONL evidence."""
+    records = read_jsonl(trainer.paths.metrics)
+    cycle_rows = [row for row in records if str(row.get("phase", "")).endswith("_cycle")]
+    continuation_seconds = sum(float(row.get("seconds") or 0.0) for row in cycle_rows)
+    peak_vram = max(
+        (int((row.get("memory") or {}).get("peak_allocated_bytes") or 0) for row in records),
+        default=0,
+    )
+
+    queried: int | None = None
+    query_ratio: float | None = None
+    teacher_methods = {
+        AlignmentMethod.OFFLINE_DISTILLATION,
+        AlignmentMethod.STANDARD_OPD,
+        AlignmentMethod.VERIFIER_GATED_OPD,
+    }
+    if method in teacher_methods:
+        query_rows = cycle_rows
+        if method is AlignmentMethod.OFFLINE_DISTILLATION:
+            # Offline targets are constructed once and then reused. Repeated
+            # optimizer passes over the cache are not additional teacher calls.
+            query_rows = cycle_rows[:1]
+        selections = [row.get("selection") or {} for row in query_rows]
+        queried = sum(int(row.get("selected_model_tokens") or 0) for row in selections)
+        candidates = sum(int(row.get("total_model_tokens") or 0) for row in selections)
+        query_ratio = queried / candidates if candidates else None
+
+    return continuation_seconds, queried, query_ratio, peak_vram or None
+
+
 def publish_alignment_artifacts(
     trainer: OPDTrainer,
     result: TrainResult,
@@ -257,13 +291,10 @@ def publish_alignment_artifacts(
     final_rows = _tagged(rows, "final")
     baseline_metrics = alignment_metrics(baseline_rows)
     metrics = alignment_metrics(final_rows)
-    selection = result.final_metrics.get("selection", {})
-    if not isinstance(selection, dict):
-        selection = {}
-    queried = int(selection.get("selected_model_tokens") or 0)
-    query_ratio_raw = selection.get("teacher_queried_position_ratio")
-    query_ratio = float(query_ratio_raw) if query_ratio_raw is not None else None
-    peak = ((result.eval or {}).get("memory") or {}).get("peak_allocated_bytes")
+    continuation_seconds, queried, query_ratio, peak = _training_measurements(
+        trainer,
+        alignment.method,
+    )
     shift = _jsd(
         _decision_distribution(baseline_rows),
         _decision_distribution(final_rows),
@@ -272,9 +303,7 @@ def publish_alignment_artifacts(
         update={
             "teacher_queried_positions": queried,
             "teacher_query_ratio": query_ratio,
-            "gpu_seconds": result.duration_seconds
-            if trainer.plan.device.startswith("cuda")
-            else None,
+            "gpu_seconds": continuation_seconds if trainer.plan.device.startswith("cuda") else None,
             "peak_vram_bytes": int(peak) if peak is not None else None,
             "decision_distribution_shift_jsd": shift,
         }

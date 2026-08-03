@@ -52,10 +52,30 @@ def test_alignment_workflow_writes_stages_metrics_card_and_manifest(tmp_path: Pa
     alignment = json.loads((run / "alignment.json").read_text(encoding="utf-8"))
     manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
     assert alignment["final_metrics"]["tasks"] == 2
+    assert alignment["final_metrics"]["teacher_queried_positions"] > 0
+    assert alignment["final_metrics"]["teacher_query_ratio"] == pytest.approx(1.0)
+    assert alignment["final_metrics"]["gpu_seconds"] is None
+    cycle_metrics = [
+        json.loads(line)
+        for line in (run / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
+        if '"phase": "opd_cycle"' in line
+    ]
+    assert alignment["final_metrics"]["teacher_queried_positions"] == sum(
+        row["selection"]["selected_model_tokens"] for row in cycle_metrics
+    )
     assert alignment["workflow"]["stages"][1]["source"] == "embedded_sft_warmup"
     assert manifest["status"] == "completed"
     assert manifest["alignment_result"]["sha256"]
     assert manifest["alignment_workflow"]["method"] == "standard_opd"
+    events = [
+        json.loads(line) for line in (run / "events.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    names = [row["event"] for row in events]
+    assert names.index("sft_warmup_start") < next(
+        index
+        for index, row in enumerate(events)
+        if row["event"] == "eval" and row["tag"] == "baseline"
+    )
 
 
 def test_verifier_gated_workflow_records_per_example_span_decisions(tmp_path: Path) -> None:

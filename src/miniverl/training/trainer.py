@@ -1947,9 +1947,20 @@ class OPDTrainer:
                 note="skipping the baseline evaluation and the SFT cold start",
             )
         else:
+            alignment_warmup = (
+                config.alignment is not None
+                and config.train.sft_warmup_cycles > 0
+                and config.run.mode is not TrainingMode.SFT
+            )
+            if alignment_warmup:
+                self._run_sft_warmup(config.train.sft_warmup_cycles)
             if config.eval.enabled and config.eval.baseline_enabled:
                 baseline = self._evaluate_impl(tag="baseline")
-            if config.train.sft_warmup_cycles > 0 and config.run.mode is not TrainingMode.SFT:
+            if (
+                config.train.sft_warmup_cycles > 0
+                and config.run.mode is not TrainingMode.SFT
+                and not alignment_warmup
+            ):
                 self._run_sft_warmup(config.train.sft_warmup_cycles)
 
         last_records: list[dict[str, Any]] = []

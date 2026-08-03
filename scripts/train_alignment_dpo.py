@@ -93,8 +93,8 @@ def main() -> None:
         is_trainable=True,
         local_files_only=True,
     )
-    exact_config: dict[str, Any] = {
-        "output_dir": str(args.output),
+    public_config: dict[str, Any] = {
+        "output_dir": "<OUTPUT>",
         "max_steps": args.max_steps,
         "per_device_train_batch_size": 2,
         "gradient_accumulation_steps": 4,
@@ -117,8 +117,9 @@ def main() -> None:
         "dataset_num_proc": 1,
         "remove_unused_columns": True,
     }
-    config_digest = hashlib.sha256(canonical_json(exact_config).encode("utf-8")).hexdigest()
-    training_args = DPOConfig(**exact_config)
+    config_digest = hashlib.sha256(canonical_json(public_config).encode("utf-8")).hexdigest()
+    runtime_config = {**public_config, "output_dir": str(args.output)}
+    training_args = DPOConfig(**runtime_config)
     trainer = DPOTrainer(
         model=model,
         ref_model=None,
@@ -149,7 +150,7 @@ def main() -> None:
             "sha256": dataset_digest,
             "contains_real_actions": False,
         },
-        "config": exact_config,
+        "config": public_config,
         "exact_config_sha256": config_digest,
         "seed": args.seed,
         "train_metrics": dict(output.metrics),
