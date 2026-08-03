@@ -48,6 +48,22 @@ after the exact release commit and its remote checks are green.
 - [x] Release metadata declares exact `0.6.0`; the intended annotated tag is
       exactly `v0.6.0` and will use the existing OIDC-only release workflow.
 
+## After the tag
+
+- [x] Annotated tag `v0.6.0` resolves to exact release commit
+      `6cfbdbb7bbf5c6042def4cf154bfe3c3b6530eea`; OIDC publication, public
+      hashes/attestations, clean install and one GitHub Release were verified by
+      tag run [`30796058250`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30796058250).
+- [x] This post-release state-sync change advances development to
+      `0.6.1.dev0`; it merges only after remote checks are green.
+
+Published artifact identity:
+
+- `miniverl-0.6.0-py3-none-any.whl`: SHA-256
+  `e5fbb99bf410c27d22d6959f9599dfa4fbac2e940dac63f55c9676f68264abd1`
+- `miniverl-0.6.0.tar.gz`: SHA-256
+  `2e1d85556875f6d23152220897ba919d8b82bda35c5c78fd48efffa7ec22909d`
+
 ## v0.5.0 One-GPU Alignment Lab release
 
 - [x] Public preregistration revision 1.4 freezes three seeds, the common SFT
