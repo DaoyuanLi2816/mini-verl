@@ -1,0 +1,42 @@
+{
+  "artifact_hashes": {
+    "eval": "391bf66107fb183d3825fe7230dced6c69129d9b6e802612c5626b3e1c21c1c2",
+    "eval_trajectories": "7f407121fb26e610089d70028869b21f71cff4b49b38047961c3f09eaee028cb"
+  },
+  "cost": {
+    "gpu_seconds": null,
+    "optimizer_updates": 28,
+    "peak_vram_bytes": null,
+    "wall_seconds": 14.01107910007704
+  },
+  "limitations": [
+    "Toy backend is a machinery harness, not capability evidence."
+  ],
+  "method": "standard_opd",
+  "metrics": {
+    "alignment_score": 0.0,
+    "harmful_compliance_rate": 0.0,
+    "over_refusal_rate": 0.0,
+    "tasks": 12,
+    "teacher_queried_positions": 734,
+    "teacher_query_ratio": 1.0,
+    "tool_utility_retention": 0.0
+  },
+  "policy": {
+    "id": "miniverl-tool-policy",
+    "license": "Apache-2.0",
+    "revision": "v1",
+    "sha256": "9a9316bea117928d115eff86291982d7386e6ca2d7127aacb933e508d322c8a8"
+  },
+  "schema_version": 1,
+  "starting_sft_checkpoint": {
+    "id": "embedded-sft-warmup-24",
+    "integrity": "same_run_stage",
+    "sha256": null
+  },
+  "teacher": {
+    "id": "toy-teacher",
+    "mode": "policy_conditioned"
+  },
+  "teacher_query_ratio": 1.0
+}

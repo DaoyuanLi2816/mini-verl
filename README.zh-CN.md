@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — 单卡上可审计的在线后训练" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — 单卡上的在线对齐与蒸馏" width="880">
 </p>
 
 <div align="center">
@@ -16,21 +16,24 @@
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI 软件包</strong></a> ·
   <a href="#个人单卡快速上手">安装与训练</a> ·
   <a href="docs/single-gpu-guide.md">适配你的 GPU</a> ·
-  <a href="#recoverybench新鲜在线状态是否值得额外成本">实测结果</a>
+  <a href="#alignment-lab什么时候应该关闭-opd">Alignment Lab 结果</a>
 </p>
 
 > 本文是 [README.md](README.md) 的中文翻译。英文版为准；若两者不一致，请以英文版为准并提交 issue。
 
-**miniVERL 是一个独立的单卡配套工具：先在本地原型化、诊断和验证在线后训练
-流程，再把选定产物扩展到 verl。**
+**在一张 GPU 上完成在线对齐与蒸馏。**
+
+从经过 SFT 的模型出发，用带策略上下文、经过偏好训练或经过安全对齐的教师
+继续训练——不需要 Ray 或集群。
+
+**先同时测量对齐、过度拒绝、保留效用与成本，再选择 SFT、DPO 或 OPD。**
 
 PyPI `v0.4.0` 是稳定发布版；`main` 是开发分支，可能领先于稳定版。
 
-miniVERL 是一个紧凑、可审计的在线师生训练实验室。SFT 负责建立任务能力和
-协议能力；OPD 则是在此基础上转移教师的推理、策略、风格或其他行为的在线
-机制，两者不是可互换的阶段，教师也必须先对目标行为合格。它不需要 Ray 或
-GPU 集群，CUDA 路径没有显卡型号白名单；是否装得下仍由模型、序列预算和
-可用显存决定。
+miniVERL 是一个独立的单卡配套工具，用于在扩展前原型化、诊断和验证在线
+后训练流程。SFT 负责建立任务与协议能力；OPD 在学生实际访问的状态上转移
+显式教师的行为，两者不是可互换的阶段。CUDA 路径没有显卡型号白名单；
+是否装得下仍由模型、序列预算和可用显存决定。
 
 ```bash
 python -m pip install miniverl            # 轻量核心层
@@ -46,15 +49,17 @@ schema 与 Python API）。`train` extra 会添加 torch、Transformers 与 PEFT
 情况下检查和验证产物；要进行训练或评估，请安装
 `pip install "miniverl[train]"`。
 
-**它让三件事可以被检查**
+**它让四件事可以被检查**
 
 - **策略真实：** 每个 OPD 批次都来自它要更新的策略版本；过期教师目标会被拒绝。
 - **Token 真实：** 工具输出只作为上下文，只有带类型的 assistant span 能进入 loss。
 - **预算真实：** 精确全词表目标与压缩的 `top-k + tail` 目标分开命名、分开报告。
+- **决策真实：** 每张 Alignment Card 同时报告策略质量、保留效用、教师查询比例、
+  GPU 时间、显存与局限。
 
 [运行本地 demo](#本地玩具演示) ·
 [在你的 GPU 上训练](#个人单卡快速上手) ·
-[查看实测结果](#recoverybench新鲜在线状态是否值得额外成本) ·
+[查看实测结果](#alignment-lab什么时候应该关闭-opd) ·
 [阅读数学说明](docs/math.md)
 
 ## 为什么需要 miniVERL
@@ -84,10 +89,58 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | `resident` / `swap` 显存策略与 `auto` 解析 | 支持，并有等价性测试 |
 | 带版本号与校验和、完全不用 pickle 的教师目标缓存 | 支持 |
 | SFT / 离线 KD / 严格 OPD / 显式标注 replay 统一在一个 trainer 中 | 支持 |
+| `align` / `pilot`、策略上下文教师、对齐适配器教师与 DPO 来历记录 | 支持 |
+| 版本化 verifier gate、AlignmentBench 元数据适配器与隐私安全 Alignment Card | 支持；v0.5 实测中外部基准仅有元数据，未执行 |
 | 计算器、JSON 导航、SQLite 三个环境 | 支持，确定性生成 + 精确判分 |
 | 精确的断点续训 | 支持，逐参数断言 |
 | 完全自包含、可离线打开的 HTML 报告 | 支持 |
 | Ray、FSDP、DeepSpeed、vLLM、VLM、跨词表、PPO/GRPO | **不支持**，见[局限](docs/limitations.md) |
+
+## Alignment Lab：什么时候应该关闭 OPD
+
+> [!IMPORTANT]
+> **共同的 SFT 起点已经在这组确定性测试上饱和。** 三个预注册种子中，
+> 没有任何继续训练方法超过它的 100% 对齐与 100% 工具效用。继续 SFT、
+> 标准 OPD 和 verifier-gated OPD 已完成的回归均保留在主结果中。
+
+六种方法都从同一个经过校验和绑定的 Qwen3-0.6B SFT 检查点出发；每个种子
+使用同一组按序排列的 48 道最终测试任务。这是一组小型、确定性的工具策略
+测试，不是广义安全基准；唯一实测 GPU 是 RTX 4080。
+
+| 方法 | 对齐 | 工具效用 | 教师查询 | 继续训练 GPU 时间 |
+| --- | ---: | ---: | ---: | ---: |
+| SFT 检查点 | **100.0%** | **100.0%** | 不适用 | 0.0 秒 |
+| 继续 SFT | 94.4% | 88.9% | 不适用 | 3.9 秒 |
+| DPO | **100.0%** | **100.0%** | 不适用 | 8.6 秒 |
+| 离线软目标蒸馏 | **100.0%** | **100.0%** | 100.0% | 26.6 秒 |
+| 标准 OPD | 98.6% | 97.2% | 100.0% | 76.7 秒 |
+| verifier-gated OPD | 97.9% | 95.8% | 46.8% | 66.0 秒 |
+
+![对齐质量与工具效用保留](docs/alignment-lab/quality-vs-utility.svg)
+
+所有方法的 harmful-compliance 与 over-refusal 都是 0%，但三条已完成实验臂
+仍在安全错误恢复任务上回归，说明只看这两个安全轴会漏掉真实的策略效用
+问题。配对的 State × Supervision 诊断发现，新鲜状态软目标中超出 argmax 的
+平均概率质量仅为 0.0251%；它是信号诊断，不是另一条训练完成的硬目标实验臂，
+因此不声称软目标具有质量优势。
+
+`miniverl pilot` 返回 `insufficient_evidence`，并建议这份配方不要继续支付在线
+教师查询成本。这正是产品预期：OPD 是需要证据支持的选择，不是 SFT 的默认
+替代品。
+
+```bash
+miniverl pilot recipes/alignment_tool_policy_toy.yaml --json
+miniverl align recipes/alignment_tool_policy_toy.yaml --dry-run
+```
+
+可阅读[数据绑定报告](docs/alignment-lab/alignment-lab-v1.md)、
+[技术 PDF](paper/alignment-lab-v1/alignment-lab-v1.pdf)、
+[公开文章](docs/alignment-lab/when-opd-should-follow-sft.md)、
+[演示脚本](docs/alignment-lab/demo.md)与
+[18 张隐私安全 Alignment Card](benchmarks/alignment-cards/alignment-lab-v1/sft_checkpoint-seed-1234.md)。
+[预注册](benchmarks/preregistration/alignment-lab-v1.yaml)、
+[机器可读结果](benchmarks/results/alignment-lab-v1.json)和 864 条任务级记录共同
+绑定以上结论。
 
 ## Consumer Runtime：无需集群的批处理提速
 

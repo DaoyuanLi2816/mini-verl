@@ -229,6 +229,8 @@ def test_every_published_benchmark_result_validates_against_the_schema():
             "recoverybench-v1-analysis.json",
             "consumer-runtime-v1.json",
             "consumer-runtime-v1-profiler.json",
+            "alignment-lab-v1.json",
+            "alignment-lab-v1-state-supervision.json",
         }
     )
     assert results, "benchmarks/results/ has no published result to validate"
@@ -337,7 +339,7 @@ def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
     assert "1× CUDA GPU" in banner
     assert "BF16 / FP16 auto" in banner
     assert "typed provenance" in banner
-    assert "Exact or top-k + tail teacher targets" in banner
+    assert "Alignment · utility · queries · GPU time" in banner
     assert 'pip install "miniverl[train,cuda]"' not in banner
     assert "the GPU you have" not in banner
     assert "16 GB first" not in banner

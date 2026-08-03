@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — auditable online post-training on one GPU" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — online alignment and distillation on one GPU" width="880">
 </p>
 
 <div align="center">
@@ -16,21 +16,25 @@
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI package</strong></a> ·
   <a href="#single-gpu-quickstart">Install &amp; train</a> ·
   <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/single-gpu-guide.md">Bring your own GPU</a> ·
-  <a href="#recoverybench-do-fresh-on-policy-states-justify-their-cost">Measured result</a>
+  <a href="#alignment-lab-when-to-turn-opd-off">Alignment Lab result</a>
 </p>
 
-**The independent one-GPU companion for prototyping, diagnosing and validating
-online post-training workflows before scaling selected artifacts to verl.**
+**Online alignment and distillation on one GPU.**
+
+Post-train an SFT model from a policy-conditioned, preference-trained or
+safety-aligned teacher—without Ray or a cluster.
+
+**Measure alignment, over-refusal, retained utility and cost before choosing
+SFT, DPO or OPD.**
 
 PyPI `v0.4.0` is the stable release; `main` is development and may be ahead.
 
-miniVERL is a compact, auditable lab for online teacher-student training on
-multi-turn tool trajectories. SFT establishes task and protocol competence;
-OPD then exposes an online mechanism for transferring the teacher's reasoning,
-policy, style or other behavior. They are not interchangeable stages, and the
-teacher must be qualified for the behavior being transferred. miniVERL runs
-without Ray or a cluster and has no CUDA device-name allowlist; fit still
-depends on model size, sequence budget and available VRAM.
+miniVERL is an independent one-GPU companion for prototyping, diagnosing and
+validating online post-training workflows before scale-out. SFT establishes
+task and protocol competence; OPD transfers behavior from an explicit teacher
+on student-visited states. They are not interchangeable stages. The local CUDA
+path has no device-name allowlist; fit still depends on model size, sequence
+budget and available VRAM.
 
 ```bash
 python -m pip install miniverl            # lightweight core
@@ -55,10 +59,12 @@ validate artifacts without downloading a multi-gigabyte ML stack; use
   can enter the loss.
 - **Budget truth:** exact full-vocabulary objectives and compressed
   `top-k + tail` objectives are named and reported separately.
+- **Decision truth:** every Alignment Card reports policy quality, retained
+  utility, teacher-query ratio, GPU time, VRAM and limitations together.
 
 [Run the local demo](#local-toy-demo) ·
 [Train on your GPU](#single-gpu-quickstart) ·
-[Inspect the measured result](#recoverybench-do-fresh-on-policy-states-justify-their-cost) ·
+[Inspect the measured result](#alignment-lab-when-to-turn-opd-off) ·
 [Read the math](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/math.md)
 
 ## Why miniVERL exists
@@ -97,10 +103,62 @@ keeps the whole lifecycle in one readable single-GPU process.
 | `resident` and `swap` memory strategies, `auto` resolution | yes, with an equivalence test |
 | Versioned, checksummed, pickle-free teacher-target cache | yes |
 | SFT / offline KD / strict OPD / explicitly labeled replay behind one trainer | yes |
+| `align` / `pilot`, policy-conditioned and aligned-adapter teachers, DPO provenance | yes |
+| Versioned verifier gate, AlignmentBench metadata adapters and privacy-safe Alignment Cards | yes; external suites are metadata-only in the v0.5 measurement |
 | Calculator, JSON-navigation and SQLite environments | yes, deterministic with exact verifiers |
 | Exact checkpoint/resume | yes, asserted parameter-for-parameter |
 | Self-contained offline HTML report with token-level divergence | yes |
 | Ray, FSDP, DeepSpeed, vLLM, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/limitations.md) |
+
+## Alignment Lab: when to turn OPD off
+
+> [!IMPORTANT]
+> **The starting SFT policy already saturated this deterministic test.** Across
+> three preregistered seeds, no continuation method improved its 100% alignment
+> and 100% tool-utility result. The completed regressions from continued SFT,
+> standard OPD and verifier-gated OPD remain in the headline result.
+
+All six methods start from the same checksummed Qwen3-0.6B SFT checkpoint and
+use the same 48 ordered final-test tasks per seed. This is a small deterministic
+tool-policy suite—not a broad safety benchmark—and the only measured GPU is an
+RTX 4080.
+
+| method | alignment | tool utility | teacher query | continuation GPU time |
+| --- | ---: | ---: | ---: | ---: |
+| SFT checkpoint | **100.0%** | **100.0%** | n/a | 0.0 s |
+| continued SFT | 94.4% | 88.9% | n/a | 3.9 s |
+| DPO | **100.0%** | **100.0%** | n/a | 8.6 s |
+| offline soft distillation | **100.0%** | **100.0%** | 100.0% | 26.6 s |
+| standard OPD | 98.6% | 97.2% | 100.0% | 76.7 s |
+| verifier-gated OPD | 97.9% | 95.8% | 46.8% | 66.0 s |
+
+![Alignment quality versus utility retention](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/alignment-lab/quality-vs-utility.svg)
+
+Harmful-compliance and over-refusal rates were both 0% for every method, yet
+safe-error-recovery utility regressed in three completed arms. Those two safety
+axes alone therefore missed a real policy-utility failure in this suite. The
+matched State × Supervision diagnostic found only 0.0251% mean teacher
+probability mass beyond argmax on fresh states; it is a signal diagnostic, not
+a separately trained hard-target result, and no soft-target advantage is
+claimed.
+
+`miniverl pilot` returns `insufficient_evidence` and tells this recipe not to
+spend online teacher-query cost. That is the intended product behavior: OPD is
+an option to justify with evidence, not a default replacement for SFT.
+
+```bash
+miniverl pilot recipes/alignment_tool_policy_toy.yaml --json
+miniverl align recipes/alignment_tool_policy_toy.yaml --dry-run
+```
+
+Read the [data-bound report](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/alignment-lab-v1.md),
+[technical PDF](https://github.com/DaoyuanLi2816/mini-verl/blob/main/paper/alignment-lab-v1/alignment-lab-v1.pdf),
+[public article](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/when-opd-should-follow-sft.md),
+[demo script](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/demo.md), or the
+[18 privacy-safe Alignment Cards](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/alignment-cards/alignment-lab-v1/sft_checkpoint-seed-1234.md).
+The [preregistration](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/preregistration/alignment-lab-v1.yaml),
+[machine-readable result](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/alignment-lab-v1.json) and all 864
+task-level records bind the claims above.
 
 ## Consumer Runtime: batch speed without a cluster
 
