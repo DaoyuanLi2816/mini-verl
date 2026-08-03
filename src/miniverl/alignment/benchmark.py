@@ -171,7 +171,17 @@ def build_alignment_benchmark_config(
             if split == "test"
             else preregistration["teacher_selection"]["eval_tasks"],
             "temperature": 0.0,
+            "task_offset": 0,
             "seed": preregistration["task_set"]["split_seed"],
+        }
+    )
+    task_counts = preregistration["task_set"]["counts"]
+    config["environment"].update(
+        {
+            "train_tasks": task_counts["train"],
+            "eval_tasks": task_counts["eval"],
+            "test_tasks": task_counts["test"],
+            "split_seed": preregistration["task_set"]["split_seed"],
         }
     )
     config["alignment"] = {

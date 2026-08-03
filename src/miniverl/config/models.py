@@ -644,6 +644,7 @@ class EvalConfig(_Base):
     enabled: bool = True
     baseline_enabled: bool = True
     tasks: int | None = Field(default=None, ge=1)
+    task_offset: int = Field(default=0, ge=0)
     split: str = Field(default="eval", pattern="^(train|eval|test)$")
     temperature: float = Field(default=0.0, ge=0.0, le=5.0)
     max_turns: int | None = Field(default=None, ge=1)
@@ -827,6 +828,22 @@ class RunConfig(_Base):
             raise ValueError("eval.max_turns is implausibly larger than rollout.max_turns")
 
         alignment = self.alignment
+
+        if self.eval.enabled:
+            split_sizes = {
+                "train": self.environment.train_tasks,
+                "eval": self.environment.eval_tasks,
+                "test": self.environment.test_tasks,
+            }
+            capacity = split_sizes[self.eval.split]
+            requested = self.eval.tasks if self.eval.tasks is not None else capacity
+            if self.eval.task_offset + requested > capacity:
+                raise ValueError(
+                    f"eval requests tasks [{self.eval.task_offset}, "
+                    f"{self.eval.task_offset + requested}) from split {self.eval.split!r}, "
+                    f"but that split contains only {capacity} tasks"
+                )
+
         if alignment is not None:
             if alignment.starting_sft_checkpoint is None and self.train.sft_warmup_cycles == 0:
                 raise ValueError(

@@ -961,6 +961,24 @@ def test_effective_eval_tasks_honours_an_explicit_override() -> None:
     assert config.effective_eval_tasks == 5
 
 
+def test_eval_slice_must_fit_the_declared_split() -> None:
+    with pytest.raises(ValidationError, match=r"contains only 4 tasks"):
+        RunConfig.from_mapping(
+            _payload(
+                environment={"test_tasks": 4},
+                eval={"split": "test", "tasks": 5},
+            )
+        )
+
+    config = RunConfig.from_mapping(
+        _payload(
+            environment={"test_tasks": 8},
+            eval={"split": "test", "task_offset": 4, "tasks": 4},
+        )
+    )
+    assert config.eval.task_offset == 4
+
+
 @pytest.mark.parametrize("path", RUN_RECIPES, ids=lambda p: p.name)
 def test_effective_eval_tasks_agrees_with_each_shipped_recipe(path: Path) -> None:
     config = RunConfig.from_yaml(path)

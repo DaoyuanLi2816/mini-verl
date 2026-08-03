@@ -33,7 +33,7 @@ def _preregistration(path: Path) -> tuple[dict[str, object], str]:
         },
         "final_test": {"read_count": 1, "tasks": 6},
         "teacher_selection": {"eval_tasks": 4},
-        "task_set": {"split_seed": 11},
+        "task_set": {"split_seed": 11, "counts": {"train": 12, "eval": 8, "test": 6}},
         "starting_checkpoint": {"content_sha256": "a" * 64},
         "policy_artifact": {
             "id": "policy",
@@ -134,6 +134,9 @@ def test_preregistration_digest_and_six_arm_config_contract(tmp_path: Path) -> N
         assert config.alignment is not None
         assert config.alignment.method.value == method
         assert config.eval.tasks == 6
+        assert config.environment.train_tasks == 12
+        assert config.environment.eval_tasks == 8
+        assert config.environment.test_tasks == 6
         assert config.eval.baseline_enabled is False
         assert config.train.sft_warmup_cycles == 0
 

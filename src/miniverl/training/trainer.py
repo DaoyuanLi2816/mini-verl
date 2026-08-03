@@ -2421,7 +2421,8 @@ class OPDTrainer:
         chosen_split = split or config.eval.split
         pool = tasks if tasks is not None else self.splits.get(chosen_split, [])
         limit = config.effective_eval_tasks if tasks is None else len(pool)
-        pool = pool[:limit]
+        task_offset = config.eval.task_offset if tasks is None else 0
+        pool = pool[task_offset : task_offset + limit]
         if not pool:
             return {
                 "tag": tag,
@@ -2454,7 +2455,7 @@ class OPDTrainer:
                 traj = self.runner.rollout(
                     task,
                     policy_version=self.policy_version,
-                    seed=config.eval.seed + offset,
+                    seed=config.eval.seed + task_offset + offset,
                     temperature=config.eval.temperature,
                     max_turns=config.eval.max_turns,
                     trajectory_id=f"{task.task_id}:{tag}:v{self.policy_version}",
@@ -2479,6 +2480,7 @@ class OPDTrainer:
                 "rollout_iteration": self._cycles_completed,
                 "rollout_policy_version": self._last_rollout_policy_version,
                 "temperature": config.eval.temperature,
+                "task_offset": task_offset,
                 "seconds": round(elapsed, 3),
                 "rollout_tokens_per_second": round(stats.generated_tokens / elapsed, 2),
                 "success_by_difficulty": {
