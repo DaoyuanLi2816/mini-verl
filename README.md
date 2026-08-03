@@ -22,7 +22,7 @@
 **The independent one-GPU companion for prototyping, diagnosing and validating
 online post-training workflows before scaling selected artifacts to verl.**
 
-PyPI `v0.3.0` is the stable release; `main` is development and may be ahead.
+PyPI `v0.4.0` is the stable release; `main` is development and may be ahead.
 
 miniVERL is a compact, auditable lab for online teacher-student training on
 multi-turn tool trajectories. SFT establishes task and protocol competence;

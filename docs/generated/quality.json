@@ -1,22 +1,22 @@
 {
   "schema_version": 1,
-  "release": "0.3.0",
-  "status": "released",
-  "measured_commit": "9175bbe88e19e96834766a34dc7c9513c46513c7",
-  "measured_at": "2026-08-02T15:55:58-07:00",
+  "release": "0.4.0",
+  "status": "validated",
+  "measured_commit": "09df1ac1f8a8c33fa07bffdf3f24dad8000cc500",
+  "measured_at": "2026-08-02T18:19:00-07:00",
   "cpu_non_gpu_non_network": {
-    "passed": 1408,
+    "passed": 1448,
     "deselected": 6,
-    "branch_coverage_percent": 86.68
+    "branch_coverage_percent": 86.26
   },
   "gpu": {
     "passed": 5,
-    "deselected": 1409,
+    "deselected": 1449,
     "hardware": "NVIDIA GeForce RTX 4080"
   },
   "network": {
     "passed": 3,
-    "deselected": 1411
+    "deselected": 1451
   },
-  "quality_floor": "1,400+ tests and 86%+ branch coverage at v0.3.0"
+  "quality_floor": "1,440+ tests and 86%+ branch coverage at v0.4.0"
 }

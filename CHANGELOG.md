@@ -6,6 +6,8 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-02
+
 ### Added
 
 - Typed, mask-isolated padded update batches for SFT, offline KD and strict OPD,
@@ -493,7 +495,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.6...v0.3.0
 [0.2.6]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.5...v0.2.6
 [0.2.5]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.2.4...v0.2.5
