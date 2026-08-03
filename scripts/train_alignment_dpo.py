@@ -9,12 +9,11 @@ import importlib.metadata
 import json
 import shutil
 from pathlib import Path
-from typing import Any
 
 from miniverl.alignment import build_tool_policy_preferences, preference_dataset_digest
-from miniverl.utils.runs import canonical_json, utc_now, write_json_atomic
+from miniverl.alignment.dpo import TRL_VERSION, build_dpo_training_config, dpo_config_digest
+from miniverl.utils.runs import utc_now, write_json_atomic
 
-TRL_VERSION = "1.8.0"
 BASE_MODEL = "Qwen/Qwen3-0.6B"
 BASE_REVISION = "c1899de289a04d12100db370d81485cdf75e47ca"
 
@@ -33,7 +32,7 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--train-tasks", type=int, default=96)
-    parser.add_argument("--max-steps", type=int, default=8)
+    parser.add_argument("--max-steps", type=int, default=4)
     parser.add_argument("--learning-rate", type=float, default=5e-5)
     parser.add_argument("--beta", type=float, default=0.1)
     parser.add_argument("--overwrite", action="store_true")
@@ -93,31 +92,13 @@ def main() -> None:
         is_trainable=True,
         local_files_only=True,
     )
-    public_config: dict[str, Any] = {
-        "output_dir": "<OUTPUT>",
-        "max_steps": args.max_steps,
-        "per_device_train_batch_size": 2,
-        "gradient_accumulation_steps": 4,
-        "learning_rate": args.learning_rate,
-        "beta": args.beta,
-        "loss_type": "sigmoid",
-        "max_length": 1024,
-        "gradient_checkpointing": True,
-        "bf16": True,
-        "optim": "paged_adamw_8bit",
-        "lr_scheduler_type": "cosine",
-        "warmup_steps": 1,
-        "max_grad_norm": 1.0,
-        "save_strategy": "no",
-        "logging_steps": 1,
-        "report_to": "none",
-        "seed": args.seed,
-        "data_seed": args.seed,
-        "full_determinism": True,
-        "dataset_num_proc": 1,
-        "remove_unused_columns": True,
-    }
-    config_digest = hashlib.sha256(canonical_json(public_config).encode("utf-8")).hexdigest()
+    public_config = build_dpo_training_config(
+        seed=args.seed,
+        max_steps=args.max_steps,
+        learning_rate=args.learning_rate,
+        beta=args.beta,
+    )
+    config_digest = dpo_config_digest(public_config)
     runtime_config = {**public_config, "output_dir": str(args.output)}
     training_args = DPOConfig(**runtime_config)
     trainer = DPOTrainer(

@@ -51,7 +51,11 @@ def _preregistration(path: Path) -> tuple[dict[str, object], str]:
         },
         "dpo": {
             "trl_version": "1.8.0",
-            "exact_config_sha256": "c" * 64,
+            "exact_config_sha256_by_seed": {
+                "3": "c" * 64,
+                "5": "1" * 64,
+                "7": "2" * 64,
+            },
             "dataset_sha256": "d" * 64,
         },
     }
@@ -150,3 +154,14 @@ def test_preregistration_rejects_digest_drift_and_unregistered_seed(tmp_path: Pa
             split="eval",
             starting_checkpoint=tmp_path / "checkpoint",
         )
+
+
+def test_dpo_config_digest_is_path_independent_and_seed_specific() -> None:
+    from miniverl.alignment.dpo import build_dpo_training_config, dpo_config_digest
+
+    first = build_dpo_training_config(seed=3, max_steps=4, learning_rate=5e-5, beta=0.1)
+    repeated = build_dpo_training_config(seed=3, max_steps=4, learning_rate=5e-5, beta=0.1)
+    other_seed = build_dpo_training_config(seed=5, max_steps=4, learning_rate=5e-5, beta=0.1)
+    assert first["output_dir"] == "<OUTPUT>"
+    assert dpo_config_digest(first) == dpo_config_digest(repeated)
+    assert dpo_config_digest(first) != dpo_config_digest(other_seed)

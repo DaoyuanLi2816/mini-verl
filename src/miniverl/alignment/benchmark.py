@@ -84,7 +84,9 @@ def _dpo_provenance(manifest_path: Path, preregistration: dict[str, Any]) -> dic
     dpo = preregistration["dpo"]
     if manifest.get("trl_version") != dpo["trl_version"]:
         raise ConfigError("DPO manifest uses a different TRL version than preregistered")
-    if manifest.get("exact_config_sha256") != dpo["exact_config_sha256"]:
+    expected_configs = dpo["exact_config_sha256_by_seed"]
+    expected_config = expected_configs.get(str(manifest.get("seed")))
+    if manifest.get("exact_config_sha256") != expected_config:
         raise ConfigError("DPO manifest config digest differs from preregistration")
     if (manifest.get("dataset") or {}).get("sha256") != dpo["dataset_sha256"]:
         raise ConfigError("DPO preference dataset digest differs from preregistration")
