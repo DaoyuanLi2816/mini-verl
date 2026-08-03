@@ -2,6 +2,13 @@ name: pinned verl bridge
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/verl-bridge.yml"
+      - "pyproject.toml"
+      - "scripts/*verl_bridge*"
+      - "src/miniverl/bridge/**"
+      - "tests/**/*verl_bridge*"
   push:
     tags:
       - "v0.6.*"
