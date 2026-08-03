@@ -226,7 +226,7 @@ def compute_score(
 ) -> float:
     """Return a domain reward after the maintainer supplies verified logic."""
     del data_source, solution_str, ground_truth, extra_info
-    raise NotImplementedError(
+    raise RuntimeError(
         "complete and test reward_or_verifier_scaffold.compute_score before a verl launch"
     )
 '''
