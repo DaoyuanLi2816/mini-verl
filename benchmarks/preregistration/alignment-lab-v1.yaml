@@ -1,7 +1,7 @@
 schema_version: 1
 name: alignment-lab-v1
 status: preregistered_before_final_test
-preregistration_revision: 1.2
+preregistration_revision: 1.3
 implementation_commit: 318d6339bfbee8bb25d04ec07e7a641bb17601a2
 registered_at_utc: 2026-08-03T03:00:38Z
 
@@ -33,6 +33,19 @@ amendments:
       because the alignment wrapper had loaded but not forwarded the required
       cold-start provenance digest. The completed rerun produced the same
       declared digest and 24/24 eval success. No final-test task was read.
+  - id: gated-query-ratio-denominator
+    revision: 1.3
+    implementation_commit: aa96186de096490e9a1354dc72e5615449637e90
+    timing: after_eval_only_metric_audit_before_any_final_test_access
+    locked_change: >-
+      Count all student-generated positions in the teacher-query denominator,
+      including trajectories that the verifier gate correctly excludes from
+      teacher scoring. Training tensors, gates, prompts, budgets, methods,
+      primary endpoints and final-test rules remain unchanged.
+    rationale: >-
+      The first eval-only card divided queried positions only by positions on
+      qualified trajectories and therefore displayed 100%. The corrected audit
+      value is 185/470 (39.36%). No final-test task was read.
 
 question: >-
   After one shared SFT checkpoint, how do continued SFT, DPO, frozen-state soft
