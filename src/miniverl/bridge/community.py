@@ -73,7 +73,7 @@ class _RecipeRecord(BaseModel):
 
 def _recipe_path(recipe_id: str) -> Path:
     package_root = resources.files("miniverl.community")
-    candidate = package_root.joinpath("recipes", "v1", f"{recipe_id}.yaml")
+    candidate = package_root.joinpath("recipes").joinpath("v1").joinpath(f"{recipe_id}.yaml")
     path = Path(str(candidate))
     if not path.is_file():
         raise ValueError(f"unknown community recipe {recipe_id!r}")
@@ -88,7 +88,7 @@ def load_recipe_registry() -> list[dict[str, Any]]:
     """Load and schema-validate every packaged version-1 recipe record."""
     import yaml
 
-    package_root = resources.files("miniverl.community").joinpath("recipes", "v1")
+    package_root = resources.files("miniverl.community").joinpath("recipes").joinpath("v1")
     records: list[dict[str, Any]] = []
     for resource in sorted(package_root.iterdir(), key=lambda item: item.name):
         if not resource.name.endswith(".yaml"):
