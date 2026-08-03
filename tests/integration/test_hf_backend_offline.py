@@ -371,7 +371,7 @@ def local_teacher_adapter(tmp_path: Path, tiny_model, tiny_tokenizer):
     return base, adapter, wrapped
 
 
-def _shared_config(base: Path, adapter: Path):
+def _shared_config(base: Path, adapter: Path, *, include_reference: bool = False):
     from miniverl.config import RunConfig
 
     common = {
@@ -380,27 +380,33 @@ def _shared_config(base: Path, adapter: Path):
         "quantization": "none",
         "attn_implementation": "eager",
     }
+    models = {
+        "backend": "hf",
+        "runtime": "shared_backbone",
+        "device": "cpu",
+        "student": {
+            **common,
+            "lora": {
+                "enabled": True,
+                "r": 4,
+                "alpha": 8,
+                "target_modules": ["q_proj", "v_proj"],
+            },
+        },
+        "teacher": {
+            **common,
+            "adapter": {"path": str(adapter)},
+        },
+    }
+    if include_reference:
+        models["reference"] = {
+            **common,
+            "adapter": {"path": str(adapter)},
+        }
     return RunConfig.from_mapping(
         {
             "run": {"mode": "opd"},
-            "models": {
-                "backend": "hf",
-                "runtime": "shared_backbone",
-                "device": "cpu",
-                "student": {
-                    **common,
-                    "lora": {
-                        "enabled": True,
-                        "r": 4,
-                        "alpha": 8,
-                        "target_modules": ["q_proj", "v_proj"],
-                    },
-                },
-                "teacher": {
-                    **common,
-                    "adapter": {"path": str(adapter)},
-                },
-            },
+            "models": models,
             "environment": {"name": "calculator", "train_tasks": 2, "eval_tasks": 1},
             "train": {
                 "cycles": 1,
@@ -473,6 +479,37 @@ def test_shared_backbone_loads_one_base_and_matches_separate_teacher_logits(
 
     separate.release()
     teacher.release()
+
+
+@requires_peft
+def test_shared_backbone_reference_is_a_frozen_distinct_role(
+    local_teacher_adapter,
+    tiny_tokenizer,
+):
+    from miniverl.models.shared import PolicyRole, load_shared_adapter_backends
+
+    base, adapter, _ = local_teacher_adapter
+    config = _shared_config(base, adapter, include_reference=True)
+    actor, teacher, reference = load_shared_adapter_backends(
+        config,
+        tiny_tokenizer,
+        device="cpu",
+        local_files_only=True,
+    )
+    assert teacher is not None
+    assert reference is not None
+    assert actor.model is teacher.model is reference.model
+    assert reference.trainable_parameters() == []
+
+    ids = tiny_tokenizer.encode("fixed reference role")
+    positions = [0, len(ids) - 1]
+    teacher_logits = teacher.logits_at(ids, positions, chunk_size=2)
+    reference_logits = reference.logits_at(ids, positions, chunk_size=2)
+    assert torch.equal(reference_logits, teacher_logits)
+    assert actor.controller.active_role is PolicyRole.ACTOR
+    assert all(parameter.requires_grad for parameter in actor.trainable_parameters())
+
+    reference.release()
 
 
 @requires_peft

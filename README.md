@@ -92,6 +92,8 @@ keeps the whole lifecycle in one readable single-GPU process.
 | Privileged-context teacher with an explicit alignment map | yes |
 | Frozen standard PEFT teacher adapters with provenance and competence gates | yes |
 | Single-GPU CUDA path with automatic bf16/fp16 selection | yes; device-name-agnostic CUDA path, measured reference on an RTX 4080 |
+| Padded multi-trajectory updates | yes; mask-isolated, length-bucketed, per-trajectory normalized; sequential remains the default |
+| Shared-base student / teacher / optional reference adapters | yes; one physical HF base, typed roles, student-only optimizer ownership |
 | `resident` and `swap` memory strategies, `auto` resolution | yes, with an equivalence test |
 | Versioned, checksummed, pickle-free teacher-target cache | yes |
 | SFT / offline KD / strict OPD / explicitly labeled replay behind one trainer | yes |
@@ -99,6 +101,40 @@ keeps the whole lifecycle in one readable single-GPU process.
 | Exact checkpoint/resume | yes, asserted parameter-for-parameter |
 | Self-contained offline HTML report with token-level divergence | yes |
 | Ray, FSDP, DeepSpeed, vLLM, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](docs/limitations.md) |
+
+## Consumer Runtime: batch speed without a cluster
+
+> A low-memory one-GPU runtime for actor rollout, teacher/reference scoring and
+> online policy update.
+
+v0.4 keeps rollout, scoring and update in one readable process, but can now
+pad multiple variable-length trajectories into one mask-isolated update
+forward. A shared-backbone mode loads one quantized base with a trainable
+student adapter, a frozen teacher adapter and an optional frozen reference
+adapter. The default remains `dual_model` plus sequential physical batches for
+backward compatibility.
+
+![Consumer-runtime throughput versus VRAM](docs/consumer-runtime-v1-pareto.svg)
+
+On the preregistered RTX 4080 systems workload, physical batch-4 improved
+end-to-end throughput by 1.63× for dual models and 1.54× for the shared
+backbone. At batch-4, sharing reduced peak reserved memory from 3.04 to 2.23
+GiB, while running 10.1% slower than dual ownership. `auto` was slower because
+padding all eight trajectories was wasteful; it is a convenience, not a claim
+that the largest batch is best.
+
+All eight cells reused identical trajectories and teacher targets. Twelve
+preregistered loss/gradient/update comparisons passed; the largest loss
+difference was 1.25e-6 and the largest updated-logit difference was 1.30e-4.
+The benchmark uses NF4 weights with FP32 compute to keep that numerical gate
+meaningful. It does not claim a quality gain, universal GPU speedup, batched
+rollout server or distributed-runtime parity.
+
+Set `train.trajectory_batch_size` to `1`, an integer, or `auto`; choose
+`models.runtime: shared_backbone` only when student, teacher and optional
+reference use the same pinned base and distinct adapters. See the
+[data-bound report](docs/consumer-runtime-v1.md), [preregistration](benchmarks/preregistration/consumer-runtime-v1.yaml)
+and [frozen result](benchmarks/results/consumer-runtime-v1.json).
 
 ## RecoveryBench: do fresh on-policy states justify their cost?
 
@@ -471,8 +507,9 @@ recipe, export command, compatibility checks and policy-competence gate, see
 The short version; the full list is in [`docs/limitations.md`](docs/limitations.md).
 
 * Same tokenizer only. Cross-tokenizer distillation is rejected with an error.
-* One trajectory per forward pass — `gradient_accumulation_steps` *is* the batch
-  size. The current release has no padded batching.
+* Rollout decoding is one sequence at a time. The update path supports padded
+  physical batches; `gradient_accumulation_steps` is the optimizer-group size
+  and `trajectory_batch_size` is the number sharing one backbone forward.
 * `swap` is unavailable for quantized models, because bitsandbytes parameters are
   pinned to the device they were quantized on.
 * Only Qwen3 and Qwen2 architectures are tested. Others may work through the
@@ -518,9 +555,9 @@ See [`docs/reproducibility.md`](docs/reproducibility.md) and the concise
 ## Roadmap
 
 Not implemented, not promised, listed so the scope is unambiguous:
-cross-tokenizer distillation, padded multi-sequence batching, entropy-aware
-divergence mixing (arXiv:2603.07079), additional model families, more
-environments, and multi-GPU. For anything at cluster scale, use verl.
+cross-tokenizer distillation, batched or engine-backed rollout decoding,
+entropy-aware divergence mixing (arXiv:2603.07079), additional model families,
+more environments, and multi-GPU. For anything at cluster scale, use verl.
 
 ## Acknowledgement and disclaimer
 

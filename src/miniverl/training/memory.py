@@ -168,8 +168,9 @@ def run_with_oom_retry(
         f"CUDA ran out of memory and the {memory.oom_retries} equivalence-preserving "
         f"retries were exhausted (projection chunk size reached {chunk}).",
         hint=(
-            "reduce rollout.max_total_tokens, reduce train.gradient_accumulation_steps, "
-            "lower loss.top_k, switch models.student.quantization to nf4, enable "
+            "reduce train.trajectory_batch_size, reduce rollout.max_total_tokens, "
+            "reduce train.gradient_accumulation_steps, lower loss.top_k, switch "
+            "models.student.quantization to nf4, enable "
             "models.student.gradient_checkpointing, or set memory.strategy: swap. "
             f"Original error: {last_error}"
         ),

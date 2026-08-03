@@ -40,6 +40,7 @@ run:
 
 models:
   backend: hf
+  runtime: dual_model         # this recipe uses different-size student and teacher bases
   device: auto
   student:
     model_id: Qwen/Qwen3-0.6B
@@ -124,6 +125,8 @@ train:
   cycles: 8
   rollouts_per_cycle: 6
   gradient_accumulation_steps: 6   # exactly one on-policy step per rollout batch
+  trajectory_batch_size: 1         # compatibility default; try 2/4 after a clean baseline
+  length_bucketing: true
   opd_freshness: strict
   learning_rate: 1.0e-4
   weight_decay: 0.0

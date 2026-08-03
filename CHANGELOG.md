@@ -6,6 +6,35 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Typed, mask-isolated padded update batches for SFT, offline KD and strict OPD,
+  with deterministic length bucketing, per-trajectory normalization and exact
+  plus top-k-and-tail objectives.
+- A local typed role graph and one-base multi-adapter runtime for trainable
+  actor, frozen teacher and optional frozen reference roles. Checkpoints export
+  the student as a standard PEFT adapter.
+- A preregistered eight-cell RTX 4080 runtime matrix, checksummed profiler
+  summary, data-bound Pareto figure and a public immutable systems-benchmark
+  teacher adapter.
+
+### Changed
+
+- `train.trajectory_batch_size` independently controls physical update-forward
+  size (`1`, an integer or `auto`) while
+  `train.gradient_accumulation_steps` remains the optimizer-group size.
+- `models.runtime` explicitly selects the backward-compatible `dual_model`
+  ownership path or `shared_backbone` when all policy roles use one pinned base.
+
+### Results
+
+- Batch-4 improved end-to-end throughput by 1.63× for dual ownership and 1.54×
+  for shared ownership on the declared Qwen3-0.6B workload. Shared batch-4 used
+  2.227 GiB peak reserved memory versus 3.035 GiB for dual, but was 10.1% slower.
+- Identical trajectory and teacher-target digests held across all eight cells;
+  all 12 preregistered loss, full-gradient and post-update-logit comparisons
+  passed. No task-quality improvement or cross-hardware speedup is claimed.
+
 ## [0.3.0] - 2026-08-01
 
 RecoveryBench release. The experiment is a scoped mechanism study of fresh

@@ -18,8 +18,8 @@ publication, protocol-teacher and two-seed benchmark work lives in
 ## Runtime scope
 
 - [ ] Cross-tokenizer distillation with an explicit alignment contract.
-- [ ] Padded multi-trajectory batching; today gradient accumulation supplies
-      the effective batch size.
+- [ ] Batched or engine-backed rollout decoding; v0.4 batches update forwards,
+      while rollout generation remains deliberately sequential.
 - [ ] Additional tested model families beyond Qwen2/Qwen3.
 - [ ] Entropy-aware divergence mixing after a prespecified experiment; current
       code records teacher entropy but does not implement the method.

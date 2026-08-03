@@ -129,20 +129,19 @@ optimizer references, runs garbage collection, and empties the CUDA cache
 before constructing the next trainer. Use a new lifecycle-isolated run for
 memory comparisons rather than silently rewriting the historical artifact.
 
-### One trajectory per forward pass
+### Update batching is not rollout batching
 
-`OPDTrainer._run_group` loops over the trajectories in a group and calls
-`hidden_states_at` plus `chunked_selected_position_loss` once per trajectory,
-each backward scaled by `1 / len(group)`, then takes a single optimizer step.
-There is no padded batching and no attention-mask assembly across sequences.
+The update path supports typed padded trajectory batches with causal attention
+masks, selected-position flattening and per-trajectory normalization.
+`train.gradient_accumulation_steps` is still the optimizer-group size;
+`train.trajectory_batch_size` only controls how many trajectories in that group
+share one physical backbone forward. `auto` pads the whole group and can be
+slower or use more memory when lengths differ. Sequential physical batching
+remains the compatibility default.
 
-Two things follow:
-
-- `train.gradient_accumulation_steps` **is** the effective batch size. It is not
-  a multiplier on top of some other batch dimension. The number of optimizer
-  steps per cycle is `ceil(rollouts_per_cycle / gradient_accumulation_steps)`.
-- Throughput does not benefit from the GPU's ability to batch. Short
-  trajectories are as expensive per token as long ones.
+Rollout decoding is still one sequence at a time. There is no continuous
+batching scheduler, vLLM/SGLang engine or asynchronous actor pool, so update
+speedups must not be described as rollout-throughput improvements.
 
 If you set `gradient_accumulation_steps < rollouts_per_cycle` in `opd` mode,
 the default `train.opd_freshness: strict` rejects the config: later optimizer
@@ -163,6 +162,11 @@ the recorded reason:
 
 > auto -> resident: a quantized model cannot be moved off the accelerator, so
 > swap is unavailable
+
+`shared_backbone` lowers duplicated-base memory only when actor, teacher and
+optional reference all use the same base identity and runtime settings. It is
+also resident. It cannot share a 0.6B student base with a 1.7B teacher, and it
+does not turn an arbitrary larger teacher into a one-base configuration.
 
 This removes the main lever for fitting a large teacher on a small card exactly
 when you need it. On 16 GB the practical envelope is a quantized sub-1B student
@@ -469,8 +473,6 @@ sections above cannot be read as implying it does.
   teacher entropy and reports it, which is the input such a scheme needs, but
   the divergence is whichever single one `loss.divergence` names. Mixing forward
   KL into high-entropy positions, as in arXiv:2603.07079, is **not implemented**.
-- **Padded batching of trajectories.** Would change what
-  `gradient_accumulation_steps` means. Not implemented.
 - **Swap for quantized models.** Requires dequantize-on-eviction or a second
   copy of the weights. Not implemented, and rejected at config time today.
 - **Multi-GPU or multi-node execution.** Not implemented and not planned; use

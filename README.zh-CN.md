@@ -79,6 +79,8 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 特权上下文教师模式，带显式对齐表 | 支持 |
 | 标准冻结 PEFT 教师适配器，带来源记录与能力门禁 | 支持 |
 | 自动选择 bf16/fp16 的单卡 CUDA 路径 | 支持；CUDA 路径不绑定设备名称，实测参考为 RTX 4080 |
+| padding 多轨迹更新 | 支持；注意力隔离、长度分桶、逐轨迹归一化；默认仍为顺序执行 |
+| 共享主干的学生 / 教师 / 可选参考适配器 | 支持；单一 HF 主干、类型化角色、优化器仅持有学生参数 |
 | `resident` / `swap` 显存策略与 `auto` 解析 | 支持，并有等价性测试 |
 | 带版本号与校验和、完全不用 pickle 的教师目标缓存 | 支持 |
 | SFT / 离线 KD / 严格 OPD / 显式标注 replay 统一在一个 trainer 中 | 支持 |
@@ -86,6 +88,33 @@ miniVERL 把上面每一条都变成**被代码检查的性质**，而不是注�
 | 精确的断点续训 | 支持，逐参数断言 |
 | 完全自包含、可离线打开的 HTML 报告 | 支持 |
 | Ray、FSDP、DeepSpeed、vLLM、VLM、跨词表、PPO/GRPO | **不支持**，见[局限](docs/limitations.md) |
+
+## Consumer Runtime：无需集群的批处理提速
+
+> 面向 actor rollout、教师/参考策略打分与在线策略更新的低显存单卡运行时。
+
+v0.4 仍把 rollout、打分和更新放在一个可读进程中，但更新阶段可以把多条变长
+轨迹 padding 后送入一次注意力隔离的前向。共享主干模式只加载一个量化 base，
+其上挂载可训练学生适配器、冻结教师适配器和可选冻结参考适配器。为保持兼容，
+默认仍是 `dual_model` 加顺序物理 batch。
+
+![Consumer Runtime 吞吐与显存](docs/consumer-runtime-v1-pareto.svg)
+
+在预注册的 RTX 4080 系统工作负载上，物理 batch-4 使 dual 模式端到端吞吐提升
+1.63 倍，使共享主干模式提升 1.54 倍。batch-4 下，共享把峰值 reserved 显存从
+3.04 GiB 降到 2.23 GiB，但速度比 dual 慢 10.1%。`auto` 因为把八条长度不同的
+轨迹全部 padding，反而更慢；它只是便利选项，不保证最大 batch 最快。
+
+八个单元使用完全相同的轨迹和教师目标；12 项预注册的 loss、梯度与更新后
+logits 比较全部通过。最大 loss 差为 1.25e-6，最大更新后 logits 差为 1.30e-4。
+本 benchmark 使用 NF4 权重和 FP32 计算以保留严格数值门禁。它不声称提升任务
+质量、普遍加速所有 GPU，也不声称已实现批量 rollout server 或分布式运行时。
+
+`train.trajectory_batch_size` 可设为 `1`、整数或 `auto`。只有当学生、教师和可选
+参考策略使用同一个锁定 revision 的 base 与不同适配器时，才应选择
+`models.runtime: shared_backbone`。详见[数据绑定报告](docs/consumer-runtime-v1.md)、
+[预注册](benchmarks/preregistration/consumer-runtime-v1.yaml)和
+[冻结结果](benchmarks/results/consumer-runtime-v1.json)。
 
 ## RecoveryBench：新鲜在线状态是否值得额外成本？
 
@@ -314,7 +343,8 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 简版如下，完整清单见 [`docs/limitations.md`](docs/limitations.md)。
 
 * 仅支持师生同一分词器；跨词表蒸馏会直接报错。
-* 每次前向只处理一条轨迹，因此 `gradient_accumulation_steps` **就是** batch size；当前版本没有 padding 批处理。
+* rollout 解码仍逐条执行；更新路径支持 padding 物理 batch。
+  `gradient_accumulation_steps` 是优化器组大小，`trajectory_batch_size` 是一次主干前向共享的轨迹数。
 * 量化模型不能用 `swap`，因为 bitsandbytes 的参数绑定在量化时所在的设备上。
 * 只测试过 Qwen3 与 Qwen2 架构。其他架构可能能通过架构适配器工作，但本项目不作任何声明。
 * RecoveryBench 使用三个预先指定的学生种子；计算器案例使用两个，更早的 GPU
@@ -338,7 +368,7 @@ print(result.run_dir, result.global_step, result.eval["success_rate"])
 
 ## 路线图
 
-以下均**未实现**、也不作承诺，仅为明确边界：跨词表蒸馏、padding 多序列批处理、熵感知散度混合（arXiv:2603.07079）、更多模型族、更多环境、多卡。任何集群规模的需求，请直接用 verl。
+以下均**未实现**、也不作承诺，仅为明确边界：跨词表蒸馏、批量或引擎化 rollout 解码、熵感知散度混合（arXiv:2603.07079）、更多模型族、更多环境、多卡。任何集群规模的需求，请直接用 verl。
 
 ## 致谢与声明
 
