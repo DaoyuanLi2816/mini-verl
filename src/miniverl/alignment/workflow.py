@@ -103,6 +103,13 @@ def load_alignment_starting_checkpoint(trainer: OPDTrainer) -> dict[str, Any] | 
         include_rng=False,
         expected_identity=identity if validated.identity else None,
     )
+    from miniverl.config.models import OfflineKDTrajectorySource, TrainingMode
+
+    if (
+        trainer.config.run.mode is TrainingMode.OFFLINE_KD
+        and trainer.config.offline_kd.trajectory_source is OfflineKDTrajectorySource.FROZEN_STUDENT
+    ):
+        trainer.set_offline_collection_checkpoint_digest(validated.content_digest)
     payload = {
         "id": checkpoint.name,
         "sha256": validated.content_digest,

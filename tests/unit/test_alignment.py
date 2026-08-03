@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 from pydantic import ValidationError
@@ -128,6 +130,48 @@ def test_alignment_stage_plan_names_every_auditable_stage_without_local_paths() 
                 frozen_before_test=False,
             ),
         )
+
+
+def test_imported_sft_checkpoint_binds_frozen_student_dataset_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from miniverl.alignment.workflow import load_alignment_starting_checkpoint
+    from miniverl.config.models import OfflineKDTrajectorySource, TrainingMode
+
+    digest = "b" * 64
+    validated = SimpleNamespace(
+        content_digest=digest,
+        identity={},
+        integrity="checksummed_v1",
+        state=SimpleNamespace(global_step=12),
+    )
+    monkeypatch.setattr("miniverl.training.checkpoint.validate_checkpoint", lambda _: validated)
+    load = Mock()
+    monkeypatch.setattr("miniverl.training.checkpoint.load_checkpoint", load)
+    bind = Mock()
+    trainer = SimpleNamespace(
+        config=SimpleNamespace(
+            alignment=AlignmentConfig(
+                method=AlignmentMethod.OFFLINE_DISTILLATION,
+                teacher_mode=TeacherMode.POLICY_CONDITIONED,
+                starting_sft_checkpoint="sft/final",
+                starting_sft_checkpoint_sha256=digest,
+                policy=ArtifactIdentity(id="mini-policy", revision="v1", sha256="a" * 64),
+            ),
+            run=SimpleNamespace(mode=TrainingMode.OFFLINE_KD),
+            offline_kd=SimpleNamespace(trajectory_source=OfflineKDTrajectorySource.FROZEN_STUDENT),
+        ),
+        student=SimpleNamespace(device="cpu"),
+        events=SimpleNamespace(emit=Mock()),
+        _checkpoint_identity=Mock(return_value={}),
+        set_offline_collection_checkpoint_digest=bind,
+    )
+
+    payload = load_alignment_starting_checkpoint(trainer)
+
+    assert payload is not None and payload["sha256"] == digest
+    load.assert_called_once()
+    bind.assert_called_once_with(digest)
 
 
 def test_state_supervision_soft_claim_requires_a_matched_fresh_pair() -> None:
