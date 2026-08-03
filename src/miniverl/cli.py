@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import typer
 from pydantic import ValidationError
@@ -38,6 +38,10 @@ app = typer.Typer(
 )
 cache_app = typer.Typer(help="Inspect and validate a teacher-target cache.", no_args_is_help=True)
 app.add_typer(cache_app, name="cache")
+bridge_app = typer.Typer(
+    help="Inspect a pinned, exported verl scale-out bundle.", no_args_is_help=True
+)
+app.add_typer(bridge_app, name="bridge")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -953,13 +957,156 @@ def eval_command(
     console.print(f"  written  {_esc(payload.get('written_to'))}")
 
 
+# ----------------------------------------------------------- verl bridge
+
+
+@app.command("import-verl")
+def import_verl_command(
+    source: Path = typer.Argument(..., help="Pinned verl YAML configuration."),
+    profile: str = typer.Option(..., "--profile", help="Documented bridge profile."),
+    target_verl: str = typer.Option(..., "--target-verl", help="Pinned verl tag or commit."),
+    out: Path = typer.Option(..., "--out", help="New miniVERL recipe path."),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Import the documented whitelist, never generic verl YAML."""
+    try:
+        from miniverl.bridge.config import import_verl_config
+
+        report = import_verl_config(
+            source,
+            profile=profile,
+            target_verl=target_verl,
+            out=out,
+        )
+    except MiniVerlError as exc:
+        _fail(exc)
+        return
+    payload = {"written": str(out), "report": str(out.parent / "import-report.json"), **report}
+    if as_json:
+        _emit_json(payload)
+        return
+    console.print(f"[green]verl profile imported[/green] {_esc(out)}")
+    console.print(f"  profile {_esc(profile)}")
+    console.print(f"  report  {_esc(out.parent / 'import-report.json')}")
+
+
+@app.command("convert-dataset")
+def convert_dataset_command(
+    source: Path = typer.Argument(..., help="Source Parquet dataset."),
+    out: Path = typer.Option(..., "--out", help="New Parquet dataset."),
+    from_format: Optional[str] = typer.Option(None, "--from", help="Source format."),
+    to_format: Optional[str] = typer.Option(None, "--to", help="Destination format."),
+    max_prompt_characters: Optional[int] = typer.Option(
+        None,
+        "--max-prompt-characters",
+        min=1,
+        help="Optional character-only risk bound; rows are never truncated.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Convert the official prompt schema while preserving chat structure."""
+    if (from_format is None) == (to_format is None):
+        _fail(ConfigError("choose exactly one of --from verl-parquet or --to verl-parquet"))
+        return
+    selected = from_format or to_format
+    if selected != "verl-parquet":
+        _fail(ConfigError(f"unsupported dataset format {selected!r}; expected 'verl-parquet'"))
+        return
+    direction: Literal["from-verl-parquet", "to-verl-parquet"] = (
+        "from-verl-parquet" if from_format else "to-verl-parquet"
+    )
+    try:
+        from miniverl.bridge.dataset import convert_dataset
+
+        report = convert_dataset(
+            source,
+            out=out,
+            direction=direction,
+            max_prompt_characters=max_prompt_characters,
+        )
+    except MiniVerlError as exc:
+        _fail(exc)
+        return
+    if as_json:
+        _emit_json({"written": str(out), **report})
+        return
+    console.print(f"[green]dataset converted[/green] {_esc(out)}")
+    console.print(
+        f"  accepted {_esc(report['accepted_rows'])}; rejected {_esc(report['rejected_rows'])}"
+    )
+    console.print(f"  sha256  {_esc(report['output_sha256'])}")
+
+
+@app.command("export-verl")
+def export_verl_command(
+    run: Path = typer.Option(..., "--run", help="Source miniVERL run directory."),
+    target_verl: str = typer.Option(..., "--target-verl", help="Pinned verl tag or commit."),
+    out: Path = typer.Option(..., "--out", help="New scale-out bundle directory."),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Export a self-checking Level-3 bundle of standard artifacts."""
+    try:
+        from miniverl.bridge.export import export_verl_bundle
+
+        report = export_verl_bundle(run, target_verl=target_verl, out=out)
+    except MiniVerlError as exc:
+        _fail(exc)
+        return
+    if as_json:
+        _emit_json({"written": str(out), **report})
+        return
+    console.print(f"[green]verl bundle exported[/green] {_esc(out)}")
+    console.print(f"  profile {_esc(report['profile'])}")
+    console.print("  distributed execution: not tested")
+
+
+@bridge_app.command("doctor")
+def bridge_doctor_command(
+    bundle: Path = typer.Argument(..., help="Exported verl bundle directory."),
+    require_verl: bool = typer.Option(
+        False,
+        "--require-verl",
+        help="Fail unless the exact commit is installed from a VCS direct URL.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Verify pins, standard artifacts, schema, scaffold, hashes and smoke status."""
+    from miniverl.bridge.doctor import inspect_bridge_bundle
+
+    payload = inspect_bridge_bundle(bundle, require_verl=require_verl)
+    if as_json:
+        _emit_json(payload)
+    else:
+        style = "green" if payload["verdict"] == "ok" else "red"
+        console.print(f"[{style}]{_esc(payload['verdict'])}[/{style}] {_esc(bundle)}")
+        for key in (
+            "target_verl",
+            "model_adapter_loadability",
+            "tokenizer_identity",
+            "parquet_schema",
+            "config_profile",
+            "reward_scaffold_importability",
+            "artifact_hashes",
+            "local_smoke_status",
+            "distributed_execution_status",
+        ):
+            console.print(f"  {_esc(key)}: {_esc(payload[key])}")
+    if payload["verdict"] != "ok":
+        raise typer.Exit(1)
+
+
 # -------------------------------------------------------------- benchmark
 
 
 @app.command()
 def benchmark(
-    config_path: Path = typer.Argument(..., help="Benchmark config YAML."),
+    config_path: Optional[Path] = typer.Argument(None, help="Benchmark config YAML."),
     output: Optional[Path] = typer.Option(None, "--output", help="Output directory."),
+    export_community: Optional[Path] = typer.Option(
+        None,
+        "--export-community",
+        help="Write a privacy-safe, schema-validated community submission template.",
+    ),
     notes: str = typer.Option("", "--notes", help="Free-text notes stored in the result."),
     offline: bool = typer.Option(
         False,
@@ -974,6 +1121,26 @@ def benchmark(
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Run a matched-budget comparison across training modes."""
+    if export_community is not None:
+        if config_path is not None:
+            _fail(ConfigError("--export-community does not accept a benchmark config argument"))
+            return
+        from miniverl.bridge.community import export_community_submission, validate_submission
+
+        payload = export_community_submission(export_community)
+        problems = validate_submission(export_community)
+        if problems:
+            _fail(ConfigError("invalid community submission: " + "; ".join(problems)))
+            return
+        if as_json:
+            _emit_json({"written": str(export_community), "submission": payload})
+        else:
+            console.print(f"[green]community template exported[/green] {_esc(export_community)}")
+            console.print("  status not_measured; add claims only from retained artifacts")
+        return
+    if config_path is None:
+        _fail(ConfigError("benchmark requires CONFIG_PATH or --export-community OUTPUT"))
+        return
     try:
         _require_training_stack("miniverl benchmark")
         from miniverl.evaluation.benchmark import run_benchmark

@@ -46,6 +46,9 @@ EXPECTED_COMMANDS = {
     "train",
     "eval",
     "benchmark",
+    "import-verl",
+    "convert-dataset",
+    "export-verl",
     "prepare-offline-kd",
     "pilot",
     "qualify-teacher",
@@ -54,6 +57,7 @@ EXPECTED_COMMANDS = {
     "export-adapter",
     "export-benchmark",
     "schema",
+    "bridge doctor",
     "cache stats",
     "cache validate",
 }
