@@ -30,7 +30,7 @@ pinned verl release for scale-out.
 **Measure alignment, over-refusal, retained utility and cost before choosing
 SFT, DPO or OPD.**
 
-PyPI `v0.5.0` is the stable release; `main` is development and may be ahead.
+PyPI `v0.6.0` is the stable release; `main` is development and may be ahead.
 
 miniVERL is independent from verl and implements one verified Level-3 profile,
 `single-gpu-online-distillation-v1`, against official verl `v0.8.0`. This is a

@@ -29,7 +29,7 @@
 
 **先同时测量对齐、过度拒绝、保留效用与成本，再选择 SFT、DPO 或 OPD。**
 
-PyPI `v0.5.0` 是稳定发布版；`main` 是开发分支，可能领先于稳定版。
+PyPI `v0.6.0` 是稳定发布版；`main` 是开发分支，可能领先于稳定版。
 
 miniVERL 独立于 verl，并针对官方 verl `v0.8.0` 实现了一个经验证的 Level-3
 配置 `single-gpu-online-distillation-v1`。它是标准产物与配置子集桥接，不是

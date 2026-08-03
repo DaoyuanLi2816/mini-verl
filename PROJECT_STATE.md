@@ -4,9 +4,9 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-02.
+Last updated: 2026-08-03.
 
-## v0.6.0 Verified verl Bridge development state
+## v0.6.0 Verified verl Bridge release candidate
 
 | item | current state |
 | --- | --- |
@@ -18,7 +18,10 @@ Last updated: 2026-08-02.
 | community surface | four versioned recipe records bind existing measurements; the preference-teacher distillation entry is explicitly unmeasured and links an aligned-adapter scaffold that still requires a pinned preference-trained teacher; no external adoption is claimed |
 | documentation | a static MkDocs site, bridge architecture diagram, launch article/demo/card copy/announcement/social preview and community submission guide are part of the release candidate |
 | immutable evidence | the frozen calculator JSON remains required byte-identical at SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; prior tags and published adapter revisions remain immutable |
-| release state | development PR in progress from `0.6.0.dev0`; publication evidence is recorded only after tag, OIDC, public install and state sync complete |
+| local release gates | ruff, format, mypy, actionlint, Markdown/link and generated-artifact checks pass; the full non-GPU/non-network suite passes 1548 tests with 6 deselected at 85.53% branch coverage; the available GPU and network gates each pass 3; package build, Twine, clean Python 3.10 wheel install and exact pinned-verl smoke pass |
+| integration source | Verified verl Bridge PR [#36](https://github.com/DaoyuanLi2816/mini-verl/pull/36) was squash-merged as `0d43310cca47db828b10a0e12facb33e8f0fd371`; synchronized main CI, build and docs runs `30794655713`, `30794655722` and `30794655822` are green; the latest PR bridge smoke is `30794329109` |
+| public documentation | GitHub Pages deployed successfully and returned HTTP 200 at `https://daoyuanli2816.github.io/mini-verl/` with the bridge documentation visible |
+| release state | development integration and post-merge validation are complete; this focused release-metadata change binds exact `0.6.0`, after which annotated-tag publication and `0.6.1.dev0` state sync remain |
 
 ## v0.5.0 One-GPU Alignment Lab release
 
