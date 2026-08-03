@@ -4,6 +4,42 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.5.0 One-GPU Alignment Lab release
+
+- [x] Public preregistration revision 1.4 freezes three seeds, the common SFT
+      checkpoint, four continuation updates, 48 test tasks and the disjoint
+      seed-1234 recovery rule at SHA-256
+      `71307dbfe9a5bb20c686307cafce8bd254c07af8b69c1bf1c6ec0dbf53a8cde0`.
+- [x] All 18 method-by-seed arms completed with 48 ordered paired tasks each;
+      864 task rows, strict freshness, verifier decisions and DPO provenance
+      pass exact publication checks. No completed final arm was rerun.
+- [x] The saturated 100% SFT checkpoint, ties from DPO and offline soft
+      distillation, and regressions from continued SFT, standard OPD and
+      verifier-gated OPD are all reported without suppressing negative results.
+- [x] The frozen result, task rows, state diagnostic and six-page PDF have
+      SHA-256 values `584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef`,
+      `8d7fc723436d7377d196fc44046d960e3cb7f0aa81e03d49ef05b627eb84630f`,
+      `9e08129ba4cd9e460c189b94b4e421d881ba69e3938f02eac95d251f50c88788`
+      and `adbffa967f6b9a25d2cdb0cc4464a93c13db4615a1e91499585fb199285d980b`.
+- [x] The legacy calculator JSON remains byte-identical at SHA-256
+      `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`;
+      v0.3/v0.4 tags, artifacts and public adapter revisions are unchanged.
+- [x] Ruff check/format, mypy, actionlint, Markdown links, generated-artifact
+      byte comparison and `git diff --check` pass; four SVGs, banner, social
+      preview and every PDF page were visually inspected.
+- [x] Full non-GPU/non-network suite: **1508 passed**, 6 deselected, **86.13%**
+      branch coverage.
+- [x] Available RTX 4080 GPU suite: **5 passed**, 1509 deselected.
+- [x] Network suite: **3 passed**, 1511 deselected, including immutable public
+      adapters used by the release.
+- [x] Wheel and sdist build and pass Twine; clean core and CPU-training wheel
+      installs, a real no-network toy demo, and the isolated extracted-sdist
+      suite pass at `miniverl 0.5.0.dev0`.
+- [x] Focused PR #33 is green and merged as `f9dae54`; synchronized main CI
+      and build runs `30788116397` and `30788116373` are green.
+- [x] Release metadata declares exact `0.5.0`; the intended annotated tag is
+      exactly `v0.5.0` and will use the existing OIDC-only release workflow.
+
 ## v0.4.0 Consumer Runtime release
 
 - [x] Preregistration revisions 1.1 and 1.2 were public before the sole

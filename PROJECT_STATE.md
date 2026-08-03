@@ -27,7 +27,8 @@ Last updated: 2026-08-02.
 | presentation | four data-bound dark SVGs passed native and 820-pixel inspection; banner and social preview passed raster inspection; the report PDF is deterministic, six pages, metadata-valid and visually inspected page by page |
 | local release gates | ruff, format, mypy, actionlint, generated-artifact checks, Markdown links and package/twine checks pass; the full non-GPU/non-network suite passes 1508 tests with 6 deselected at 86.13% branch coverage; the RTX 4080 gate passes 5 and the network gate passes 3; fresh core and CPU-training wheel installs, a real no-network toy demo, and all 1508 tests from an isolated extracted sdist pass |
 | immutable baseline | calculator benchmark remains byte-identical at `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; v0.3/v0.4 tags, RecoveryBench artifacts and public adapter revisions remain unchanged |
-| integration state | development branch `v0.5-alignment-lab` contains the frozen execution commit `8ffb2d9c3094fb6580e5afd89c861c8e0511ef78`; implementation and local release gates are complete, while PR review, merge, release and state sync remain pending |
+| integration source | Alignment Lab PR [#33](https://github.com/DaoyuanLi2816/mini-verl/pull/33) was squash-merged as `f9dae54a203d303f6562101500343ead310d99e8`; synchronized main CI and build runs `30788116397` and `30788116373` are green |
+| release state | development integration and post-merge validation are complete; this focused release-metadata change binds exact `0.5.0`, after which annotated-tag publication and `0.6.0.dev0` state sync remain |
 
 ## v0.4.0 Consumer Runtime release
 

@@ -27,7 +27,7 @@ safety-aligned teacher—without Ray or a cluster.
 **Measure alignment, over-refusal, retained utility and cost before choosing
 SFT, DPO or OPD.**
 
-PyPI `v0.4.0` is the stable release; `main` is development and may be ahead.
+PyPI `v0.5.0` is the stable release; `main` is development and may be ahead.
 
 miniVERL is an independent one-GPU companion for prototyping, diagnosing and
 validating online post-training workflows before scale-out. SFT establishes
