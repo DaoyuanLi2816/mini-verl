@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.4.0/docs/banner.svg" alt="miniVERL — auditable online post-training on one GPU" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — auditable online post-training on one GPU" width="880">
 </p>
 
 <div align="center">
@@ -8,14 +8,14 @@
 [![Build](https://github.com/DaoyuanLi2816/mini-verl/actions/workflows/build.yml/badge.svg)](https://github.com/DaoyuanLi2816/mini-verl/actions/workflows/build.yml)
 [![PyPI](https://img.shields.io/pypi/v/miniverl.svg)](https://pypi.org/project/miniverl/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE)
 
 </div>
 
 <p align="center">
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI package</strong></a> ·
   <a href="#single-gpu-quickstart">Install &amp; train</a> ·
-  <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/single-gpu-guide.md">Bring your own GPU</a> ·
+  <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/single-gpu-guide.md">Bring your own GPU</a> ·
   <a href="#recoverybench-do-fresh-on-policy-states-justify-their-cost">Measured result</a>
 </p>
 
@@ -59,7 +59,7 @@ validate artifacts without downloading a multi-gigabyte ML stack; use
 [Run the local demo](#local-toy-demo) ·
 [Train on your GPU](#single-gpu-quickstart) ·
 [Inspect the measured result](#recoverybench-do-fresh-on-policy-states-justify-their-cost) ·
-[Read the math](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/math.md)
+[Read the math](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/math.md)
 
 ## Why miniVERL exists
 
@@ -100,7 +100,7 @@ keeps the whole lifecycle in one readable single-GPU process.
 | Calculator, JSON-navigation and SQLite environments | yes, deterministic with exact verifiers |
 | Exact checkpoint/resume | yes, asserted parameter-for-parameter |
 | Self-contained offline HTML report with token-level divergence | yes |
-| Ray, FSDP, DeepSpeed, vLLM, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/limitations.md) |
+| Ray, FSDP, DeepSpeed, vLLM, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/limitations.md) |
 
 ## Consumer Runtime: batch speed without a cluster
 
@@ -114,7 +114,7 @@ student adapter, a frozen teacher adapter and an optional frozen reference
 adapter. The default remains `dual_model` plus sequential physical batches for
 backward compatibility.
 
-![Consumer-runtime throughput versus VRAM](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.4.0/docs/consumer-runtime-v1-pareto.svg)
+![Consumer-runtime throughput versus VRAM](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/consumer-runtime-v1-pareto.svg)
 
 On the preregistered RTX 4080 systems workload, physical batch-4 improved
 end-to-end throughput by 1.63× for dual models and 1.54× for the shared
@@ -133,8 +133,8 @@ rollout server or distributed-runtime parity.
 Set `train.trajectory_batch_size` to `1`, an integer, or `auto`; choose
 `models.runtime: shared_backbone` only when student, teacher and optional
 reference use the same pinned base and distinct adapters. See the
-[data-bound report](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/consumer-runtime-v1.md), [preregistration](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/benchmarks/preregistration/consumer-runtime-v1.yaml)
-and [frozen result](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/benchmarks/results/consumer-runtime-v1.json).
+[data-bound report](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/consumer-runtime-v1.md), [preregistration](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/preregistration/consumer-runtime-v1.yaml)
+and [frozen result](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/consumer-runtime-v1.json).
 
 ## RecoveryBench: do fresh on-policy states justify their cost?
 
@@ -158,7 +158,7 @@ All three seeds and all completed negative results are retained.
 | strict fresh-state OPD | 10.9% | 9.1% | 686.8 s |
 | budget-50 fresh-state OPD | 27.3% | 20.7% | 720.8 s |
 
-![RecoveryBench three-seed result](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.4.0/docs/recoverybench/recovery-success.svg)
+![RecoveryBench three-seed result](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/recoverybench/recovery-success.svg)
 
 The equal-selected-position view reached the 6,224-position boundary after
 eight updates for every core method, so its quality result matches the primary
@@ -168,9 +168,9 @@ did not reduce wall time because teacher backbone forwards were unchanged. The
 evidence**: SFT and frozen KD completed their eight-cycle ceiling, while fresh
 OPD crossed the target in one indivisible 88-121 second update.
 
-Read the [full analysis](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/recoverybench/recoverybench-v1.md), the
-[data-bound technical report](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/paper/recoverybench-v1/recoverybench-v1.pdf), or
-the [immutable schema-v3 artifacts](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/benchmarks/README.md#recoverybench-v1).
+Read the [full analysis](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/recoverybench/recoverybench-v1.md), the
+[data-bound technical report](https://github.com/DaoyuanLi2816/mini-verl/blob/main/paper/recoverybench-v1/recoverybench-v1.pdf), or
+the [immutable schema-v3 artifacts](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/README.md#recoverybench-v1).
 The result is scoped to one Qwen3 pair, one task family, three seeds and one RTX
 4080. It does not show that OPD is universally ineffective or that offline KD
 always wins.
@@ -184,18 +184,18 @@ time. Two protocol-naive controls completed normally at 0%; they were not
 configuration failures. Both used the ambiguous historical protocol-v1 prompt,
 so the failure cannot be attributed solely to intrinsic teacher behavior.
 
-![Two-seed protocol-teacher benchmark](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.4.0/docs/gpu-calc-hard-equal-update-v2.svg)
+![Two-seed protocol-teacher benchmark](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/gpu-calc-hard-equal-update-v2.svg)
 
 | Artifact | Role |
 | --- | --- |
-| [Default recipe](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/recipes/qwen_consumer_gpu_calc.yaml) | protocol-qualified default |
-| [Schema-v2 benchmark](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/benchmarks/results/gpu-calc-hard-equal-update-v2.json) | frozen five-arm result |
-| [Raw-teacher recipe](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/recipes/qwen_consumer_gpu_calc_raw_teacher.yaml) | historical control; not default |
+| [Default recipe](https://github.com/DaoyuanLi2816/mini-verl/blob/main/recipes/qwen_consumer_gpu_calc.yaml) | protocol-qualified default |
+| [Schema-v2 benchmark](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/gpu-calc-hard-equal-update-v2.json) | frozen five-arm result |
+| [Raw-teacher recipe](https://github.com/DaoyuanLi2816/mini-verl/blob/main/recipes/qwen_consumer_gpu_calc_raw_teacher.yaml) | historical control; not default |
 
 The teacher gate and downstream comparison reused the same 24-task v0.2 test
 set, so this is evidence for qualification in that setup, not a general OPD
 advantage. The separate schema-v1 481-second smoke proves the pipeline, not OPD
-over SFT. [Full diagnosis and caveats](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/rtx4080-baselines.md).
+over SFT. [Full diagnosis and caveats](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/rtx4080-baselines.md).
 
 </details>
 
@@ -272,7 +272,7 @@ bf16, while older CUDA cards such as Titan V use fp16. RTX 3070, Titan V,
 RTX 4080 and RTX 5090-class cards all enter the same code path; only the
 RTX 4080 result is measured here. Exact fit is governed by VRAM, model sizes,
 drivers and token budgets, not the card's marketing name. See the
-[`single-GPU guide`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/single-gpu-guide.md) before changing the recipe.
+[`single-GPU guide`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/single-gpu-guide.md) before changing the recipe.
 
 ```bash
 git clone https://github.com/DaoyuanLi2816/mini-verl.git
@@ -329,7 +329,7 @@ Layer boundaries are strict, and the first layer never imports torch:
 6. `evaluation/`, `reporting/` — measurement.
 7. `cli.py` — a thin shell that calls one library function per command.
 
-See [`docs/design.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/design.md).
+See [`docs/design.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/design.md).
 
 ## Exact versus top-k + tail
 
@@ -359,7 +359,7 @@ the teacher still runs a full forward pass to produce the hidden states. Reports
 therefore say `teacher_queried_position_ratio`, never "teacher compute saved".
 
 Top-k + tail targets are not a new idea — TRL's `ServerDistillationTrainer` has
-`loss_top_k` with an optional tail bucket. See [`docs/math.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/math.md).
+`loss_top_k` with an optional tail bucket. See [`docs/math.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/math.md).
 
 ## Tool-token masking
 
@@ -384,10 +384,10 @@ documented — see `tests/unit/test_token_provenance.py`.
 ## Benchmark results
 
 Every number below was produced by the commands in
-[`docs/benchmarking.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/benchmarking.md) on the hardware recorded in each
+[`docs/benchmarking.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/benchmarking.md) on the hardware recorded in each
 result file. Nothing is estimated or extrapolated.
 
-* **RTX 4080, real models** — [`docs/rtx4080-baselines.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/rtx4080-baselines.md)
+* **RTX 4080, real models** — [`docs/rtx4080-baselines.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/rtx4080-baselines.md)
   has measured peak VRAM, decode throughput, the full-recipe run, the two-seed
   schema-v2 protocol-teacher comparison, and the preserved legacy comparison.
 * **CPU, toy models** — `recipes/toy_cpu.yaml` moves task success from 0.0% to
@@ -395,7 +395,7 @@ result file. Nothing is estimated or extrapolated.
   run.
   The parity run's accuracy differences are **within noise**; it exists to show
   that all seven arms run to completion under identical budgets, not to rank
-  them. See [`benchmarks/README.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/benchmarks/README.md) for why the toy
+  them. See [`benchmarks/README.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/README.md) for why the toy
   backend cannot rank methods.
 
 ## Installation
@@ -500,11 +500,11 @@ distribution before handing it over, and asserts that the result still trains.
 
 For a standard frozen PEFT teacher adapter, including the Qwen3 protocol-SFT
 recipe, export command, compatibility checks and policy-competence gate, see
-[`docs/teacher-adapters.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/teacher-adapters.md).
+[`docs/teacher-adapters.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/teacher-adapters.md).
 
 ## Limitations
 
-The short version; the full list is in [`docs/limitations.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/limitations.md).
+The short version; the full list is in [`docs/limitations.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/limitations.md).
 
 * Same tokenizer only. Cross-tokenizer distillation is rejected with an error.
 * Rollout decoding is one sequence at a time. The update path supports padded
@@ -549,8 +549,8 @@ still retain the local state required for exact resume. Redaction is a
 best-effort sharing defense, not permission to place real credentials in any
 config, run artifact or report.
 
-See [`docs/reproducibility.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/reproducibility.md) and the concise
-[`compatibility policy`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/compatibility.md).
+See [`docs/reproducibility.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/reproducibility.md) and the concise
+[`compatibility policy`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md).
 
 ## Roadmap
 
@@ -571,7 +571,7 @@ multi-turn tool use — at cluster scale, with Ray. If you have a cluster, use i
 miniVERL exists for the case where you have one personal GPU and want to read
 every line of what is happening. That can be an older 12 GiB card or a current
 high-end card; the repository claims measured performance only for hardware it
-actually ran. See [`docs/comparisons.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/docs/comparisons.md).
+actually ran. See [`docs/comparisons.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/comparisons.md).
 
 ## Citation
 
@@ -585,13 +585,13 @@ actually ran. See [`docs/comparisons.md`](https://github.com/DaoyuanLi2816/mini-
 }
 ```
 
-See [CITATION.cff](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/CITATION.cff) and [CHANGELOG.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/CHANGELOG.md).
-Contributions: [CONTRIBUTING.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/CONTRIBUTING.md). Security:
-[SECURITY.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/SECURITY.md).
+See [CITATION.cff](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CITATION.cff) and [CHANGELOG.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md).
+Contributions: [CONTRIBUTING.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CONTRIBUTING.md). Security:
+[SECURITY.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/SECURITY.md).
 
 ## License
 
-Apache-2.0. See [LICENSE](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/LICENSE) and
-[THIRD_PARTY_NOTICES.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/THIRD_PARTY_NOTICES.md).
+Apache-2.0. See [LICENSE](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE) and
+[THIRD_PARTY_NOTICES.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/THIRD_PARTY_NOTICES.md).
 
-Chinese translation: [README.zh-CN.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.4.0/README.zh-CN.md).
+Chinese translation: [README.zh-CN.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/README.zh-CN.md).
