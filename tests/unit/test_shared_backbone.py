@@ -54,6 +54,33 @@ def test_only_student_adapter_is_optimizer_visible() -> None:
     assert controller.active_role is PolicyRole.ACTOR
 
 
+def test_dual_model_default_adapter_checkpoint_loads_into_shared_actor() -> None:
+    from miniverl.models.shared import AdapterRoleController, PolicyRole
+
+    model = _FakeMultiAdapterModel()
+    controller = AdapterRoleController(
+        model,
+        role_adapters={PolicyRole.ACTOR: "student", PolicyRole.TEACHER: "teacher"},
+    )
+    teacher_before = model.lora_A["teacher"].detach().clone()
+    controller.load_student_state_dict({"lora_A.default": torch.full((2, 2), 9.0)})
+
+    assert torch.equal(model.lora_A["student"], torch.full((2, 2), 9.0))
+    assert torch.equal(model.lora_A["teacher"], teacher_before)
+
+
+def test_checkpoint_adapter_normalization_does_not_hide_unknown_keys() -> None:
+    from miniverl.errors import BackendError
+    from miniverl.models.shared import AdapterRoleController, PolicyRole
+
+    controller = AdapterRoleController(
+        _FakeMultiAdapterModel(),
+        role_adapters={PolicyRole.ACTOR: "student", PolicyRole.TEACHER: "teacher"},
+    )
+    with pytest.raises(BackendError, match="checkpoint names do not match"):
+        controller.load_student_state_dict({"different.default": torch.ones(2, 2)})
+
+
 def test_teacher_and_reference_switches_are_frozen_and_restore_actor() -> None:
     from miniverl.models.shared import AdapterRoleController, PolicyRole
 
