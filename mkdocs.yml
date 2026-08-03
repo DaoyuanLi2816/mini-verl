@@ -1,29 +1,74 @@
 site_name: miniVERL
-site_description: Auditable one-GPU online post-training and a pinned verl scale-out bridge
+site_description: Auditable single-GPU post-training with a bounded verl artifact bridge
 site_url: https://daoyuanli2816.github.io/mini-verl/
 repo_url: https://github.com/DaoyuanLi2816/mini-verl
 repo_name: DaoyuanLi2816/mini-verl
+edit_uri: edit/main/docs/
 theme:
-  name: readthedocs
+  name: material
+  custom_dir: docs/overrides
+  language: en
+  font: false
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - content.code.annotate
+    - navigation.footer
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - search.suggest
+plugins:
+  - search
 nav:
   - Home: index.md
-  - One-GPU quickstart: single-gpu-guide.md
-  - Alignment Lab:
-      - Why OPD after SFT?: alignment-lab/when-opd-should-follow-sft.md
-      - SFT vs DPO vs OPD: alignment-lab/alignment-lab-v1.md
-  - Consumer runtime: consumer-runtime-v1.md
-  - RecoveryBench: recoverybench/recoverybench-v1.md
-  - Verified verl bridge: verl-bridge.md
-  - 90-second bridge demo: verl-bridge-demo.md
+  - Start on one GPU: single-gpu-guide.md
+  - Align:
+      - When OPD should follow SFT: alignment-lab/when-opd-should-follow-sft.md
+      - "Alignment Lab v1: saturated case study": alignment-lab/alignment-lab-v1.md
+  - Distill locally:
+      - Consumer runtime: consumer-runtime/index.md
+      - Runtime benchmarking: benchmarking.md
+      - RecoveryBench: recoverybench/recoverybench-v1.md
+  - Scale out:
+      - verl bridge boundary: verl-bridge.md
+      - Launch requirements: verl-bridge-launch.md
+      - Demo recording script: verl-bridge-demo.md
   - Community benchmarks: community-benchmarks.md
-  - v0.6 launch story: verl-bridge-launch.md
   - Schemas:
       - Trajectories: trajectory-schema.md
-      - Benchmarking: benchmarking.md
+      - Benchmark results: benchmarking.md
   - Limitations: limitations.md
 markdown_extensions:
-  - tables
-  - fenced_code
   - admonition
+  - attr_list
+  - md_in_html
+  - tables
   - toc:
       permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+extra_css:
+  - assets/stylesheets/extra.css
+extra_javascript:
+  - assets/javascripts/versioning.js
+copyright: miniVERL is an independent project; no endorsement by upstream projects is implied.

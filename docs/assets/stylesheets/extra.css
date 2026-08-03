@@ -1,0 +1,94 @@
+:root {
+  --md-text-font: "DejaVu Sans", "Segoe UI", sans-serif;
+  --md-code-font: "DejaVu Sans Mono", Consolas, monospace;
+}
+
+.docs-channel {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  justify-content: center;
+  min-height: 2rem;
+}
+
+.docs-channel label {
+  font-size: 0.72rem;
+  opacity: 0.85;
+}
+
+.docs-channel select {
+  background: color-mix(in srgb, var(--md-primary-fg-color) 75%, black);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 0.3rem;
+  color: white;
+  font: inherit;
+  padding: 0.2rem 0.45rem;
+}
+
+.md-typeset img,
+.md-typeset picture,
+.md-typeset picture img {
+  height: auto;
+  max-width: 100%;
+}
+
+.md-typeset picture {
+  display: block;
+  margin: 1.2rem auto;
+}
+
+.md-typeset .bridge-architecture img {
+  border-radius: 0.75rem;
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.md-typeset__scrollwrap {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.md-typeset table:not([class]) {
+  max-width: 100%;
+}
+
+.path-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 1.4rem 0;
+}
+
+.path-card {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.7rem;
+  min-width: 0;
+  padding: 1rem;
+}
+
+.path-card h2 {
+  margin-top: 0;
+}
+
+.path-card pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 820px) {
+  .path-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .docs-channel {
+    gap: 0.35rem 0.65rem;
+  }
+
+  .md-typeset {
+    font-size: 0.78rem;
+  }
+}

@@ -49,12 +49,12 @@ GREEN = colors.HexColor("#059669")
 RED = colors.HexColor("#be123c")
 LIGHT = colors.HexColor("#f1f5f9")
 PALETTE = [
-    colors.HexColor("#94a3b8"),
-    colors.HexColor("#60a5fa"),
-    colors.HexColor("#a78bfa"),
-    colors.HexColor("#fbbf24"),
-    colors.HexColor("#fb7185"),
-    colors.HexColor("#34d399"),
+    colors.HexColor("#A7A9AC"),
+    colors.HexColor("#0072B2"),
+    colors.HexColor("#CC79A7"),
+    colors.HexColor("#E69F00"),
+    colors.HexColor("#D55E00"),
+    colors.HexColor("#009E73"),
 ]
 
 LABELS = {
@@ -220,91 +220,111 @@ def _table(rows: list[list[Any]], widths: list[float], *, header: bool = True) -
     return table
 
 
-class QualityUtilityPlot(Flowable):
-    """Small vector quality-versus-utility plot bound to method means."""
+class DeltaForestPlot(Flowable):
+    """Vector forest plot with exact seed values and data-bound mean marks."""
 
-    def __init__(self, summary: list[dict[str, Any]], width: float = 6.7 * inch):
+    def __init__(self, result: dict[str, Any], width: float = 6.7 * inch):
         super().__init__()
-        self.summary = summary
+        self.result = result
         self.width = width
-        self.height = 3.0 * inch
+        self.height = 3.15 * inch
+
+    @staticmethod
+    def _x(value: float, left: float, chart_w: float) -> float:
+        if value < -40 or value > 5:
+            raise ValueError(f"Alignment Lab delta outside forest domain: {value}")
+        return left + chart_w * (value + 40) / 45
+
+    @staticmethod
+    def _mark(canvas: Canvas, x: float, y: float, seed: int, color: colors.Color) -> None:
+        canvas.setStrokeColor(color)
+        canvas.setFillColor(color)
+        if seed == 1234:
+            canvas.circle(x, y, 2.2, fill=1, stroke=0)
+        elif seed == 20260727:
+            canvas.saveState()
+            canvas.translate(x, y)
+            canvas.rotate(45)
+            canvas.rect(-2.1, -2.1, 4.2, 4.2, fill=1, stroke=0)
+            canvas.restoreState()
+        else:
+            canvas.setLineWidth(1.5)
+            canvas.line(x - 2.2, y - 2.2, x + 2.2, y + 2.2)
+            canvas.line(x + 2.2, y - 2.2, x - 2.2, y + 2.2)
 
     def draw(self) -> None:
         canvas = self.canv
-        left, bottom = 0.62 * inch, 0.48 * inch
-        chart_w, chart_h = 4.65 * inch, 2.18 * inch
-        canvas.setStrokeColor(colors.HexColor("#cbd5e1"))
-        canvas.rect(left, bottom, chart_w, chart_h, fill=0, stroke=1)
-        canvas.setFont("Helvetica", 7)
-        canvas.setFillColor(MUTED)
-        for index in range(6):
-            value = 0.8 + 0.04 * index
-            x = left + chart_w * (value - 0.8) / 0.2
-            y = bottom + chart_h * (value - 0.8) / 0.2
-            canvas.setStrokeColor(colors.HexColor("#e2e8f0"))
-            canvas.line(x, bottom, x, bottom + chart_h)
-            canvas.line(left, y, left + chart_w, y)
+        left, chart_w = 2.05 * inch, 4.45 * inch
+        bottom, top = 0.34 * inch, self.height - 0.22 * inch
+        baselines = {
+            int(arm["seed"]): arm
+            for arm in self.result["arms"]
+            if arm["method"] == "sft_checkpoint"
+        }
+        for tick in (-40, -30, -20, -10, 0, 5):
+            x = self._x(float(tick), left, chart_w)
+            canvas.setStrokeColor(INK if tick == 0 else colors.HexColor("#dbe3ee"))
+            canvas.setLineWidth(1.2 if tick == 0 else 0.45)
+            canvas.line(x, bottom, x, top)
             canvas.setFillColor(MUTED)
-            canvas.drawCentredString(x, bottom - 11, f"{value:.2f}")
-            canvas.drawRightString(left - 5, y - 2, f"{value:.2f}")
-        for index, row in enumerate(self.summary):
-            utility = float(row["tool_utility_retention_mean"])
-            quality = float(row["alignment_score_mean"])
-            x = left + chart_w * (utility - 0.8) / 0.2
-            y = bottom + chart_h * (quality - 0.8) / 0.2
-            canvas.setStrokeColor(PALETTE[index])
-            canvas.setLineWidth(2)
-            canvas.circle(x, y, 4 + index * 1.4, fill=0, stroke=1)
-            legend_y = bottom + chart_h - index * 20
-            canvas.setFillColor(PALETTE[index])
-            canvas.circle(left + chart_w + 26, legend_y, 3.4, fill=1, stroke=0)
+            canvas.setFont("Helvetica", 6.8)
+            canvas.drawCentredString(x, bottom - 10, f"{tick:+d}")
+        methods = tuple(method for method in LABELS if method != "sft_checkpoint")
+        for index, method in enumerate(methods):
+            y = top - 20 - index * 34
+            arms = sorted(
+                (arm for arm in self.result["arms"] if arm["method"] == method),
+                key=lambda arm: (1234, 20260727, 20260801).index(int(arm["seed"])),
+            )
+            alignment = [
+                100
+                * (
+                    float(arm["metrics"]["alignment_score"])
+                    - float(baselines[int(arm["seed"])]["metrics"]["alignment_score"])
+                )
+                for arm in arms
+            ]
+            utility = [
+                100
+                * (
+                    float(arm["metrics"]["tool_utility_retention"])
+                    - float(baselines[int(arm["seed"])]["metrics"]["tool_utility_retention"])
+                )
+                for arm in arms
+            ]
+            color = PALETTE[index + 1]
             canvas.setFillColor(INK)
-            canvas.setFont("Helvetica", 7.2)
-            canvas.drawString(left + chart_w + 35, legend_y - 2.5, LABELS[row["method"]])
-        canvas.setFont("Helvetica", 7.2)
+            canvas.setFont("Helvetica-Bold", 6.9)
+            canvas.drawString(0, y + 3, LABELS[method])
+            canvas.setFont("Helvetica", 5.8)
+            canvas.setFillColor(MUTED)
+            canvas.drawString(
+                0,
+                y - 7,
+                "A " + "/".join(f"{value:+.1f}" for value in alignment),
+            )
+            canvas.drawString(
+                0.93 * inch,
+                y - 7,
+                "U " + "/".join(f"{value:+.1f}" for value in utility),
+            )
+            for arm, value in zip(arms, alignment, strict=True):
+                self._mark(canvas, self._x(value, left, chart_w), y + 4, int(arm["seed"]), color)
+            for arm, value in zip(arms, utility, strict=True):
+                self._mark(canvas, self._x(value, left, chart_w), y - 4, int(arm["seed"]), color)
+            alignment_mean = sum(alignment) / len(alignment)
+            utility_mean = sum(utility) / len(utility)
+            canvas.setStrokeColor(color)
+            canvas.setLineWidth(1.5)
+            canvas.circle(self._x(alignment_mean, left, chart_w), y + 4, 4.2, fill=0, stroke=1)
+            ux = self._x(utility_mean, left, chart_w)
+            canvas.rect(ux - 4.2, y - 8.2, 8.4, 8.4, fill=0, stroke=1)
         canvas.setFillColor(MUTED)
-        canvas.drawCentredString(left + chart_w / 2, 3, "tool utility retention")
-        canvas.saveState()
-        canvas.translate(8, bottom + chart_h / 2)
-        canvas.rotate(90)
-        canvas.drawCentredString(0, 0, "alignment score")
-        canvas.restoreState()
-
-
-class QueryCostBars(Flowable):
-    """Compact teacher-query and GPU-time comparison."""
-
-    def __init__(self, summary: list[dict[str, Any]], width: float = 6.7 * inch):
-        super().__init__()
-        self.summary = summary
-        self.width = width
-        self.height = 2.25 * inch
-
-    def draw(self) -> None:
-        canvas = self.canv
-        label_w = 1.55 * inch
-        bar_w = 3.7 * inch
-        max_time = max(float(row["gpu_seconds_mean"]) for row in self.summary) or 1
-        for index, row in enumerate(self.summary):
-            y = self.height - 17 - index * 24
-            canvas.setFillColor(INK)
-            canvas.setFont("Helvetica", 7.2)
-            canvas.drawString(0, y + 2, LABELS[row["method"]])
-            canvas.setFillColor(PALETTE[index])
-            time = float(row["gpu_seconds_mean"])
-            canvas.roundRect(label_w, y, bar_w * time / max_time, 7, 3, fill=1, stroke=0)
-            ratio = row.get("teacher_query_ratio_mean")
-            ratio_text = "n/a" if ratio is None else f"{100 * float(ratio):.1f}%"
-            canvas.setFillColor(INK)
-            canvas.setFont("Helvetica-Bold", 7.2)
-            canvas.drawRightString(self.width, y + 1, f"{time:.1f}s · query {ratio_text}")
-        canvas.setFillColor(MUTED)
-        canvas.setFont("Helvetica", 7)
+        canvas.setFont("Helvetica", 6.4)
         canvas.drawString(
-            label_w,
-            2,
-            "continuation GPU time; query ratio is selected positions / generated positions",
+            0, 2, "A = alignment; U = tool utility; seed shapes: circle / diamond / cross"
         )
+        canvas.drawCentredString(left + chart_w / 2, 2, "delta from same-seed SFT checkpoint (pp)")
 
 
 def _page(canvas: Canvas, doc: SimpleDocTemplate) -> None:
@@ -332,9 +352,9 @@ def build(output: Path = OUTPUT) -> None:
     story.extend(
         [
             Spacer(1, 0.48 * inch),
-            _p("Online Policy Distillation After SFT on One Consumer GPU", styles["title"]),
+            _p("Alignment Lab v1: a saturated tool-policy case study", styles["title"]),
             _p(
-                "Alignment Lab v1 technical report · miniVERL v0.5.0 · Daoyuan Li",
+                "Alignment Lab v1 technical report · miniVERL v0.6.1 · Daoyuan Li",
                 styles["subtitle"],
             ),
             _p(
@@ -355,6 +375,12 @@ def build(output: Path = OUTPUT) -> None:
                 "Harmful compliance and over-refusal remain zero for all methods, showing that "
                 "those axes alone can miss a safe-recovery utility failure. The result supports "
                 "a scoped no-continuation decision, not a broad claim that OPD is ineffective.",
+                styles["body"],
+            ),
+            _p(
+                "Preference win rate is the deterministic Minipolicy paired outcome, not human "
+                "preference. The two zero-valued safety-policy metrics are sandbox checks, not "
+                "a broad safety benchmark; IFEval, XSTest, HarmBench and RewardBench were not run.",
                 styles["body"],
             ),
             _p(
@@ -448,6 +474,7 @@ def build(output: Path = OUTPUT) -> None:
                 if row["teacher_query_ratio_mean"] is None
                 else f"{100 * row['teacher_query_ratio_mean']:.1f}%",
                 f"{row['gpu_seconds_mean']:.1f}s",
+                f"{row['peak_vram_bytes_max'] / 2**30:.2f} GiB",
             ]
         )
     story.extend(
@@ -455,32 +482,37 @@ def build(output: Path = OUTPUT) -> None:
             PageBreak(),
             _p("4. Final three-seed result", styles["h1"]),
             _table(
-                [["Method", "Align", "Harm", "Over", "Utility", "Query", "GPU"], *result_rows],
                 [
-                    1.44 * inch,
+                    ["Method", "Align", "Harm", "Over", "Utility", "Query", "GPU", "VRAM"],
+                    *result_rows,
+                ],
+                [
+                    1.25 * inch,
+                    0.55 * inch,
+                    0.52 * inch,
+                    0.52 * inch,
+                    0.59 * inch,
                     0.62 * inch,
-                    0.58 * inch,
-                    0.58 * inch,
-                    0.66 * inch,
-                    0.64 * inch,
-                    0.62 * inch,
+                    0.57 * inch,
+                    0.72 * inch,
                 ],
             ),
             Spacer(1, 0.15 * inch),
-            QualityUtilityPlot(summary),
+            DeltaForestPlot(result),
             _p(
-                "Concentric points at 1.0 / 1.0 denote exact mean overlap, not algorithmic "
-                "equivalence. Every non-overlapping regression remains in the primary table.",
+                "The zero line is the same-seed starting SFT checkpoint. Outlined circle/square "
+                "marks are three-seed alignment/utility means; the smaller seed shapes remain at "
+                "their exact values. Every regression remains visible.",
                 styles["center"],
             ),
             Spacer(1, 0.1 * inch),
             _p("Cost and query accounting", styles["h2"]),
-            QueryCostBars(summary),
             _p(
-                "DPO time includes its external pinned TRL training. Evaluation is excluded from "
-                "the continuation-GPU-time axis. Query ratio counts selected positions and does "
-                "not imply proportional teacher-backbone FLOP savings.",
-                styles["small"],
+                "The outcome-and-cost table is the PDF matrix: alignment, utility, query, GPU "
+                "time and peak VRAM share one row per method. Non-teacher query cells are n/a, "
+                "never zero. DPO time includes its pinned TRL training; evaluation is excluded. "
+                "Query ratio counts selected positions, not teacher-backbone FLOPs.",
+                styles["body"],
             ),
         ]
     )
@@ -654,7 +686,7 @@ def build(output: Path = OUTPUT) -> None:
         leftMargin=0.66 * inch,
         topMargin=0.62 * inch,
         bottomMargin=0.7 * inch,
-        title="Online Policy Distillation After SFT on One Consumer GPU",
+        title="Alignment Lab v1: a saturated tool-policy case study",
         author="Daoyuan Li",
         subject="miniVERL Alignment Lab v1",
     )

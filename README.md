@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — online alignment and distillation on one GPU" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — single-GPU LLM post-training" width="880">
 </p>
 
 <div align="center">
@@ -13,675 +13,142 @@
 </div>
 
 <p align="center">
-  <a href="https://pypi.org/project/miniverl/"><strong>PyPI package</strong></a> ·
-  <a href="https://daoyuanli2816.github.io/mini-verl/">Documentation</a> ·
-  <a href="#single-gpu-quickstart">Install &amp; train</a> ·
-  <a href="docs/verl-bridge.md">Verified verl bridge</a> ·
-  <a href="#alignment-lab-when-to-turn-opd-off">Alignment Lab</a>
+  <a href="https://pypi.org/project/miniverl/"><strong>PyPI</strong></a> ·
+  <a href="https://daoyuanli2816.github.io/mini-verl/"><strong>Stable docs</strong></a> ·
+  <a href="https://daoyuanli2816.github.io/mini-verl/dev/">Development docs</a> ·
+  <a href="README.zh-CN.md">中文</a>
 </p>
 
-**Single-GPU prototyping for a documented subset of verl-style online
-post-training.**
+**miniVERL is a local, inspectable runtime for a documented subset of
+single-GPU LLM alignment and distillation.** It keeps rollout provenance,
+assistant-only loss masks, teacher targets, update budgets and run artifacts
+explicit, then exports portable artifacts through a fail-closed bridge to one
+pinned upstream verl profile.
 
-Develop, diagnose and validate an alignment or distillation recipe locally,
-then export standard model, dataset, recipe and provenance artifacts to a
-pinned verl release for scale-out.
+PyPI `v0.6.1` is stable; `main` is development. The CUDA path has no GPU-name
+allowlist, but fit depends on the model pair, context budget, kernels and VRAM.
+miniVERL is independent from verl and does not claim distributed execution or
+full algorithmic compatibility.
 
-**Measure alignment, over-refusal, retained utility and cost before choosing
-SFT, DPO or OPD.**
-
-PyPI `v0.6.0` is the stable release; `main` is development and may be ahead.
-
-miniVERL is independent from verl and implements one verified Level-3 profile,
-`single-gpu-online-distillation-v1`, against official verl `v0.8.0`. This is a
-standard-artifact and config-subset bridge—not generic YAML compatibility or a
-claim that distributed execution was tested. The local CUDA path has no
-device-name allowlist; fit still depends on model size, sequence budget and
-available VRAM.
-
-![miniVERL one-GPU workflow and pinned verl scale-out bridge](docs/verl-bridge-architecture.svg)
+## Install and run the 60-second demo
 
 ```bash
-python -m pip install miniverl            # lightweight core
+python -m pip install "miniverl[train]"
 miniverl doctor
-python -m pip install "miniverl[train]"   # add the local training stack
-miniverl demo --output runs/demo          # no network, no GPU, ~50 s on a laptop CPU
+miniverl demo --output runs/demo
+miniverl inspect runs/demo
 ```
 
-The base install is the torch-free core (`doctor`, `validate`, `inspect`,
-`report`, schemas and the Python API). The `train` extra adds torch,
-Transformers and PEFT because `demo` performs real optimization.
-This split is intentional: `pip install miniverl` is enough to inspect and
-validate artifacts without downloading a multi-gigabyte ML stack; use
-`pip install "miniverl[train]"` whenever the goal is training or evaluation.
+The demo is deterministic, needs no network or GPU, and performs a real toy
+optimization in about 50 seconds on the measured laptop CPU. For inspection,
+schemas and reports without the ML stack, use `pip install miniverl`. For CUDA
+training, install the matching CUDA-enabled PyTorch wheel first, then install
+`miniverl[train,cuda]`; the extra does not select a CUDA PyTorch build. See the
+[single-GPU guide](docs/single-gpu-guide.md).
 
-**What it makes inspectable**
+## Three paths
 
-- **Policy truth:** strict OPD takes one update from each freshly sampled
-  parameter version; explicit replay keeps the rollout version visible, and
-  stale teacher targets are rejected.
-- **Token truth:** tool output stays context, while only typed assistant spans
-  can enter the loss.
-- **Budget truth:** exact full-vocabulary objectives and compressed
-  `top-k + tail` objectives are named and reported separately.
-- **Decision truth:** every Alignment Card reports policy quality, retained
-  utility, teacher-query ratio, GPU time, VRAM and limitations together.
+| Path | Start with | Concrete artifact | Next |
+| --- | --- | --- | --- |
+| **Align** — compare SFT, DPO, KD and OPD only when the pilot evidence supports the cost | `miniverl pilot recipes/alignment_policy_conditioned_qwen.yaml` | `alignment-card.json` | [Alignment Lab](docs/alignment-lab/alignment-lab-v1.md) |
+| **Distill locally** — strict OPD, shared backbones and padded trajectory updates on one CUDA GPU | `miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run` | `config.resolved.yaml` plus a revision-pinned PEFT adapter | [Bring your own GPU](docs/single-gpu-guide.md) |
+| **Scale out** — import a documented profile, convert Parquet, export a bundle and run bridge checks | `miniverl bridge doctor scaleout-bundle` | `provenance/compatibility-report.json` | [Verified verl bridge](docs/verl-bridge.md) |
 
-[Run the local demo](#local-toy-demo) ·
-[Train on your GPU](#single-gpu-quickstart) ·
-[Inspect the measured result](#alignment-lab-when-to-turn-opd-off) ·
-[Read the math](docs/math.md)
+The bridge import is deliberately not generic YAML conversion. If dataset or
+environment, teacher identity, objective, or schedule semantics are missing,
+`import-verl` writes `import-report.json` and a non-executable
+`imported.template.yaml` with `status: needs_user_input`. It never silently
+substitutes calculator tasks or an unqualified same-base teacher.
 
-## Why miniVERL exists
+## One measured alignment result
 
-On-policy distillation is conceptually small and operationally fiddly. The
-student samples a trajectory, the teacher scores *exactly the states the student
-visited*, and you update on token-level distributional supervision. Four things
-go wrong in practice, and all four are silent:
+Alignment Lab v1 is a **saturated tool-policy case study**, not a broad safety
+benchmark. The shared SFT checkpoint already achieved 100% policy compliance
+and 100% retained tool utility in all three seeds. No continuation method
+improved it; continued SFT and both OPD variants retained measured regressions.
 
-1. **You train on tool output.** The environment's response is context, not a
-   label. One wrong mask and the model learns to hallucinate tool results.
-2. **You are off by one.** The distribution that predicts token `j` lives at
-   position `j - 1`. Get it wrong and the loss still goes down.
-3. **You are not actually on-policy.** Reuse a teacher cache across a policy
-   update and you are doing offline KD while calling it OPD.
-4. **You cannot afford the logits.** A `[batch, seq_len, 152k]` tensor does not
-   fit on a consumer card, so the interesting configurations become the ones you
-   cannot run.
-
-miniVERL makes each of those a *checked property* rather than a comment, and
-keeps the whole lifecycle in one readable single-GPU process.
-
-## What is implemented
-
-| Area | Status |
-| --- | --- |
-| Student-sampled multi-turn rollouts with real tool execution | yes |
-| Strict per-token provenance (`system` / `user` / `assistant_*` / `tool_result`) | yes, validated on every read and write |
-| Exact full-vocabulary forward KL, reverse KL, beta-JSD | yes, checked against brute-force references |
-| Compressed `top-k + tail` KL and JSD | yes; the unsmoothed coarse-graining has a proven lower-bound relationship to the exact loss |
-| Privileged-context teacher with an explicit alignment map | yes |
-| Frozen standard PEFT teacher adapters with provenance and competence gates | yes |
-| Single-GPU CUDA path with automatic bf16/fp16 selection | yes; device-name-agnostic CUDA path, measured reference on an RTX 4080 |
-| Padded multi-trajectory updates | yes; mask-isolated, length-bucketed, per-trajectory normalized; sequential remains the default |
-| Shared-base student / teacher / optional reference adapters | yes; one physical HF base, typed roles, student-only optimizer ownership |
-| `resident` and `swap` memory strategies, `auto` resolution | yes, with an equivalence test |
-| Versioned, checksummed, pickle-free teacher-target cache | yes |
-| SFT / offline KD / strict OPD / explicitly labeled replay behind one trainer | yes |
-| `align` / `pilot`, policy-conditioned and aligned-adapter teachers, DPO provenance | yes |
-| Versioned verifier gate, AlignmentBench metadata adapters and privacy-safe Alignment Cards | yes; external suites are metadata-only in the v0.5 measurement |
-| Calculator, JSON-navigation and SQLite environments | yes, deterministic with exact verifiers |
-| Exact checkpoint/resume | yes, asserted parameter-for-parameter |
-| Self-contained offline HTML report with token-level divergence | yes |
-| Pinned verl `v0.8.0` Level-3 bridge | yes; one fail-closed profile, Parquet round trips and standard PEFT/safetensors export |
-| Native Ray/FSDP/Megatron/vLLM execution, VLMs, cross-tokenizer, PPO/GRPO | **no** — see [limitations](docs/limitations.md) |
-
-## Verified verl bridge
-
-The bridge imports 14 named fields from one pinned profile, converts the
-official prompt Parquet schema in both directions, exports a self-checking
-scale-out bundle and diagnoses it without pretending that miniVERL teacher
-targets are PPO reference log-probabilities.
-
-```bash
-python -m pip install "miniverl[bridge]"
-miniverl import-verl verl.yaml --profile single-gpu-online-distillation-v1 \
-  --target-verl v0.8.0 --out recipes/imported.yaml
-miniverl convert-dataset --from verl-parquet train.parquet --out local.parquet
-miniverl export-verl --run runs/my-alignment --target-verl v0.8.0 \
-  --out exports/my-alignment-verl
-miniverl bridge doctor exports/my-alignment-verl --json
-```
-
-The release smoke pins commit
-`7aed6b230776f963fa09509c10d9c3a767d1102c`, parses the generated OmegaConf
-profile, loads standard PEFT/safetensors and both Parquet splits, imports the
-reward scaffold, verifies privacy plus every hash, and records distributed
-execution as **not tested**. See the [contract, whitelist and evidence](docs/verl-bridge.md)
-or the [community recipe registry](docs/community-benchmarks.md).
-
-## Alignment Lab: when to turn OPD off
-
-> [!IMPORTANT]
-> **The starting SFT policy already saturated this deterministic test.** Across
-> three preregistered seeds, no continuation method improved its 100% alignment
-> and 100% tool-utility result. The completed regressions from continued SFT,
-> standard OPD and verifier-gated OPD remain in the headline result.
-
-All six methods start from the same checksummed Qwen3-0.6B SFT checkpoint and
-use the same 48 ordered final-test tasks per seed. This is a small deterministic
-tool-policy suite—not a broad safety benchmark—and the only measured GPU is an
-RTX 4080.
-
-| method | alignment | tool utility | teacher query | continuation GPU time |
+| continuation | alignment | tool utility | teacher queries | GPU time |
 | --- | ---: | ---: | ---: | ---: |
-| SFT checkpoint | **100.0%** | **100.0%** | n/a | 0.0 s |
-| continued SFT | 94.4% | 88.9% | n/a | 3.9 s |
-| DPO | **100.0%** | **100.0%** | n/a | 8.6 s |
-| offline soft distillation | **100.0%** | **100.0%** | 100.0% | 26.6 s |
+| continued SFT | 94.4% | 88.9% | — | 3.9 s |
+| DPO | 100.0% | 100.0% | — | 8.6 s |
+| offline soft distillation | 100.0% | 100.0% | 100.0% | 26.6 s |
 | standard OPD | 98.6% | 97.2% | 100.0% | 76.7 s |
 | verifier-gated OPD | 97.9% | 95.8% | 46.8% | 66.0 s |
 
-![Alignment quality versus utility retention](docs/alignment-lab/quality-vs-utility.svg)
+![Alignment and utility deltas from the saturated SFT checkpoint; small marks are all three seeds and large marks are means](docs/alignment-lab/delta-from-sft.svg)
 
-Harmful-compliance and over-refusal rates were both 0% for every method, yet
-safe-error-recovery utility regressed in three completed arms. Those two safety
-axes alone therefore missed a real policy-utility failure in this suite. The
-matched State × Supervision diagnostic found only 0.0251% mean teacher
-probability mass beyond argmax on fresh states; it is a signal diagnostic, not
-a separately trained hard-target result, and no soft-target advantage is
-claimed.
+The two sandbox safety checks tied at zero while utility still regressed.
+IFEval, XSTest, HarmBench and RewardBench were **not executed**. “Preference
+win rate” is a deterministic Minipolicy paired outcome, not human preference.
+Read the [study, seed-level values and limitations](docs/alignment-lab/alignment-lab-v1.md).
 
-`miniverl pilot` returns `insufficient_evidence` and tells this recipe not to
-spend online teacher-query cost. That is the intended product behavior: OPD is
-an option to justify with evidence, not a default replacement for SFT.
+## One measured systems result
 
-```bash
-miniverl pilot recipes/alignment_tool_policy_toy.yaml --json
-miniverl align recipes/alignment_tool_policy_toy.yaml --dry-run
-```
+On one RTX 4080 with Qwen3-0.6B and eight fixed SQLite trajectories, physical
+batch 4 improved update throughput from 2.369 to 3.866 trajectories/s in the
+dual-model runtime. The shared-backbone batch-4 cell used 2.227 GiB peak
+reserved memory versus 3.035 GiB for dual model, while running 10.1% slower.
+All 12 preregistered equivalence comparisons passed. These are one-workload,
+one-machine measurements, not promises for other GPUs.
 
-Read the [data-bound report](docs/alignment-lab/alignment-lab-v1.md),
-[technical PDF](paper/alignment-lab-v1/alignment-lab-v1.pdf),
-[public article](docs/alignment-lab/when-opd-should-follow-sft.md),
-[demo script](docs/alignment-lab/demo.md), or the
-[18 privacy-safe Alignment Cards](benchmarks/alignment-cards/alignment-lab-v1/sft_checkpoint-seed-1234.md).
-The [preregistration](benchmarks/preregistration/alignment-lab-v1.yaml),
-[machine-readable result](benchmarks/results/alignment-lab-v1.json) and all 864
-task-level records bind the claims above.
+![Measured throughput and reserved VRAM for dual-model and shared-backbone runtime cells](docs/consumer-runtime-v1-pareto.svg)
 
-## Consumer Runtime: batch speed without a cluster
+[Consumer Runtime v1 methods and caveats](docs/consumer-runtime-v1.md)
 
-> A low-memory one-GPU runtime for actor rollout, teacher/reference scoring and
-> online policy update.
+## Compatibility boundary
 
-v0.4 keeps rollout, scoring and update in one readable process, but can now
-pad multiple variable-length trajectories into one mask-isolated update
-forward. A shared-backbone mode loads one quantized base with a trainable
-student adapter, a frozen teacher adapter and an optional frozen reference
-adapter. The default remains `dual_model` plus sequential physical batches for
-backward compatibility.
+![Verified local runtime, portable artifact bundle and pinned upstream smoke; distributed verl execution remains untested](docs/verl-bridge-architecture.svg)
 
-![Consumer-runtime throughput versus VRAM](docs/consumer-runtime-v1-pareto.svg)
+The bridge targets official verl `v0.8.0` at commit `7aed6b23` and uses the
+term **miniVERL-defined compatibility Level 3**. That means a checksummed
+standard-artifact bundle plus pinned upstream config-parse/model-data-load
+smoke—not arbitrary verl YAML or a completed distributed job.
 
-On the preregistered RTX 4080 systems workload, physical batch-4 improved
-end-to-end throughput by 1.63× for dual models and 1.54× for the shared
-backbone. At batch-4, sharing reduced peak reserved memory from 3.04 to 2.23
-GiB, while running 10.1% slower than dual ownership. `auto` was slower because
-padding all eight trajectories was wasteful; it is a convenience, not a claim
-that the largest batch is best.
+Current exported bundles are intentionally `launchable: false`: the base
+snapshot is absent, the reward implementation fails closed, and required user
+mappings remain placeholders. The generated entry point is therefore
+`launch.template.sh`. Readiness is reported as separate facts for artifact
+completeness, parse/load smoke, reward completeness, launchability,
+distributed execution and algorithm-semantic parity. The target is a
+PPO/reward scaffold, not an executable continuation of miniVERL OPD semantics.
 
-All eight cells reused identical trajectories and teacher targets. Twelve
-preregistered loss/gradient/update comparisons passed; the largest loss
-difference was 1.25e-6 and the largest updated-logit difference was 1.30e-4.
-The benchmark uses NF4 weights with FP32 compute to keep that numerical gate
-meaningful. It does not claim a quality gain, universal GPU speedup, batched
-rollout server or distributed-runtime parity.
+## Detailed studies and preserved negative evidence
 
-Set `train.trajectory_batch_size` to `1`, an integer, or `auto`; choose
-`models.runtime: shared_backbone` only when student, teacher and optional
-reference use the same pinned base and distinct adapters. See the
-[data-bound report](docs/consumer-runtime-v1.md), [preregistration](benchmarks/preregistration/consumer-runtime-v1.yaml)
-and [frozen result](benchmarks/results/consumer-runtime-v1.json).
+- [RecoveryBench v1](docs/recoverybench/recoverybench-v1.md): frozen-student KD
+  outperformed much slower fresh-state OPD on the preregistered primary view;
+  the verifier gate remained `insufficient_evidence`.
+- [Alignment Lab v1](docs/alignment-lab/alignment-lab-v1.md): the starting SFT
+  checkpoint was at the ceiling, so no positive OPD result is claimed.
+- [Calculator benchmark](docs/benchmarking.md): both negative controls completed
+  normally and measured 0% strict success. They were not configuration
+  failures. Because they used the historical ambiguous protocol-v1 prompt,
+  their failure cannot be attributed solely to intrinsic teacher behavior.
+- [Consumer Runtime v1](docs/consumer-runtime-v1.md): padded update batches and
+  shared adapters preserve the measured one-update objective within declared
+  tolerances; rollout generation remains sequential.
+- [Limitations](docs/limitations.md), [math](docs/math.md),
+  [reproducibility](docs/reproducibility.md) and
+  [compatibility policy](docs/compatibility.md).
 
-## RecoveryBench: do fresh on-policy states justify their cost?
+New runs establish tokenizer compatibility through structural identity. The
+legacy behavioral fingerprint—token IDs for one fixed probe plus metadata—is
+only a migration fallback for older artifacts and is not an identity proof.
 
-> [!IMPORTANT]
-> **Not in this measured setting.** Under eight equal continuation updates,
-> frozen-student-state KD reached 23.2% strict success, while strict fresh-state
-> OPD reached 10.9%. The paired fresh-minus-frozen difference was -12.24
-> percentage points (95% task-paired bootstrap interval -15.89 to -8.59).
+## Scope
 
-RecoveryBench is a preregistered mechanism study on SQLite tool-error recovery,
-not an alignment benchmark. It isolates state freshness while holding the cold
-checkpoint, qualified teacher, task schedule, optimizer and update count fixed.
-All three seeds and all completed negative results are retained.
-
-| method | strict success | recovery after error | continuation time |
-| --- | ---: | ---: | ---: |
-| cold start | 10.7% | 13.6% | 0.2 s |
-| continued oracle SFT | 4.9% | 1.8% | 51.3 s |
-| oracle-state offline KD | **33.1%** | **31.9%** | 58.3 s |
-| frozen-student-state KD | **23.2%** | **22.8%** | 52.1 s |
-| strict fresh-state OPD | 10.9% | 9.1% | 686.8 s |
-| budget-50 fresh-state OPD | 27.3% | 20.7% | 720.8 s |
-
-![RecoveryBench three-seed result](docs/recoverybench/recovery-success.svg)
-
-The equal-selected-position view reached the 6,224-position boundary after
-eight updates for every core method, so its quality result matches the primary
-view. The budget-50 selector queried 49.77% of model-generated positions but
-did not reduce wall time because teacher backbone forwards were unchanged. The
-50-second artifact is a **cycle-capped wall diagnostic, not exact equal-time
-evidence**: SFT and frozen KD completed their eight-cycle ceiling, while fresh
-OPD crossed the target in one indivisible 88-121 second update.
-
-Read the [full analysis](docs/recoverybench/recoverybench-v1.md), the
-[data-bound technical report](paper/recoverybench-v1/recoverybench-v1.pdf), or
-the [immutable schema-v3 artifacts](benchmarks/README.md#recoverybench-v1).
-The result is scoped to one Qwen3 pair, one task family, three seeds and one RTX
-4080. It does not show that OPD is universally ineffective or that offline KD
-always wins.
-
-<details>
-<summary>Case study: why teacher protocol qualification matters</summary>
-
-On the saturated v0.2 calculator task, a protocol-qualified OPD teacher reached
-100% in both seeds and tied continued SFT, but took 6.1× as much continuation
-time. Two protocol-naive controls completed normally at 0%; they were not
-configuration failures. Both used the ambiguous historical protocol-v1 prompt,
-so the failure cannot be attributed solely to intrinsic teacher behavior.
-
-![Two-seed protocol-teacher benchmark](docs/gpu-calc-hard-equal-update-v2.svg)
-
-| Artifact | Role |
-| --- | --- |
-| [Default recipe](recipes/qwen_consumer_gpu_calc.yaml) | protocol-qualified default |
-| [Schema-v2 benchmark](benchmarks/results/gpu-calc-hard-equal-update-v2.json) | frozen five-arm result |
-| [Raw-teacher recipe](recipes/qwen_consumer_gpu_calc_raw_teacher.yaml) | historical control; not default |
-
-The teacher gate and downstream comparison reused the same 24-task v0.2 test
-set, so this is evidence for qualification in that setup, not a general OPD
-advantage. The separate schema-v1 481-second smoke proves the pipeline, not OPD
-over SFT. [Full diagnosis and caveats](docs/rtx4080-baselines.md).
-
-</details>
-
-## Local toy demo
-
-No network, no GPU, no downloads. Both models are small transformers built from
-the config, the tokenizer is a reversible ~190-entry toy tokenizer, and the
-calculator environment generates and grades its own tasks.
-
-```bash
-python -m pip install ".[train]"       # from the cloned repository; CPU torch is enough
-miniverl doctor                        # what can this machine run?
-miniverl demo --output runs/demo
-```
-
-It runs the real pipeline — student rollouts, tool execution, teacher scoring of
-exactly those states, a compressed top-k cache with provenance checks, and a
-masked reverse-KL update on assistant tokens only — then prints where every
-artifact landed and what to run next:
-
-```text
-demo complete  runs/demo
- mode              opd (genuine on-policy distillation)
- optimizer steps   132
- parameter version 132
- rollout iterations 13
- wall clock        52.9 s
- token provenance  45597 of 226383 tokens trainable (20%); 180786 are context
-                   and can never be a target
- teacher cache     735 scored positions, 131.6 KiB on disk, 2.0x smaller than
-                   a dense fp16 dump
- task success      0.0% -> 0.0% (greedy, held-out eval split)
-
-This demo proves the machinery, not capability.
-At this size the toy student learns the tool-call format and not the
-arithmetic, so 0% here is the expected outcome, not a failure.
-For a CPU run that does learn (measured 0.0% -> 91.7% in 192 s):
-  miniverl train recipes/toy_cpu.yaml
-```
-
-That last line is not a promise, it is a measurement:
-`recipes/toy_cpu.yaml` takes **192 s on a CPU** and moves held-out greedy task
-success from **0.0% to 91.7%** on 24 tasks, over 600 supervised cold-start steps
-plus 40 on-policy distillation cycles. It is also **seed-sensitive** at this
-model size: the same 600-step budget gives 81.2% with `run.seed: 1234` and 0.0%
-with `run.seed: 20260727`. That variance is exactly why the toy backend is a
-machinery harness and capability numbers come from the GPU recipe.
-
-`miniverl inspect` is the one worth running first. It prints the provenance
-table, which is the whole point of the project:
-
-```text
-tokens by span type (only assistant_* can enter the loss)
-+---------------------------------------------+
-| span type           | tokens | in loss      |
-|---------------------+--------+--------------|
-| system              |    776 | no (context) |
-| tool_result         |    685 | no (context) |
-| user                |    318 | no (context) |
-| assistant_tool_call |    153 | yes          |
-| assistant_text      |     85 | yes          |
-| assistant_final     |     25 | yes          |
-+---------------------------------------------+
-```
-
-The toy backend is a **machinery harness, not a capability demonstration**. Its
-models are too small to solve anything beyond the `easy` split. Capability
-numbers come from the GPU recipe.
-
-## Single-GPU quickstart
-
-The default recipe uses `device: auto` and `dtype: auto`: bf16-capable cards use
-bf16, while older CUDA cards such as Titan V use fp16. RTX 3070, Titan V,
-RTX 4080 and RTX 5090-class cards all enter the same code path; only the
-RTX 4080 result is measured here. Exact fit is governed by VRAM, model sizes,
-drivers and token budgets, not the card's marketing name. See the
-[`single-GPU guide`](docs/single-gpu-guide.md) before changing the recipe.
+miniVERL supports one local CUDA process. It does not implement or wrap Ray,
+FSDP, Megatron, PPO, GRPO or a distributed launcher. The public studies cover
+small Qwen3 models, deterministic tool environments and one RTX 4080; they do
+not establish cross-model, cross-task, cross-GPU or broad safety generality.
 
 ```bash
 git clone https://github.com/DaoyuanLi2816/mini-verl.git
 cd mini-verl
-python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
-python -m pip install ".[train,cuda]"
-
-miniverl doctor                                                   # confirms CUDA + bitsandbytes
-miniverl validate recipes/qwen_consumer_gpu_calc.yaml
-miniverl train    recipes/qwen_consumer_gpu_calc.yaml --dry-run   # nothing is downloaded
-miniverl train    recipes/qwen_consumer_gpu_calc.yaml
-miniverl report   runs/<run-id> --out runs/<run-id>/report.html
+python -m pip install -e ".[dev]"
+pytest -q -m "not gpu and not network"
 ```
 
-The recipe pins both revisions:
-
-| role | model | revision | license |
-| --- | --- | --- | --- |
-| student | `Qwen/Qwen3-0.6B` | `c1899de289a04d12100db370d81485cdf75e47ca` | Apache-2.0 |
-| teacher | `Qwen/Qwen3-1.7B` | `70d244cc86ccca08cf5af4e1e306ecf908b1ad5e` | Apache-2.0 |
-
-Their `tokenizer.json` files are byte-identical
-(`sha256 aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4`).
-New runs compare structural identity; old artifacts use the legacy fixed-probe
-behavioural fingerprint.
-The recipe also pins the [protocol-teacher adapter](https://huggingface.co/DaoyuanLi/mini-verl-qwen3-1.7b-protocol-teacher)
-at revision `23323751318135484c06c043b1f9b9e7016dd89f` and requires its recorded
-strict policy success to be at least 50% before allocating the teacher.
-
-## Architecture
-
-```mermaid
-flowchart LR
-  A["student pi_theta<br/>QLoRA, resident"] -->|sample| B["RolloutRunner<br/>agent/loop.py"]
-  B -->|tool call| C["ToolEnvironment<br/>calculator / jsonnav / sqlite"]
-  C -->|observation| B
-  B -->|typed token spans| D["Trajectory<br/>schemas/trajectory.py"]
-  D -->|select_positions| E["AlignmentMap<br/>trajectory/alignment.py"]
-  E -->|score those exact states| F["LocalTeacherScorer<br/>teachers/local.py"]
-  F -->|top-k + tail| G["TeacherCache<br/>cache/store.py"]
-  F --> H["chunked_selected_position_loss<br/>losses/chunked.py"]
-  G --> H
-  H -->|masked KL on assistant tokens| A
-```
-
-Layer boundaries are strict, and the first layer never imports torch:
-
-1. `schemas/`, `trajectory/`, `config/`, `agent/protocol.py` — pure data, masks,
-   validation.
-2. `losses/` — torch numerics, no model knowledge.
-3. `models/` — backends and the architecture adapter.
-4. `environments/`, `agent/` — task and tool semantics.
-5. `training/`, `teachers/`, `cache/`, `selection/` — orchestration.
-6. `evaluation/`, `reporting/` — measurement.
-7. `cli.py` — a thin shell that calls one library function per command.
-
-See [`docs/design.md`](docs/design.md).
-
-## Exact versus top-k + tail
-
-Two clearly named classes of objective, because conflating them is how
-distillation results become unreproducible.
-
-**`exact_full_vocab`** materializes the complete `[chunk, V]` teacher and student
-distributions and computes the real divergence. Affordable when `V` is small (the
-toy backend) or when the teacher stays resident and the distribution is rebuilt
-one chunk at a time. Guarded by `loss.exact_max_vocab` (default 8192) so it can
-never silently try to persist a `[positions, 152k]` tensor.
-
-**`bucketed_topk_tail`** coarse-grains the vocabulary into the teacher's top-k
-tokens plus one aggregate tail bucket, then computes the divergence between the
-two `K+1` category distributions. This is **not** full-vocabulary KL. The
-data-processing lower-bound theorem applies to the unsmoothed coarse-graining;
-the finite implementation floors and renormalizes non-empty tails, so it is
-described as an epsilon-smoothed objective rather than claiming the theorem
-literally for every input. When `k == V`, the empty tail bypasses smoothing and
-the implementation reproduces the exact objective to `1e-9` in float64 tests.
-The functions are named `bucketed_forward_kl`, `bucketed_reverse_kl` and
-`bucketed_jsd` so that no call site can pretend otherwise.
-
-What the compression actually buys is teacher-side storage and the ability to
-evict the teacher from VRAM. It does **not** proportionally reduce teacher FLOPs:
-the teacher still runs a full forward pass to produce the hidden states. Reports
-therefore say `teacher_queried_position_ratio`, never "teacher compute saved".
-
-Top-k + tail targets are not a new idea — TRL's `ServerDistillationTrainer` has
-`loss_top_k` with an optional tail bucket. See [`docs/math.md`](docs/math.md).
-
-## Tool-token masking
-
-Every trajectory is a flat token sequence plus a partition into typed spans. The
-three masks are stored *and* re-derived from the spans on every read; a file
-whose mask disagrees with its spans is rejected rather than trained on.
-
-```python
-from miniverl.trajectory.io import read_trajectories
-
-traj = read_trajectories("runs/demo/trajectories.jsonl")[0]
-print(traj.token_counts_by_span_type())
-# {'system': 194, 'user': 40, 'assistant_tool_call': 38, 'tool_result': 34, 'assistant_final': 7}
-print(sum(traj.model_generated_mask))  # only assistant_* tokens are trainable
-```
-
-Context segments own the trailing `<|im_start|>assistant\n` header, so a model
-span begins at exactly the first sampled token and no forced scaffolding token is
-ever a target. Position `0` can never be a target. Both are enforced, not
-documented — see `tests/unit/test_token_provenance.py`.
-
-## Benchmark results
-
-Every number below was produced by the commands in
-[`docs/benchmarking.md`](docs/benchmarking.md) on the hardware recorded in each
-result file. Nothing is estimated or extrapolated.
-
-* **RTX 4080, real models** — [`docs/rtx4080-baselines.md`](docs/rtx4080-baselines.md)
-  has measured peak VRAM, decode throughput, the full-recipe run, the two-seed
-  schema-v2 protocol-teacher comparison, and the preserved legacy comparison.
-* **CPU, toy models** — `recipes/toy_cpu.yaml` moves task success from 0.0% to
-  91.7% in 192 s, and `benchmarks/results/` holds the legacy equal-update parity
-  run.
-  The parity run's accuracy differences are **within noise**; it exists to show
-  that all seven arms run to completion under identical budgets, not to rank
-  them. See [`benchmarks/README.md`](benchmarks/README.md) for why the toy
-  backend cannot rank methods.
-
-## Installation
-
-| Layer | Install | What you get |
-| --- | --- | --- |
-| Core | `python -m pip install .` | `doctor`, `validate`, `inspect`, `report`, `cache`, the schemas and the Python API. No torch. |
-| Training | `python -m pip install ".[train]"` | `demo`, `train`, `eval`, `benchmark`. Adds torch, transformers, peft, accelerate. |
-| 4-bit | `python -m pip install ".[cuda]"` | bitsandbytes, for NF4 QLoRA and the 8-bit optimizer. |
-| Development | `python -m pip install ".[dev]"` | pytest, hypothesis, ruff, mypy, build, twine. |
-
-The published-package equivalents are `miniverl`, `miniverl[train]`,
-`miniverl[cuda]` and `miniverl[dev]`. Core Python 3.10–3.13 is tested without
-torch. The full CPU ML suite and Transformers 4.51.x/5.x compatibility rows run
-on Python 3.12; GPU paths are opt-in and were measured locally on Python 3.12.
-
-Install the CUDA build of torch that matches your driver separately; the PyPI
-wheel is CPU-only on some platforms:
-
-```bash
-pip install torch --index-url https://download.pytorch.org/whl/cu130
-```
-
-A missing extra never produces a traceback:
-
-```text
-$ miniverl demo --output runs/demo
-error miniverl demo requires the optional dependency 'torch', which is not installed.
-hint  pip install "miniverl[train]"
-```
-
-### Strict offline execution
-
-All model-loading commands use the same no-network contract:
-
-```bash
-miniverl train <recipe> --offline
-miniverl benchmark <benchmark.yaml> --offline
-miniverl eval --run <run-dir> --offline
-miniverl export-adapter --run <run-dir> --out <adapter-dir> --offline
-```
-
-In this mode, the base model, tokenizer and every adapter file must already be
-at a local path or in the Hugging Face cache. miniVERL permits no HTTP,
-metadata, ETag or Hub API request and does not fall back to online resolution.
-A Hub teacher adapter is resolved once at its pinned revision; PEFT then loads
-the exact local snapshot whose config, weights, manifest and checksums were
-validated. A cache miss prints the immutable identity and the exact `hf
-download` preload command.
-
-## Python API
-
-The public surface is deliberately small.
-
-```python
-from miniverl.config import RunConfig
-from miniverl.trainer import OPDTrainer
-
-config = RunConfig.from_yaml("recipes/toy_cpu.yaml")
-with OPDTrainer.from_config(config) as trainer:
-    result = trainer.train()
-
-print(result.run_dir, result.global_step, result.eval["success_rate"])
-```
-
-## A custom environment
-
-Subclass `ToolEnvironment`, register it, and every recipe key works unchanged.
-`examples/custom_environment/` is a complete, runnable example.
-`reset(task)` is authoritative: it is called exactly once per episode, and its
-`Observation.text` plus `state_id` enter the trajectory. `user_prompt(task)` is
-only a compatibility helper; the runner does not call it a second time.
-
-```python
-from miniverl.environments import ToolEnvironment, ToolSpec
-from miniverl.environments.registry import register
-
-
-@register
-class ReverseEnvironment(ToolEnvironment):
-    name = "reverse"
-
-    def tool_specs(self) -> list[ToolSpec]:
-        return [
-            ToolSpec(
-                name="reverse",
-                description="Reverse a string.",
-                parameters={"text": "string to reverse"},
-                required=("text",),
-                example={"text": "abc"},
-            )
-        ]
-
-    # reset / step / verify / generate_task / oracle_actions follow; see the example.
-```
-
-## A custom teacher
-
-Implement `TeacherScorer.score` and return supervision for the aligned positions.
-`examples/custom_teacher/` shows a scorer that sharpens a local model's
-distribution before handing it over, and asserts that the result still trains.
-
-For a standard frozen PEFT teacher adapter, including the Qwen3 protocol-SFT
-recipe, export command, compatibility checks and policy-competence gate, see
-[`docs/teacher-adapters.md`](docs/teacher-adapters.md).
-
-## Limitations
-
-The short version; the full list is in [`docs/limitations.md`](docs/limitations.md).
-
-* Same tokenizer only. Cross-tokenizer distillation is rejected with an error.
-* Rollout decoding is one sequence at a time. The update path supports padded
-  physical batches; `gradient_accumulation_steps` is the optimizer-group size
-  and `trajectory_batch_size` is the number sharing one backbone forward.
-* `swap` is unavailable for quantized models, because bitsandbytes parameters are
-  pinned to the device they were quantized on.
-* Only Qwen3 and Qwen2 architectures are tested. Others may work through the
-  architecture adapter; nothing here claims they do.
-* RecoveryBench has three prespecified student seeds; the calculator case study
-  has two, and older GPU artifacts are single-seed. No broad statistical
-  significance or cross-task generalization is claimed.
-* On the measured machine, decoding is kernel-launch bound rather than compute
-  bound, so throughput figures are platform-specific.
-
-## Reproducibility
-
-Every run writes `manifest.json` with the miniVERL version, git commit, Python
-and OS, torch/CUDA/driver versions, GPU model and VRAM, model ids **and resolved
-revisions**, tokenizer fingerprint, seeds, precision, quantization, memory
-strategy, loss mode, top-k, policy version, and a `measurement_status` block
-recording whether each result was measured, simulated or not run. It records no
-usernames, hostnames, home paths, or environment variables beyond a short
-allowlist of ones that change numerics — asserted by a test.
-File-backed runs also separate exact submitted bytes, canonical validated
-logic, the v0.2 resume compatibility layer, and runtime-resolved choices.
-
-Writable runs move atomically through `ready`, `running`, and one terminal
-status (`completed`, `failed`, `interrupted`, or `closed_before_training`).
-One process lock covers construction, training/resume, standalone checkpoint
-selection and evaluation, and automatic report generation. Within one trainer,
-training, evaluation, checkpoint save/load and destructive close are mutually
-exclusive; load is READY-only, close mutates nothing unless it obtains
-ownership, and evaluation restores the exact prior model mode even on failure.
-
-After `reset`, every built-in verifier maps arbitrary strings to a bounded
-result rather than leaking parser/numeric exceptions; protocol-v2 prompts use
-environment-specific, verifier-format-valid final examples. Shareable reports,
-summaries, benchmark exports and portable manifests redact semantic secret
-keys, URL credentials and private cross-platform paths; private run artifacts
-still retain the local state required for exact resume. Redaction is a
-best-effort sharing defense, not permission to place real credentials in any
-config, run artifact or report.
-
-See [`docs/reproducibility.md`](docs/reproducibility.md) and the concise
-[`compatibility policy`](docs/compatibility.md).
-
-## Roadmap
-
-Not implemented, not promised, listed so the scope is unambiguous:
-cross-tokenizer distillation, batched or engine-backed rollout decoding,
-entropy-aware divergence mixing (arXiv:2603.07079), additional model families,
-more environments, and native multi-GPU execution. The Level-3 bridge exports
-one documented profile to pinned verl; it does not execute that distributed job.
-
-## Acknowledgement and disclaimer
-
-> miniVERL is an independent project and is not affiliated with or endorsed by
-> the verl project, ByteDance, or Volcano Engine. It is not a drop-in
-> replacement for verl.
-
-The name is a nod to the problem space, not a claim of generic compatibility.
-The verified bridge is deliberately limited to one pinned profile. verl is an
-excellent, much larger system for cluster-scale execution with Ray. miniVERL
-exists for the case where you have one personal GPU and want to read every line
-of what is happening, then hand standard artifacts to verl for scale-out. That
-can be an older 12 GiB card or a current high-end card; the repository claims
-measured performance only for hardware it actually ran. See
-[`docs/comparisons.md`](docs/comparisons.md).
-
-## Citation
-
-```bibtex
-@software{miniverl2026,
-  title   = {miniVERL: Auditable online post-training on one GPU},
-  author  = {Li, Daoyuan},
-  year    = {2026},
-  url     = {https://github.com/DaoyuanLi2816/mini-verl},
-  license = {Apache-2.0}
-}
-```
-
-See [CITATION.cff](CITATION.cff) and [CHANGELOG.md](CHANGELOG.md).
-Contributions: [CONTRIBUTING.md](CONTRIBUTING.md). Security:
-[SECURITY.md](SECURITY.md).
-
-## License
-
-Apache-2.0. See [LICENSE](LICENSE) and
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-Chinese translation: [README.zh-CN.md](README.zh-CN.md).
+Apache-2.0 licensed. See [CONTRIBUTING.md](CONTRIBUTING.md) and
+[SECURITY.md](SECURITY.md). Project records: [default GPU recipe](recipes/qwen_consumer_gpu_calc.yaml),
+[frozen calculator JSON](benchmarks/results/gpu-calc-hard-equal-update-v2.json),
+[changelog](CHANGELOG.md), [citation](CITATION.cff) and [license](LICENSE).

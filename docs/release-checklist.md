@@ -4,6 +4,59 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.6.1 Visual integrity and bridge correctness release
+
+- [x] Alignment Lab publication is generated as one diverging forest chart and
+      two row matrices: every arm exposes all three frozen seeds and its mean,
+      quantitative marks remain in-domain, and non-teacher query ratios remain
+      `— not applicable` rather than being coerced to zero.
+- [x] The scoped safety figure states that both sandbox checks tied at zero
+      while utility regressed, records the external endpoints as not run, and
+      does not imply a broad safety benchmark.
+- [x] Desktop and mobile bridge diagrams distinguish the verified local
+      runtime, artifact bundle and pinned upstream parse/load smoke from the
+      dashed `Distributed execution: NOT TESTED` layer; teacher, reference and
+      reward roles are visually separate.
+- [x] Material 9.7.7 builds stable and development documentation with search,
+      light/dark modes, copy controls and responsive navigation. Playwright
+      checks five pages at 1440x900, 1024x768, 820x1000 and 390x844 and uploads
+      all 20 screenshots.
+- [x] `import-verl` classifies every supported source field as exact, derived,
+      informational only, requiring confirmation or unsupported. Incomplete
+      profiles publish a non-executable template with `needs_user_input`; no
+      calculator data or unspecified same-base teacher is substituted.
+- [x] Runnable imports require explicit environment, teacher, loss and schedule
+      choices, safely coerce finite scientific notation, reject unresolved or
+      non-finite values, and pass `RunConfig` validation before atomic publish.
+- [x] Exported bundles report artifact completeness, upstream parse/load,
+      model/data smoke, reward completeness, launchability, distributed testing
+      and semantic parity separately. The current fail-closed reward scaffold
+      remains `launchable: false` and emits `launch.template.sh`.
+- [x] Ruff check/format, mypy across 103 source files, actionlint 1.7.12,
+      Markdown/link checks, strict MkDocs, generated-artifact byte comparisons,
+      SVG semantics, privacy checks and `git diff --check` pass.
+- [x] Full non-GPU/non-network suite passes 1563 tests with 6 deselected and
+      86% branch coverage; the available GPU suite passes 5 tests and the
+      network suite passes 3.
+- [x] Wheel/sdist build, Twine, clean core and `[train]` installs, a real toy
+      demo, extracted-sdist tests and import/export end-to-end tests pass.
+- [x] The calculator result remains byte-identical at SHA-256
+      `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`;
+      all RecoveryBench, Consumer Runtime, Alignment Lab and frozen bridge
+      result artifacts retain their audited hashes.
+- [x] Focused PR [#40](https://github.com/DaoyuanLi2816/mini-verl/pull/40)
+      code head `7fed8e7` is green in CI, build, docs and pinned-profile smoke;
+      Linux-rendered screenshots were manually inspected at all four widths.
+- [x] Release metadata declares exact `0.6.1`; the intended annotated tag is
+      exactly `v0.6.1` and will use the existing OIDC-only release workflow.
+
+## After the tag
+
+- [ ] Verify the annotated tag, OIDC run, PyPI hashes and attestations, a clean
+      public install, the GitHub Release and versioned stable documentation.
+- [ ] Advance subsequent development to `0.6.2.dev0` in a separate green
+      state-sync pull request.
+
 ## v0.6.0 Verified verl Bridge release
 
 - [x] The documented `single-gpu-online-distillation-v1` profile is pinned to

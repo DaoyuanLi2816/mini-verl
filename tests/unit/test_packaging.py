@@ -376,7 +376,7 @@ def test_verl_bridge_visual_and_launch_assets_are_accessible_and_honest() -> Non
     assert "Flagship article" in launch
     assert "Hugging Face card addenda" in launch
     assert "Distributed execution" in launch
-    assert "90-second verified-bridge demo" in demo
+    assert "Verified-bridge demo recording script" in demo
     assert "does not prove a distributed verl job ran" in demo
 
 
@@ -474,7 +474,7 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
         (REPO_ROOT / "docs" / "generated" / "quality.json").read_text(encoding="utf-8")
     )
     assert record["schema_version"] == 1
-    assert record["quality_floor"] == "1,540+ tests and 85%+ branch coverage at v0.6.0"
+    assert record["quality_floor"] == "1,560+ tests and 85%+ branch coverage at v0.6.1"
     if ".dev" in miniverl.__version__:
         assert record["status"] in {"candidate", "released"}
         if record["status"] == "candidate":

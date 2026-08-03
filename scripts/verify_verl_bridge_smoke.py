@@ -1,4 +1,4 @@
-"""Verify a Level-3 bundle against the installed exact verl source snapshot."""
+"""Verify a miniVERL-defined Level-3 bundle against the pinned verl snapshot."""
 
 from __future__ import annotations
 
@@ -112,6 +112,16 @@ def verify_smoke(bundle: str | Path, *, out: str | Path) -> dict[str, Any]:
         "model_or_adapter_load": diagnosis["model_adapter_loadability"]["peft_config_load"],
         "parquet_load": "train and val passed",
         "reward_scaffold_import": "passed; fail-closed scorer not executed",
+        "artifact_bundle_complete": diagnosis["artifact_bundle_complete"],
+        "upstream_config_parse_passed": True,
+        "model_data_load_smoke_passed": True,
+        "model_data_load_smoke_scope": (
+            "PEFT config, safetensors structure and both Parquet splits; base weights not loaded"
+        ),
+        "reward_implementation_complete": False,
+        "launchable": False,
+        "distributed_execution_tested": False,
+        "algorithm_semantic_parity": False,
         "tiny_cpu_dry_run": {
             "status": "artifact-only",
             "reason": "full PPO execution requires the excluded distributed inference stack",

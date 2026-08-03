@@ -63,7 +63,7 @@ def _run(tmp_path: Path) -> Path:
     return run
 
 
-def test_export_verl_emits_the_exact_level3_bundle_and_doctor_verifies_it(
+def test_export_verl_emits_a_fail_closed_bundle_and_doctor_verifies_artifacts(
     tmp_path: Path,
 ) -> None:
     from miniverl.bridge.contract import VERL_COMMIT, VERL_TAG
@@ -81,7 +81,7 @@ def test_export_verl_emits_the_exact_level3_bundle_and_doctor_verifies_it(
         "data/train.parquet",
         "data/val.parquet",
         "recipe/verl-overrides.yaml",
-        "recipe/launch.sh",
+        "recipe/launch.template.sh",
         "recipe/REQUIRED_VERL.txt",
         "reward/reward_or_verifier_scaffold.py",
         "provenance/miniverl-manifest.json",
@@ -99,7 +99,17 @@ def test_export_verl_emits_the_exact_level3_bundle_and_doctor_verifies_it(
     assert "verl-project/verl" in requirement
     assert "main" not in requirement
     assert report["compatibility_level"] == 3
+    assert report["compatibility_level_name"] == "miniVERL-defined compatibility Level 3"
+    assert report["artifact_bundle_complete"] is True
+    assert report["upstream_config_parse_passed"] is False
+    assert report["model_data_load_smoke_passed"] is False
+    assert report["reward_implementation_complete"] is False
+    assert report["launchable"] is False
+    assert report["distributed_execution_tested"] is False
+    assert report["algorithm_semantic_parity"] is False
     assert report["distributed_execution_status"] == "not tested"
+    assert report["target_semantics"] == "PPO/reward scaffold"
+    assert report["placeholder_defaults"]
 
     overrides = yaml.safe_load((out / "recipe" / "verl-overrides.yaml").read_text())
     model = overrides["actor_rollout_ref"]["model"]
@@ -115,7 +125,7 @@ def test_export_verl_emits_the_exact_level3_bundle_and_doctor_verifies_it(
         "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
         "status": "not bundled; materialize the exact snapshot before launch",
     }
-    launch = (out / "recipe" / "launch.sh").read_text(encoding="utf-8")
+    launch = (out / "recipe" / "launch.template.sh").read_text(encoding="utf-8")
     assert "model/base/config.json" in launch
     assert "lora_adapter_path" in launch
     assert "hf download Qwen/Qwen3-0.6B --revision c1899de" in launch
@@ -127,6 +137,83 @@ def test_export_verl_emits_the_exact_level3_bundle_and_doctor_verifies_it(
     assert diagnosis["reward_scaffold_importability"]["status"] == "ok"
     assert diagnosis["artifact_hashes"]["status"] == "ok"
     assert diagnosis["distributed_execution_status"] == "not tested"
+    assert diagnosis["artifact_bundle_complete"] is True
+    assert diagnosis["reward_implementation_complete"] is False
+    assert diagnosis["launchable"] is False
+    assert diagnosis["distributed_execution_tested"] is False
+    assert diagnosis["algorithm_semantic_parity"] is False
+
+
+def test_export_preserves_available_source_values_without_claiming_schedule_parity(
+    tmp_path: Path,
+) -> None:
+    from miniverl.bridge.contract import VERL_TAG
+    from miniverl.bridge.export import export_verl_bundle
+
+    run = _run(tmp_path)
+    (run / "config.resolved.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "rollout": {"max_total_tokens": 777, "max_new_tokens_per_turn": 96},
+                "train": {
+                    "cycles": 4,
+                    "learning_rate": 3e-5,
+                    "save_every_cycles": 2,
+                    "eval_every_cycles": 3,
+                },
+                "environment": {"name": "json_navigation"},
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "export"
+    report = export_verl_bundle(run, target_verl=VERL_TAG, out=out)
+
+    overrides = yaml.safe_load((out / "recipe" / "verl-overrides.yaml").read_text())
+    assert overrides["data"]["max_response_length"] == 96
+    assert overrides["actor_rollout_ref"]["actor"]["optim"]["lr"] == 3e-5
+    assert report["source_run_values"]["rollout.max_total_tokens"] == 777
+    assert report["source_run_values"]["train.cycles"] == 4
+    assert report["source_run_values"]["environment.name"] == "json_navigation"
+    placeholders = {item["field"]: item for item in report["placeholder_defaults"]}
+    assert "data.max_prompt_length" in placeholders
+    assert "trainer.total_epochs" in placeholders
+    assert placeholders["trainer.total_epochs"]["source_run_intent"] is False
+
+
+def test_current_reward_scaffold_can_never_report_ready_to_launch(tmp_path: Path) -> None:
+    from miniverl.bridge.contract import VERL_TAG
+    from miniverl.bridge.doctor import inspect_bridge_bundle
+    from miniverl.bridge.export import export_verl_bundle
+
+    out = tmp_path / "export"
+    report = export_verl_bundle(_run(tmp_path), target_verl=VERL_TAG, out=out)
+    diagnosis = inspect_bridge_bundle(out)
+
+    assert report["reward_implementation_complete"] is False
+    assert report["launchable"] is False
+    assert diagnosis["reward_implementation_complete"] is False
+    assert diagnosis["launchable"] is False
+    assert not (out / "recipe" / "launch.sh").exists()
+
+
+def test_missing_pinned_verl_does_not_relabel_a_complete_artifact_bundle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from miniverl.bridge import doctor
+    from miniverl.bridge.contract import VERL_TAG
+    from miniverl.bridge.export import export_verl_bundle
+
+    out = tmp_path / "export"
+    export_verl_bundle(_run(tmp_path), target_verl=VERL_TAG, out=out)
+    monkeypatch.setattr(doctor, "_installed_verl", lambda: {"status": "not installed"})
+
+    diagnosis = doctor.inspect_bridge_bundle(out, require_verl=True)
+
+    assert diagnosis["verdict"] == "fail"
+    assert diagnosis["artifact_bundle_complete"] is True
+    assert diagnosis["upstream_config_parse_passed"] is False
 
 
 def test_bridge_doctor_detects_tampering(tmp_path: Path) -> None:

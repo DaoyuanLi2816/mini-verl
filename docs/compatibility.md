@@ -25,14 +25,17 @@ regeneration hint.
 
 Compatibility Level 1 covers standard Hugging Face, PEFT, safetensors,
 tokenizer and Parquet artifacts. Level 2 is a fail-closed 14-field config
-whitelist. Level 3 adds the generated bundle, reward scaffold, hashes and an
-exact-source smoke. Unknown, algorithm-changing or distributed-only verl
-fields are rejected instead of guessed.
+whitelist. **miniVERL-defined compatibility Level 3** adds the generated
+bundle, reward scaffold, hashes and an exact-source smoke. Unknown,
+algorithm-changing or distributed-only verl fields are rejected instead of
+guessed.
 
-These levels do not make miniVERL a verl runtime. Optimizer state, distributed
+These miniVERL-defined levels do not make miniVERL a verl runtime. Optimizer state, distributed
 RNG, FSDP/Megatron native checkpoints, Ray runtime state and teacher-cache to
 PPO-reference-cache conversion are unsupported. The release smoke validates
 artifacts and configuration; distributed execution is recorded as not tested.
+Current bundles contain a fail-closed reward scaffold and an absent base
+snapshot, so they use `launch.template.sh` and report `launchable: false`.
 See the [bridge contract](verl-bridge.md).
 
 ## Versioned but extensible

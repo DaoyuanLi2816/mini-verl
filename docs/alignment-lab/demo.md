@@ -1,4 +1,4 @@
-# 75-second Alignment Lab demo
+# Alignment Lab demo recording script
 
 This is a reproducible recording plan, not a fabricated video. The short run
 uses the CPU toy backend and proves the workflow and artifact surfaces; its 0%
@@ -43,6 +43,6 @@ CPU. Do not edit out the card's toy-backend limitation or 0% result.
 
 - [Formal benchmark pilot decision](https://github.com/DaoyuanLi2816/mini-verl/blob/main/examples/alignment-lab/pilot.json)
 - [Reviewed toy Alignment Card](https://github.com/DaoyuanLi2816/mini-verl/blob/main/examples/alignment-lab/alignment-card.json)
-- [Policy-sensitive query figure](quality-vs-teacher-query.svg)
+- [Outcome and cost matrix](outcome-cost-matrix.svg)
 
 No user quote, adoption number or unmeasured GPU claim is part of this demo.

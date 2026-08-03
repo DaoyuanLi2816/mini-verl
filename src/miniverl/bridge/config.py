@@ -1,12 +1,13 @@
-"""Fail-closed import for the pinned verl single-GPU distillation profile."""
+"""Fail-closed import for the pinned, documented verl profile subset."""
 
 from __future__ import annotations
 
 import hashlib
+import math
 import uuid
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 
@@ -23,31 +24,103 @@ from miniverl.utils.runs import write_json_atomic
 
 __all__ = ["import_verl_config"]
 
-_MAPPED: dict[str, tuple[str | None, str]] = {
-    "data.train_files": (None, "bridge_metadata"),
-    "data.val_files": (None, "bridge_metadata"),
-    "data.prompt_key": (None, "bridge_metadata"),
-    "data.max_prompt_length": ("rollout.max_total_tokens", "mapped"),
-    "data.max_response_length": ("rollout.max_new_tokens_per_turn", "mapped"),
-    "data.seed": ("run.seed", "mapped"),
-    "actor_rollout_ref.model.path": ("models.student.model_id", "mapped"),
+FieldClass = Literal[
+    "exact",
+    "derived",
+    "informational_only",
+    "requires_user_confirmation",
+    "unsupported",
+]
+
+_FIELD_RULES: dict[str, tuple[str | None, FieldClass, str]] = {
+    "data.train_files": (
+        None,
+        "informational_only",
+        "miniVERL trains against an explicitly selected local ToolEnvironment, not this Parquet path",
+    ),
+    "data.val_files": (
+        None,
+        "informational_only",
+        "miniVERL evaluates an explicitly selected local ToolEnvironment, not this Parquet path",
+    ),
+    "data.prompt_key": (
+        None,
+        "informational_only",
+        "the selected miniVERL environment owns prompt construction",
+    ),
+    "data.max_prompt_length": (
+        "rollout.max_total_tokens",
+        "derived",
+        "combined with max_response_length; miniVERL has a total trajectory-token bound",
+    ),
+    "data.max_response_length": (
+        "rollout.max_new_tokens_per_turn",
+        "exact",
+        "copied as the per-turn generation bound",
+    ),
+    "data.seed": ("run.seed", "exact", "copied without a unit change"),
+    "actor_rollout_ref.model.path": (
+        "models.student.model_id",
+        "exact",
+        "copied as the student model identity",
+    ),
     "actor_rollout_ref.model.enable_gradient_checkpointing": (
         "models.student.gradient_checkpointing",
-        "mapped",
+        "exact",
+        "copied as a model construction option",
     ),
-    "actor_rollout_ref.actor.optim.lr": ("train.learning_rate", "mapped"),
-    "trainer.save_freq": ("train.save_every_cycles", "mapped"),
-    "trainer.test_freq": ("train.eval_every_cycles", "mapped"),
-    "trainer.project_name": ("run.name", "mapped"),
-    "trainer.experiment_name": ("run.name", "mapped"),
-    "trainer.total_epochs": ("train.cycles", "mapped"),
+    "actor_rollout_ref.actor.optim.lr": (
+        "train.learning_rate",
+        "exact",
+        "copied as the optimizer learning rate",
+    ),
+    "trainer.save_freq": (
+        "train.save_every_cycles",
+        "requires_user_confirmation",
+        "verl frequency units are not proven equivalent to miniVERL cycles",
+    ),
+    "trainer.test_freq": (
+        "train.eval_every_cycles",
+        "requires_user_confirmation",
+        "verl frequency units are not proven equivalent to miniVERL cycles",
+    ),
+    "trainer.project_name": (
+        "run.name",
+        "derived",
+        "combined with trainer.experiment_name",
+    ),
+    "trainer.experiment_name": (
+        "run.name",
+        "derived",
+        "combined with trainer.project_name",
+    ),
+    "trainer.total_epochs": (
+        "train.cycles",
+        "requires_user_confirmation",
+        "epochs and miniVERL continuation cycles are not proven equivalent",
+    ),
+    "trainer.logger": (None, "informational_only", "not used by the local runtime"),
+    "trainer.resume_mode": (None, "informational_only", "not used by the import"),
+    "trainer.default_local_dir": (
+        None,
+        "informational_only",
+        "not copied because output provenance is rooted at the requested destination",
+    ),
 }
 
-_IGNORED_INFORMATIONAL = {
-    "trainer.logger",
-    "trainer.resume_mode",
-    "trainer.default_local_dir",
+_LOSS_PROFILES: dict[str, dict[str, str]] = {
+    "topk-tail-reverse-kl": {
+        "mode": "bucketed_topk_tail",
+        "divergence": "reverse_kl",
+    },
+    "topk-tail-forward-kl": {
+        "mode": "bucketed_topk_tail",
+        "divergence": "forward_kl",
+    },
+    "exact-reverse-kl": {"mode": "exact_full_vocab", "divergence": "reverse_kl"},
+    "exact-forward-kl": {"mode": "exact_full_vocab", "divergence": "forward_kl"},
 }
+_SCHEDULE_MAPPING = "epochs-as-cycles"
 
 
 def _digest_bytes(value: bytes) -> str:
@@ -81,9 +154,26 @@ def _integer(value: Any, field: str, *, minimum: int = 0) -> int:
 
 
 def _positive_number(value: Any, field: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or float(value) <= 0:
-        raise ConfigError(f"verl field {field} must be a positive number")
-    return float(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if "${" in stripped:
+            raise ConfigError(
+                f"verl field {field} contains an unresolved interpolation",
+                hint="pass a fully resolved, documented profile before importing",
+            )
+        try:
+            parsed = float(stripped)
+        except ValueError as exc:
+            raise ConfigError(
+                f"verl field {field} must be a finite positive number; got {value!r}"
+            ) from exc
+    elif isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ConfigError(f"verl field {field} must be a finite positive number")
+    else:
+        parsed = float(value)
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise ConfigError(f"verl field {field} must be a finite positive number")
+    return parsed
 
 
 def _atomic_yaml(path: Path, payload: dict[str, Any]) -> bytes:
@@ -97,10 +187,107 @@ def _atomic_yaml(path: Path, payload: dict[str, Any]) -> bytes:
     return rendered
 
 
-def _generated_recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def _source_identity() -> dict[str, str]:
+    return {"repository": VERL_REPOSITORY, "tag": VERL_TAG, "commit": VERL_COMMIT}
+
+
+def _classify(flat: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    classified: dict[str, dict[str, Any]] = {}
+    for path, value in sorted(flat.items()):
+        target, classification, reason = _FIELD_RULES.get(
+            path,
+            (None, "unsupported", "outside the documented resolved-profile subset"),
+        )
+        classified[path] = {
+            "target": target,
+            "classification": classification,
+            "value": portable_payload(value),
+            "reason": reason,
+        }
+    return classified
+
+
+def _required_inputs(
+    *,
+    student_model: str,
+    environment: str | None,
+    teacher_model: str | None,
+    teacher_adapter: str | None,
+    loss_profile: str | None,
+    schedule_mapping: str | None,
+) -> list[dict[str, str]]:
+    required: list[dict[str, str]] = []
+    if not environment:
+        required.append(
+            {
+                "field": "environment",
+                "reason": "Parquet file names do not identify a miniVERL ToolEnvironment",
+                "supply": "--environment <registered-environment>",
+            }
+        )
+    teacher_is_unqualified_same_base = teacher_model == student_model and not teacher_adapter
+    if (not teacher_model and not teacher_adapter) or teacher_is_unqualified_same_base:
+        required.append(
+            {
+                "field": "teacher_identity",
+                "reason": (
+                    "the source does not establish a distinct teacher or a same-base teacher adapter"
+                ),
+                "supply": "--teacher-model <model> and/or --teacher-adapter <path>",
+            }
+        )
+    if not loss_profile:
+        required.append(
+            {
+                "field": "loss_profile",
+                "reason": "the source profile does not determine a miniVERL distillation objective",
+                "supply": f"--loss-profile <{'|'.join(sorted(_LOSS_PROFILES))}>",
+            }
+        )
+    if not schedule_mapping:
+        required.append(
+            {
+                "field": "schedule_mapping",
+                "reason": "verl epochs/frequencies are not proven equivalent to miniVERL cycles",
+                "supply": f"--schedule-mapping {_SCHEDULE_MAPPING}",
+            }
+        )
+    return required
+
+
+def _template(source: Mapping[str, Any], required: list[dict[str, str]]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "status": "needs_user_input",
+        "note": "This is a non-executable import template, not a miniVERL RunConfig.",
+        "source_profile": BRIDGE_PROFILE,
+        "source_values": portable_payload(dict(source)),
+        "required_user_input": required,
+    }
+
+
+def _generated_recipe(
+    source: Mapping[str, Any],
+    *,
+    environment: str,
+    teacher_model: str | None,
+    teacher_adapter: str | None,
+    loss_profile: str,
+    schedule_mapping: str,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     model_id = _get(source, "actor_rollout_ref.model.path")
     if not isinstance(model_id, str) or not model_id.strip():
         raise ConfigError("verl field actor_rollout_ref.model.path is required")
+    if loss_profile not in _LOSS_PROFILES:
+        raise ConfigError(
+            f"unsupported loss profile {loss_profile!r}",
+            hint=f"choose one of {', '.join(sorted(_LOSS_PROFILES))}",
+        )
+    if schedule_mapping != _SCHEDULE_MAPPING:
+        raise ConfigError(
+            f"unsupported schedule mapping {schedule_mapping!r}",
+            hint=f"use --schedule-mapping {_SCHEDULE_MAPPING} to explicitly accept the unit change",
+        )
     project = _get(source, "trainer.project_name", "verl-import")
     experiment = _get(source, "trainer.experiment_name", "profile")
     if not isinstance(project, str) or not isinstance(experiment, str):
@@ -127,6 +314,16 @@ def _generated_recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[d
             "verl field actor_rollout_ref.model.enable_gradient_checkpointing must be boolean"
         )
 
+    resolved_teacher = teacher_model or model_id
+    teacher: dict[str, Any] = {
+        "model_id": resolved_teacher,
+        "dtype": "auto",
+        "quantization": "none",
+        "mode": "standard",
+    }
+    if teacher_adapter:
+        teacher["adapter"] = {"path": teacher_adapter, "source": "local"}
+
     recipe: dict[str, Any] = {
         "schema_version": 1,
         "run": {
@@ -148,16 +345,11 @@ def _generated_recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[d
                 "gradient_checkpointing": gradient_checkpointing,
                 "lora": {"enabled": True},
             },
-            "teacher": {
-                "model_id": model_id,
-                "dtype": "auto",
-                "quantization": "none",
-                "mode": "standard",
-            },
+            "teacher": teacher,
         },
         "environment": {
-            "name": "calculator",
-            "params": {"protocol_version": "v2", "prompt_style": "compact"},
+            "name": environment,
+            "params": {},
             "train_tasks": 64,
             "eval_tasks": 32,
             "test_tasks": 32,
@@ -168,11 +360,7 @@ def _generated_recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[d
             "max_total_tokens": prompt_length + response_length,
         },
         "selection": {"selector": "all_model_tokens"},
-        "loss": {
-            "mode": "bucketed_topk_tail",
-            "divergence": "reverse_kl",
-            "top_k": 64,
-        },
+        "loss": {**_LOSS_PROFILES[loss_profile], "top_k": 64},
         "train": {
             "cycles": cycles,
             "learning_rate": learning_rate,
@@ -180,26 +368,26 @@ def _generated_recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[d
             "eval_every_cycles": test_freq,
             "opd_freshness": "strict",
         },
-        "cache": {
-            "strict_policy_version": True,
-            "reuse_across_policy_versions": False,
-        },
+        "cache": {"strict_policy_version": True, "reuse_across_policy_versions": False},
     }
     defaults = [
         {
-            "field": "models.teacher",
-            "value": "policy-conditioned same-base teacher",
-            "reason": "the profile imports no separate teacher identity",
+            "field": "environment split sizes",
+            "value": {"train": 64, "eval": 32, "test": 32},
+            "reason": "the verl subset has file paths but no miniVERL task-pool sizes",
+            "source_run_intent": False,
         },
         {
-            "field": "environment",
-            "value": "calculator protocol-v2 scaffold",
-            "reason": "verl prompt data does not identify a miniVERL tool environment",
+            "field": "selection.selector",
+            "value": "all_model_tokens",
+            "reason": "the verl subset does not encode miniVERL token provenance selection",
+            "source_run_intent": False,
         },
         {
-            "field": "loss",
-            "value": "reverse_kl top-k-plus-tail",
-            "reason": "PPO/GRPO semantics are intentionally outside this profile",
+            "field": "loss.top_k",
+            "value": 64,
+            "reason": "profile constant used only for a top-k + tail loss profile",
+            "source_run_intent": False,
         },
     ]
     return recipe, defaults
@@ -211,8 +399,13 @@ def import_verl_config(
     profile: str,
     target_verl: str,
     out: str | Path,
+    environment: str | None = None,
+    teacher_model: str | None = None,
+    teacher_adapter: str | None = None,
+    loss_profile: str | None = None,
+    schedule_mapping: str | None = None,
 ) -> dict[str, Any]:
-    """Import only the documented profile and emit a complete decision report."""
+    """Import the resolved profile subset or emit a non-executable template."""
     if profile != BRIDGE_PROFILE:
         raise ConfigError(
             f"unsupported verl bridge profile {profile!r}", hint=f"use --profile {BRIDGE_PROFILE}"
@@ -228,75 +421,122 @@ def import_verl_config(
         raise ConfigError("verl config must contain one YAML mapping")
 
     flat = _flatten(payload)
+    classification = _classify(flat)
     unsupported = sorted(
-        path for path in flat if path not in _MAPPED and path not in _IGNORED_INFORMATIONAL
+        path
+        for path, decision in classification.items()
+        if decision["classification"] == "unsupported"
     )
+    report_path = Path(out).parent / "import-report.json"
+    common: dict[str, Any] = {
+        "schema_version": 2,
+        "source_verl": _source_identity(),
+        "profile": BRIDGE_PROFILE,
+        "input_contract": "resolved documented profile subset; not arbitrary verl YAML",
+        "source_config_sha256": _digest_bytes(source_bytes),
+        "field_classification": classification,
+        "unsupported_fields": unsupported,
+        "semantic_conflicts": [],
+    }
     if unsupported:
         rejection_report = {
-            "schema_version": 1,
-            "source_verl": {
-                "repository": VERL_REPOSITORY,
-                "tag": VERL_TAG,
-                "commit": VERL_COMMIT,
-            },
-            "profile": BRIDGE_PROFILE,
-            "source_config_sha256": _digest_bytes(source_bytes),
-            "mapped_fields": {},
-            "ignored_informational_fields": [],
-            "unsupported_fields": unsupported,
-            "semantic_conflicts": [],
+            **common,
             "inserted_defaults": [],
+            "required_user_input": [],
             "generated_miniverl_sha256": None,
+            "generated_recipe_validated": False,
+            "generated_path": None,
             "status": "rejected",
         }
-        write_json_atomic(Path(out).parent / "import-report.json", rejection_report)
+        write_json_atomic(report_path, rejection_report)
         raise ConfigError(
             f"unsupported verl field {unsupported[0]!r} for profile {BRIDGE_PROFILE}",
-            hint="remove algorithm, distributed, rollout-runtime or unknown fields; inspect the documented whitelist",
+            hint=(
+                "remove algorithm, distributed, rollout-runtime or unknown fields; "
+                "inspect the documented resolved-profile whitelist"
+            ),
         )
 
-    recipe, inserted_defaults = _generated_recipe(payload)
+    student_model = _get(payload, "actor_rollout_ref.model.path")
+    if not isinstance(student_model, str) or not student_model.strip():
+        raise ConfigError("verl field actor_rollout_ref.model.path is required")
+    required = _required_inputs(
+        student_model=student_model,
+        environment=environment,
+        teacher_model=teacher_model,
+        teacher_adapter=teacher_adapter,
+        loss_profile=loss_profile,
+        schedule_mapping=schedule_mapping,
+    )
     destination = Path(out)
+    if required:
+        template_path = destination.parent / "imported.template.yaml"
+        template = _template(payload, required)
+        rendered = yaml.safe_dump(template, sort_keys=False, allow_unicode=True, width=100).encode(
+            "utf-8"
+        )
+        report = {
+            **common,
+            "inserted_defaults": [],
+            "required_user_input": required,
+            "user_confirmations": {},
+            "generated_miniverl_sha256": _digest_bytes(rendered),
+            "generated_recipe_validated": False,
+            "generated_path": template_path.name,
+            "status": "needs_user_input",
+            "claim": "No runnable miniVERL recipe was generated.",
+        }
+        _atomic_yaml(template_path, template)
+        try:
+            write_json_atomic(report_path, report)
+        except BaseException:
+            template_path.unlink(missing_ok=True)
+            raise
+        return report
+
+    assert environment is not None
+    assert loss_profile is not None
+    assert schedule_mapping is not None
+    recipe, inserted_defaults = _generated_recipe(
+        payload,
+        environment=environment,
+        teacher_model=teacher_model,
+        teacher_adapter=teacher_adapter,
+        loss_profile=loss_profile,
+        schedule_mapping=schedule_mapping,
+    )
+    try:
+        from miniverl.config import RunConfig
+
+        RunConfig.from_mapping(recipe)
+    except Exception as exc:
+        raise ConfigError(
+            f"generated miniVERL recipe failed RunConfig validation: {exc}",
+            hint="check the explicit environment, teacher and loss-profile arguments",
+        ) from exc
     rendered = yaml.safe_dump(recipe, sort_keys=False, allow_unicode=True, width=100).encode(
         "utf-8"
     )
-    mapped_fields = {
-        path: {
-            "target": target,
-            "disposition": disposition,
-            "value": portable_payload(flat[path]),
-        }
-        for path, (target, disposition) in _MAPPED.items()
-        if path in flat
-    }
-    ignored = [
-        {"field": path, "value": portable_payload(flat[path])}
-        for path in sorted(_IGNORED_INFORMATIONAL.intersection(flat))
-    ]
-    report: dict[str, Any] = {
-        "schema_version": 1,
-        "source_verl": {
-            "repository": VERL_REPOSITORY,
-            "tag": VERL_TAG,
-            "commit": VERL_COMMIT,
-        },
-        "profile": BRIDGE_PROFILE,
-        "source_config_sha256": _digest_bytes(source_bytes),
-        "mapped_fields": mapped_fields,
-        "ignored_informational_fields": ignored,
-        "unsupported_fields": [],
-        "semantic_conflicts": [],
+    report = {
+        **common,
         "inserted_defaults": inserted_defaults,
+        "required_user_input": [],
+        "user_confirmations": {
+            "environment": environment,
+            "teacher_model": teacher_model,
+            "teacher_adapter": teacher_adapter,
+            "loss_profile": loss_profile,
+            "schedule_mapping": schedule_mapping,
+        },
         "generated_miniverl_sha256": _digest_bytes(rendered),
+        "generated_recipe_validated": True,
+        "generated_path": destination.name,
         "status": "accepted",
-        "claim": (
-            "Imports the documented single-gpu-online-distillation-v1 subset of pinned verl v0.8.0."
-        ),
+        "claim": "Imports only the resolved documented profile subset for pinned verl v0.8.0.",
     }
-
     _atomic_yaml(destination, recipe)
     try:
-        write_json_atomic(destination.parent / "import-report.json", report)
+        write_json_atomic(report_path, report)
     except BaseException:
         destination.unlink(missing_ok=True)
         raise

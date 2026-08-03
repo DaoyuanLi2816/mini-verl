@@ -441,18 +441,20 @@ call.
 
 ### The verified verl bridge does not execute verl
 
-The v0.6 Level-3 bridge targets official verl `v0.8.0` at one exact commit and
-one named profile. It validates standard PEFT/safetensors/tokenizer artifacts,
-Parquet prompt data, 14 whitelisted config fields, a safe reward scaffold and
-bundle hashes. The recorded smoke installs that exact source and parses or
-loads each exchange surface.
+The v0.6 **miniVERL-defined compatibility Level 3** bridge targets official verl
+`v0.8.0` at one exact commit and one named profile. It validates standard
+PEFT/safetensors/tokenizer artifacts, Parquet prompt data, 14 whitelisted
+config fields, a safe reward scaffold and bundle hashes. The recorded smoke
+installs that exact source and parses or loads each exchange surface.
 
 It does **not** launch Ray, FSDP/Megatron, vLLM/SGLang or a distributed training
 job. It does not convert optimizer state, distributed RNG, native sharded
 checkpoints, Ray runtime state or teacher caches into PPO reference caches.
-Unknown and distributed-only config fields fail by default. “Level 3” therefore
-means a validated scale-out bundle, not runtime parity or generic verl YAML
-support. See the [exact contract and evidence](verl-bridge.md).
+Unknown and distributed-only config fields fail by default. The
+miniVERL-defined label therefore means a validated scale-out bundle, not
+runtime parity or generic verl YAML support. Current bundles are not
+launchable: the base snapshot is absent, reward logic fails closed and user
+mappings remain placeholders. See the [exact contract and evidence](verl-bridge.md).
 
 `models.teacher.mode: privileged_context` works only with environments that
 implement `privileged_context()`. All three built-in environments do;

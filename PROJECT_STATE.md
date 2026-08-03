@@ -6,12 +6,27 @@ and what it printed.
 
 Last updated: 2026-08-03.
 
+## v0.6.1 Visual integrity and bridge correctness release candidate
+
+| item | current state |
+| --- | --- |
+| scope | representation and documentation UX were rebuilt without rerunning a benchmark; import/export bridge semantics now fail closed instead of implying runnable or equivalent execution |
+| Alignment Lab visuals | the four non-data-bound scatterplots are replaced by a three-seed delta forest, an outcome/cost matrix and a metric-coverage matrix; not-applicable teacher ratios remain N/A, and the zero-variance sandbox checks are not plotted as a two-dimensional safety result |
+| bridge diagram | responsive desktop/mobile layouts show solid arrows only across the verified local runtime, portable bundle and pinned `v0.8.0` / `7aed6b23` parse-load smoke, followed by a dashed arrow to prominent `Distributed execution: NOT TESTED` |
+| import contract | every source field is classified as exact, derived, informational only, requiring user confirmation or unsupported; unresolved data/environment, teacher, objective or schedule semantics produce `needs_user_input` plus a non-executable template |
+| export status | artifact completeness, upstream parse/load, model/data smoke, reward implementation, launchability, distributed testing and algorithm parity are independent flags; the fail-closed reward scaffold remains non-launchable and uses `launch.template.sh` |
+| documentation | pinned Material 9.7.7 supplies stable/dev navigation, search, dark/light modes, command-copy controls and responsive tables/images; the landing page exposes Align, Distill locally and Scale out paths |
+| visual gate | Playwright checks five pages at 1440x900, 1024x768, 820x1000 and 390x844 for overflow, SVG bounds, label collisions, readable labels, tables and the responsive bridge; docs run [`30855762827`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30855762827) is green and its 20 Linux screenshots were manually inspected |
+| validation | local ruff, format, mypy, actionlint, full non-GPU/non-network, available GPU/network, strict MkDocs, browser visual, package/Twine, clean-install, extracted-sdist, bridge end-to-end, privacy, Markdown/link and generated-byte gates pass; PR-head CI [`30855762617`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30855762617), build [`30855763132`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30855763132) and pinned bridge [`30855762724`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30855762724) are green |
+| immutable evidence | no result JSON/JSONL or frozen bridge-smoke record changed; calculator SHA-256 remains `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` and Alignment Lab result/task SHA-256 values remain `584752dccb91654109c357b8ebb12681a12a9c1476a9ba539dd35e4d860a22ef` / `8d7fc723436d7377d196fc44046d960e3cb7f0aa81e03d49ef05b627eb84630f` |
+| release state | exact `0.6.1` metadata is being finalized on focused PR [#40](https://github.com/DaoyuanLi2816/mini-verl/pull/40); merge, tag and OIDC publication remain gated on the final head being green |
+
 ## v0.6.0 Verified verl Bridge release
 
 | item | current state |
 | --- | --- |
 | audited upstream | official stable verl `v0.8.0`, source commit `7aed6b230776f963fa09509c10d9c3a767d1102c`, tested with Python 3.12; the installed source reports `0.8.0.dev0` |
-| compatibility contract | Levels 0-3 are explicit; Level 2 is a fail-closed 14-field whitelist for `single-gpu-online-distillation-v1`; Level 3 exchanges standard HF/PEFT/safetensors/tokenizer/Parquet artifacts and a checksummed scale-out bundle |
+| compatibility contract | Levels 0-3 are explicitly miniVERL-defined; Level 2 is a fail-closed 14-field whitelist for `single-gpu-online-distillation-v1`; miniVERL-defined Level 3 exchanges standard HF/PEFT/safetensors/tokenizer/Parquet artifacts and a checksummed scale-out bundle |
 | command surface | `import-verl`, `convert-dataset`, `export-verl`, `bridge doctor` and `benchmark --export-community` are implemented without importing torch in the core path |
 | exact compatibility smoke | the pinned source installed successfully; OmegaConf parsed official and exported config shapes; PEFT, safetensors, train/val Parquet, reward import, privacy and all bundle hashes passed; the checksummed record is `docs/generated/verl-bridge-smoke.json` |
 | distributed boundary | Ray, FSDP/Megatron, vLLM/SGLang and a full distributed run were not installed or launched; distributed execution remains explicitly `not tested` |

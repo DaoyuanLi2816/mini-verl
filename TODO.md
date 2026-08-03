@@ -1,17 +1,18 @@
 # TODO
 
-This is the post-v0.2.1 research and engineering backlog. Completed release,
-publication, protocol-teacher and two-seed benchmark work lives in
-`PROJECT_STATE.md` and `CHANGELOG.md`, not in this active list.
+This is the post-v0.6 roadmap. Completed RecoveryBench, Consumer Runtime,
+Alignment Lab and pinned verl-bridge work lives in `PROJECT_STATE.md` and
+`CHANGELOG.md`, not in this active list.
 
 ## Scientific follow-up
 
-- [ ] Select future protocol-teacher candidates on the `eval` split and reserve
-      `test` for downstream reporting.
-- [ ] Evaluate on a less saturated task family with at least three prespecified
-      seeds; retain SFT, raw-teacher and protocol-aligned controls.
-- [ ] Run JSON-navigation and SQLite real-model comparisons with the same
-      matched-budget and immutable-artifact discipline.
+- [ ] [Preregister and execute real external alignment endpoints](https://github.com/DaoyuanLi2816/mini-verl/issues/39) (for example
+      IFEval, XSTest, HarmBench and RewardBench) in a future release; keep them
+      separate from Alignment Lab v1's sandbox-policy checks.
+- [ ] Evaluate a less saturated task family with at least three prespecified
+      seeds, eval-only selection and a reserved one-read test split.
+- [ ] Extend matched-budget JSON-navigation and SQLite evidence only when the
+      design adds information beyond the published RecoveryBench study.
 - [ ] Repeat the measured GPU recipes on Linux; do not treat the expected
       throughput improvement as measured until those artifacts exist.
 

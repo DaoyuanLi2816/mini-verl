@@ -25,7 +25,7 @@ Cold start, then equal-optimizer-update continuation under supervised fine-tunin
 
 ## Resolved controls
 
-The complete common resolved configuration and every arm's structured diff are stored in the JSON artifact. Undeclared differences are rejected before any model is loaded.
+The complete common declared configuration and separate scientific, runtime-resolution and harness-only diffs are stored in the JSON artifact. Undeclared scientific differences are rejected before any model is loaded.
 
 ## Notes
 
