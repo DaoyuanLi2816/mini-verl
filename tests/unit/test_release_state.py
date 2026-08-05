@@ -10,6 +10,7 @@ proves every projection of it agrees.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -73,12 +74,12 @@ def test_quality_record_floor_names_its_own_release() -> None:
 
 
 def test_tag_must_match_the_version() -> None:
-    with pytest.raises(ValueError, match="must be v0.6.3"):
+    with pytest.raises(ValueError, match=re.escape("must be v0.6.3")):
         ReleaseState("0.6.3", "v0.6.2", "a" * 40, "2026-08-05", "0.6.4.dev0").validate()
 
 
 def test_development_version_must_be_a_dev_version() -> None:
-    with pytest.raises(ValueError, match="must end in .devN"):
+    with pytest.raises(ValueError, match=re.escape("must end in .devN")):
         ReleaseState("0.6.3", "v0.6.3", "a" * 40, "2026-08-05", "0.6.4").validate()
 
 
