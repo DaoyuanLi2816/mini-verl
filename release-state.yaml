@@ -1,0 +1,22 @@
+# Canonical release state for miniVERL.
+#
+# Every public "stable is X, development is Y" claim in this repository is
+# generated from this file and gated by `python scripts/release_state.py
+# --check`. Nothing else may hard-code a version: after v0.6.2 shipped, the
+# README still said stable was v0.6.1, the docs selector offered
+# "Stable 0.6.1 / Development 0.6.2.dev0", and the quality record combined
+# release 0.6.2 with a floor measured "at v0.6.1".
+#
+# To cut a release: set `stable` to the version being published and set
+# `development` to the next .dev0, then run `python scripts/release_state.py
+# --write` and commit the regenerated files.
+schema_version: 1
+
+stable:
+  version: "0.6.2"
+  tag: "v0.6.2"
+  release_commit: "bef9f0878eb3280f450aee3868b43d61f0726557"
+  released_at: "2026-08-05"
+
+development:
+  version: "0.6.3.dev0"

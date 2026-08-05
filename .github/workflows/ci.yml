@@ -78,6 +78,7 @@ jobs:
       - name: CLI smoke (base install)
         run: |
           python scripts/build_pypi_readme.py --check
+          python scripts/release_state.py --check
           python scripts/check_markdown_links.py
           miniverl --help
           miniverl --version

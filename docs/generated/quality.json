@@ -18,5 +18,5 @@
     "passed": 3,
     "deselected": 1655
   },
-  "quality_floor": "1,560+ tests and 85%+ branch coverage at v0.6.1"
+  "quality_floor": "1,560+ tests and 85%+ branch coverage at v0.6.2"
 }

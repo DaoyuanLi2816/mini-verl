@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "miniVERL: On-policy distillation for tool-using agents on one GPU"
+title: "miniVERL: Auditable single-GPU alignment and distillation runtime"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
 version: 0.6.2
@@ -8,19 +8,31 @@ license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
 url: "https://github.com/DaoyuanLi2816/mini-verl"
 abstract: >-
-  miniVERL is a single-GPU laboratory for multi-turn, tool-aware on-policy
-  distillation. A student language model samples its own tool-using
-  trajectories against deterministic local environments; a teacher scores
-  exactly the states the student visited; and the student is updated with
-  token-level distributional supervision on its own generated tokens only.
-  It implements exact full-vocabulary forward KL, reverse KL and
-  Jensen-Shannon divergences as well as a compressed top-k plus tail
-  coarse-graining, enforces per-token provenance so that tool output can never
-  become a training label, and stores teacher targets in a versioned,
-  checksummed, pickle-free cache with policy-version enforcement. It is
-  designed for one personal CUDA GPU, automatically selects bf16 or fp16, and
-  requires neither Ray nor a cluster. Published performance is measured on one
-  RTX 4080; other GPU models use the same code path but remain unmeasured.
+  miniVERL is a single-GPU runtime for comparing alignment and distillation
+  methods under conditions strict enough that the comparison means something.
+  Its core is multi-turn, tool-aware on-policy distillation: a student language
+  model samples its own tool-using trajectories against deterministic local
+  environments, a teacher scores exactly the states the student visited, and
+  the student is updated with token-level distributional supervision on its own
+  generated tokens only. It implements exact full-vocabulary forward KL,
+  reverse KL and Jensen-Shannon divergences as well as a compressed top-k plus
+  tail coarse-graining, enforces per-token provenance so that tool output can
+  never become a training label, and stores teacher targets in a versioned,
+  checksummed, pickle-free cache with policy-version enforcement.
+  Around that core it provides supervised fine-tuning, recorded-provenance
+  preference optimization and knowledge distillation as directly comparable
+  arms; shared-backbone execution that switches student, teacher and reference
+  roles across adapters on one set of base weights to fit low-memory hardware;
+  padded update batching; deterministic replay; transactional checkpoints and
+  cross-process run locks; and mechanism studies such as RecoveryBench that are
+  published with their negative and mixed results intact. A fail-closed
+  artifact bridge exchanges configs, LoRA adapters, tokenizers and Parquet
+  datasets with one pinned verl profile, verifying what it can and refusing to
+  imply the rest: it does not launch distributed jobs and does not establish
+  algorithmic parity with PPO. miniVERL is designed for one personal CUDA GPU,
+  automatically selects bf16 or fp16, and requires neither Ray nor a cluster.
+  Published performance is measured on one RTX 4080; other GPU models use the
+  same code path but remain unmeasured.
 authors:
   - family-names: Li
     given-names: Daoyuan
@@ -28,9 +40,12 @@ authors:
 keywords:
   - on-policy distillation
   - knowledge distillation
+  - llm alignment
+  - preference optimization
   - large language models
   - tool use
   - agents
+  - PEFT
   - QLoRA
   - consumer GPU
   - single GPU
@@ -98,4 +113,4 @@ references:
     url: "https://arxiv.org/abs/2603.07079"
     notes: >-
       Motivates recording per-token teacher entropy. Entropy-aware divergence
-      mixing is a roadmap item and is not implemented in miniVERL v0.6.2.
+      mixing is a roadmap item and is not implemented in miniVERL.

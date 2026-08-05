@@ -4,7 +4,25 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-04.
+Last updated: 2026-08-05.
+
+Canonical release state: stable `v0.6.2` (`bef9f0878eb3280f450aee3868b43d61f0726557`), development `0.6.3.dev0`.
+Every public version claim is generated from `release-state.yaml` and gated by
+`python scripts/release_state.py --check`.
+
+## v0.6.3 Security, artifact integrity and release-state hardening
+
+| item | current state |
+| --- | --- |
+| starting state | `origin/main` and local `main` both at `c62e14ba4229f32b3db06b293c615e94654debc6`; tag `v0.6.2` at `bef9f0878eb3280f450aee3868b43d61f0726557`; working tree clean; no open pull request; source version `0.6.3.dev0`; branch `v0.6.3-security-artifact-hardening` cut from that commit |
+| immutable baseline | all ten frozen result artifacts plus `docs/generated/verl-bridge-smoke.json` re-hashed at takeover and unchanged; calculator remains `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
+| reward-code execution | reproduced: a scaffold whose top level wrote `PWNED.txt` created the marker during `_check_reward`, and the report still said `side-effect-free import; scaffold intentionally not executed`. Fixed by `src/miniverl/bridge/reward_static.py`, an AST walk that never imports; levels are `not_present`, `syntax_valid`, `interface_statically_verified`, `trusted_dynamic_import_verified`, and the last one requires `--trust-and-import-reward-code` |
+| safetensors validation | reproduced: a header declaring a 4x4 F32 tensor with zero payload bytes returned `(True, '1 tensor header(s)')` while the official reader rejected it with `file not fully covered`. Fixed by `src/miniverl/bridge/safetensors_check.py`; levels are `not_present`, `header_only`, `payload_structure_validated`, `tensor_materialization_validated`, with `--require-adapter-payload` for strict callers |
+| source/output aliasing | reproduced: `import-verl --out <source> --overwrite` overwrote the source on success and **deleted** it on rejection while publishing the report. Fixed by `reject_source_output_alias`, which runs before any transaction and covers exact, relative, symlink, hard-link and Windows case aliases |
+| conversion semantics | extension data in `miniverl_extensions`, the sidecar and `extra_info.miniverl` is now reconciled: equal content deduplicates, different content fails closed naming row and locations but never values. Invalid rows fail the conversion unless `--allow-rejected-rows` is given, and a partial report carries `complete_dataset_conversion: false` |
+| Parquet bounds | reproduced by inspection: the scan called `pq.read_table().to_pylist()` before applying bounds and the schema check read every row. Both now use footer metadata and `iter_batches` per row group; an instrumented test asserts the requested row groups are exactly `[0]` when the bound is two rows into an eight-group file |
+| release-state drift | `python scripts/release_state.py --check` reported ten disagreements at takeover, including README stable `v0.6.1`, docs selector `Stable 0.6.1 / Development 0.6.2.dev0` and `quality_floor ... at v0.6.1` inside the `release: 0.6.2` record |
+| release state | in progress on `v0.6.3-security-artifact-hardening` |
 
 ## v0.6.2 Bridge correctness and responsive visual hardening
 
