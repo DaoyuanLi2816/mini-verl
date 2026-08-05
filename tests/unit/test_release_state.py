@@ -184,6 +184,53 @@ def test_transition_still_demands_the_human_written_sections(tmp_path: Path) -> 
     assert check_release_state(root, released) == []
 
 
+def test_release_phase_treats_the_tree_as_the_release(tmp_path: Path) -> None:
+    """A release tree *is* the release, so both channels name the same version.
+
+    v0.6.2 had no release phase, which is how its tag shipped a docs selector
+    still advertising "Stable 0.6.1 / Development 0.6.2.dev0".
+    """
+    root = _clone(tmp_path)
+    releasing = ReleaseState(
+        stable_version="0.6.3",
+        stable_tag="v0.6.3",
+        stable_commit="pending",
+        stable_released_at="2026-08-06",
+        development_version="0.6.3",
+        phase="release",
+    )
+
+    apply_release_state(root, releasing)
+
+    assert '__version__ = "0.6.3"' in (root / "src" / "miniverl" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    html = (root / "docs" / "overrides" / "main.html").read_text(encoding="utf-8")
+    assert 'data-stable-version="0.6.3"' in html
+    assert 'data-dev-version="0.6.3"' in html
+    assert "PyPI `v0.6.3` is stable" in (root / "README.md").read_text(encoding="utf-8")
+
+
+def test_release_phase_rejects_a_dev_version(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="must equal the version being published"):
+        ReleaseState(
+            "0.6.3", "v0.6.3", "pending", "2026-08-06", "0.6.3.dev0", phase="release"
+        ).validate()
+
+
+def test_pending_commit_is_only_accepted_while_releasing() -> None:
+    ReleaseState("0.6.3", "v0.6.3", "pending", "2026-08-06", "0.6.3", phase="release").validate()
+    with pytest.raises(ValueError, match="40-character"):
+        ReleaseState(
+            "0.6.3", "v0.6.3", "pending", "2026-08-06", "0.6.4.dev0", phase="development"
+        ).validate()
+
+
+def test_unknown_phase_is_rejected() -> None:
+    with pytest.raises(ValueError, match="phase must be one of"):
+        ReleaseState("0.6.3", "v0.6.3", "a" * 40, "2026-08-06", "0.6.4.dev0", phase="rc").validate()
+
+
 def test_stale_claim_is_reported_with_the_expected_value(tmp_path: Path) -> None:
     """The exact v0.6.2 drift, reproduced against the gate."""
     root = _clone(tmp_path)

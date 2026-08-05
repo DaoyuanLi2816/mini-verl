@@ -33,9 +33,12 @@ All notable changes to miniVERL are recorded here. The format follows
   arithmetic, offset ordering, contiguity and full coverage of the data segment
   are checked, then every tensor is materialized through the official reader.
   Levels are `not_present`, `header_only`, `payload_structure_validated` and
-  `tensor_materialization_validated`; `--require-adapter-payload` refuses to be
-  satisfied by a header alone. A file declaring a 4x4 F32 tensor with no payload
-  previously passed.
+  `tensor_materialization_validated`. A file declaring a 4x4 F32 tensor with no
+  payload previously passed. The structural pass needs no optional dependency,
+  so a torch-free install reaches `payload_structure_validated` and reports
+  `official_reader_status: dependency_missing` instead of implying the file is
+  broken; `--require-adapter-payload` demands the strongest level and is
+  therefore not satisfied without the official reader.
 - `miniverl convert-dataset --allow-rejected-rows` opts into a partial dataset.
   Conversion is otherwise complete-or-nothing, and a partial report carries
   `complete_dataset_conversion: false`, `lossless_for_accepted_rows: true` and

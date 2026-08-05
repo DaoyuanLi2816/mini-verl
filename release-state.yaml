@@ -7,10 +7,17 @@
 # "Stable 0.6.1 / Development 0.6.2.dev0", and the quality record combined
 # release 0.6.2 with a floor measured "at v0.6.1".
 #
-# To cut a release: set `stable` to the version being published and set
-# `development` to the next .dev0, then run `python scripts/release_state.py
-# --write` and commit the regenerated files.
+# To cut a release: set `phase: release`, set `stable` to the version being
+# published with `release_commit: pending`, set `development.version` to the same
+# version, then run `python scripts/release_state.py --write`. After the tag is
+# published, set `phase: development`, fill in the real `release_commit` and set
+# `development.version` to the next `.dev0`.
+#
+# The two phases exist because a release tree *is* the release: v0.6.2 had no
+# such distinction, which is how its tag shipped a docs selector still
+# advertising "Stable 0.6.1 / Development 0.6.2.dev0".
 schema_version: 1
+phase: development
 
 stable:
   version: "0.6.2"

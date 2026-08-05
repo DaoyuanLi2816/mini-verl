@@ -39,36 +39,70 @@ _REPOSITORY = "https://github.com/DaoyuanLi2816/mini-verl"
 _DEV_SUFFIX = re.compile(r"\.dev\d+$")
 
 
+#: A release commit cannot name its own merge SHA, so the release phase may say
+#: this instead. The post-release state-sync fills in the real value.
+PENDING_COMMIT = "pending"
+
+#: ``development``: main is building the next release, so the tree's version is a
+#: ``.devN`` and differs from what is published. ``release``: this tree *is* the
+#: release being cut, so its version equals the version being published. v0.6.2
+#: had no such distinction, which is how its tag shipped a docs selector still
+#: advertising "Stable 0.6.1 / Development 0.6.2.dev0".
+PHASES = ("development", "release")
+
+
 @dataclass(frozen=True)
 class ReleaseState:
-    """The published release and the version main is currently building."""
+    """The published release and the version this tree is building."""
 
     stable_version: str
     stable_tag: str
     stable_commit: str
     stable_released_at: str
     development_version: str
+    phase: str = "development"
 
     @property
     def preparing_version(self) -> str:
         """The release the development version will become (0.6.3.dev0 -> 0.6.3)."""
         return _DEV_SUFFIX.sub("", self.development_version)
 
+    @property
+    def is_release(self) -> bool:
+        return self.phase == "release"
+
     def validate(self) -> None:
+        if self.phase not in PHASES:
+            raise ValueError(f"phase must be one of {', '.join(PHASES)}; got {self.phase!r}")
         if self.stable_tag != f"v{self.stable_version}":
             raise ValueError(f"stable.tag {self.stable_tag!r} must be v{self.stable_version}")
-        if not _DEV_SUFFIX.search(self.development_version):
-            raise ValueError(
-                f"development.version {self.development_version!r} must end in .devN; "
-                "main is never a released version"
-            )
-        if self.preparing_version == self.stable_version:
-            raise ValueError(
-                f"development.version {self.development_version!r} would re-release the "
-                f"published version {self.stable_version}"
-            )
-        if not re.fullmatch(r"[0-9a-f]{40}", self.stable_commit):
-            raise ValueError("stable.release_commit must be a full 40-character SHA-1")
+        if self.is_release:
+            if self.development_version != self.stable_version:
+                raise ValueError(
+                    f"in the release phase development.version "
+                    f"{self.development_version!r} must equal the version being published "
+                    f"{self.stable_version!r}"
+                )
+            if self.stable_commit != PENDING_COMMIT and not re.fullmatch(
+                r"[0-9a-f]{40}", self.stable_commit
+            ):
+                raise ValueError(
+                    f"stable.release_commit must be a full 40-character SHA-1 or "
+                    f"{PENDING_COMMIT!r} until the merge commit exists"
+                )
+        else:
+            if not _DEV_SUFFIX.search(self.development_version):
+                raise ValueError(
+                    f"development.version {self.development_version!r} must end in .devN; "
+                    "main is never a released version"
+                )
+            if self.preparing_version == self.stable_version:
+                raise ValueError(
+                    f"development.version {self.development_version!r} would re-release the "
+                    f"published version {self.stable_version}"
+                )
+            if not re.fullmatch(r"[0-9a-f]{40}", self.stable_commit):
+                raise ValueError("stable.release_commit must be a full 40-character SHA-1")
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", self.stable_released_at):
             raise ValueError("stable.released_at must be an ISO date")
 
@@ -86,6 +120,7 @@ def load_release_state(root: Path) -> ReleaseState:
         stable_commit=str(stable.get("release_commit", "")),
         stable_released_at=str(stable.get("released_at", "")),
         development_version=str(development.get("version", "")),
+        phase=str(payload.get("phase", "development")),
     )
     state.validate()
     return state
@@ -212,7 +247,9 @@ def rules_for(state: ReleaseState) -> tuple[list[Rule], list[Presence]]:
             path="PROJECT_STATE.md",
             description="the canonical stable-release line",
             required=(
-                f"Canonical release state: stable `v{state.stable_version}` "
+                f"Canonical release state: releasing `v{state.stable_version}`."
+                if state.is_release
+                else f"Canonical release state: stable `v{state.stable_version}` "
                 f"(`{state.stable_commit}`), development `{state.development_version}`."
             ),
             remedy="copy the line from release-state.yaml into the PROJECT_STATE header",
