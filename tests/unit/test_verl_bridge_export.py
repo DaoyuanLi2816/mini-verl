@@ -138,7 +138,13 @@ def test_export_verl_emits_a_fail_closed_bundle_and_doctor_verifies_artifacts(
     # The exported scaffold is verified without ever being imported.
     assert diagnosis["reward_verification_level"] == "interface_statically_verified"
     assert diagnosis["reward_code_executed"] is False
-    assert diagnosis["safetensors_verification_level"] == "tensor_materialization_validated"
+    # The payload is validated structurally with no optional dependency; the
+    # materialization level is only reachable where the official reader runs,
+    # which the torch-free environment cannot do (it has no numpy).
+    assert diagnosis["safetensors_verification_level"] in {
+        "payload_structure_validated",
+        "tensor_materialization_validated",
+    }
     assert diagnosis["artifact_hashes"]["status"] == "ok"
     assert diagnosis["distributed_execution_status"] == "not tested"
     assert diagnosis["artifact_bundle_complete"] is True
