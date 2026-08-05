@@ -42,18 +42,11 @@ MIN_FONT_PX_WIDE = 10.5
 #: A viewport at or below this width is treated as a phone.
 NARROW_VIEWPORT_PX = 480
 
-#: Figures that predate v0.6.2 and still have no narrow-viewport layout. The
-#: readability floor is *not* enforced for these at 390 px. They are printed on
-#: every run so the gap can never pass silently, and the set is asserted exactly
-#: so a newly added figure cannot quietly join it.
-MOBILE_READABILITY_EXEMPT = frozenset(
-    {
-        "consumer-runtime-v1-pareto.svg",
-        "cost-quality-pareto.svg",
-        "fresh-vs-frozen.svg",
-        "recovery-success.svg",
-    }
-)
+#: No figure is exempt from the readability floor. v0.6.2 shipped four
+#: pre-v0.6.2 figures on an explicit exemption list because they had no narrow
+#: layout; v0.6.3 gave each of them a dedicated mobile SVG, so the list is
+#: empty and the constant remains only to keep that intent asserted.
+MOBILE_READABILITY_EXEMPT: frozenset[str] = frozenset()
 
 
 class _QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -361,7 +354,6 @@ def check(site: Path, screenshots: Path) -> None:
     # One entry per (svg, viewport): the same file is checked again whenever a
     # different viewport renders it at a different real width.
     measured: dict[tuple[str, int], float] = {}
-    skipped: list[str] = []
     with _server(site) as base_url, sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         try:
@@ -389,35 +381,23 @@ def check(site: Path, screenshots: Path) -> None:
 
             svg_page = browser.new_page()
             for (url, viewport), rendered in sorted(measured.items()):
-                name = url.rsplit("/", 1)[-1]
                 narrow = viewport <= NARROW_VIEWPORT_PX
                 minimum = MIN_FONT_PX_NARROW if narrow else MIN_FONT_PX_WIDE
-                enforce = not (narrow and name in MOBILE_READABILITY_EXEMPT)
-                if not enforce:
-                    skipped.append(f"{name} @{viewport}px")
+                # Every figure is enforced at every viewport. v0.6.2 carried four
+                # pre-v0.6.2 figures on an exemption list; v0.6.3 gave each of
+                # them a real narrow layout and the list is gone.
                 assert_svg_document(
                     svg_page,
                     url,
                     rendered_width=rendered,
                     min_font_px=minimum,
-                    enforce_font=enforce,
+                    enforce_font=True,
                 )
             svg_page.close()
         finally:
             browser.close()
 
-    unexpected = {entry.split(" @")[0] for entry in skipped} - MOBILE_READABILITY_EXEMPT
-    if unexpected:
-        raise AssertionError(
-            f"unexpected figure claimed a mobile-readability exemption: {unexpected}"
-        )
     print(f"checked {len(measured)} rendered SVG instances across {len(VIEWPORTS)} viewports")
-    if skipped:
-        # Never silent: a bounded gate has to say what it did not enforce.
-        print(
-            "mobile readability NOT enforced for pre-v0.6.2 figures without a narrow "
-            f"layout: {sorted(set(skipped))}"
-        )
 
 
 def main() -> int:
