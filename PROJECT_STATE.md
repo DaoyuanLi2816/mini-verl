@@ -4,7 +4,38 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-03.
+Last updated: 2026-08-04.
+
+## v0.6.2 Bridge correctness and responsive visual hardening (in progress)
+
+### Takeover audit — 2026-08-04
+
+| item | observed state |
+| --- | --- |
+| checkout | `C:\Users\14191\OneDrive\Documents\New project\Git\mini-verl`; one worktree, no submodules |
+| local HEAD at takeover | `64fd6d62087185091b2f90c2a5870a3f3c83836b`, identical to `origin/main` after `git fetch --all --prune` |
+| remote baseline | `origin/main` = `64fd6d6` "Advance development to 0.6.2.dev0 (#41)"; `git describe` = `v0.6.1-1-g64fd6d6`; stable tag `v0.6.1` = `48b9e7d9231b5f6cd018f6e927f81df066258f17` |
+| branch at takeover | `v0.6.2-bridge-visual-hardening` already existed locally at `64fd6d6`, unpushed; a duplicate empty local branch `v0.6.2-visual-bridge-correctness` also sat at `64fd6d6` |
+| transcript-tail GPU process | **absent, not active**. `Get-CimInstance Win32_Process` matched no `python.exe`/`pythonw.exe`; `nvidia-smi` showed the RTX 4080 at 8% with only desktop/browser C+G clients and no compute process. No RecoveryBench `equal-wall-time` run was live, so nothing needed termination and no current artifact was at risk of being overwritten |
+| GPU availability | NVIDIA GeForce RTX 4080, 16376 MiB total / 1867 MiB used, driver 596.49, CUDA 13.2 — available for the existing GPU suite |
+| preserved prior work | one uncommitted file, `src/miniverl/bridge/config.py` (+52/-2). Archived verbatim to `.takeover-archive-20260804/config.py.prior-session-dirty` and `.takeover-archive-20260804/prior-session-uncommitted.patch` before any change |
+| prior-work audit | the draft added a `${...}` regex, `_contains_interpolation`, `_reject_cli_interpolation` and redundant non-finite string guards, but left `Callable`, `suppress` and `RunLock` imported-unused, added a dead tuple-returning `_validate_positives`, and wired none of it into the import path. Its useful ideas are carried into the shared audit module; the half-wired scaffolding was reverted rather than committed |
+| run locks / temp dirs | `runs/.miniverl-locks` and `artifacts/.miniverl-locks` contain no live lock metadata; no partial publication directory from the prior model |
+| immutable evidence | all ten frozen result JSON/JSONL files hash exactly to the handoff values, including calculator `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; `docs/generated/verl-bridge-smoke.json` baselines at `d5266adc0f3ec46cf29f96a2f4258f03d848d846e62cbbe3ccdf5e014909bda7` |
+
+### Reproduced defects (recorded before any fix)
+
+| defect | evidence on `64fd6d6` |
+| --- | --- |
+| Workstream A — unresolved interpolation reaches a runnable recipe | with every bridge choice supplied, `actor_rollout_ref.model.path: ${MODEL_PATH}` produced `status: accepted`, `generated_recipe_validated: True` and a recipe containing `model_id: ${MODEL_PATH}` at line 16. Only some numeric paths were guarded |
+| Workstream B — shared, non-transactional output names | the same run wrote `import-report.json`, not a stem-specific name; template runs write `imported.template.yaml`. Two stems in one directory overwrite each other, and dataset conversion replaces the Parquet before its sidecar/report |
+
+### Failing regressions committed first
+
+`tests/unit/test_verl_bridge_interpolation.py`, `tests/unit/test_verl_bridge_outputs.py` and
+`tests/unit/test_verl_bridge_dataset_outputs.py` were added against unmodified code and reported
+**44 failed, 11 passed**, covering mapped-field/CLI/nested interpolation, informational labelling,
+stem-specific naming, collision refusal, `--overwrite`, fault injection and concurrency.
 
 ## v0.6.1 Visual integrity and bridge correctness release
 
