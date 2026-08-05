@@ -64,8 +64,9 @@ def test_import_verl_defaults_to_a_non_executable_needs_input_template(
     with pytest.raises(ValidationError):
         RunConfig.from_yaml(template)
 
-    on_disk = json.loads((out.parent / "import-report.json").read_text(encoding="utf-8"))
+    on_disk = json.loads((out.parent / "imported.import-report.json").read_text(encoding="utf-8"))
     assert on_disk == report
+    assert report["report_path"] == "imported.import-report.json"
     assert report["source_verl"] == {
         "repository": VERL_REPOSITORY,
         "tag": VERL_TAG,
@@ -237,7 +238,7 @@ def test_import_verl_fails_closed_on_algorithm_or_scale_out_fields(
             target_verl=VERL_TAG,
             out=tmp_path / "imported.yaml",
         )
-    rejection = json.loads((tmp_path / "import-report.json").read_text(encoding="utf-8"))
+    rejection = json.loads((tmp_path / "imported.import-report.json").read_text(encoding="utf-8"))
     assert rejection["status"] == "rejected"
     assert rejection["field_classification"][".".join(path)]["classification"] == "unsupported"
 

@@ -125,21 +125,24 @@ def test_alignment_figures_are_exactly_generated_and_privacy_safe() -> None:
     rendered = publisher.render_figures(payload, source_digest)
     assert set(rendered) == {
         "delta-from-sft.svg",
+        "delta-from-sft-mobile.svg",
         "outcome-cost-matrix.svg",
-        "metric-coverage-matrix.svg",
+        "outcome-cost-matrix-mobile.svg",
     }
     publisher.assert_chart_suitability(rendered)
     combined_svg = "\n".join(rendered.values())
     assert "concentric" not in combined_svg.lower()
     assert "jitter" not in combined_svg.lower()
     assert source_digest not in combined_svg
-    assert "—  not applicable" in rendered["outcome-cost-matrix.svg"]
-    assert 'data-applicable="false"' in rendered["outcome-cost-matrix.svg"]
+    for name in ("outcome-cost-matrix.svg", "outcome-cost-matrix-mobile.svg"):
+        assert "—  not applicable" in rendered[name]
+        assert 'data-applicable="false"' in rendered[name]
     assert 'data-encoding="seed-point"' in combined_svg
-    assert (
-        "The two sandbox safety checks tied at zero while utility still regressed."
-        in (rendered["metric-coverage-matrix.svg"])
-    )
+    # Metric coverage is now an accessible responsive table, not an SVG whose
+    # long headers collided and whose YES / NOT RUN columns repeated one value.
+    coverage = publisher.render_metric_coverage(payload)
+    assert publisher.COVERAGE_STATEMENT in coverage
+    assert not (ROOT / "docs/alignment-lab/metric-coverage-matrix.svg").exists()
     for name, content in rendered.items():
         target = ROOT / "docs/alignment-lab" / name
         assert target.read_text(encoding="utf-8") == content

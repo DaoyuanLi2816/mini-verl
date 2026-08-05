@@ -43,6 +43,12 @@ htmlcov/
 /checkpoints/
 /teacher-cache/
 
+# Exclusive-reservation lock roots created next to bridge outputs.
+.miniverl-locks/
+
+# Local working archives. Preserved on disk for provenance, never published.
+/.local-archive-*/
+
 # Editors / OS
 .vscode/
 .idea/

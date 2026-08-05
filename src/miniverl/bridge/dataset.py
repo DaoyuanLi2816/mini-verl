@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import hashlib
-import uuid
 from collections.abc import Mapping
-from contextlib import suppress
 from pathlib import Path
 from typing import Any, Literal
 
+from miniverl.bridge.publish import (
+    DEFAULT_LOCK_TIMEOUT,
+    OutputTransaction,
+    dataset_output_targets,
+)
 from miniverl.errors import ConfigError, MissingDependencyError
-from miniverl.utils.runs import write_json_atomic
 
 __all__ = ["convert_dataset"]
 
@@ -70,8 +72,9 @@ def _sidecar_path(parquet: Path) -> Path:
     return parquet.with_suffix(parquet.suffix + ".miniverl.json")
 
 
-def _report_path(parquet: Path) -> Path:
-    return parquet.with_suffix(parquet.suffix + ".report.json")
+def _write_parquet(pa: Any, pq: Any, rows: list[dict[str, Any]], path: Path) -> None:
+    """Materialize the accepted rows. Seam kept module-level for fault injection."""
+    pq.write_table(pa.Table.from_pylist(rows), path)
 
 
 def convert_dataset(
@@ -80,6 +83,8 @@ def convert_dataset(
     out: str | Path,
     direction: Direction,
     max_prompt_characters: int | None = None,
+    overwrite: bool = False,
+    lock_timeout: float = DEFAULT_LOCK_TIMEOUT,
 ) -> dict[str, Any]:
     """Convert a Parquet dataset without truncation or semantic relabeling."""
     if direction not in {"from-verl-parquet", "to-verl-parquet"}:
@@ -91,6 +96,41 @@ def convert_dataset(
     destination = Path(out)
     if not source_path.is_file():
         raise ConfigError(f"Parquet dataset not found: {source_path}")
+
+    targets = dataset_output_targets(destination)
+    transaction = OutputTransaction(
+        targets=targets,
+        stem=destination.name,
+        lock_root=destination.parent,
+        overwrite=overwrite,
+        lock_timeout=lock_timeout,
+    )
+    transaction.begin()
+    try:
+        return _convert_locked(
+            transaction,
+            pa,
+            pq,
+            source_path=source_path,
+            targets=targets,
+            direction=direction,
+            max_prompt_characters=max_prompt_characters,
+        )
+    finally:
+        transaction.close()
+
+
+def _convert_locked(
+    transaction: OutputTransaction,
+    pa: Any,
+    pq: Any,
+    *,
+    source_path: Path,
+    targets: Mapping[str, Path],
+    direction: Direction,
+    max_prompt_characters: int | None,
+) -> dict[str, Any]:
+    """Build and publish one coherent Parquet/sidecar/report family."""
     try:
         rows = pq.read_table(source_path).to_pylist()
     except Exception as exc:
@@ -148,20 +188,18 @@ def convert_dataset(
 
     if not accepted:
         raise ConfigError("dataset conversion accepted zero rows", hint="inspect the rejected rows")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        pq.write_table(pa.Table.from_pylist(accepted), temporary)
-        temporary.replace(destination)
-    except Exception as exc:
-        with suppress(OSError):
-            temporary.unlink(missing_ok=True)
-        raise ConfigError(f"cannot write Parquet dataset {destination}: {exc}") from exc
 
-    extension_path = _sidecar_path(destination)
-    if extensions and direction == "from-verl-parquet":
-        write_json_atomic(
-            extension_path,
+    staged_parquet = transaction.path("parquet")
+    try:
+        _write_parquet(pa, pq, accepted, staged_parquet)
+    except Exception as exc:
+        raise ConfigError(f"cannot write Parquet dataset {targets['parquet']}: {exc}") from exc
+    transaction.claim("parquet")
+
+    emit_sidecar = bool(extensions) and direction == "from-verl-parquet"
+    if emit_sidecar:
+        transaction.write_json(
+            "sidecar",
             {
                 "schema_version": 1,
                 "namespace": "extra_info.miniverl",
@@ -172,7 +210,8 @@ def convert_dataset(
             },
         )
     else:
-        extension_path.unlink(missing_ok=True)
+        # A previous conversion's sidecar must not outlive the run that replaced it.
+        transaction.discard("sidecar")
 
     truncation = (
         {"status": "not_evaluated_no_tokenizer"}
@@ -185,17 +224,20 @@ def convert_dataset(
         }
     )
     report: dict[str, Any] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "direction": direction,
         "accepted_rows": len(accepted),
         "rejected_rows": len(rejected),
         "rejections": rejected,
         "truncation_risk": truncation,
         "source_sha256": _sha256(source_path),
-        "output_sha256": _sha256(destination),
+        # Hashed from the staged bytes that this same transaction publishes.
+        "output_sha256": _sha256(staged_parquet),
         "extension_namespace": "extra_info.miniverl",
-        "extension_sidecar": str(extension_path) if extension_path.is_file() else None,
+        "extension_sidecar": str(targets["sidecar"]) if emit_sidecar else None,
+        "report_path": targets["report"].name,
         "teacher_target_semantics": "distillation targets, not PPO reference log-probabilities",
     }
-    write_json_atomic(_report_path(destination), report)
+    transaction.write_json("report", report)
+    transaction.commit()
     return report

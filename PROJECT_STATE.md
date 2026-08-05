@@ -4,7 +4,97 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-03.
+Last updated: 2026-08-04.
+
+## v0.6.2 Bridge correctness and responsive visual hardening (in progress)
+
+### Starting state — 2026-08-04
+
+| item | observed state |
+| --- | --- |
+| checkout | one worktree, no submodules |
+| local HEAD | `64fd6d62087185091b2f90c2a5870a3f3c83836b`, identical to `origin/main` after `git fetch --all --prune` |
+| remote baseline | `origin/main` = `64fd6d6` "Advance development to 0.6.2.dev0 (#41)"; `git describe` = `v0.6.1-1-g64fd6d6`; stable tag `v0.6.1` = `48b9e7d9231b5f6cd018f6e927f81df066258f17` |
+| branch | `v0.6.2-bridge-visual-hardening` already existed locally at `64fd6d6`, unpushed; a duplicate empty local branch `v0.6.2-visual-bridge-correctness` also sat at `64fd6d6` |
+| background GPU work | none running. `Get-CimInstance Win32_Process` matched no `python.exe`/`pythonw.exe`; `nvidia-smi` showed the RTX 4080 at 8% with only desktop/browser C+G clients and no compute process. No RecoveryBench `equal-wall-time` run was live, so nothing needed termination and no current artifact was at risk of being overwritten |
+| GPU availability | NVIDIA GeForce RTX 4080, 16376 MiB total / 1867 MiB used, driver 596.49, CUDA 13.2 — available for the existing GPU suite |
+| uncommitted work in the tree | one file, `src/miniverl/bridge/config.py` (+52/-2). Archived verbatim outside version control before any change |
+| audit of that draft | it added a `${...}` regex, `_contains_interpolation`, `_reject_cli_interpolation` and redundant non-finite string guards, but left `Callable`, `suppress` and `RunLock` imported-unused, added a dead tuple-returning `_validate_positives`, and wired none of it into the import path. Its useful ideas are carried into the shared audit module; the half-wired scaffolding was reverted rather than committed |
+| run locks / temp dirs | `runs/.miniverl-locks` and `artifacts/.miniverl-locks` contain no live lock metadata, and no partial publication directory was left behind |
+| immutable evidence | all ten frozen result JSON/JSONL files hash exactly to their recorded values, including calculator `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`; `docs/generated/verl-bridge-smoke.json` baselines at `d5266adc0f3ec46cf29f96a2f4258f03d848d846e62cbbe3ccdf5e014909bda7` |
+
+### Reproduced defects (recorded before any fix)
+
+| defect | evidence on `64fd6d6` |
+| --- | --- |
+| Workstream A — unresolved interpolation reaches a runnable recipe | with every bridge choice supplied, `actor_rollout_ref.model.path: ${MODEL_PATH}` produced `status: accepted`, `generated_recipe_validated: True` and a recipe containing `model_id: ${MODEL_PATH}` at line 16. Only some numeric paths were guarded |
+| Workstream B — shared, non-transactional output names | the same run wrote `import-report.json`, not a stem-specific name; template runs write `imported.template.yaml`. Two stems in one directory overwrite each other, and dataset conversion replaces the Parquet before its sidecar/report |
+
+### Failing regressions committed first
+
+`tests/unit/test_verl_bridge_interpolation.py`, `tests/unit/test_verl_bridge_outputs.py` and
+`tests/unit/test_verl_bridge_dataset_outputs.py` were added against unmodified code and reported
+**44 failed, 11 passed**, covering mapped-field/CLI/nested interpolation, informational labelling,
+stem-specific naming, collision refusal, `--overwrite`, fault injection and concurrency.
+
+### Implemented in this release
+
+| workstream | outcome |
+| --- | --- |
+| A — interpolation | `src/miniverl/bridge/interpolation.py` holds one recursive audit over strings, lists, tuples and mappings. It runs on source fields (classified `exact`/`derived`/`requires_user_confirmation` fail closed, `informational_only` is labelled `unresolved_informational_only` and stays in the report), on explicit CLI choices before any path is reserved, and on the generated recipe plus its rendered bytes before publication. Detection is conservative: any `${` is a finding. Nothing is ever resolved from the environment. `1e-5` still parses; NaN/infinity stay rejected. No new runtime dependency |
+| B — transactional outputs | `src/miniverl/bridge/publish.py` gives every invocation a stem-specific target family, a per-stem `RunLock` reservation, a collision check that runs before anything is modified, staging inside the destination and restore-on-failure. `import-verl` publishes `<stem>.yaml` **or** `<stem>.template.yaml` plus exactly one `<stem>.import-report.json`; `convert-dataset` publishes Parquet, sidecar and report as one family. `--overwrite` is required to replace; `--out` alone never implies it |
+| C — Alignment Lab visuals | metric coverage became an accessible responsive HTML table with one column-level scope statement, replacing the SVG whose `Sandbox endpoint` / `External safety` headers collided and whose two rightmost columns repeated one value six times. The forest legend moved to its own footer band and every mean/seed value is printed in the left column instead of floating in the plot. The outcome matrix widened its method column, stacked each value above its bar and moved `—  not applicable` to the last column. Both charts gained dedicated 390 px vertical SVGs selected by `<picture>` at `max-width: 900px` |
+| D — visual gate | `scripts/check_docs_visual.py` now measures each figure's real rendered bounding box in the viewport under test and re-renders the SVG at exactly that width. It inspects every visible `<text>` node rather than only `[data-role]` ones, detects header-to-header and header-to-data overlap and label-to-mark occlusion, keeps the viewBox-bounds and legend/plot checks, validates responsive tables and card labels, ignores inactive `<picture>` branches via `currentSrc`, and fails below 11 px at 390 px |
+| E — tokenizer levels | `not_present` → `metadata_only` → `loadable_local_snapshot` → `structural_identity_verified`. A complete snapshot is loaded with `local_files_only=True` and `trust_remote_code=False`; structural digest, vocabulary size and special tokens are compared against the manifest identity when present, and any mismatch fails closed. `--require-tokenizer-load` refuses metadata-only bundles |
+| F — privacy scopes | `portable_metadata_privacy`, `dataset_content_privacy` and `model_weight_privacy` are independent. `not_inspected` is never rendered as `passed`, and the CLI says so. `--scan-dataset-text` adds a bounded heuristic scan that reports category/split/column/row only, caps rows and bytes, records `full` vs `sampled`, and never reads safetensors as text |
+| G — claims | README, Chinese README, PYPI.md, `docs/verl-bridge.md` and the exported bundle README describe a *verified artifact bridge* at miniVERL-defined Level 3 with `launchable: false`, distributed execution not tested and no OPD/PPO parity, and document the new naming, overwrite, tokenizer and privacy contracts |
+
+### Evidence
+
+| gate | result |
+| --- | --- |
+| new regressions | 55 pass (`test_verl_bridge_interpolation.py`, `test_verl_bridge_outputs.py`, `test_verl_bridge_dataset_outputs.py`) after implementation; the same files reported 44 failures before it |
+| doctor levels/privacy | 19 pass in `tests/unit/test_verl_bridge_doctor_levels.py`, including no-network enforcement through the `deny_network` fixture |
+| visual gate regression | the v0.6.1 SVG is preserved verbatim at `tests/fixtures/visual/legacy-metric-coverage-matrix.svg`. The corrected gate rejects it at both widths with `overlapping text: ['"Sandbox endpoint" x "External safety"']`; all four published figures pass with zero overlap, zero occlusion and no text under the floor |
+| browser gate | `checked 28 rendered SVG instances across 4 viewports` at 1440x900, 1024x768, 820x1000 and 390x844 over `/`, `/alignment-lab/alignment-lab-v1/`, `/consumer-runtime/`, `/recoverybench/recoverybench-v1/` and `/verl-bridge/` |
+| manual inspection | the 390 px and 1440 px screenshots were read directly. Two defects the automated gate could not express were found and fixed this way: the coverage caption collapsed to one word per line in card mode, and the outcome-matrix value labels touched their own seed marks and the next column's bar |
+| CPU suite | 1652 passed, 6 deselected, 85.77% branch coverage against an 80% floor |
+| static gates | `ruff check`, `ruff format --check`, `mypy src/miniverl`, `mkdocs build --strict` and the Markdown/link check pass |
+| GPU suite | 5 passed on the local RTX 4080 (driver 596.49, CUDA 13.2); no scientific benchmark was rerun |
+| network suite | 3 passed |
+| packaging | `python -m build` and `twine check` pass. `miniverl-0.6.2.dev0-py3-none-any.whl` SHA-256 `e1cea1c2001dd96e14542d948024b920552473eef05cfbd0ba49bfbf270eabdf`; `miniverl-0.6.2.dev0.tar.gz` SHA-256 `780e96c0d11e53ac5c80dfc72ed331d2952b34ca4f30400fdbe149c3210da900` |
+| clean installs | a clean core venv from the wheel reports `miniverl 0.6.2.dev0` with torch absent and passes `miniverl doctor`; a clean `[bridge]` venv resolves pyarrow 25.0.0 with torch still absent |
+| extracted sdist | installed with `[dev,train]` into a clean venv outside the checkout, resolving `miniverl` from that venv: **1652 passed, 6 deselected**. The torch-free CI selection passes 1303 tests on the same extraction |
+| immutable evidence | all ten frozen result JSON/JSONL files and `docs/generated/verl-bridge-smoke.json` re-hash to their recorded values after every change |
+
+### Integration
+
+| item | state |
+| --- | --- |
+| branch | `v0.6.2-bridge-visual-hardening`, pushed at `1161700c19379f6c1b49fe50d4408d4d96374143` |
+| pull request | draft [#43](https://github.com/DaoyuanLi2816/mini-verl/pull/43) |
+| CI | [`30975138358`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138358) green: core no-torch py3.10/3.11/3.12/3.13, cpu ml (torch), transformers `4.51.*` and `5.*`, training minimum py3.10 and training latest py3.13. `actionlint` runs on the 3.12 core job and passed |
+| build | [`30975138346`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138346) green, including the extracted-sdist reproduction and the sdist-built wheel inventory match |
+| docs | [`30975138352`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138352) green; 20 Linux screenshots uploaded as `docs-visual-screenshots` |
+| pinned verl bridge | [`30975138353`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138353) green |
+| screenshot inspection | the CI Linux screenshots were downloaded and read directly, not only trusted as green. The 390 px Alignment Lab mobile chart and metric-coverage cards render the same as the local Windows capture |
+| release metadata | publication was explicitly authorized, so the version is finalized to `0.6.2`, `CHANGELOG.md` carries a dated `[0.6.2] - 2026-08-05` section with its compare link, `CITATION.cff` records `0.6.2` / `2026-08-05`, `PYPI.md` is regenerated tag-pinned to `blob/v0.6.2`, and `docs/generated/quality.json` records release `0.6.2`, status `validated`, 1652 CPU tests at 85.77% branch coverage, 5 GPU and 3 network |
+| local release build | `python -m build` and `twine check` pass at `0.6.2`. These local artifacts are a sanity check only; the published distributions are built once inside the tag workflow |
+
+### Known limitation carried forward
+
+The 11 px readability floor at 390 px is **not** enforced for four figures that
+predate this release and have no narrow layout: `consumer-runtime-v1-pareto.svg`,
+`cost-quality-pareto.svg`, `fresh-vs-frozen.svg` and `recovery-success.svg`.
+The exemption is an explicit asserted set in `scripts/check_docs_visual.py`, is
+printed on every run, and fails the gate if any other figure joins it.
+Redesigning those v0.3/v0.4 figures is out of scope for this patch.
+
+The committed `docs/generated/verl-bridge-smoke.json` is left byte-identical.
+It was produced before tokenizer verification levels existed, and its bundle
+ships only `tokenizer_config.json` — which the current checker correctly
+classifies as `metadata_only` rather than the `status: ok` the old
+presence-only check recorded.
 
 ## v0.6.1 Visual integrity and bridge correctness release
 

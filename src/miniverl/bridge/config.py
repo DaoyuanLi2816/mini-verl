@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import math
-import uuid
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
@@ -18,9 +17,18 @@ from miniverl.bridge.contract import (
     VERL_TAG,
     validate_target_verl,
 )
+from miniverl.bridge.interpolation import (
+    MARKER,
+    audit_interpolation,
+    reject_interpolation,
+)
+from miniverl.bridge.publish import (
+    DEFAULT_LOCK_TIMEOUT,
+    OutputTransaction,
+    import_output_targets,
+)
 from miniverl.errors import ConfigError
 from miniverl.utils.privacy import portable_payload
-from miniverl.utils.runs import write_json_atomic
 
 __all__ = ["import_verl_config"]
 
@@ -122,6 +130,13 @@ _LOSS_PROFILES: dict[str, dict[str, str]] = {
 }
 _SCHEDULE_MAPPING = "epochs-as-cycles"
 
+# Only informational fields may stay unresolved, and only inside the report.
+_RESOLVED = "resolved"
+_UNRESOLVED_INFORMATIONAL = "unresolved_informational_only"
+_UNRESOLVED_BLOCKING = "unresolved_blocking"
+
+_NON_FINITE = {"nan", "-nan", "inf", "+inf", "-inf", "infinity", "+infinity", "-infinity"}
+
 
 def _digest_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
@@ -156,11 +171,15 @@ def _integer(value: Any, field: str, *, minimum: int = 0) -> int:
 def _positive_number(value: Any, field: str) -> float:
     if isinstance(value, str):
         stripped = value.strip()
-        if "${" in stripped:
+        # Defence in depth: the shared audit already rejected this field.
+        if MARKER in stripped:
             raise ConfigError(
                 f"verl field {field} contains an unresolved interpolation",
                 hint="pass a fully resolved, documented profile before importing",
             )
+        # ``float()`` happily parses "nan"/"inf"; scientific notation must survive.
+        if stripped.lower() in _NON_FINITE:
+            raise ConfigError(f"verl field {field} must be a finite positive number")
         try:
             parsed = float(stripped)
         except ValueError as exc:
@@ -176,35 +195,51 @@ def _positive_number(value: Any, field: str) -> float:
     return parsed
 
 
-def _atomic_yaml(path: Path, payload: dict[str, Any]) -> bytes:
-    rendered = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, width=100).encode(
+def _render_yaml(payload: Mapping[str, Any]) -> bytes:
+    return yaml.safe_dump(dict(payload), sort_keys=False, allow_unicode=True, width=100).encode(
         "utf-8"
     )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    temporary.write_bytes(rendered)
-    temporary.replace(path)
-    return rendered
 
 
 def _source_identity() -> dict[str, str]:
     return {"repository": VERL_REPOSITORY, "tag": VERL_TAG, "commit": VERL_COMMIT}
 
 
-def _classify(flat: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+def _classify(
+    flat: Mapping[str, Any],
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    """Classify every source field and record its interpolation resolution state."""
     classified: dict[str, dict[str, Any]] = {}
+    findings: list[dict[str, Any]] = []
     for path, value in sorted(flat.items()):
         target, classification, reason = _FIELD_RULES.get(
             path,
             (None, "unsupported", "outside the documented resolved-profile subset"),
         )
+        unresolved = audit_interpolation(value, label=path)
+        if unresolved:
+            informational = classification == "informational_only"
+            status = _UNRESOLVED_INFORMATIONAL if informational else _UNRESOLVED_BLOCKING
+            severity = "informational" if informational else "blocking"
+            findings.extend(
+                {
+                    **item,
+                    "field": path,
+                    "classification": classification,
+                    "severity": severity,
+                }
+                for item in unresolved
+            )
+        else:
+            status = _RESOLVED
         classified[path] = {
             "target": target,
             "classification": classification,
             "value": portable_payload(value),
             "reason": reason,
+            "resolution_status": status,
         }
-    return classified
+    return classified, findings
 
 
 def _required_inputs(
@@ -393,6 +428,33 @@ def _generated_recipe(
     return recipe, defaults
 
 
+def _audit_explicit_choices(
+    *,
+    environment: str | None,
+    teacher_model: str | None,
+    teacher_adapter: str | None,
+    loss_profile: str | None,
+    schedule_mapping: str | None,
+) -> None:
+    """Reject unresolved interpolation supplied through explicit CLI arguments."""
+    for option, value in (
+        ("--environment", environment),
+        ("--teacher-model", teacher_model),
+        ("--teacher-adapter", teacher_adapter),
+        ("--loss-profile", loss_profile),
+        ("--schedule-mapping", schedule_mapping),
+    ):
+        if value is not None:
+            reject_interpolation(
+                value,
+                label=option,
+                hint=(
+                    "your shell did not expand this value; pass the literal resolved "
+                    "environment, model, adapter path, objective or mapping"
+                ),
+            )
+
+
 def import_verl_config(
     source: str | Path,
     *,
@@ -404,6 +466,8 @@ def import_verl_config(
     teacher_adapter: str | None = None,
     loss_profile: str | None = None,
     schedule_mapping: str | None = None,
+    overwrite: bool = False,
+    lock_timeout: float = DEFAULT_LOCK_TIMEOUT,
 ) -> dict[str, Any]:
     """Import the resolved profile subset or emit a non-executable template."""
     if profile != BRIDGE_PROFILE:
@@ -411,6 +475,14 @@ def import_verl_config(
             f"unsupported verl bridge profile {profile!r}", hint=f"use --profile {BRIDGE_PROFILE}"
         )
     validate_target_verl(target_verl)
+    # Explicit choices are audited before any path is reserved or created.
+    _audit_explicit_choices(
+        environment=environment,
+        teacher_model=teacher_model,
+        teacher_adapter=teacher_adapter,
+        loss_profile=loss_profile,
+        schedule_mapping=schedule_mapping,
+    )
     source_path = Path(source)
     try:
         source_bytes = source_path.read_bytes()
@@ -421,15 +493,19 @@ def import_verl_config(
         raise ConfigError("verl config must contain one YAML mapping")
 
     flat = _flatten(payload)
-    classification = _classify(flat)
+    classification, findings = _classify(flat)
+    blocking = [item for item in findings if item["severity"] == "blocking"]
+    informational = [item for item in findings if item["severity"] == "informational"]
     unsupported = sorted(
         path
         for path, decision in classification.items()
         if decision["classification"] == "unsupported"
     )
-    report_path = Path(out).parent / "import-report.json"
+
+    targets = import_output_targets(out)
+    destination = targets["recipe"]
     common: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "source_verl": _source_identity(),
         "profile": BRIDGE_PROFILE,
         "input_contract": "resolved documented profile subset; not arbitrary verl YAML",
@@ -437,107 +513,156 @@ def import_verl_config(
         "field_classification": classification,
         "unsupported_fields": unsupported,
         "semantic_conflicts": [],
+        "report_path": targets["report"].name,
+        "interpolation_audit": {
+            "blocking": blocking,
+            "informational": informational,
+            "policy": (
+                "miniVERL never resolves ${...}; informational values may stay "
+                "unresolved inside this report and never enter executable output"
+            ),
+            "runnable_output_clean": None,
+        },
     }
-    if unsupported:
-        rejection_report = {
+
+    transaction = OutputTransaction(
+        targets=targets,
+        stem=destination.stem,
+        lock_root=destination.parent,
+        overwrite=overwrite,
+        lock_timeout=lock_timeout,
+    )
+    transaction.begin()
+    try:
+        rejection = _rejection_reason(blocking, unsupported)
+        if rejection is not None:
+            transaction.write_json("report", {**common, **_REJECTED_FIELDS})
+            transaction.discard("recipe")
+            transaction.discard("template")
+            transaction.commit()
+            raise rejection
+
+        student_model = _get(payload, "actor_rollout_ref.model.path")
+        if not isinstance(student_model, str) or not student_model.strip():
+            raise ConfigError("verl field actor_rollout_ref.model.path is required")
+        required = _required_inputs(
+            student_model=student_model,
+            environment=environment,
+            teacher_model=teacher_model,
+            teacher_adapter=teacher_adapter,
+            loss_profile=loss_profile,
+            schedule_mapping=schedule_mapping,
+        )
+        if required:
+            template = _template(payload, required)
+            rendered = _render_yaml(template)
+            report = {
+                **common,
+                "inserted_defaults": [],
+                "required_user_input": required,
+                "user_confirmations": {},
+                "generated_miniverl_sha256": _digest_bytes(rendered),
+                "generated_recipe_validated": False,
+                "generated_path": targets["template"].name,
+                "status": "needs_user_input",
+                "claim": "No runnable miniVERL recipe was generated.",
+            }
+            transaction.write_bytes("template", rendered)
+            transaction.write_json("report", report)
+            transaction.discard("recipe")
+            transaction.commit()
+            return report
+
+        assert environment is not None
+        assert loss_profile is not None
+        assert schedule_mapping is not None
+        recipe, inserted_defaults = _generated_recipe(
+            payload,
+            environment=environment,
+            teacher_model=teacher_model,
+            teacher_adapter=teacher_adapter,
+            loss_profile=loss_profile,
+            schedule_mapping=schedule_mapping,
+        )
+        try:
+            from miniverl.config import RunConfig
+
+            RunConfig.from_mapping(recipe)
+        except Exception as exc:
+            raise ConfigError(
+                f"generated miniVERL recipe failed RunConfig validation: {exc}",
+                hint="check the explicit environment, teacher and loss-profile arguments",
+            ) from exc
+        # Final gate: whatever the field rules did, the runnable artifact itself
+        # must not carry a single interpolation token.
+        reject_interpolation(
+            recipe,
+            label="generated miniVERL recipe",
+            hint="report this as a bridge defect; no unresolved value may reach a recipe",
+        )
+        rendered = _render_yaml(recipe)
+        if MARKER.encode("utf-8") in rendered:  # pragma: no cover - belt and braces
+            raise ConfigError("rendered miniVERL recipe still contains an interpolation token")
+        report = {
             **common,
-            "inserted_defaults": [],
+            "inserted_defaults": inserted_defaults,
             "required_user_input": [],
-            "generated_miniverl_sha256": None,
-            "generated_recipe_validated": False,
-            "generated_path": None,
-            "status": "rejected",
+            "user_confirmations": {
+                "environment": environment,
+                "teacher_model": teacher_model,
+                "teacher_adapter": teacher_adapter,
+                "loss_profile": loss_profile,
+                "schedule_mapping": schedule_mapping,
+            },
+            "generated_miniverl_sha256": _digest_bytes(rendered),
+            "generated_recipe_validated": True,
+            "generated_path": destination.name,
+            "status": "accepted",
+            "claim": "Imports only the resolved documented profile subset for pinned verl v0.8.0.",
         }
-        write_json_atomic(report_path, rejection_report)
-        raise ConfigError(
+        report["interpolation_audit"] = {**common["interpolation_audit"]}
+        report["interpolation_audit"]["runnable_output_clean"] = True
+        transaction.write_bytes("recipe", rendered)
+        transaction.write_json("report", report)
+        transaction.discard("template")
+        transaction.commit()
+        return report
+    finally:
+        transaction.close()
+
+
+_REJECTED_FIELDS: dict[str, Any] = {
+    "inserted_defaults": [],
+    "required_user_input": [],
+    "user_confirmations": {},
+    "generated_miniverl_sha256": None,
+    "generated_recipe_validated": False,
+    "generated_path": None,
+    "status": "rejected",
+    "claim": "No runnable miniVERL recipe was generated.",
+}
+
+
+def _rejection_reason(blocking: list[dict[str, Any]], unsupported: list[str]) -> ConfigError | None:
+    """Return the fail-closed reason, preferring the more actionable one."""
+    if blocking:
+        detail = "; ".join(f"{item['location']} = {item['token']}" for item in blocking[:5])
+        if len(blocking) > 5:
+            detail += f"; and {len(blocking) - 5} more"
+        return ConfigError(
+            f"verl source contains unresolved interpolation in {len(blocking)} "
+            f"mapped field(s): {detail}",
+            hint=(
+                "resolve these values explicitly before importing; miniVERL never "
+                "expands environment variables or Hydra references on your behalf"
+            ),
+        )
+    if unsupported:
+        return ConfigError(
             f"unsupported verl field {unsupported[0]!r} for profile {BRIDGE_PROFILE}",
             hint=(
                 "remove algorithm, distributed, rollout-runtime or unknown fields; "
                 "inspect the documented resolved-profile whitelist"
             ),
         )
-
-    student_model = _get(payload, "actor_rollout_ref.model.path")
-    if not isinstance(student_model, str) or not student_model.strip():
-        raise ConfigError("verl field actor_rollout_ref.model.path is required")
-    required = _required_inputs(
-        student_model=student_model,
-        environment=environment,
-        teacher_model=teacher_model,
-        teacher_adapter=teacher_adapter,
-        loss_profile=loss_profile,
-        schedule_mapping=schedule_mapping,
-    )
-    destination = Path(out)
-    if required:
-        template_path = destination.parent / "imported.template.yaml"
-        template = _template(payload, required)
-        rendered = yaml.safe_dump(template, sort_keys=False, allow_unicode=True, width=100).encode(
-            "utf-8"
-        )
-        report = {
-            **common,
-            "inserted_defaults": [],
-            "required_user_input": required,
-            "user_confirmations": {},
-            "generated_miniverl_sha256": _digest_bytes(rendered),
-            "generated_recipe_validated": False,
-            "generated_path": template_path.name,
-            "status": "needs_user_input",
-            "claim": "No runnable miniVERL recipe was generated.",
-        }
-        _atomic_yaml(template_path, template)
-        try:
-            write_json_atomic(report_path, report)
-        except BaseException:
-            template_path.unlink(missing_ok=True)
-            raise
-        return report
-
-    assert environment is not None
-    assert loss_profile is not None
-    assert schedule_mapping is not None
-    recipe, inserted_defaults = _generated_recipe(
-        payload,
-        environment=environment,
-        teacher_model=teacher_model,
-        teacher_adapter=teacher_adapter,
-        loss_profile=loss_profile,
-        schedule_mapping=schedule_mapping,
-    )
-    try:
-        from miniverl.config import RunConfig
-
-        RunConfig.from_mapping(recipe)
-    except Exception as exc:
-        raise ConfigError(
-            f"generated miniVERL recipe failed RunConfig validation: {exc}",
-            hint="check the explicit environment, teacher and loss-profile arguments",
-        ) from exc
-    rendered = yaml.safe_dump(recipe, sort_keys=False, allow_unicode=True, width=100).encode(
-        "utf-8"
-    )
-    report = {
-        **common,
-        "inserted_defaults": inserted_defaults,
-        "required_user_input": [],
-        "user_confirmations": {
-            "environment": environment,
-            "teacher_model": teacher_model,
-            "teacher_adapter": teacher_adapter,
-            "loss_profile": loss_profile,
-            "schedule_mapping": schedule_mapping,
-        },
-        "generated_miniverl_sha256": _digest_bytes(rendered),
-        "generated_recipe_validated": True,
-        "generated_path": destination.name,
-        "status": "accepted",
-        "claim": "Imports only the resolved documented profile subset for pinned verl v0.8.0.",
-    }
-    _atomic_yaml(destination, recipe)
-    try:
-        write_json_atomic(report_path, report)
-    except BaseException:
-        destination.unlink(missing_ok=True)
-        raise
-    return report
+    return None

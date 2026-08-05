@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import statistics
 from pathlib import Path
 from typing import Any
@@ -571,30 +572,60 @@ def _load_result(path: Path) -> dict[str, Any]:
     return payload
 
 
+#: Desktop canvas. The inner card runs from x=20 to x=1100.
+DESKTOP_WIDTH = 1120
+#: Bar length inside one 148 px outcome-matrix column.
+MATRIX_BAR_WIDTH = 96.0
+#: Mobile canvas, matching the existing vertical bridge diagram. At a 390 px
+#: viewport the content column is ~364 px, so this renders at scale ~0.93 and a
+#: 14 px declared size stays above the 11 px readability floor.
+MOBILE_WIDTH = 390
+
+_DESKTOP_STYLE = (
+    "text{font-family:'DejaVu Sans','Segoe UI',sans-serif;fill:#edf4ff}"
+    ".title{font-size:31px;font-weight:760}.sub{font-size:17px;fill:#aebbd2}"
+    ".axis{font-size:17px;fill:#aebbd2}.label{font-size:17px;font-weight:650}"
+    ".value{font-size:17px;font-weight:760}.small{font-size:16px;fill:#b9c5d8}"
+    ".header{font-size:16px;font-weight:700;fill:#dce7f8}"
+)
+# Every mobile class stays at or above 14 px so the rendered size clears 11 px.
+_MOBILE_STYLE = (
+    "text{font-family:'DejaVu Sans','Segoe UI',sans-serif;fill:#edf4ff}"
+    ".title{font-size:19px;font-weight:760}.sub{font-size:14px;fill:#aebbd2}"
+    ".axis{font-size:14px;fill:#aebbd2}.label{font-size:16px;font-weight:700}"
+    ".value{font-size:15px;font-weight:760}.small{font-size:14px;fill:#c3cfe2}"
+    ".header{font-size:14px;font-weight:700;fill:#dce7f8}"
+)
+
+
 def _svg_shell(
-    title: str, description: str, subtitle: str, body: list[str], *, height: int = 720
+    title: str,
+    description: str,
+    subtitle: str,
+    body: list[str],
+    *,
+    height: int = 720,
+    width: int = DESKTOP_WIDTH,
+    mobile: bool = False,
 ) -> str:
     if len(title) > 48:
         raise ValueError("SVG title must remain portable across deterministic fallback fonts")
-    style = (
-        "text{font-family:'DejaVu Sans','Segoe UI',sans-serif;fill:#edf4ff}"
-        ".title{font-size:31px;font-weight:760}.sub{font-size:17px;fill:#aebbd2}"
-        ".axis{font-size:17px;fill:#aebbd2}.label{font-size:18px;font-weight:650}"
-        ".value{font-size:17px;font-weight:760}.small{font-size:16px;fill:#b9c5d8}"
-        ".header{font-size:17px;font-weight:700;fill:#dce7f8}"
-    )
+    style = _MOBILE_STYLE if mobile else _DESKTOP_STYLE
+    radius, inset = (16, 12) if mobile else (24, 20)
+    title_x = 16 if mobile else 48
+    title_y, subtitle_y = (34, 56) if mobile else (66, 98)
     return "".join(
         [
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="{height}" '
-            f'viewBox="0 0 1120 {height}" role="img" aria-labelledby="title desc">',
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+            f'viewBox="0 0 {width} {height}" role="img" aria-labelledby="title desc">',
             f'<title id="title">{escape(title)}</title>',
             f'<desc id="desc">{escape(description)}</desc>',
-            f'<rect width="1120" height="{height}" rx="24" fill="#060a14"/>',
-            f'<rect x="20" y="20" width="1080" height="{height - 40}" rx="20" '
-            'fill="#0a1222" stroke="#20304f"/>',
+            f'<rect width="{width}" height="{height}" rx="{radius}" fill="#060a14"/>',
+            f'<rect x="{inset}" y="{inset}" width="{width - 2 * inset}" '
+            f'height="{height - 2 * inset}" rx="{radius - 4}" fill="#0a1222" stroke="#20304f"/>',
             f"<style>{style}</style>",
-            f'<text class="title" x="48" y="66">{escape(title)}</text>',
-            f'<text class="sub" x="48" y="98">{escape(subtitle)}</text>',
+            f'<text class="title" x="{title_x}" y="{title_y}">{escape(title)}</text>',
+            f'<text class="sub" x="{title_x}" y="{subtitle_y}">{escape(subtitle)}</text>',
             *body,
             "</svg>\n",
         ]
@@ -640,57 +671,65 @@ def _pp(value: float) -> str:
     return "0.0" if math.isclose(value, 0.0, abs_tol=5e-5) else f"{value:+.1f}"
 
 
+def _deltas(payload: dict[str, Any], method: str) -> tuple[list[float], list[float]]:
+    """Alignment and retained-utility deltas, in percentage points, per seed."""
+    baseline = {int(arm["seed"]): arm for arm in _method_arms(payload, "sft_checkpoint")}
+    arms = _method_arms(payload, method)
+    alignment = [
+        100
+        * (
+            float(arm["metrics"]["alignment_score"])
+            - float(baseline[int(arm["seed"])]["metrics"]["alignment_score"])
+        )
+        for arm in arms
+    ]
+    utility = [
+        100
+        * (
+            float(arm["metrics"]["tool_utility_retention"])
+            - float(baseline[int(arm["seed"])]["metrics"]["tool_utility_retention"])
+        )
+        for arm in arms
+    ]
+    return alignment, utility
+
+
 def _delta_from_sft(payload: dict[str, Any]) -> str:
+    # The legend lives in its own footer band. Sharing the header row with the
+    # axis title is what crowded the v0.6.1 layout.
     body: list[str] = [
         '<text class="header" x="48" y="135">Continuation method</text>',
-        '<text class="header" x="370" y="135">delta from the same-seed SFT checkpoint (percentage points)</text>',
-        '<circle cx="904" cy="130" r="7" fill="#edf4ff"/>',
-        '<text class="small" x="918" y="136">alignment mean</text>',
-        '<rect x="1020" y="123" width="14" height="14" fill="#edf4ff"/>',
-        '<text class="small" x="1040" y="136">utility</text>',
+        '<text class="header" data-role="axis-title" x="370" y="135">delta from the same-seed SFT checkpoint (percentage points)</text>',
     ]
     left, right = 370.0, 1040.0
     low, high = -40.0, 5.0
+    zero_x = _scale(0.0, low=low, high=high, start=left, end=right)
     for tick in (-40, -30, -20, -10, 0, 5):
         x = _scale(float(tick), low=low, high=high, start=left, end=right)
         stroke = "#f4f7fb" if tick == 0 else "#233553"
         width = 2.5 if tick == 0 else 1
         body.extend(
             [
-                f'<line x1="{x:.1f}" y1="151" x2="{x:.1f}" y2="625" stroke="{stroke}" stroke-width="{width}" data-axis-domain="-40,5"/>',
-                f'<text class="axis" x="{x:.1f}" y="656" text-anchor="middle">{tick:+d}</text>',
+                f'<line x1="{x:.1f}" y1="160" x2="{x:.1f}" y2="612" stroke="{stroke}" stroke-width="{width}" data-axis-domain="-40,5"/>',
+                f'<text class="axis" x="{x:.1f}" y="640" text-anchor="middle">{tick:+d}</text>',
             ]
         )
     body.append(
-        f'<text class="small" x="{_scale(0, low=low, high=high, start=left, end=right) + 8:.1f}" y="174">zero baseline</text>'
+        f'<text class="small" data-role="chart-label" x="{zero_x - 10:.1f}" y="180" text-anchor="end">zero baseline = same-seed SFT</text>'
     )
-    baseline = {int(arm["seed"]): arm for arm in _method_arms(payload, "sft_checkpoint")}
     for index, method in enumerate(METHODS[1:]):
-        y = 210 + index * 86
+        y = 232 + index * 84
         arms = _method_arms(payload, method)
-        alignment = [
-            100
-            * (
-                float(arm["metrics"]["alignment_score"])
-                - float(baseline[int(arm["seed"])]["metrics"]["alignment_score"])
-            )
-            for arm in arms
-        ]
-        utility = [
-            100
-            * (
-                float(arm["metrics"]["tool_utility_retention"])
-                - float(baseline[int(arm["seed"])]["metrics"]["tool_utility_retention"])
-            )
-            for arm in arms
-        ]
+        alignment, utility = _deltas(payload, method)
         align_mean = statistics.fmean(alignment)
         utility_mean = statistics.fmean(utility)
+        # Means and every seed are printed in the left column, so no value label
+        # floats inside the plot where it could occlude a mark.
         body.extend(
             [
-                f'<text class="label" data-role="chart-label" x="48" y="{y - 14}">{escape(LABELS[method])}</text>',
-                f'<text class="small" data-role="chart-label" x="48" y="{y + 11}">A seeds: {" / ".join(_pp(v) for v in alignment)}</text>',
-                f'<text class="small" data-role="chart-label" x="48" y="{y + 34}">U seeds: {" / ".join(_pp(v) for v in utility)}</text>',
+                f'<text class="label" data-role="chart-label" x="48" y="{y - 18}">{escape(LABELS[method])}</text>',
+                f'<text class="small" data-role="chart-label" x="48" y="{y + 6}">A {_pp(align_mean)}  ({" / ".join(_pp(v) for v in alignment)})</text>',
+                f'<text class="small" data-role="chart-label" x="48" y="{y + 28}">U {_pp(utility_mean)}  ({" / ".join(_pp(v) for v in utility)})</text>',
                 f'<line x1="{left}" y1="{y}" x2="{right}" y2="{y}" stroke="#182a46"/>',
             ]
         )
@@ -698,7 +737,7 @@ def _delta_from_sft(payload: dict[str, Any]) -> str:
             body.append(
                 _seed_mark(
                     x=_scale(value, low=low, high=high, start=left, end=right),
-                    y=y - 11,
+                    y=y - 12,
                     method=method,
                     seed=int(arm["seed"]),
                     value=value,
@@ -708,7 +747,7 @@ def _delta_from_sft(payload: dict[str, Any]) -> str:
             body.append(
                 _seed_mark(
                     x=_scale(value, low=low, high=high, start=left, end=right),
-                    y=y + 11,
+                    y=y + 12,
                     method=method,
                     seed=int(arm["seed"]),
                     value=value,
@@ -718,14 +757,18 @@ def _delta_from_sft(payload: dict[str, Any]) -> str:
         ux = _scale(utility_mean, low=low, high=high, start=left, end=right)
         body.extend(
             [
-                f'<circle cx="{ax:.1f}" cy="{y - 11}" r="8" fill="none" stroke="{COLORS[method]}" stroke-width="3" data-value="{align_mean:.10g}"/>',
-                f'<rect x="{ux - 8:.1f}" y="{y + 3:.1f}" width="16" height="16" fill="none" stroke="{COLORS[method]}" stroke-width="3" data-value="{utility_mean:.10g}"/>',
-                f'<text class="value" data-role="chart-label" x="{max(left + 8, min(ax - 12, right - 75)):.1f}" y="{y - 27}" text-anchor="end">A {_pp(align_mean)}</text>',
-                f'<text class="value" data-role="chart-label" x="{max(left + 8, min(ux - 12, right - 75)):.1f}" y="{y + 29}" text-anchor="end">U {_pp(utility_mean)}</text>',
+                f'<circle cx="{ax:.1f}" cy="{y - 12}" r="8" fill="none" stroke="{COLORS[method]}" stroke-width="3" data-value="{align_mean:.10g}"/>',
+                f'<rect x="{ux - 8:.1f}" y="{y + 4:.1f}" width="16" height="16" fill="none" stroke="{COLORS[method]}" stroke-width="3" data-value="{utility_mean:.10g}"/>',
             ]
         )
-    body.append(
-        '<text class="small" x="48" y="688">Seed shapes: ● 1234 · ◆ 20260727 · × 20260801. A = alignment; U = retained tool utility.</text>'
+    body.extend(
+        [
+            '<circle cx="55" cy="682" r="7" fill="none" stroke="#edf4ff" stroke-width="3"/>',
+            '<text class="small" data-role="legend-label" x="72" y="688">A = alignment mean</text>',
+            '<rect x="266" y="675" width="14" height="14" fill="none" stroke="#edf4ff" stroke-width="3"/>',
+            '<text class="small" data-role="legend-label" x="290" y="688">U = retained tool utility mean</text>',
+            '<text class="small" data-role="legend-label" x="48" y="716">Seed shapes: ● 1234 · ◆ 20260727 · × 20260801. Every seed is drawn at its exact value.</text>',
+        ]
     )
     return _svg_shell(
         "No continuation improved saturated SFT",
@@ -735,6 +778,83 @@ def _delta_from_sft(payload: dict[str, Any]) -> str:
         ),
         "48 paired sandbox tasks per seed · mean marks plus all three measured seeds · zero = starting SFT",
         body,
+        height=760,
+    )
+
+
+def _delta_from_sft_mobile(payload: dict[str, Any]) -> str:
+    """Vertical layout for narrow viewports; not a scaled-down desktop canvas."""
+    body: list[str] = []
+    left, right = 20.0, 370.0
+    low, high = -40.0, 5.0
+    zero_x = _scale(0.0, low=low, high=high, start=left, end=right)
+    top = 76
+    body.append(
+        f'<text class="header" data-role="axis-title" x="16" y="{top}">delta from same-seed SFT (pp)</text>'
+    )
+    for tick in (-40, -20, 0):
+        x = _scale(float(tick), low=low, high=high, start=left, end=right)
+        body.append(
+            f'<text class="axis" x="{x:.1f}" y="{top + 20}" text-anchor="middle">{tick:+d}</text>'
+        )
+    for index, method in enumerate(METHODS[1:]):
+        block = top + 46 + index * 122
+        arms = _method_arms(payload, method)
+        alignment, utility = _deltas(payload, method)
+        align_mean = statistics.fmean(alignment)
+        utility_mean = statistics.fmean(utility)
+        body.append(
+            f'<rect x="12" y="{block - 4}" width="366" height="112" rx="10" '
+            f'fill="{("#0d192d" if index % 2 == 0 else "#0a1426")}"/>'
+        )
+        body.append(
+            f'<rect x="20" y="{block + 6}" width="10" height="16" rx="3" fill="{COLORS[method]}"/>'
+        )
+        body.append(
+            f'<text class="label" data-role="chart-label" x="38" y="{block + 20}">{escape(LABELS[method])}</text>'
+        )
+        for row, (values, mean, prefix) in enumerate(
+            ((alignment, align_mean, "A"), (utility, utility_mean, "U"))
+        ):
+            axis_y = block + 44 + row * 34
+            body.append(
+                f'<line x1="{left}" y1="{axis_y}" x2="{right}" y2="{axis_y}" stroke="#182a46"/>'
+            )
+            body.append(
+                f'<line x1="{zero_x:.1f}" y1="{axis_y - 8}" x2="{zero_x:.1f}" y2="{axis_y + 8}" stroke="#f4f7fb" stroke-width="2" data-axis-domain="-40,5"/>'
+            )
+            for arm, value in zip(arms, values, strict=True):
+                body.append(
+                    _seed_mark(
+                        x=_scale(value, low=low, high=high, start=left, end=right),
+                        y=axis_y,
+                        method=method,
+                        seed=int(arm["seed"]),
+                        value=value,
+                    )
+                )
+            body.append(
+                f'<text class="small" data-role="chart-label" x="20" y="{axis_y + 24}">'
+                f"{prefix} {_pp(mean)}  ({' / '.join(_pp(v) for v in values)})</text>"
+            )
+    footer = top + 46 + 5 * 122 + 12
+    body.extend(
+        [
+            f'<text class="small" data-role="legend-label" x="16" y="{footer}">A = alignment · U = retained tool utility</text>',
+            f'<text class="small" data-role="legend-label" x="16" y="{footer + 22}">Seeds ● 1234 · ◆ 20260727 · × 20260801</text>',
+        ]
+    )
+    return _svg_shell(
+        "No continuation improved SFT",
+        (
+            "Vertical mobile forest chart of alignment-score and retained-tool-utility "
+            "percentage-point deltas for five continuation methods, with every seed printed."
+        ),
+        "48 paired tasks · 3 seeds · zero = starting SFT",
+        body,
+        height=footer + 40,
+        width=MOBILE_WIDTH,
+        mobile=True,
     )
 
 
@@ -750,43 +870,48 @@ def _matrix_cell(
     formatter: Any,
     main: float | None = None,
 ) -> list[str]:
-    bar_width = 84.0
+    # The value is printed *above* its bar rather than beside it. Side-by-side
+    # placement inside a 148 px column left the value touching either its own
+    # seed mark or the next column's bar, depending on which way it was nudged.
+    bar_width = MATRIX_BAR_WIDTH
     main_value = mean if main is None else main
     main_x = _scale(main_value, low=0.0, high=domain_high, start=x, end=x + bar_width)
     body = [
-        f'<rect x="{x:.1f}" y="{y - 9:.1f}" width="{bar_width}" height="18" rx="4" fill="#132541"/>',
-        f'<rect x="{x:.1f}" y="{y - 9:.1f}" width="{max(0.0, main_x - x):.1f}" height="18" rx="4" fill="{COLORS[method]}" opacity="0.72" data-value="{main_value:.10g}" data-axis-domain="0,{domain_high:.10g}"/>',
+        f'<text class="value" data-role="chart-label" x="{x:.1f}" y="{y - 10:.1f}">{escape(formatter(main_value))}</text>',
+        f'<rect x="{x:.1f}" y="{y + 2:.1f}" width="{bar_width}" height="18" rx="4" fill="#132541"/>',
+        f'<rect x="{x:.1f}" y="{y + 2:.1f}" width="{max(0.0, main_x - x):.1f}" height="18" rx="4" fill="{COLORS[method]}" opacity="0.72" data-value="{main_value:.10g}" data-axis-domain="0,{domain_high:.10g}"/>',
     ]
     for arm, value in zip(_method_arms(payload, method), values, strict=True):
         body.append(
             _seed_mark(
                 x=_scale(value, low=0.0, high=domain_high, start=x, end=x + bar_width),
-                y=y,
+                y=y + 11,
                 method=method,
                 seed=int(arm["seed"]),
                 value=value,
             )
         )
-    body.append(
-        f'<text class="value" data-role="chart-label" x="{x + 145:.1f}" y="{y + 6:.1f}" text-anchor="end">{escape(formatter(main_value))}</text>'
-    )
     return body
 
 
 def _outcome_cost_matrix(payload: dict[str, Any]) -> str:
-    columns = (250.0, 415.0, 580.0, 745.0, 910.0)
+    # The method column owns x=48..320. At v0.6.1 widths the longest label,
+    # "offline soft distillation", ran into the first metric column at x=250.
+    # Teacher query is last so its "—  not applicable" string has room to sit in
+    # the value slot without reaching the following column.
+    columns = (330.0, 478.0, 626.0, 774.0, 922.0)
     body: list[str] = [
         '<text class="header" x="48" y="142">Method</text>',
-        '<text class="header" x="250" y="132">Alignment</text>',
-        '<text class="small" x="250" y="154">0–100%</text>',
-        '<text class="header" x="415" y="132">Tool utility</text>',
-        '<text class="small" x="415" y="154">0–100%</text>',
-        '<text class="header" x="580" y="132">Teacher query</text>',
-        '<text class="small" x="580" y="154">0–100%</text>',
-        '<text class="header" x="745" y="132">GPU time</text>',
-        '<text class="small" x="745" y="154">0–100 seconds</text>',
-        '<text class="header" x="910" y="132">Peak VRAM</text>',
-        '<text class="small" x="910" y="154">0–2 GiB</text>',
+        '<text class="header" x="330" y="132">Alignment</text>',
+        '<text class="small" x="330" y="154">0–100%</text>',
+        '<text class="header" x="478" y="132">Tool utility</text>',
+        '<text class="small" x="478" y="154">0–100%</text>',
+        '<text class="header" x="626" y="132">GPU time</text>',
+        '<text class="small" x="626" y="154">0–100 s</text>',
+        '<text class="header" x="774" y="132">Peak VRAM</text>',
+        '<text class="small" x="774" y="154">0–2 GiB</text>',
+        '<text class="header" x="922" y="132">Teacher query</text>',
+        '<text class="small" x="922" y="154">0–100%</text>',
     ]
     summary = {row["method"]: row for row in payload["method_summary"]}
     for index, method in enumerate(METHODS):
@@ -828,31 +953,10 @@ def _outcome_cost_matrix(payload: dict[str, Any]) -> str:
                 formatter=lambda value: f"{value:.1f}%",
             )
         )
-        query_values = [arm["metrics"]["teacher_query_ratio"] for arm in arms]
-        if all(value is None for value in query_values):
-            body.append(
-                f'<text class="small" data-role="chart-label" data-applicable="false" x="{columns[2]}" y="{y + 6}">—  not applicable</text>'
-            )
-        elif any(value is None for value in query_values):
-            raise ValueError(f"method {method} mixes applicable and non-applicable query ratios")
-        else:
-            query_percent = [100 * float(value) for value in query_values]
-            body.extend(
-                _matrix_cell(
-                    payload=payload,
-                    x=columns[2],
-                    y=y,
-                    values=query_percent,
-                    mean=statistics.fmean(query_percent),
-                    domain_high=100,
-                    method=method,
-                    formatter=lambda value: f"{value:.1f}%",
-                )
-            )
         body.extend(
             _matrix_cell(
                 payload=payload,
-                x=columns[3],
+                x=columns[2],
                 y=y,
                 values=time_values,
                 mean=float(row["gpu_seconds_mean"]),
@@ -864,7 +968,7 @@ def _outcome_cost_matrix(payload: dict[str, Any]) -> str:
         body.extend(
             _matrix_cell(
                 payload=payload,
-                x=columns[4],
+                x=columns[3],
                 y=y,
                 values=vram_values,
                 mean=statistics.fmean(vram_values),
@@ -874,10 +978,31 @@ def _outcome_cost_matrix(payload: dict[str, Any]) -> str:
                 formatter=lambda value: f"{value:.2f} GiB",
             )
         )
+        query_values = [arm["metrics"]["teacher_query_ratio"] for arm in arms]
+        if all(value is None for value in query_values):
+            body.append(
+                f'<text class="small" data-role="chart-label" data-applicable="false" x="{columns[4]}" y="{y - 10}">—  not applicable</text>'
+            )
+        elif any(value is None for value in query_values):
+            raise ValueError(f"method {method} mixes applicable and non-applicable query ratios")
+        else:
+            query_percent = [100 * float(value) for value in query_values]
+            body.extend(
+                _matrix_cell(
+                    payload=payload,
+                    x=columns[4],
+                    y=y,
+                    values=query_percent,
+                    mean=statistics.fmean(query_percent),
+                    domain_high=100,
+                    method=method,
+                    formatter=lambda value: f"{value:.1f}%",
+                )
+            )
     body.extend(
         [
-            '<text class="small" x="48" y="684">Bars show the three-seed mean except VRAM, whose main bar is the observed maximum; seed shapes show every run.</text>',
-            '<text class="small" x="48" y="707">Query ratio is selected target positions, not teacher FLOPs. DPO time includes its pinned TRL job.</text>',
+            '<text class="small" data-role="legend-label" x="48" y="684">Bars show the three-seed mean except VRAM, whose main bar is the observed maximum; seed shapes show every run.</text>',
+            '<text class="small" data-role="legend-label" x="48" y="707">Query ratio is selected target positions, not teacher FLOPs. DPO time includes its pinned TRL job.</text>',
         ]
     )
     return _svg_shell(
@@ -892,93 +1017,220 @@ def _outcome_cost_matrix(payload: dict[str, Any]) -> str:
     )
 
 
-def _metric_coverage_matrix(payload: dict[str, Any]) -> str:
+_MOBILE_METRICS = (
+    ("Alignment", "0–100%", 100.0, "{:.1f}%"),
+    ("Tool utility", "0–100%", 100.0, "{:.1f}%"),
+    ("GPU time", "0–100 s", 100.0, "{:.1f}s"),
+    ("Peak VRAM", "0–2 GiB", 2.0, "{:.2f} GiB"),
+    ("Teacher query", "0–100%", 100.0, "{:.1f}%"),
+)
+
+
+def _outcome_cost_matrix_mobile(payload: dict[str, Any]) -> str:
+    """One stacked card per method; every value is printed, never only encoded."""
     summary = {row["method"]: row for row in payload["method_summary"]}
-    baseline = {int(arm["seed"]): arm for arm in _method_arms(payload, "sft_checkpoint")}
-    body: list[str] = [
-        '<text class="header" x="48" y="144">Method</text>',
-        '<text class="header" x="300" y="132">Harmful compliance</text>',
-        '<text class="small" x="300" y="154">seed values</text>',
-        '<text class="header" x="510" y="132">Over-refusal</text>',
-        '<text class="small" x="510" y="154">seed values</text>',
-        '<text class="header" x="665" y="132">Tool utility Δ</text>',
-        '<text class="small" x="665" y="154">mean · seeds (pp)</text>',
-        '<text class="header" x="850" y="132">Sandbox endpoint</text>',
-        '<text class="small" x="850" y="154">measured?</text>',
-        '<text class="header" x="1080" y="132" text-anchor="end">External safety</text>',
-        '<text class="small" x="1080" y="154" text-anchor="end">executed?</text>',
-    ]
+    body: list[str] = []
+    block_height = 26 + len(_MOBILE_METRICS) * 26 + 10
     for index, method in enumerate(METHODS):
-        y = 196 + index * 67
+        block = 78 + index * (block_height + 10)
         arms = _method_arms(payload, method)
-        harmful = [100 * float(arm["metrics"]["harmful_compliance_rate"]) for arm in arms]
-        refusal = [100 * float(arm["metrics"]["over_refusal_rate"]) for arm in arms]
-        utility_delta = [
-            100
-            * (
-                float(arm["metrics"]["tool_utility_retention"])
-                - float(baseline[int(arm["seed"])]["metrics"]["tool_utility_retention"])
-            )
-            for arm in arms
+        row = summary[method]
+        query_values = [arm["metrics"]["teacher_query_ratio"] for arm in arms]
+        applicable = not all(value is None for value in query_values)
+        if applicable and any(value is None for value in query_values):
+            raise ValueError(f"method {method} mixes applicable and non-applicable query ratios")
+        measured: list[float | None] = [
+            statistics.fmean(100 * float(arm["metrics"]["alignment_score"]) for arm in arms),
+            statistics.fmean(100 * float(arm["metrics"]["tool_utility_retention"]) for arm in arms),
+            float(row["gpu_seconds_mean"]),
+            float(row["peak_vram_bytes_max"]) / 2**30,
+            statistics.fmean(100 * float(value) for value in query_values) if applicable else None,
         ]
         body.extend(
             [
-                f'<rect x="36" y="{y - 27}" width="1048" height="54" rx="9" fill="{("#0d192d" if index % 2 == 0 else "#0a1426")}"/>',
-                f'<rect x="48" y="{y - 9}" width="12" height="18" rx="3" fill="{COLORS[method]}"/>',
-                f'<text class="label" data-role="chart-label" x="70" y="{y + 6}">{escape(LABELS[method])}</text>',
-                f'<text class="small" data-role="chart-label" data-encoding="seed-point" x="300" y="{y + 6}">{" · ".join(f"{v:.0f}%" for v in harmful)}</text>',
-                f'<text class="small" data-role="chart-label" data-encoding="seed-point" x="510" y="{y + 6}">{" · ".join(f"{v:.0f}%" for v in refusal)}</text>',
-                f'<text class="value" data-role="chart-label" x="665" y="{y + 6}">{_pp(100 * (float(summary[method]["tool_utility_retention_mean"]) - 1.0))}</text>',
-                f'<text class="small" data-role="chart-label" data-encoding="seed-point" x="716" y="{y + 6}">{" / ".join(_pp(v) for v in utility_delta)}</text>',
-                f'<text class="value" data-role="chart-label" x="850" y="{y + 6}" fill="#009E73">YES</text>',
-                f'<text class="value" data-role="chart-label" x="1005" y="{y + 6}" fill="#E69F00">NOT RUN</text>',
+                f'<rect x="12" y="{block - 6}" width="366" height="{block_height}" rx="10" '
+                f'fill="{("#0d192d" if index % 2 == 0 else "#0a1426")}"/>',
+                f'<rect x="20" y="{block + 4}" width="10" height="16" rx="3" fill="{COLORS[method]}"/>',
+                f'<text class="label" data-role="chart-label" x="38" y="{block + 18}">{escape(LABELS[method])}</text>',
             ]
         )
+        for position, ((name, _domain, high, template), value) in enumerate(
+            zip(_MOBILE_METRICS, measured, strict=True)
+        ):
+            line = block + 42 + position * 26
+            body.append(
+                f'<text class="small" data-role="chart-label" x="24" y="{line}">{escape(name)}</text>'
+            )
+            if value is None:
+                body.append(
+                    f'<text class="small" data-role="chart-label" data-applicable="false" '
+                    f'x="370" y="{line}" text-anchor="end">—  not applicable</text>'
+                )
+                continue
+            bar = _scale(min(value, high), low=0.0, high=high, start=200.0, end=270.0)
+            body.extend(
+                [
+                    f'<rect x="200" y="{line - 11}" width="70" height="14" rx="3" fill="#132541"/>',
+                    f'<rect x="200" y="{line - 11}" width="{max(0.0, bar - 200.0):.1f}" height="14" '
+                    f'rx="3" fill="{COLORS[method]}" opacity="0.72" data-value="{value:.10g}" '
+                    f'data-axis-domain="0,{high:.10g}"/>',
+                    f'<text class="value" data-role="chart-label" x="370" y="{line}" '
+                    f'text-anchor="end">{escape(template.format(value))}</text>',
+                ]
+            )
+    footer = 78 + len(METHODS) * (block_height + 10) + 8
     body.extend(
         [
-            '<rect x="48" y="594" width="1024" height="78" rx="14" fill="#111f37" stroke="#365276"/>',
-            '<text class="value" data-role="chart-label" x="560" y="626" text-anchor="middle">The two sandbox safety checks tied at zero while utility still regressed.</text>',
-            '<text class="small" data-role="chart-label" x="560" y="653" text-anchor="middle">IFEval, XSTest, HarmBench and RewardBench were not executed; this is not a broad safety benchmark.</text>',
+            f'<text class="small" data-role="legend-label" x="16" y="{footer}">Bars show the three-seed mean;</text>',
+            f'<text class="small" data-role="legend-label" x="16" y="{footer + 22}">VRAM shows the observed maximum.</text>',
+            f'<text class="small" data-role="legend-label" x="16" y="{footer + 44}">Query ratio counts target positions,</text>',
+            f'<text class="small" data-role="legend-label" x="16" y="{footer + 66}">not teacher FLOPs.</text>',
         ]
     )
     return _svg_shell(
-        "Zero sandbox checks did not preserve utility",
+        "Outcome and cost matrix",
         (
-            "Coverage matrix showing zero harmful-compliance and over-refusal rates, observed "
-            "tool-utility deltas, measured sandbox endpoints and unexecuted external benchmarks."
+            "Vertical mobile card layout of alignment, retained tool utility, teacher-query "
+            "ratio, continuation GPU time and peak VRAM for every method."
         ),
-        "All three measured seeds are printed · deterministic Minipolicy checks only",
+        "Direct values · not applicable is never zero",
         body,
+        height=footer + 88,
+        width=MOBILE_WIDTH,
+        mobile=True,
     )
+
+
+#: The single sentence the metric-coverage presentation must communicate.
+COVERAGE_STATEMENT = (
+    "Both measured sandbox safety checks tied at zero while retained utility still "
+    "regressed. External IFEval, XSTest, HarmBench and RewardBench endpoints were "
+    "not executed."
+)
+
+
+def render_metric_coverage(payload: dict[str, Any]) -> str:
+    """Render metric coverage as an accessible, responsive HTML table.
+
+    An SVG was the wrong form here. The content is tabular, its headers are long
+    enough to collide at desktop widths, and two of its columns repeated one
+    identical value in every row. A real table gets row/column semantics for
+    screen readers, wraps its headers instead of overlapping them, and becomes a
+    labelled card list on narrow viewports.
+    """
+    summary = {row["method"]: row for row in payload["method_summary"]}
+    baseline = {int(arm["seed"]): arm for arm in _method_arms(payload, "sft_checkpoint")}
+    rows: list[str] = []
+    for method in METHODS:
+        arms = _method_arms(payload, method)
+        harmful = " · ".join(
+            f"{100 * float(arm['metrics']['harmful_compliance_rate']):.0f}%" for arm in arms
+        )
+        refusal = " · ".join(
+            f"{100 * float(arm['metrics']['over_refusal_rate']):.0f}%" for arm in arms
+        )
+        delta_mean = _pp(100 * (float(summary[method]["tool_utility_retention_mean"]) - 1.0))
+        deltas = " / ".join(
+            _pp(
+                100
+                * (
+                    float(arm["metrics"]["tool_utility_retention"])
+                    - float(baseline[int(arm["seed"])]["metrics"]["tool_utility_retention"])
+                )
+            )
+            for arm in arms
+        )
+        rows.append(
+            f'<tr><th scope="row" data-label="Method">'
+            f'<span class="coverage-swatch" style="background:{COLORS[method]}"></span>'
+            f"{escape(LABELS[method])}</th>"
+            f'<td data-label="Harmful compliance">{escape(harmful)}</td>'
+            f'<td data-label="Over-refusal">{escape(refusal)}</td>'
+            f'<td data-label="Retained tool utility change">'
+            f'<b>{escape(delta_mean)}</b> <span class="coverage-seeds">({escape(deltas)})</span>'
+            "</td></tr>"
+        )
+    return "\n".join(
+        [
+            '<div class="coverage" markdown="0">',
+            f'<p class="coverage-statement">{escape(COVERAGE_STATEMENT)}</p>',
+            '<div class="coverage-scroll">',
+            '<table class="coverage-table">',
+            "<caption>Alignment Lab v1 metric coverage. Every measured seed is printed; "
+            "the two sandbox rates are identical across all seeds and methods.</caption>",
+            "<thead><tr>"
+            '<th scope="col">Method</th>'
+            '<th scope="col">Harmful compliance<span>seed values</span></th>'
+            '<th scope="col">Over-refusal<span>seed values</span></th>'
+            '<th scope="col">Retained tool utility change<span>mean (seeds), pp</span></th>'
+            "</tr></thead>",
+            f"<tbody>\n{chr(10).join(rows)}\n</tbody>",
+            "</table>",
+            "</div>",
+            # One column-level statement replaces six identical YES / NOT RUN cells.
+            '<ul class="coverage-scope">',
+            "<li><b>Sandbox endpoint measured:</b> yes, for every row — deterministic "
+            "Minipolicy v1 harmful-compliance and over-refusal checks.</li>",
+            "<li><b>External safety benchmark executed:</b> no, for every row — IFEval, "
+            "XSTest, HarmBench and RewardBench are pinned metadata only.</li>",
+            "</ul>",
+            "</div>",
+        ]
+    )
+
+
+#: Minimum declared font size in a mobile SVG. At the 390 px viewport the
+#: content column is ~364 px wide, so 14 px renders at ~13 px, clearing the
+#: 11 px floor the browser gate enforces.
+MOBILE_MIN_FONT_PX = 14
+
+_FONT_SIZE = re.compile(r"font-size:([0-9.]+)px")
 
 
 def assert_chart_suitability(figures: dict[str, str]) -> None:
     """Reject known misleading fallbacks in generated Alignment Lab figures."""
     expected = {
         "delta-from-sft.svg",
+        "delta-from-sft-mobile.svg",
         "outcome-cost-matrix.svg",
-        "metric-coverage-matrix.svg",
+        "outcome-cost-matrix-mobile.svg",
     }
     if set(figures) != expected:
         raise ValueError(f"Alignment Lab must publish exactly {sorted(expected)}")
     combined = "\n".join(figures.values()).lower()
     if "concentric" in combined or 'data-encoding="jitter"' in combined:
         raise ValueError("method-order rings and unlabelled jitter are forbidden")
-    outcome = figures["outcome-cost-matrix.svg"]
-    if "—  not applicable" not in outcome or 'data-applicable="false"' not in outcome:
-        raise ValueError("non-teacher query ratios must remain explicitly not applicable")
-    if 'data-applicable="false" data-value="0"' in outcome:
-        raise ValueError("not-applicable query ratios must never be coerced to zero")
+    for name in ("outcome-cost-matrix.svg", "outcome-cost-matrix-mobile.svg"):
+        outcome = figures[name]
+        if "—  not applicable" not in outcome or 'data-applicable="false"' not in outcome:
+            raise ValueError(f"{name}: non-teacher query ratios must stay not applicable")
+        if 'data-applicable="false" data-value="0"' in outcome:
+            raise ValueError(f"{name}: not-applicable query ratios must never become zero")
     if 'data-encoding="seed-point"' not in combined:
         raise ValueError("every chart set must expose the measured seed values")
+    for name, content in figures.items():
+        if "<title" not in content or "<desc" not in content:
+            raise ValueError(f"{name}: every figure needs an SVG title and description")
+        if name.endswith("-mobile.svg"):
+            # A mobile figure must be a real narrow layout, not a scaled desktop one.
+            if f'width="{MOBILE_WIDTH}"' not in content:
+                raise ValueError(f"{name}: mobile figures must declare the narrow canvas")
+            sizes = [float(value) for value in _FONT_SIZE.findall(content)]
+            if not sizes or min(sizes) < MOBILE_MIN_FONT_PX:
+                raise ValueError(
+                    f"{name}: mobile text must stay at or above {MOBILE_MIN_FONT_PX}px"
+                )
+        elif f'width="{DESKTOP_WIDTH}"' not in content:
+            raise ValueError(f"{name}: desktop figures must declare the wide canvas")
 
 
 def render_figures(payload: dict[str, Any], source_sha256: str) -> dict[str, str]:
     del source_sha256  # hashes live in the report provenance block, never in the plot canvas
     rendered = {
         "delta-from-sft.svg": _delta_from_sft(payload),
+        "delta-from-sft-mobile.svg": _delta_from_sft_mobile(payload),
         "outcome-cost-matrix.svg": _outcome_cost_matrix(payload),
-        "metric-coverage-matrix.svg": _metric_coverage_matrix(payload),
+        "outcome-cost-matrix-mobile.svg": _outcome_cost_matrix_mobile(payload),
     }
     assert_chart_suitability(rendered)
     return rendered
@@ -1080,6 +1332,7 @@ def render_report(payload: dict[str, Any], source_sha256: str) -> str:
                 vram=float(item["peak_vram_bytes_max"]) / 2**30,
             )
         )
+    coverage = render_metric_coverage(payload)
     diagnostic = payload["state_supervision_diagnostic"]["matched_comparisons"]
     frozen_hard = diagnostic["frozen_hard_vs_fresh_hard"]
     frozen_soft = diagnostic["frozen_soft_vs_fresh_soft"]
@@ -1156,11 +1409,19 @@ policy checks, not a broad safety result.
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 {chr(10).join(rows)}
 
-![Forest chart of alignment and tool-utility deltas from the saturated SFT checkpoint, with every seed and the three-seed means](delta-from-sft.svg)
+<picture class="alignment-figure">
+  <source media="(max-width: 900px)" srcset="../delta-from-sft-mobile.svg">
+  <img src="../delta-from-sft.svg" alt="Forest chart of alignment and retained-tool-utility percentage-point deltas from the saturated SFT checkpoint. Every method's three seeds and their means are drawn at their exact values and printed as text; no continuation method lands above the zero baseline.">
+</picture>
 
-![Row matrix of alignment, retained tool utility, teacher-query ratio, continuation GPU time and peak VRAM, including every measured seed](outcome-cost-matrix.svg)
+<picture class="alignment-figure">
+  <source media="(max-width: 900px)" srcset="../outcome-cost-matrix-mobile.svg">
+  <img src="../outcome-cost-matrix.svg" alt="Row matrix of alignment, retained tool utility, teacher-query ratio, continuation GPU time and peak VRAM for every method, with each value printed next to its bar and non-teacher query ratios marked not applicable rather than zero.">
+</picture>
 
-![Coverage matrix showing tied zero sandbox safety checks, utility regressions and external safety benchmarks not executed](metric-coverage-matrix.svg)
+### Metric coverage
+
+{coverage}
 
 <details>
 <summary>Figure provenance</summary>

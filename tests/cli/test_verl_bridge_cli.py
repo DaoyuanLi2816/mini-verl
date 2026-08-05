@@ -61,8 +61,128 @@ def test_import_verl_cli_defaults_to_a_needs_input_template(tmp_path: Path) -> N
     assert payload["profile"] == BRIDGE_PROFILE
     assert payload["status"] == "needs_user_input"
     assert not out.exists()
+    # The output family is stem-specific; nothing shares a name across stems.
     assert (tmp_path / "imported.template.yaml").is_file()
-    assert (tmp_path / "import-report.json").is_file()
+    assert (tmp_path / "imported.import-report.json").is_file()
+    assert not (tmp_path / "import-report.json").exists()
+    assert payload["report"] == str(tmp_path / "imported.import-report.json")
+
+
+def test_import_verl_cli_refuses_a_collision_without_overwrite(tmp_path: Path) -> None:
+    source = tmp_path / "verl.yaml"
+    source.write_text(
+        yaml.safe_dump(
+            {
+                "data": {
+                    "train_files": ["train.parquet"],
+                    "val_files": ["val.parquet"],
+                    "prompt_key": "prompt",
+                    "max_prompt_length": 64,
+                    "max_response_length": 32,
+                    "seed": 7,
+                },
+                "actor_rollout_ref": {
+                    "model": {"path": "Qwen/Qwen3-0.6B"},
+                    "actor": {"optim": {"lr": "1e-5"}},
+                },
+                "trainer": {
+                    "save_freq": 1,
+                    "test_freq": 1,
+                    "project_name": "test",
+                    "experiment_name": "bridge",
+                    "total_epochs": 1,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "recipes" / "foo.yaml"
+    command = [
+        "import-verl",
+        str(source),
+        "--profile",
+        BRIDGE_PROFILE,
+        "--target-verl",
+        VERL_TAG,
+        "--out",
+        str(out),
+        "--environment",
+        "calculator",
+        "--teacher-model",
+        "Qwen/Qwen3-1.7B",
+        "--loss-profile",
+        "topk-tail-reverse-kl",
+        "--schedule-mapping",
+        "epochs-as-cycles",
+    ]
+    runner = CliRunner()
+    assert runner.invoke(app, command).exit_code == 0
+    before = out.read_bytes()
+
+    collided = runner.invoke(app, command)
+    assert collided.exit_code != 0
+    assert "--overwrite" in collided.output
+    assert out.read_bytes() == before
+
+    replaced = runner.invoke(app, [*command, "--overwrite"])
+    assert replaced.exit_code == 0, replaced.output
+    assert out.is_file()
+
+
+def test_import_verl_cli_rejects_an_unexpanded_shell_variable(tmp_path: Path) -> None:
+    source = tmp_path / "verl.yaml"
+    source.write_text(
+        yaml.safe_dump(
+            {
+                "data": {
+                    "train_files": ["train.parquet"],
+                    "val_files": ["val.parquet"],
+                    "prompt_key": "prompt",
+                    "max_prompt_length": 64,
+                    "max_response_length": 32,
+                    "seed": 7,
+                },
+                "actor_rollout_ref": {
+                    "model": {"path": "Qwen/Qwen3-0.6B"},
+                    "actor": {"optim": {"lr": "1e-5"}},
+                },
+                "trainer": {
+                    "save_freq": 1,
+                    "test_freq": 1,
+                    "project_name": "test",
+                    "experiment_name": "bridge",
+                    "total_epochs": 1,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "imported.yaml"
+    result = CliRunner().invoke(
+        app,
+        [
+            "import-verl",
+            str(source),
+            "--profile",
+            BRIDGE_PROFILE,
+            "--target-verl",
+            VERL_TAG,
+            "--out",
+            str(out),
+            "--environment",
+            "${ENVIRONMENT}",
+            "--teacher-model",
+            "Qwen/Qwen3-1.7B",
+            "--loss-profile",
+            "topk-tail-reverse-kl",
+            "--schedule-mapping",
+            "epochs-as-cycles",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "interpolation" in result.output
+    assert not out.exists()
+    assert not (tmp_path / "imported.import-report.json").exists()
 
 
 def test_import_verl_cli_explicit_contract_writes_a_valid_recipe(tmp_path: Path) -> None:

@@ -52,13 +52,19 @@ training, install the matching CUDA-enabled PyTorch wheel first, then install
 | --- | --- | --- | --- |
 | **Align** — compare SFT, DPO, KD and OPD only when the pilot evidence supports the cost | `miniverl pilot recipes/alignment_policy_conditioned_qwen.yaml` | `alignment-card.json` | [Alignment Lab](docs/alignment-lab/alignment-lab-v1.md) |
 | **Distill locally** — strict OPD, shared backbones and padded trajectory updates on one CUDA GPU | `miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run` | `config.resolved.yaml` plus a revision-pinned PEFT adapter | [Bring your own GPU](docs/single-gpu-guide.md) |
-| **Scale out** — import a documented profile, convert Parquet, export a bundle and run bridge checks | `miniverl bridge doctor scaleout-bundle` | `provenance/compatibility-report.json` | [Verified verl bridge](docs/verl-bridge.md) |
+| **Scale out** — import a documented profile, convert Parquet, export a bundle and run bridge checks | `miniverl bridge doctor scaleout-bundle` | `provenance/compatibility-report.json` | [Verified verl artifact bridge](docs/verl-bridge.md) |
 
-The bridge import is deliberately not generic YAML conversion. If dataset or
+The bridge is a **verified artifact bridge**: a pinned config/data/model
+parse-load smoke at miniVERL-defined compatibility Level 3. It has never run a
+distributed verl job, and no OPD-to-PPO semantic parity is claimed.
+
+The import is deliberately not generic YAML conversion. If dataset or
 environment, teacher identity, objective, or schedule semantics are missing,
-`import-verl` writes `import-report.json` and a non-executable
-`imported.template.yaml` with `status: needs_user_input`. It never silently
-substitutes calculator tasks or an unqualified same-base teacher.
+`import-verl` writes `<stem>.import-report.json` and a non-executable
+`<stem>.template.yaml` with `status: needs_user_input`. It never silently
+substitutes calculator tasks or an unqualified same-base teacher. An unresolved
+`${...}` value can never reach an accepted recipe, outputs are stem-specific,
+and an existing output family is replaced only with an explicit `--overwrite`.
 
 ## One measured alignment result
 
