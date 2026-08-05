@@ -6,7 +6,7 @@ and what it printed.
 
 Last updated: 2026-08-04.
 
-## v0.6.2 Bridge correctness and responsive visual hardening (in progress)
+## v0.6.2 Bridge correctness and responsive visual hardening
 
 ### Starting state — 2026-08-04
 
@@ -78,8 +78,16 @@ stem-specific naming, collision refusal, `--overwrite`, fault injection and conc
 | docs | [`30975138352`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138352) green; 20 Linux screenshots uploaded as `docs-visual-screenshots` |
 | pinned verl bridge | [`30975138353`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138353) green |
 | screenshot inspection | the CI Linux screenshots were downloaded and read directly, not only trusted as green. The 390 px Alignment Lab mobile chart and metric-coverage cards render the same as the local Windows capture |
-| release metadata | publication was explicitly authorized, so the version is finalized to `0.6.2`, `CHANGELOG.md` carries a dated `[0.6.2] - 2026-08-05` section with its compare link, `CITATION.cff` records `0.6.2` / `2026-08-05`, `PYPI.md` is regenerated tag-pinned to `blob/v0.6.2`, and `docs/generated/quality.json` records release `0.6.2`, status `validated`, 1652 CPU tests at 85.77% branch coverage, 5 GPU and 3 network |
-| local release build | `python -m build` and `twine check` pass at `0.6.2`. These local artifacts are a sanity check only; the published distributions are built once inside the tag workflow |
+| release metadata | the version was finalized to `0.6.2`, `CHANGELOG.md` carries a dated `[0.6.2] - 2026-08-05` section with its compare link, `CITATION.cff` records `0.6.2` / `2026-08-05`, `PYPI.md` is regenerated tag-pinned to `blob/v0.6.2`, and `docs/generated/quality.json` records release `0.6.2` at 1652 CPU tests, 85.77% branch coverage, 5 GPU and 3 network |
+| local release build | `python -m build` and `twine check` pass at `0.6.2`. These local artifacts were a sanity check only; the published distributions are built once inside the tag workflow |
+| merge | PR [#43](https://github.com/DaoyuanLi2816/mini-verl/pull/43) was squash-merged; the release commit is `bef9f0878eb3280f450aee3868b43d61f0726557` after its message was rewritten so the sole contributor is the repository owner. Synchronized-main CI, build and docs runs [`30980343307`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30980343307) / [`30980343344`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30980343344) / [`30980343293`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30980343293) are green on that exact commit |
+| tag | annotated `v0.6.2` resolves to `bef9f0878eb3280f450aee3868b43d61f0726557` |
+| release execution | tag run [`30980579109`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30980579109) passed metadata validation, the full quality gate, a one-time build, OIDC Trusted Publishing with attestations, public PyPI verification, exact install and GitHub Release creation |
+| published wheel | [`miniverl-0.6.2-py3-none-any.whl`](https://pypi.org/project/miniverl/0.6.2/), SHA-256 `38131c3de838b480017b2f97df3e43d53e760f272c516522a470d2812f8a3803`, 330906 bytes |
+| published sdist | [`miniverl-0.6.2.tar.gz`](https://pypi.org/project/miniverl/0.6.2/), SHA-256 `bcd30863290c9c46c1e2c27c59d8ccfd3ec7e5934243f5bc86f7424d4f05333d`, 994642 bytes |
+| independent public verification | the PyPI JSON API reports version `0.6.2` with a Markdown description pinned to `blob/v0.6.2`, and the integrity API exposes one Trusted Publisher attestation per distribution bound to `DaoyuanLi2816/mini-verl`, `release.yml`, environment `pypi`. The [GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.6.2) ships byte-identical distributions whose recomputed SHA-256 values match its `SHA256SUMS` and PyPI exactly. A clean Windows venv installed `miniverl==0.6.2` from `https://pypi.org/simple`, reported `miniverl 0.6.2` with torch absent, and exposes `--require-tokenizer-load`, `--scan-dataset-text` and `--sentinel` |
+| version transition | `v0.6.2` is immutable and public; this state sync identifies subsequent development as `0.6.3.dev0` |
+| release state | complete |
 
 ### Known limitation carried forward
 
