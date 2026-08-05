@@ -60,7 +60,25 @@ stem-specific naming, collision refusal, `--overwrite`, fault injection and conc
 | manual inspection | the 390 px and 1440 px screenshots were read directly. Two defects the automated gate could not express were found and fixed this way: the coverage caption collapsed to one word per line in card mode, and the outcome-matrix value labels touched their own seed marks and the next column's bar |
 | CPU suite | 1652 passed, 6 deselected, 85.77% branch coverage against an 80% floor |
 | static gates | `ruff check`, `ruff format --check`, `mypy src/miniverl`, `mkdocs build --strict` and the Markdown/link check pass |
+| GPU suite | 5 passed on the local RTX 4080 (driver 596.49, CUDA 13.2); no scientific benchmark was rerun |
+| network suite | 3 passed |
+| packaging | `python -m build` and `twine check` pass. `miniverl-0.6.2.dev0-py3-none-any.whl` SHA-256 `e1cea1c2001dd96e14542d948024b920552473eef05cfbd0ba49bfbf270eabdf`; `miniverl-0.6.2.dev0.tar.gz` SHA-256 `780e96c0d11e53ac5c80dfc72ed331d2952b34ca4f30400fdbe149c3210da900` |
+| clean installs | a clean core venv from the wheel reports `miniverl 0.6.2.dev0` with torch absent and passes `miniverl doctor`; a clean `[bridge]` venv resolves pyarrow 25.0.0 with torch still absent |
+| extracted sdist | installed with `[dev,train]` into a clean venv outside the checkout, resolving `miniverl` from that venv: **1652 passed, 6 deselected**. The torch-free CI selection passes 1303 tests on the same extraction |
 | immutable evidence | all ten frozen result JSON/JSONL files and `docs/generated/verl-bridge-smoke.json` re-hash to their recorded values after every change |
+
+### Integration
+
+| item | state |
+| --- | --- |
+| branch | `v0.6.2-bridge-visual-hardening`, pushed at `1161700c19379f6c1b49fe50d4408d4d96374143` |
+| pull request | draft [#43](https://github.com/DaoyuanLi2816/mini-verl/pull/43) |
+| CI | [`30975138358`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138358) green: core no-torch py3.10/3.11/3.12/3.13, cpu ml (torch), transformers `4.51.*` and `5.*`, training minimum py3.10 and training latest py3.13. `actionlint` runs on the 3.12 core job and passed |
+| build | [`30975138346`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138346) green, including the extracted-sdist reproduction and the sdist-built wheel inventory match |
+| docs | [`30975138352`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138352) green; 20 Linux screenshots uploaded as `docs-visual-screenshots` |
+| pinned verl bridge | [`30975138353`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138353) green |
+| screenshot inspection | the CI Linux screenshots were downloaded and read directly, not only trusted as green. The 390 px Alignment Lab mobile chart and metric-coverage cards render the same as the local Windows capture |
+| release state | merge-ready and awaiting explicit publication authorization; the version is still `0.6.2.dev0` and no tag exists |
 
 ### Known limitation carried forward
 
