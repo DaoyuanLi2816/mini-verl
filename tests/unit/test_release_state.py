@@ -232,16 +232,21 @@ def test_unknown_phase_is_rejected() -> None:
 
 
 def test_stale_claim_is_reported_with_the_expected_value(tmp_path: Path) -> None:
-    """The exact v0.6.2 drift, reproduced against the gate."""
+    """The shape of the v0.6.2 drift, reproduced against the gate.
+
+    The stale value is derived from the canonical state rather than hard-coded,
+    so cutting a release does not silently retarget this test.
+    """
     root = _clone(tmp_path)
+    state = load_release_state(root)
     readme = root / "README.md"
     readme.write_text(
         readme.read_text(encoding="utf-8").replace(
-            "PyPI `v0.6.2` is stable", "PyPI `v0.6.1` is stable"
+            f"PyPI `v{state.stable_version}` is stable", "PyPI `v0.0.1` is stable"
         ),
         encoding="utf-8",
     )
 
     problems = check_release_state(root)
 
-    assert any("'0.6.1', expected '0.6.2'" in problem for problem in problems)
+    assert any(f"'0.0.1', expected '{state.stable_version}'" in problem for problem in problems)

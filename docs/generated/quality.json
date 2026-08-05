@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "release": "0.6.3",
-  "status": "candidate",
-  "measured_commit": "85a7eb3aee46109ced405a7cbfb2106edeb82516",
-  "measured_at": "2026-08-05T14:05:00-07:00",
+  "status": "validated",
+  "measured_commit": "1d2b43fbb93deac5d64b4f40b8ea6121f2f67ed0",
+  "measured_at": "2026-08-05T15:40:00-07:00",
   "platform": "Windows 11 Pro 10.0.22631, CPython 3.12, coverage branch mode",
   "cpu_non_gpu_non_network": {
-    "passed": 1757,
+    "passed": 1763,
     "skipped": 2,
     "deselected": 6,
     "branch_coverage_percent": 86.02,
