@@ -118,6 +118,9 @@ include = [
   "/LICENSE",
   "/THIRD_PARTY_NOTICES.md",
   "/CITATION.cff",
+  # The canonical release state; tests/unit/test_release_state.py reads it, so
+  # an extracted sdist has to carry it.
+  "/release-state.yaml",
   "/mkdocs.yml",
   "/pyproject.toml",
 ]
