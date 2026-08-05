@@ -143,14 +143,19 @@ def test_publishing_0_6_3_then_syncing_main_updates_every_claim(tmp_path: Path) 
 
 
 def test_transition_still_demands_the_human_written_sections(tmp_path: Path) -> None:
-    """The gate must not silently pass an incomplete state sync."""
+    """The gate must not silently pass an incomplete state sync.
+
+    Uses the release *after* the one the checked-in files describe, so the
+    checklist section, the PROJECT_STATE line and the quality record are all
+    genuinely stale rather than accidentally still correct.
+    """
     root = _clone(tmp_path)
     released = ReleaseState(
-        stable_version="0.6.3",
-        stable_tag="v0.6.3",
+        stable_version="0.6.4",
+        stable_tag="v0.6.4",
         stable_commit="b" * 40,
-        stable_released_at="2026-08-06",
-        development_version="0.6.4.dev0",
+        stable_released_at="2026-09-01",
+        development_version="0.6.5.dev0",
     )
     apply_release_state(root, released)
 
@@ -163,17 +168,17 @@ def test_transition_still_demands_the_human_written_sections(tmp_path: Path) -> 
 
     # Supplying them clears the gate without touching anything else.
     checklist = root / "docs" / "release-checklist.md"
-    checklist.write_text("# Release checklist\n\n## v0.6.4 next\n", encoding="utf-8")
+    checklist.write_text("# Release checklist\n\n## v0.6.5 next\n", encoding="utf-8")
     state_file = root / "PROJECT_STATE.md"
     state_file.write_text(
-        "# PROJECT_STATE\n\nCanonical release state: stable `v0.6.3` "
-        f"(`{'b' * 40}`), development `0.6.4.dev0`.\n",
+        "# PROJECT_STATE\n\nCanonical release state: stable `v0.6.4` "
+        f"(`{'b' * 40}`), development `0.6.5.dev0`.\n",
         encoding="utf-8",
     )
     record = root / "docs" / "generated" / "quality.json"
     payload = json.loads(record.read_text(encoding="utf-8"))
-    payload["release"] = "0.6.3"
-    payload["quality_floor"] = "1,560+ tests and 85%+ branch coverage at v0.6.3"
+    payload["release"] = "0.6.4"
+    payload["quality_floor"] = "1,560+ tests and 85%+ branch coverage at v0.6.4"
     record.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     assert check_release_state(root, released) == []

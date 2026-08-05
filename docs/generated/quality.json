@@ -1,22 +1,24 @@
 {
   "schema_version": 1,
-  "release": "0.6.2",
-  "status": "released",
-  "measured_commit": "58f7018c9e28bc0460856911539cfdf376354d7b",
-  "measured_at": "2026-08-04T22:44:33-07:00",
+  "release": "0.6.3",
+  "status": "candidate",
+  "measured_commit": "e0b0b665d41b06334c71102723af8afdad647701",
+  "measured_at": "2026-08-05T13:20:00-07:00",
+  "platform": "Windows 11 Pro 10.0.22631, CPython 3.12, coverage branch mode",
   "cpu_non_gpu_non_network": {
-    "passed": 1652,
+    "passed": 1745,
+    "skipped": 1,
     "deselected": 6,
-    "branch_coverage_percent": 85.77
+    "branch_coverage_percent": 86.0
   },
   "gpu": {
     "passed": 5,
-    "deselected": 1653,
+    "deselected": 1747,
     "hardware": "NVIDIA GeForce RTX 4080"
   },
   "network": {
     "passed": 3,
-    "deselected": 1655
+    "deselected": 1749
   },
-  "quality_floor": "1,560+ tests and 85%+ branch coverage at v0.6.2"
+  "quality_floor": "1,560+ tests and 85%+ branch coverage at v0.6.3"
 }
