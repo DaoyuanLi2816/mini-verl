@@ -16,6 +16,14 @@ This module gives every invocation:
   same-filesystem rename rather than a copy;
 * restore-on-failure, so a failure part-way through the rename phase puts the
   previous family back.
+
+Scope of the guarantee: this is *transactional publication with in-process
+rollback*, not multi-file crash atomicity. Every failure this process observes
+-- an exception, a failed rename, a validation error -- is undone. A ``kill
+-9``, a kernel panic or a power loss between two renames is not, and can leave
+a mixed family on disk. Providing that would require publishing a versioned
+directory and switching one pointer atomically, which is deliberately out of
+scope; re-running the invocation with ``overwrite`` republishes a coherent set.
 """
 
 from __future__ import annotations
@@ -173,7 +181,11 @@ def _replace(source: Path, target: Path) -> None:
 
 
 class OutputTransaction:
-    """Reserve, stage, validate and atomically publish one output family."""
+    """Reserve, stage, validate and publish one output family.
+
+    Rollback covers failures this process observes, not process death between
+    two renames. See the module docstring for the exact scope.
+    """
 
     def __init__(
         self,
@@ -291,7 +303,11 @@ class OutputTransaction:
         return dict(self._staged)
 
     def commit(self) -> None:
-        """Publish the staged family, restoring the previous one on failure."""
+        """Publish the staged family, restoring the previous one on failure.
+
+        The restore path runs on any exception raised during the rename phase.
+        It cannot run if the process is killed mid-phase.
+        """
         if self.staging is None:
             raise LifecycleError("output transaction is not open; call begin() first")
         if self._committed:

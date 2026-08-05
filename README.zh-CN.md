@@ -59,8 +59,15 @@ verl 作业，也不声称 OPD 与 PPO 之间存在语义等价。
 语义不完整时，`import-verl` 只会写出 `<stem>.import-report.json` 和不可执行的
 `<stem>.template.yaml`，状态为 `needs_user_input`。它不会悄悄改用
 calculator 环境，也不会创建身份不明确的同基座教师。未解析的 `${...}` 绝不会
-进入被接受的 recipe；输出文件名按 stem 隔离；只有显式传入 `--overwrite`
-才会替换已存在的输出文件族。
+进入被接受的 recipe；输出文件名按 stem 隔离；输入文件永远不能同时是输出
+文件；只有显式传入 `--overwrite` 才会替换已存在的输出文件族。发布是带
+进程内回滚的事务式发布，而不是跨多文件的崩溃原子性。
+
+导出的 bundle 属于不可信输入。`bridge doctor` 用 `ast.parse` 静态检查其
+reward scaffold，**默认绝不执行它**，除非显式传入
+`--trust-and-import-reward-code`；adapter 权重的校验会越过文件头验证实际
+载荷；tokenizer、safetensors 与隐私三项各自报告验证真正到达的层级，而不是
+笼统的通过或失败。
 
 ## 一项对齐实测结果
 

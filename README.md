@@ -64,7 +64,15 @@ environment, teacher identity, objective, or schedule semantics are missing,
 `<stem>.template.yaml` with `status: needs_user_input`. It never silently
 substitutes calculator tasks or an unqualified same-base teacher. An unresolved
 `${...}` value can never reach an accepted recipe, outputs are stem-specific,
-and an existing output family is replaced only with an explicit `--overwrite`.
+an input file can never also be an output file, and an existing output family
+is replaced only with an explicit `--overwrite`. Publication is transactional
+with in-process rollback, not multi-file crash atomicity.
+
+An exported bundle is untrusted input. `bridge doctor` inspects its reward
+scaffold statically with `ast.parse` and **never executes it** unless you pass
+`--trust-and-import-reward-code`; adapter weights are validated past the
+header; and tokenizer, safetensors and privacy results each report how far
+verification actually got rather than a single pass or fail.
 
 ## One measured alignment result
 
