@@ -76,6 +76,9 @@ _DATASET_DETECTORS: tuple[tuple[str, re.Pattern[str]], ...] = (
 DATASET_SCAN_MAX_ROWS = 1000
 DATASET_SCAN_MAX_BYTES = 8 * 1024 * 1024
 _DATASET_SCAN_MAX_DEPTH = 6
+#: Rows decoded at once. Small enough that a single huge row group cannot be
+#: materialized just to honour a much smaller row bound.
+_DATASET_SCAN_BATCH_ROWS = 256
 
 
 def _sha256(path: Path) -> str:
@@ -297,26 +300,42 @@ def _finalize_tokenizer(check: dict[str, Any], *, require_load: bool) -> dict[st
 
 
 def _check_parquet(root: Path) -> dict[str, Any]:
+    """Validate the exchange schema from Parquet metadata alone.
+
+    Column names, row counts and row-group counts all live in the footer, so a
+    verl-scale dataset must never be materialized to answer them.
+    """
     try:
         import pyarrow.parquet as pq
     except ImportError:
         return {"status": "fail", "detail": "pyarrow is not installed"}
     required = {"data_source", "prompt", "ability", "reward_model", "extra_info"}
     schemas: dict[str, list[str]] = {}
+    rows: dict[str, int] = {}
     for split in ("train", "val"):
         path = root / "data" / f"{split}.parquet"
         try:
-            table = pq.read_table(path)
+            handle = pq.ParquetFile(path)
         except Exception as exc:
             return {"status": "fail", "detail": f"{split}: {exc}"}
-        names = set(table.schema.names)
-        if not required.issubset(names) or table.num_rows < 1:
+        try:
+            names = list(handle.schema_arrow.names)
+            num_rows = handle.metadata.num_rows
+        finally:
+            handle.close()
+        if not required.issubset(set(names)) or num_rows < 1:
             return {
                 "status": "fail",
                 "detail": f"{split}: required={sorted(required)}, actual={sorted(names)}",
             }
-        schemas[split] = table.schema.names
-    return {"status": "ok", "schemas": schemas}
+        schemas[split] = names
+        rows[split] = num_rows
+    return {
+        "status": "ok",
+        "schemas": schemas,
+        "rows": rows,
+        "read_scope": "Parquet footer metadata only; no row group was decoded",
+    }
 
 
 def _check_config(root: Path) -> dict[str, Any]:
@@ -411,6 +430,26 @@ def _iter_strings(value: Any, depth: int = 0) -> Any:
             yield from _iter_strings(item, depth + 1)
 
 
+def _has_string_leaf(data_type: Any) -> bool:
+    """Whether an Arrow type can contain a string anywhere inside it."""
+    import pyarrow as pa
+
+    if pa.types.is_string(data_type) or pa.types.is_large_string(data_type):
+        return True
+    if pa.types.is_struct(data_type):
+        return any(_has_string_leaf(field.type) for field in data_type)
+    if pa.types.is_map(data_type):
+        return _has_string_leaf(data_type.key_type) or _has_string_leaf(data_type.item_type)
+    if hasattr(data_type, "value_type") and data_type.num_fields:
+        return _has_string_leaf(data_type.value_type)
+    return False
+
+
+def _string_like_columns(schema: Any) -> list[str]:
+    """Columns worth decoding; everything else cannot hold a secret as text."""
+    return [field.name for field in schema if _has_string_leaf(field.type)]
+
+
 def _scan_dataset_text(
     root: Path,
     *,
@@ -418,7 +457,12 @@ def _scan_dataset_text(
     max_rows: int,
     max_bytes: int,
 ) -> dict[str, Any]:
-    """Bounded, heuristic scan of string-like Parquet fields.
+    """Bounded, streaming, heuristic scan of string-like Parquet fields.
+
+    The bounds are enforced *while reading*: row groups are pulled one at a
+    time and decoding stops the moment ``max_rows`` or ``max_bytes`` is
+    reached, so a verl-scale dataset is never materialized. Row counts for
+    unread files still come from the footer, which costs nothing.
 
     This is a detector, not de-identification proof. Matched text is never
     returned or logged: only the detector category, the column and the row
@@ -440,51 +484,89 @@ def _scan_dataset_text(
     rows_scanned = 0
     rows_total = 0
     bytes_scanned = 0
+    row_groups_read = 0
+    files_inspected = 0
     truncated = False
-    active = [(name, pattern) for name, pattern in _DATASET_DETECTORS]
+    active = list(_DATASET_DETECTORS)
+
+    def _bounds_reached() -> bool:
+        return rows_scanned >= max_rows or bytes_scanned >= max_bytes
+
     for path in files:
         split = path.stem
         try:
-            table = pq.read_table(path)
+            handle = pq.ParquetFile(path)
         except Exception as exc:
             return {
                 "status": "failed",
                 "reason": f"cannot read {path.name}: {exc}",
                 "findings": [],
             }
-        rows_total += table.num_rows
-        if truncated:
-            continue
-        for index, row in enumerate(table.to_pylist()):
-            if rows_scanned >= max_rows or bytes_scanned >= max_bytes:
-                truncated = True
-                break
-            rows_scanned += 1
-            if not isinstance(row, dict):
+        try:
+            rows_total += handle.metadata.num_rows
+            if truncated:
+                # Totals still come from the footer; no row group is decoded.
                 continue
-            for column, cell in row.items():
-                for text in _iter_strings(cell):
-                    bytes_scanned += len(text.encode("utf-8", errors="ignore"))
-                    for category, pattern in active:
-                        if pattern.search(text):
-                            findings.append(
-                                {
-                                    "category": category,
-                                    "split": split,
-                                    "column": str(column),
-                                    "row": index,
-                                }
-                            )
-                    for sentinel in sentinels:
-                        if sentinel and sentinel in text:
-                            findings.append(
-                                {
-                                    "category": "user_sentinel",
-                                    "split": split,
-                                    "column": str(column),
-                                    "row": index,
-                                }
-                            )
+            columns = _string_like_columns(handle.schema_arrow)
+            if not columns:
+                continue
+            files_inspected += 1
+            file_row_index = 0
+            for group_index in range(handle.num_row_groups):
+                if _bounds_reached():
+                    truncated = True
+                    break
+                row_groups_read += 1
+                try:
+                    batches = handle.iter_batches(
+                        batch_size=_DATASET_SCAN_BATCH_ROWS,
+                        row_groups=[group_index],
+                        columns=columns,
+                    )
+                    for batch in batches:
+                        if _bounds_reached():
+                            truncated = True
+                            break
+                        for offset, row in enumerate(batch.to_pylist()):
+                            if _bounds_reached():
+                                truncated = True
+                                break
+                            rows_scanned += 1
+                            index = file_row_index + offset
+                            if not isinstance(row, dict):
+                                continue
+                            for column, cell in row.items():
+                                for text in _iter_strings(cell):
+                                    bytes_scanned += len(text.encode("utf-8", errors="ignore"))
+                                    for category, pattern in active:
+                                        if pattern.search(text):
+                                            findings.append(
+                                                {
+                                                    "category": category,
+                                                    "split": split,
+                                                    "column": str(column),
+                                                    "row": index,
+                                                }
+                                            )
+                                    for sentinel in sentinels:
+                                        if sentinel and sentinel in text:
+                                            findings.append(
+                                                {
+                                                    "category": "user_sentinel",
+                                                    "split": split,
+                                                    "column": str(column),
+                                                    "row": index,
+                                                }
+                                            )
+                        file_row_index += batch.num_rows
+                except Exception as exc:
+                    return {
+                        "status": "failed",
+                        "reason": f"cannot read row group {group_index} of {path.name}: {exc}",
+                        "findings": [],
+                    }
+        finally:
+            handle.close()
     # Deduplicate so one noisy column cannot flood the report.
     unique: list[dict[str, Any]] = []
     seen: set[tuple[Any, ...]] = set()
@@ -497,11 +579,15 @@ def _scan_dataset_text(
         "status": "failed" if unique else "passed",
         "method": "heuristic regular-expression detectors; not de-identification proof",
         "scan_scope": "sampled" if truncated else "full",
+        "files_total": len(files),
+        "files_inspected": files_inspected,
+        "row_groups_read": row_groups_read,
         "rows_scanned": rows_scanned,
         "rows_total": rows_total,
         "bytes_scanned": bytes_scanned,
         "max_rows": max_rows,
         "max_bytes": max_bytes,
+        "batch_rows": _DATASET_SCAN_BATCH_ROWS,
         "detectors": [name for name, _ in active] + (["user_sentinel"] if sentinels else []),
         "disclosure": "detector category, column and row index only; matched text is never reported",
         "findings": unique,
