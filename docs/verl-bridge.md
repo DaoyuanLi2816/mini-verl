@@ -261,6 +261,13 @@ A header-only result is never called loadable. To require a real payload:
 miniverl bridge doctor exports/<bundle> --require-adapter-payload
 ```
 
+The structural pass needs no optional dependency, so a torch-free install still
+reaches `payload_structure_validated` and reports
+`official_reader_status: dependency_missing` rather than pretending the file is
+broken. `--require-adapter-payload` demands the strongest level, so it is *not*
+satisfied when the official reader is unavailable — install the `[bridge]` extra
+to use it.
+
 ### Privacy is reported per inspection scope
 
 The default run reads portable metadata files only. It therefore reports three

@@ -225,7 +225,6 @@ def inspect_safetensors(path: str | Path, *, require_payload: bool = False) -> d
 
     check["verification_level"] = "payload_structure_validated"
     check["status"] = "ok"
-    check["strict_payload_satisfied"] = True
     check["detail"] = (
         f"{summary['tensors']} tensor(s); offsets are contiguous and cover all "
         f"{summary['actual_payload_bytes']} payload bytes"
@@ -238,15 +237,26 @@ def inspect_safetensors(path: str | Path, *, require_payload: bool = False) -> d
         check["verification_level"] = "tensor_materialization_validated"
         check["detail"] = detail
     elif outcome == "unavailable":
-        # A dependency gap is not evidence about the file. The level stays at
-        # what was actually proven and the status stays passing, because the
-        # structural pass above is independent of the official reader.
+        # A dependency gap is not evidence about the file, so the structural
+        # pass stands and the status stays ok. It is also not the strongest
+        # evidence, so a strict caller is deliberately left unsatisfied below.
         check["official_reader_status"] = "dependency_missing"
     else:
         # The official reader is the authority: if it rejects the file, so do we.
         check["status"] = "fail"
-        check["strict_payload_satisfied"] = False
         check["verification_level"] = "header_only"
         check["problems"] = [detail]
         check["detail"] = f"the official safetensors reader rejected {target.name}: {detail}"
+
+    # Strict mode demands the strongest level, so an absent official reader
+    # cannot satisfy it. Install the bridge extra to use --require-adapter-payload.
+    check["strict_payload_satisfied"] = (
+        check["verification_level"] == "tensor_materialization_validated"
+    )
+    if require_payload and not check["strict_payload_satisfied"]:
+        check["status"] = "fail"
+        if outcome == "unavailable":
+            check["detail"] = (
+                f"--require-adapter-payload needs the official safetensors reader; {detail}"
+            )
     return check

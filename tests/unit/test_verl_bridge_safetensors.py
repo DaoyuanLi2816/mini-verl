@@ -231,10 +231,29 @@ def test_strict_payload_requirement_fails_on_header_only(tmp_path: Path) -> None
     assert check["strict_payload_satisfied"] is False
 
 
+@pytest.mark.skipif(
+    not _official_reader_available(), reason="the official safetensors reader is unavailable"
+)
 def test_strict_payload_requirement_passes_on_valid_file(tmp_path: Path) -> None:
     check = inspect_safetensors(_valid(tmp_path / "m.safetensors"), require_payload=True)
     assert check["status"] == "ok"
     assert check["strict_payload_satisfied"] is True
+    assert check["verification_level"] == "tensor_materialization_validated"
+
+
+def test_strict_payload_requirement_is_not_satisfied_without_the_official_reader(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Strict mode demands the strongest evidence, not the best available."""
+    monkeypatch.setitem(sys.modules, "numpy", None)
+    check = inspect_safetensors(_valid(tmp_path / "m.safetensors"), require_payload=True)
+    assert check["status"] == "fail"
+    assert check["strict_payload_satisfied"] is False
+    assert check["verification_level"] == "payload_structure_validated"
+    assert "--require-adapter-payload needs the official safetensors reader" in check["detail"]
+    # Without the strict flag the same file still passes.
+    relaxed = inspect_safetensors(_valid(tmp_path / "m.safetensors"))
+    assert relaxed["status"] == "ok"
 
 
 # ----------------------------------------------------- dependency behaviour
