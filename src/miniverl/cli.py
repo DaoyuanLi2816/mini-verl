@@ -981,6 +981,11 @@ def import_verl_command(
     schedule_mapping: Optional[str] = typer.Option(
         None, "--schedule-mapping", help="Explicit schedule-unit mapping."
     ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Replace an existing <stem>.yaml/.template.yaml/.import-report.json family.",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Import the documented whitelist, never generic verl YAML."""
@@ -997,19 +1002,21 @@ def import_verl_command(
             teacher_adapter=teacher_adapter,
             loss_profile=loss_profile,
             schedule_mapping=schedule_mapping,
+            overwrite=overwrite,
         )
     except MiniVerlError as exc:
         _fail(exc)
         return
     written = out.parent / str(report["generated_path"])
-    payload = {"written": str(written), "report": str(out.parent / "import-report.json"), **report}
+    report_file = out.parent / str(report["report_path"])
+    payload = {"written": str(written), "report": str(report_file), **report}
     if as_json:
         _emit_json(payload)
         return
     style = "green" if report["status"] == "accepted" else "yellow"
     console.print(f"[{style}]verl profile {report['status']}[/{style}] {_esc(written)}")
     console.print(f"  profile {_esc(profile)}")
-    console.print(f"  report  {_esc(out.parent / 'import-report.json')}")
+    console.print(f"  report  {_esc(report_file)}")
 
 
 @app.command("convert-dataset")
@@ -1023,6 +1030,11 @@ def convert_dataset_command(
         "--max-prompt-characters",
         min=1,
         help="Optional character-only risk bound; rows are never truncated.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Replace an existing <name>.parquet/.miniverl.json/.report.json family.",
     ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
@@ -1045,6 +1057,7 @@ def convert_dataset_command(
             out=out,
             direction=direction,
             max_prompt_characters=max_prompt_characters,
+            overwrite=overwrite,
         )
     except MiniVerlError as exc:
         _fail(exc)
