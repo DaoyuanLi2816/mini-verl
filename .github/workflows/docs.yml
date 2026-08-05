@@ -88,6 +88,12 @@ jobs:
   deploy:
     name: deploy versioned documentation
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # The workflow-level group keys on `github.ref`, so a release tag push and the `main` push that accompanies it
+    # land in different groups and run at the same time. Both then claim the single `github-pages` environment and
+    # one of them fails. Serialize just the deploy job across every ref so the builds still run in parallel.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
