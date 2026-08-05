@@ -78,7 +78,8 @@ stem-specific naming, collision refusal, `--overwrite`, fault injection and conc
 | docs | [`30975138352`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138352) green; 20 Linux screenshots uploaded as `docs-visual-screenshots` |
 | pinned verl bridge | [`30975138353`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/30975138353) green |
 | screenshot inspection | the CI Linux screenshots were downloaded and read directly, not only trusted as green. The 390 px Alignment Lab mobile chart and metric-coverage cards render the same as the local Windows capture |
-| release state | merge-ready and awaiting explicit publication authorization; the version is still `0.6.2.dev0` and no tag exists |
+| release metadata | publication was explicitly authorized, so the version is finalized to `0.6.2`, `CHANGELOG.md` carries a dated `[0.6.2] - 2026-08-05` section with its compare link, `CITATION.cff` records `0.6.2` / `2026-08-05`, `PYPI.md` is regenerated tag-pinned to `blob/v0.6.2`, and `docs/generated/quality.json` records release `0.6.2`, status `validated`, 1652 CPU tests at 85.77% branch coverage, 5 GPU and 3 network |
+| local release build | `python -m build` and `twine check` pass at `0.6.2`. These local artifacts are a sanity check only; the published distributions are built once inside the tag workflow |
 
 ### Known limitation carried forward
 
