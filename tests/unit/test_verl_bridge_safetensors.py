@@ -39,13 +39,44 @@ def _valid(path: Path) -> Path:
 # ---------------------------------------------------------------- valid file
 
 
-def test_valid_file_materializes(tmp_path: Path) -> None:
+def _official_reader_available() -> bool:
+    """The numpy framework needs numpy; the torch-free environment has neither."""
+    try:
+        import numpy  # noqa: F401
+        from safetensors import safe_open  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def test_valid_file_passes_structural_validation(tmp_path: Path) -> None:
     check = inspect_safetensors(_valid(tmp_path / "adapter_model.safetensors"))
     assert check["status"] == "ok"
-    assert check["verification_level"] == "tensor_materialization_validated"
     assert check["problems"] == []
     assert check["tensors"] == 2
     assert check["actual_payload_bytes"] == 32
+    # The stronger level is only claimed where the official reader can run.
+    if _official_reader_available():
+        assert check["verification_level"] == "tensor_materialization_validated"
+    else:
+        assert check["verification_level"] == "payload_structure_validated"
+        assert check["official_reader_status"] == "dependency_missing"
+
+
+def test_a_dependency_gap_is_not_evidence_the_file_is_invalid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The torch-free environment has safetensors but no numpy.
+
+    Treating that ImportError as a rejection failed every structurally valid
+    adapter in CI while the file was fine.
+    """
+    monkeypatch.setitem(sys.modules, "numpy", None)
+    check = inspect_safetensors(_valid(tmp_path / "m.safetensors"))
+    assert check["status"] == "ok"
+    assert check["verification_level"] == "payload_structure_validated"
+    assert check["official_reader_status"] == "dependency_missing"
+    assert check["problems"] == []
 
 
 def test_absent_file_reports_not_present(tmp_path: Path) -> None:
@@ -227,7 +258,7 @@ def test_official_reader_rejection_overrides_structural_pass(
     import miniverl.bridge.safetensors_check as module
 
     monkeypatch.setattr(
-        module, "_materialize", lambda path: (False, "SafetensorError: synthetic rejection", 0)
+        module, "_materialize", lambda path: ("rejected", "SafetensorError: synthetic", 0)
     )
     check = inspect_safetensors(_valid(tmp_path / "m.safetensors"))
     assert check["status"] == "fail"

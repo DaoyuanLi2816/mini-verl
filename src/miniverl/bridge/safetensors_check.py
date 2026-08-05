@@ -153,12 +153,23 @@ def _structural_problems(path: Path) -> tuple[list[str], int, dict[str, Any]]:
     return problems, data_length, summary
 
 
-def _materialize(path: Path) -> tuple[bool, str, int]:
-    """Read every tensor through the official reader, which owns the format."""
+def _materialize(path: Path) -> tuple[str, str, int]:
+    """Read every tensor through the official reader, which owns the format.
+
+    Returns one of three outcomes, because "we could not run the reader" and
+    "the reader rejected the file" mean opposite things. Conflating them made a
+    structurally valid adapter fail in the torch-free environment, where
+    ``safetensors`` is installed but ``numpy`` -- which its numpy framework
+    needs -- is not.
+    """
     try:
         from safetensors import safe_open
-    except ImportError:
-        return False, "the official safetensors package is not installed", 0
+    except ImportError as exc:
+        return "unavailable", f"the official safetensors reader is unavailable: {exc}", 0
+    try:
+        import numpy  # noqa: F401  # required by framework="np"
+    except ImportError as exc:
+        return "unavailable", f"the official safetensors reader is unavailable: {exc}", 0
     try:
         with safe_open(str(path), framework="np") as handle:
             keys = list(handle.keys())
@@ -166,9 +177,16 @@ def _materialize(path: Path) -> tuple[bool, str, int]:
                 # Reading the slice's shape forces the reader to resolve the
                 # tensor against the real buffer.
                 handle.get_slice(key).get_shape()
+    except ImportError as exc:
+        # A dependency gap surfacing from inside the reader is still a gap.
+        return "unavailable", f"the official safetensors reader is unavailable: {exc}", 0
     except Exception as exc:
-        return False, f"{type(exc).__name__}: {exc}", 0
-    return True, f"{len(keys)} tensor(s) materialized through the official reader", len(keys)
+        return "rejected", f"{type(exc).__name__}: {exc}", 0
+    return (
+        "materialized",
+        f"{len(keys)} tensor(s) materialized through the official reader",
+        len(keys),
+    )
 
 
 def inspect_safetensors(path: str | Path, *, require_payload: bool = False) -> dict[str, Any]:
@@ -213,14 +231,16 @@ def inspect_safetensors(path: str | Path, *, require_payload: bool = False) -> d
         f"{summary['actual_payload_bytes']} payload bytes"
     )
 
-    materialized, detail, _count = _materialize(target)
+    outcome, detail, _count = _materialize(target)
     check["official_reader"] = detail
-    if materialized:
+    check["official_reader_status"] = outcome
+    if outcome == "materialized":
         check["verification_level"] = "tensor_materialization_validated"
         check["detail"] = detail
-    elif "not installed" in detail:
-        # A missing optional dependency must not be reported as a stronger
-        # result, but it also must not fail a structurally valid file.
+    elif outcome == "unavailable":
+        # A dependency gap is not evidence about the file. The level stays at
+        # what was actually proven and the status stays passing, because the
+        # structural pass above is independent of the official reader.
         check["official_reader_status"] = "dependency_missing"
     else:
         # The official reader is the authority: if it rejects the file, so do we.
