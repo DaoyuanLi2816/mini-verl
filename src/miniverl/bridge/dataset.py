@@ -1,4 +1,10 @@
-"""Lossless, validated Parquet exchange for the pinned verl prompt schema."""
+"""Validated Parquet exchange for the pinned verl prompt schema.
+
+Conversion is lossless for the rows it accepts and complete-or-nothing by
+default: one invalid row fails the whole run rather than quietly publishing the
+rest. ``allow_rejected_rows`` opts into a partial dataset, which the report
+labels as incomplete instead of lossless.
+"""
 
 from __future__ import annotations
 
@@ -11,8 +17,10 @@ from miniverl.bridge.publish import (
     DEFAULT_LOCK_TIMEOUT,
     OutputTransaction,
     dataset_output_targets,
+    reject_source_output_alias,
 )
 from miniverl.errors import ConfigError, MissingDependencyError
+from miniverl.utils.runs import canonical_json
 
 __all__ = ["convert_dataset"]
 
@@ -77,16 +85,74 @@ def _write_parquet(pa: Any, pq: Any, rows: list[dict[str, Any]], path: Path) -> 
     pq.write_table(pa.Table.from_pylist(rows), path)
 
 
+def _collect_extension_sources(
+    row: dict[str, Any], *, source_index: int, input_sidecar: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Find every place this row's miniVERL extension can live.
+
+    A row can carry extension data in three independent locations. Silently
+    preferring one of them loses the others, so all of them are collected and
+    reconciled by the caller.
+    """
+    found: dict[str, Any] = {}
+    top_level = row.pop("miniverl_extensions", None)
+    if top_level is not None:
+        found["miniverl_extensions"] = top_level
+    sidecar_rows = input_sidecar.get("rows")
+    sidecar_value = (
+        sidecar_rows.get(str(source_index)) if isinstance(sidecar_rows, Mapping) else None
+    )
+    if sidecar_value is not None:
+        found["sidecar"] = sidecar_value
+    extra = dict(row.get("extra_info") or {})
+    nested = extra.pop("miniverl", None)
+    if nested is not None:
+        found["extra_info.miniverl"] = nested
+    return found, extra
+
+
+def _resolve_extension(found: Mapping[str, Any], *, source_index: int) -> tuple[Any, list[str]]:
+    """Reconcile duplicate extension sources, failing closed on disagreement.
+
+    Equal content from several locations is a deduplication, not a conflict.
+    Different content cannot be resolved without guessing, so the conversion
+    stops. Only the row index and the source *names* are reported: extension
+    payloads can carry teacher targets and are never printed.
+    """
+    if not found:
+        return None, []
+    names = sorted(found)
+    if len(names) == 1:
+        return found[names[0]], []
+    canonical = {name: canonical_json(value) for name, value in found.items()}
+    if len(set(canonical.values())) > 1:
+        raise ConfigError(
+            f"row {source_index} carries conflicting miniVERL extension data in {', '.join(names)}",
+            hint=(
+                "these locations must agree or only one may be present; miniVERL will "
+                "not guess which one is authoritative. Extension values are not shown "
+                "here because they may contain teacher targets."
+            ),
+        )
+    return found[names[0]], names
+
+
 def convert_dataset(
     source: str | Path,
     *,
     out: str | Path,
     direction: Direction,
     max_prompt_characters: int | None = None,
+    allow_rejected_rows: bool = False,
     overwrite: bool = False,
     lock_timeout: float = DEFAULT_LOCK_TIMEOUT,
 ) -> dict[str, Any]:
-    """Convert a Parquet dataset without truncation or semantic relabeling."""
+    """Convert a Parquet dataset without truncation or semantic relabeling.
+
+    Conversion is complete-or-nothing: a row that fails validation fails the
+    whole run unless ``allow_rejected_rows`` explicitly authorizes a partial
+    dataset, which the report then labels as incomplete.
+    """
     if direction not in {"from-verl-parquet", "to-verl-parquet"}:
         raise ConfigError(f"unknown dataset conversion direction {direction!r}")
     if max_prompt_characters is not None and max_prompt_characters < 1:
@@ -98,6 +164,15 @@ def convert_dataset(
         raise ConfigError(f"Parquet dataset not found: {source_path}")
 
     targets = dataset_output_targets(destination)
+    # The source Parquet and its own sidecar are inputs; neither may be an
+    # output of this conversion. Checked before the transaction is created.
+    reject_source_output_alias(
+        {
+            "source Parquet": source_path,
+            "source sidecar": _sidecar_path(source_path),
+        },
+        targets,
+    )
     transaction = OutputTransaction(
         targets=targets,
         stem=destination.name,
@@ -115,6 +190,7 @@ def convert_dataset(
             targets=targets,
             direction=direction,
             max_prompt_characters=max_prompt_characters,
+            allow_rejected_rows=allow_rejected_rows,
         )
     finally:
         transaction.close()
@@ -129,6 +205,7 @@ def _convert_locked(
     targets: Mapping[str, Path],
     direction: Direction,
     max_prompt_characters: int | None,
+    allow_rejected_rows: bool = False,
 ) -> dict[str, Any]:
     """Build and publish one coherent Parquet/sidecar/report family."""
     try:
@@ -151,6 +228,8 @@ def _convert_locked(
     accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
     extensions: dict[str, Any] = {}
+    source_row_indices: dict[str, int] = {}
+    deduplicated: list[dict[str, Any]] = []
     over_bound = 0
     for source_index, raw in enumerate(rows):
         if not isinstance(raw, Mapping):
@@ -166,26 +245,38 @@ def _convert_locked(
         if max_prompt_characters is not None and _prompt_characters(prompt) > max_prompt_characters:
             over_bound += 1
 
-        extension = row.pop("miniverl_extensions", None)
-        if extension is None:
-            extension = input_sidecar.get("rows", {}).get(str(source_index))
-        if direction == "to-verl-parquet" and extension is not None:
-            extra = dict(row.get("extra_info") or {})
-            extra["miniverl"] = extension
-            row["extra_info"] = extra
-        elif direction == "from-verl-parquet":
-            extra = dict(row.get("extra_info") or {})
-            nested = extra.pop("miniverl", None)
-            if nested is not None and extension is None:
-                extension = nested
+        found, extra = _collect_extension_sources(
+            row, source_index=source_index, input_sidecar=input_sidecar
+        )
+        extension, merged_sources = _resolve_extension(found, source_index=source_index)
+        if merged_sources:
+            deduplicated.append({"row": source_index, "sources": merged_sources})
+        if direction == "to-verl-parquet":
+            if extension is not None:
+                extra["miniverl"] = extension
+            row["extra_info"] = extra or None
+        else:
             # Parquet cannot encode an empty struct. ``None`` is the exact
             # canonical intermediate when all extension fields moved to the
             # checksummed sidecar; the reverse conversion restores the object.
             row["extra_info"] = extra or None
         if extension is not None:
+            # Keyed on the output row so the sidecar stays consistent with the
+            # Parquet file it accompanies; the source index is kept separately.
             extensions[str(len(accepted))] = extension
+        source_row_indices[str(len(accepted))] = source_index
         accepted.append(row)
 
+    if rejected and not allow_rejected_rows:
+        first = rejected[0]
+        raise ConfigError(
+            f"{len(rejected)} of {len(rows)} source row(s) failed validation; "
+            f"first failure is row {first['row']}: {first['reason']}",
+            hint=(
+                "conversion is complete-or-nothing by default. Fix the source rows, or "
+                "pass --allow-rejected-rows to publish an explicitly partial dataset"
+            ),
+        )
     if not accepted:
         raise ConfigError("dataset conversion accepted zero rows", hint="inspect the rejected rows")
 
@@ -223,12 +314,22 @@ def _convert_locked(
             "rows_truncated": 0,
         }
     )
+    partial = bool(rejected)
     report: dict[str, Any] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "direction": direction,
+        "source_rows": len(rows),
         "accepted_rows": len(accepted),
         "rejected_rows": len(rejected),
         "rejections": rejected,
+        # A conversion that dropped rows is never described as lossless overall.
+        "complete_dataset_conversion": not partial,
+        "lossless_for_accepted_rows": True,
+        "partial_conversion": partial,
+        "partial_conversion_authorized": bool(allow_rejected_rows) if partial else None,
+        # Output row -> original source row, so a partial file keeps provenance.
+        "source_row_indices": source_row_indices if partial else None,
+        "extension_deduplication": deduplicated,
         "truncation_risk": truncation,
         "source_sha256": _sha256(source_path),
         # Hashed from the staged bytes that this same transaction publishes.

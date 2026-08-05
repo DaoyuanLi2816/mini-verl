@@ -1031,6 +1031,11 @@ def convert_dataset_command(
         min=1,
         help="Optional character-only risk bound; rows are never truncated.",
     ),
+    allow_rejected_rows: bool = typer.Option(
+        False,
+        "--allow-rejected-rows",
+        help="Publish an explicitly partial dataset instead of failing on invalid rows.",
+    ),
     overwrite: bool = typer.Option(
         False,
         "--overwrite",
@@ -1038,7 +1043,10 @@ def convert_dataset_command(
     ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
-    """Convert the official prompt schema while preserving chat structure."""
+    """Convert the official prompt schema while preserving chat structure.
+
+    Any invalid row fails the conversion unless --allow-rejected-rows is given.
+    """
     if (from_format is None) == (to_format is None):
         _fail(ConfigError("choose exactly one of --from verl-parquet or --to verl-parquet"))
         return
@@ -1057,6 +1065,7 @@ def convert_dataset_command(
             out=out,
             direction=direction,
             max_prompt_characters=max_prompt_characters,
+            allow_rejected_rows=allow_rejected_rows,
             overwrite=overwrite,
         )
     except MiniVerlError as exc:
@@ -1069,6 +1078,11 @@ def convert_dataset_command(
     console.print(
         f"  accepted {_esc(report['accepted_rows'])}; rejected {_esc(report['rejected_rows'])}"
     )
+    if report["partial_conversion"]:
+        console.print(
+            "  [yellow]partial conversion[/yellow]: this dataset is incomplete; "
+            "only the accepted rows are lossless"
+        )
     console.print(f"  sha256  {_esc(report['output_sha256'])}")
 
 
