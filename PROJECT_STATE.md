@@ -37,6 +37,46 @@ Last updated: 2026-08-04.
 **44 failed, 11 passed**, covering mapped-field/CLI/nested interpolation, informational labelling,
 stem-specific naming, collision refusal, `--overwrite`, fault injection and concurrency.
 
+### Implemented in this release
+
+| workstream | outcome |
+| --- | --- |
+| A — interpolation | `src/miniverl/bridge/interpolation.py` holds one recursive audit over strings, lists, tuples and mappings. It runs on source fields (classified `exact`/`derived`/`requires_user_confirmation` fail closed, `informational_only` is labelled `unresolved_informational_only` and stays in the report), on explicit CLI choices before any path is reserved, and on the generated recipe plus its rendered bytes before publication. Detection is conservative: any `${` is a finding. Nothing is ever resolved from the environment. `1e-5` still parses; NaN/infinity stay rejected. No new runtime dependency |
+| B — transactional outputs | `src/miniverl/bridge/publish.py` gives every invocation a stem-specific target family, a per-stem `RunLock` reservation, a collision check that runs before anything is modified, staging inside the destination and restore-on-failure. `import-verl` publishes `<stem>.yaml` **or** `<stem>.template.yaml` plus exactly one `<stem>.import-report.json`; `convert-dataset` publishes Parquet, sidecar and report as one family. `--overwrite` is required to replace; `--out` alone never implies it |
+| C — Alignment Lab visuals | metric coverage became an accessible responsive HTML table with one column-level scope statement, replacing the SVG whose `Sandbox endpoint` / `External safety` headers collided and whose two rightmost columns repeated one value six times. The forest legend moved to its own footer band and every mean/seed value is printed in the left column instead of floating in the plot. The outcome matrix widened its method column, stacked each value above its bar and moved `—  not applicable` to the last column. Both charts gained dedicated 390 px vertical SVGs selected by `<picture>` at `max-width: 900px` |
+| D — visual gate | `scripts/check_docs_visual.py` now measures each figure's real rendered bounding box in the viewport under test and re-renders the SVG at exactly that width. It inspects every visible `<text>` node rather than only `[data-role]` ones, detects header-to-header and header-to-data overlap and label-to-mark occlusion, keeps the viewBox-bounds and legend/plot checks, validates responsive tables and card labels, ignores inactive `<picture>` branches via `currentSrc`, and fails below 11 px at 390 px |
+| E — tokenizer levels | `not_present` → `metadata_only` → `loadable_local_snapshot` → `structural_identity_verified`. A complete snapshot is loaded with `local_files_only=True` and `trust_remote_code=False`; structural digest, vocabulary size and special tokens are compared against the manifest identity when present, and any mismatch fails closed. `--require-tokenizer-load` refuses metadata-only bundles |
+| F — privacy scopes | `portable_metadata_privacy`, `dataset_content_privacy` and `model_weight_privacy` are independent. `not_inspected` is never rendered as `passed`, and the CLI says so. `--scan-dataset-text` adds a bounded heuristic scan that reports category/split/column/row only, caps rows and bytes, records `full` vs `sampled`, and never reads safetensors as text |
+| G — claims | README, Chinese README, PYPI.md, `docs/verl-bridge.md` and the exported bundle README describe a *verified artifact bridge* at miniVERL-defined Level 3 with `launchable: false`, distributed execution not tested and no OPD/PPO parity, and document the new naming, overwrite, tokenizer and privacy contracts |
+
+### Evidence
+
+| gate | result |
+| --- | --- |
+| new regressions | 55 pass (`test_verl_bridge_interpolation.py`, `test_verl_bridge_outputs.py`, `test_verl_bridge_dataset_outputs.py`) after implementation; the same files reported 44 failures before it |
+| doctor levels/privacy | 19 pass in `tests/unit/test_verl_bridge_doctor_levels.py`, including no-network enforcement through the `deny_network` fixture |
+| visual gate regression | the v0.6.1 SVG is preserved verbatim at `tests/fixtures/visual/legacy-metric-coverage-matrix.svg`. The corrected gate rejects it at both widths with `overlapping text: ['"Sandbox endpoint" x "External safety"']`; all four published figures pass with zero overlap, zero occlusion and no text under the floor |
+| browser gate | `checked 28 rendered SVG instances across 4 viewports` at 1440x900, 1024x768, 820x1000 and 390x844 over `/`, `/alignment-lab/alignment-lab-v1/`, `/consumer-runtime/`, `/recoverybench/recoverybench-v1/` and `/verl-bridge/` |
+| manual inspection | the 390 px and 1440 px screenshots were read directly. Two defects the automated gate could not express were found and fixed this way: the coverage caption collapsed to one word per line in card mode, and the outcome-matrix value labels touched their own seed marks and the next column's bar |
+| CPU suite | 1652 passed, 6 deselected, 85.77% branch coverage against an 80% floor |
+| static gates | `ruff check`, `ruff format --check`, `mypy src/miniverl`, `mkdocs build --strict` and the Markdown/link check pass |
+| immutable evidence | all ten frozen result JSON/JSONL files and `docs/generated/verl-bridge-smoke.json` re-hash to their recorded values after every change |
+
+### Known limitation carried forward
+
+The 11 px readability floor at 390 px is **not** enforced for four figures that
+predate this release and have no narrow layout: `consumer-runtime-v1-pareto.svg`,
+`cost-quality-pareto.svg`, `fresh-vs-frozen.svg` and `recovery-success.svg`.
+The exemption is an explicit asserted set in `scripts/check_docs_visual.py`, is
+printed on every run, and fails the gate if any other figure joins it.
+Redesigning those v0.3/v0.4 figures is out of scope for this patch.
+
+The committed `docs/generated/verl-bridge-smoke.json` is left byte-identical.
+It was produced before tokenizer verification levels existed, and its bundle
+ships only `tokenizer_config.json` — which the current checker correctly
+classifies as `metadata_only` rather than the `status: ok` the old
+presence-only check recorded.
+
 ## v0.6.1 Visual integrity and bridge correctness release
 
 | item | current state |

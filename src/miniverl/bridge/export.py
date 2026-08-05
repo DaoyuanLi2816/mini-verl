@@ -382,6 +382,13 @@ artifacts with the documented `{BRIDGE_PROFILE}` subset of
 `{VERL_COMMIT}`.
 
 Run `miniverl bridge doctor . --require-verl` after installing the exact pin.
+By default the doctor inspects portable metadata only: it reports
+`dataset_content_privacy: not_inspected` and `model_weight_privacy:
+not_inspected`, neither of which means `passed`. Add `--scan-dataset-text` for
+a bounded heuristic scan of string-like Parquet fields, and
+`--require-tokenizer-load` to demand a real local tokenizer load and identity
+check instead of accepting `metadata_only`.
+
 The generated reward scaffold fails closed until domain logic is supplied and
 tested. Materialize `model/base` from the exact identity in
 `model/base-model.json` before launch; the adapter directory alone is not a

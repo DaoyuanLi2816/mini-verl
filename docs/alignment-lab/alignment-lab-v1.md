@@ -45,11 +45,39 @@ policy checks, not a broad safety result.
 | standard OPD | 98.6% | 0.0% | 0.0% | 97.2% | 100.0% | 76.7 s | 0.94 GiB |
 | verifier-gated OPD | 97.9% | 0.0% | 0.0% | 95.8% | 46.8% | 66.0 s | 0.87 GiB |
 
-![Forest chart of alignment and tool-utility deltas from the saturated SFT checkpoint, with every seed and the three-seed means](delta-from-sft.svg)
+<picture class="alignment-figure">
+  <source media="(max-width: 900px)" srcset="../delta-from-sft-mobile.svg">
+  <img src="../delta-from-sft.svg" alt="Forest chart of alignment and retained-tool-utility percentage-point deltas from the saturated SFT checkpoint. Every method's three seeds and their means are drawn at their exact values and printed as text; no continuation method lands above the zero baseline.">
+</picture>
 
-![Row matrix of alignment, retained tool utility, teacher-query ratio, continuation GPU time and peak VRAM, including every measured seed](outcome-cost-matrix.svg)
+<picture class="alignment-figure">
+  <source media="(max-width: 900px)" srcset="../outcome-cost-matrix-mobile.svg">
+  <img src="../outcome-cost-matrix.svg" alt="Row matrix of alignment, retained tool utility, teacher-query ratio, continuation GPU time and peak VRAM for every method, with each value printed next to its bar and non-teacher query ratios marked not applicable rather than zero.">
+</picture>
 
-![Coverage matrix showing tied zero sandbox safety checks, utility regressions and external safety benchmarks not executed](metric-coverage-matrix.svg)
+### Metric coverage
+
+<div class="coverage" markdown="0">
+<p class="coverage-statement">Both measured sandbox safety checks tied at zero while retained utility still regressed. External IFEval, XSTest, HarmBench and RewardBench endpoints were not executed.</p>
+<div class="coverage-scroll">
+<table class="coverage-table">
+<caption>Alignment Lab v1 metric coverage. Every measured seed is printed; the two sandbox rates are identical across all seeds and methods.</caption>
+<thead><tr><th scope="col">Method</th><th scope="col">Harmful compliance<span>seed values</span></th><th scope="col">Over-refusal<span>seed values</span></th><th scope="col">Retained tool utility change<span>mean (seeds), pp</span></th></tr></thead>
+<tbody>
+<tr><th scope="row" data-label="Method"><span class="coverage-swatch" style="background:#A7A9AC"></span>SFT checkpoint</th><td data-label="Harmful compliance">0% · 0% · 0%</td><td data-label="Over-refusal">0% · 0% · 0%</td><td data-label="Retained tool utility change"><b>0.0</b> <span class="coverage-seeds">(0.0 / 0.0 / 0.0)</span></td></tr>
+<tr><th scope="row" data-label="Method"><span class="coverage-swatch" style="background:#0072B2"></span>continued SFT</th><td data-label="Harmful compliance">0% · 0% · 0%</td><td data-label="Over-refusal">0% · 0% · 0%</td><td data-label="Retained tool utility change"><b>-11.1</b> <span class="coverage-seeds">(0.0 / 0.0 / -33.3)</span></td></tr>
+<tr><th scope="row" data-label="Method"><span class="coverage-swatch" style="background:#CC79A7"></span>DPO</th><td data-label="Harmful compliance">0% · 0% · 0%</td><td data-label="Over-refusal">0% · 0% · 0%</td><td data-label="Retained tool utility change"><b>0.0</b> <span class="coverage-seeds">(0.0 / 0.0 / 0.0)</span></td></tr>
+<tr><th scope="row" data-label="Method"><span class="coverage-swatch" style="background:#E69F00"></span>offline soft distillation</th><td data-label="Harmful compliance">0% · 0% · 0%</td><td data-label="Over-refusal">0% · 0% · 0%</td><td data-label="Retained tool utility change"><b>0.0</b> <span class="coverage-seeds">(0.0 / 0.0 / 0.0)</span></td></tr>
+<tr><th scope="row" data-label="Method"><span class="coverage-swatch" style="background:#D55E00"></span>standard OPD</th><td data-label="Harmful compliance">0% · 0% · 0%</td><td data-label="Over-refusal">0% · 0% · 0%</td><td data-label="Retained tool utility change"><b>-2.8</b> <span class="coverage-seeds">(0.0 / 0.0 / -8.3)</span></td></tr>
+<tr><th scope="row" data-label="Method"><span class="coverage-swatch" style="background:#009E73"></span>verifier-gated OPD</th><td data-label="Harmful compliance">0% · 0% · 0%</td><td data-label="Over-refusal">0% · 0% · 0%</td><td data-label="Retained tool utility change"><b>-4.2</b> <span class="coverage-seeds">(0.0 / -12.5 / 0.0)</span></td></tr>
+</tbody>
+</table>
+</div>
+<ul class="coverage-scope">
+<li><b>Sandbox endpoint measured:</b> yes, for every row — deterministic Minipolicy v1 harmful-compliance and over-refusal checks.</li>
+<li><b>External safety benchmark executed:</b> no, for every row — IFEval, XSTest, HarmBench and RewardBench are pinned metadata only.</li>
+</ul>
+</div>
 
 <details>
 <summary>Figure provenance</summary>

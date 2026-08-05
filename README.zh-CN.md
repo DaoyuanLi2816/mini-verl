@@ -49,12 +49,18 @@ CPU 上约需 50 秒。若只需要 schema、检查与报告，可安装
 | --- | --- | --- | --- |
 | **Align** — 只有 pilot 证据支持成本时，才在 SFT、DPO、KD 与 OPD 间选择 | `miniverl pilot recipes/alignment_policy_conditioned_qwen.yaml` | `alignment-card.json` | [Alignment Lab](docs/alignment-lab/alignment-lab-v1.md) |
 | **Distill locally** — 在一张 CUDA GPU 上运行严格 OPD、共享 backbone 与 padded trajectory update | `miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run` | `config.resolved.yaml` 与锁定 revision 的 PEFT adapter | [使用自己的 GPU](docs/single-gpu-guide.md) |
-| **Scale out** — 导入已文档化 profile、转换 Parquet、导出 bundle 并执行 bridge 检查 | `miniverl bridge doctor scaleout-bundle` | `provenance/compatibility-report.json` | [verl 桥接](docs/verl-bridge.md) |
+| **Scale out** — 导入已文档化 profile、转换 Parquet、导出 bundle 并执行 bridge 检查 | `miniverl bridge doctor scaleout-bundle` | `provenance/compatibility-report.json` | [verl 产物桥接](docs/verl-bridge.md) |
+
+该桥接是一座**已验证的产物桥接**：在 miniVERL 自定义的兼容性 Level 3 上，
+对锁定版本的配置/数据/模型执行 parse-load 冒烟测试。它从未运行过分布式
+verl 作业，也不声称 OPD 与 PPO 之间存在语义等价。
 
 桥接导入不是通用 YAML 转换。当数据集/环境、教师身份、目标函数或 schedule
-语义不完整时，`import-verl` 只会写出 `import-report.json` 和不可执行的
-`imported.template.yaml`，状态为 `needs_user_input`。它不会悄悄改用
-calculator 环境，也不会创建身份不明确的同基座教师。
+语义不完整时，`import-verl` 只会写出 `<stem>.import-report.json` 和不可执行的
+`<stem>.template.yaml`，状态为 `needs_user_input`。它不会悄悄改用
+calculator 环境，也不会创建身份不明确的同基座教师。未解析的 `${...}` 绝不会
+进入被接受的 recipe；输出文件名按 stem 隔离；只有显式传入 `--overwrite`
+才会替换已存在的输出文件族。
 
 ## 一项对齐实测结果
 

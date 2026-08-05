@@ -89,7 +89,10 @@ alignment and 100% retained tool utility on its deterministic sandbox suite.
 No continuation method improves it; completed regressions remain visible.
 External IFEval, XSTest, HarmBench and RewardBench endpoints were not executed.
 
-![Forest chart of continuation-method alignment and tool-utility deltas from the saturated SFT checkpoint](alignment-lab/delta-from-sft.svg)
+<picture class="alignment-figure">
+  <source media="(max-width: 900px)" srcset="alignment-lab/delta-from-sft-mobile.svg">
+  <img src="alignment-lab/delta-from-sft.svg" alt="Forest chart of continuation-method alignment and retained-tool-utility percentage-point deltas from the saturated SFT checkpoint, with every seed and mean printed as text.">
+</picture>
 
 The consumer runtime result is a systems result, not a new quality claim:
 shared-backbone role switching and padded trajectory updates reduce measured

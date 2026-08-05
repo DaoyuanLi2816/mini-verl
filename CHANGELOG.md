@@ -6,6 +6,58 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `miniverl bridge doctor --require-tokenizer-load` fails unless the bundle's
+  tokenizer actually loads from its local snapshot with `local_files_only=True`
+  and `trust_remote_code=False`, and its versioned structural identity,
+  vocabulary size and special tokens match the source run where the manifest
+  records them. The network is never contacted.
+- `miniverl bridge doctor --scan-dataset-text` adds a bounded heuristic scan of
+  string-like Parquet fields for URL userinfo, private-key blocks, access-key
+  ids, bearer tokens, credential assignments, absolute local paths and
+  repeatable `--sentinel` values. It reports detector category, split, column
+  and row index only, never the matched text, and records whether it ran
+  `full` or `sampled`.
+- `--overwrite` on `import-verl` and `convert-dataset`, required before any
+  existing output family is replaced.
+- Dedicated mobile layouts for both Alignment Lab charts, selected through
+  `<picture>` at narrow viewports, plus a regression fixture that reproduces
+  the v0.6.1 metric-coverage header collision.
+
+### Changed
+
+- Metric coverage is now an accessible, responsive HTML table with one
+  column-level scope statement instead of an SVG whose long headers collided
+  and whose two rightmost columns repeated one identical value in six rows.
+- `bridge doctor` reports tokenizer verification as `not_present`,
+  `metadata_only`, `loadable_local_snapshot` or `structural_identity_verified`
+  instead of treating filename and digest presence as compatibility.
+- `bridge doctor` reports `portable_metadata_privacy`,
+  `dataset_content_privacy` and `model_weight_privacy` separately.
+  `not_inspected` is never translated into `passed`.
+- The browser visual gate measures each figure's real rendered bounding box in
+  the viewport under test, inspects every visible SVG `<text>` node rather than
+  only tagged ones, detects header-to-header and header-to-data collisions and
+  label-to-mark occlusion, checks responsive tables and card labels, and fails
+  when visible chart text renders below 11 px at 390 px.
+
+### Fixed
+
+- Unresolved `${...}` interpolation can no longer reach a runnable recipe. One
+  recursive audit covers source fields, explicit command-line choices and the
+  generated recipe. Informational fields may stay unresolved but are labelled
+  `unresolved_informational_only` and never enter executable output.
+- Bridge outputs are stem-specific and transactional. `--out foo.yaml`
+  publishes only `foo.yaml` or `foo.template.yaml` plus one
+  `foo.import-report.json`; dataset conversion publishes its Parquet, sidecar
+  and report as one family. Each invocation takes an exclusive per-stem
+  reservation, refuses to start on a collision, stages every file and rolls
+  back on failure, so one invocation's report can never be paired with
+  another's artifact.
+- Raw-HTML figure sources in Markdown pages now use the relative paths MkDocs
+  requires; the visual gate fails when a figure does not actually load.
+
 ## [0.6.1] - 2026-08-03
 
 ### Added

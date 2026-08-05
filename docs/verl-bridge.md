@@ -37,7 +37,7 @@ the readiness state of a newly exported bundle and from any execution claim.
 
 `import-verl` accepts the documented, resolved field subset—not arbitrary
 Hydra/OmegaConf or verl YAML. With only a source profile, it writes
-`import-report.json` and a non-executable `imported.template.yaml`:
+`imported.import-report.json` and a non-executable `imported.template.yaml`:
 
 ```bash
 miniverl import-verl resolved-verl.yaml \
@@ -78,9 +78,67 @@ classified as `exact`, `derived`, `informational_only`,
 | `trainer.total_epochs`, `save_freq`, `test_freq` | `requires_user_confirmation` | Copied only after the explicit schedule mapping. |
 | algorithm, distributed or unknown fields | `unsupported` | Rejected with a report. |
 
-Finite scientific-notation strings such as `1e-5` are accepted. NaN, infinity
-and unresolved `${...}` interpolations are rejected with an actionable error.
-Every runnable output passes `RunConfig` validation before atomic publication.
+Finite scientific-notation strings such as `1e-5` are accepted; NaN and
+infinity are rejected.
+
+### Unresolved interpolation is never executed
+
+One recursive audit walks strings, lists, tuples and mappings, and runs at
+three boundaries: the source fields, the explicit command-line choices, and the
+generated recipe immediately before publication. Detection is conservative—any
+`${` in a reachable string is a finding, including unterminated and nested
+forms. miniVERL never resolves an interpolation for you, so `${oc.env:TOKEN}`
+is an input defect rather than a lookup.
+
+An `exact`, `derived` or `requires_user_confirmation` field carrying `${...}`
+fails closed and writes a rejection report. An `informational_only` field may
+stay unresolved, but the report labels it and it never reaches executable
+output:
+
+```json
+"data.train_files": {
+  "classification": "informational_only",
+  "resolution_status": "unresolved_informational_only"
+}
+```
+
+An accepted recipe is guaranteed to contain no interpolation token, and the
+report records `interpolation_audit.runnable_output_clean: true`.
+
+### Outputs are stem-specific and transactional
+
+One invocation owns one `--out` stem. For `--out recipes/foo.yaml` the only
+files published are:
+
+```text
+recipes/foo.yaml              # or foo.template.yaml, never both as current outputs
+recipes/foo.import-report.json
+```
+
+Dataset conversion behaves the same way, keyed on the requested Parquet path:
+`train.parquet`, `train.parquet.report.json` and, when extensions exist,
+`train.parquet.miniverl.json`.
+
+Each invocation takes an exclusive per-stem reservation, refuses to start if
+any intended output path already exists, stages every file in a temporary
+sibling directory, and publishes the set with same-filesystem renames that are
+rolled back on failure. A report from one invocation therefore cannot be paired
+with a recipe, template, Parquet or sidecar from another. Supplying `--out`
+does not imply replacement; pass `--overwrite` to replace an existing family:
+
+```bash
+miniverl import-verl resolved-verl.yaml \
+  --profile single-gpu-online-distillation-v1 \
+  --target-verl v0.8.0 \
+  --environment jsonnav \
+  --teacher-model Qwen/Qwen3-1.7B \
+  --loss-profile topk-tail-reverse-kl \
+  --schedule-mapping epochs-as-cycles \
+  --out recipes/imported.yaml \
+  --overwrite
+```
+
+Every runnable output passes `RunConfig` validation before publication.
 
 ## Export a portable bundle
 
@@ -110,12 +168,61 @@ identity are preserved in `source_run_values`; they are not relabelled as
 equivalent verl intent. Any prompt limit or schedule value inserted for the PPO
 scaffold appears in `placeholder_defaults` with `source_run_intent: false`.
 
-`bridge doctor` verifies pins, standard adapter structure, tokenizer metadata,
-Parquet schema, override structure, reward importability, privacy and hashes.
-An `ok` verdict means the artifact checks passed; it still returns
+`bridge doctor` verifies pins, standard adapter structure, tokenizer state,
+Parquet schema, override structure, reward importability, privacy scopes and
+hashes. An `ok` verdict means the artifact checks passed; it still returns
 `launchable: false` while the fail-closed reward scaffold remains. The template
 script also refuses to proceed without the immutable base snapshot and a
 completed reward implementation.
+
+### Tokenizer verification levels
+
+Filenames and digests are not a compatibility check, so `tokenizer_identity`
+reports how far verification actually got:
+
+| Level | Meaning |
+| --- | --- |
+| `not_present` | The bundle carries no tokenizer file. |
+| `metadata_only` | Files exist but the vocabulary is missing, or no local load was performed. Missing components are named. |
+| `loadable_local_snapshot` | `AutoTokenizer.from_pretrained(..., local_files_only=True, trust_remote_code=False)` succeeded. |
+| `structural_identity_verified` | It loaded *and* its versioned structural digest, vocabulary size and special tokens match the identity recorded by the source run. |
+
+Loading never contacts the network and never executes remote code. A structural
+mismatch fails closed. To require a real load rather than accept metadata:
+
+```bash
+miniverl bridge doctor exports/<bundle> --require-tokenizer-load
+```
+
+The committed pinned smoke record predates these levels: its bundle ships only
+`tokenizer_config.json`, which is `metadata_only` under the current check.
+
+### Privacy is reported per inspection scope
+
+The default run reads portable metadata files only. It therefore reports three
+independent statuses and never widens one into another:
+
+```text
+portable_metadata_privacy: passed | failed
+dataset_content_privacy:   not_inspected
+model_weight_privacy:      not_inspected
+```
+
+`not_inspected` never means `passed`. An optional bounded scan inspects
+string-like Parquet fields for URL userinfo, private-key blocks, access-key
+ids, bearer tokens, credential assignments, absolute local paths and your own
+sentinels:
+
+```bash
+miniverl bridge doctor exports/<bundle> \
+  --scan-dataset-text --sentinel "internal-project-name"
+```
+
+It is a heuristic detector, not de-identification proof. It reports only the
+detector category, split, column and row index—never the matched text—caps the
+rows and bytes it reads, records whether it ran `full` or `sampled`, and never
+reads `.safetensors` as text. Model-weight privacy stays `not_inspected`
+because no meaningful check exists for it.
 
 ## Unsupported boundary
 

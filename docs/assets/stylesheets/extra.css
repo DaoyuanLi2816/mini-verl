@@ -45,9 +45,140 @@
   width: 100%;
 }
 
+.md-typeset .alignment-figure img {
+  border-radius: 0.75rem;
+  display: block;
+  margin: 0 auto;
+}
+
 .md-typeset__scrollwrap {
   overflow-x: auto;
   overscroll-behavior-inline: contain;
+}
+
+/* Metric coverage: a real table at desktop widths, labelled cards on phones. */
+.md-typeset .coverage {
+  margin: 1.4rem 0;
+}
+
+.md-typeset .coverage-statement {
+  border-left: 4px solid var(--md-accent-fg-color);
+  font-weight: 600;
+  margin: 0 0 1rem;
+  padding: 0.55rem 0 0.55rem 0.85rem;
+}
+
+.md-typeset .coverage-scroll {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.md-typeset .coverage-table {
+  border-collapse: collapse;
+  font-size: 0.76rem;
+  min-width: 100%;
+}
+
+.md-typeset .coverage-table caption {
+  caption-side: bottom;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.7rem;
+  padding-top: 0.6rem;
+  text-align: left;
+}
+
+.md-typeset .coverage-table th,
+.md-typeset .coverage-table td {
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.md-typeset .coverage-table thead th {
+  font-weight: 700;
+  white-space: normal;
+}
+
+.md-typeset .coverage-table thead th span {
+  color: var(--md-default-fg-color--light);
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 400;
+}
+
+.md-typeset .coverage-seeds {
+  color: var(--md-default-fg-color--light);
+}
+
+.md-typeset .coverage-swatch {
+  border-radius: 0.15rem;
+  display: inline-block;
+  height: 0.7rem;
+  margin-right: 0.4rem;
+  vertical-align: baseline;
+  width: 0.35rem;
+}
+
+.md-typeset .coverage-scope {
+  margin-top: 1rem;
+}
+
+@media (max-width: 760px) {
+  .md-typeset .coverage-table,
+  .md-typeset .coverage-table tbody,
+  .md-typeset .coverage-table tr,
+  .md-typeset .coverage-table th,
+  .md-typeset .coverage-table td {
+    display: block;
+    width: auto;
+  }
+
+  .md-typeset .coverage-table thead {
+    /* Column headers move onto each cell as data-label. */
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    width: 1px;
+  }
+
+  /* A display:block table gives its caption a collapsed shrink-to-fit width,
+     which wraps the sentence one word per line. */
+  .md-typeset .coverage-table caption {
+    display: block;
+    padding-bottom: 0.8rem;
+    padding-top: 0;
+    width: auto;
+  }
+
+  .md-typeset .coverage-table tr {
+    border: 1px solid var(--md-default-fg-color--lightest);
+    border-radius: 0.6rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.2rem;
+  }
+
+  .md-typeset .coverage-table th,
+  .md-typeset .coverage-table td {
+    border-bottom: 0;
+    padding: 0.3rem 0.7rem;
+  }
+
+  .md-typeset .coverage-table tbody th[scope="row"] {
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  .md-typeset .coverage-table td::before {
+    color: var(--md-default-fg-color--light);
+    content: attr(data-label);
+    display: block;
+    font-size: 0.72rem;
+  }
+
+  .md-typeset .coverage-table td {
+    font-size: 0.82rem;
+  }
 }
 
 .md-typeset table:not([class]) {
