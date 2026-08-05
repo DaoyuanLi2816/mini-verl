@@ -1104,12 +1104,33 @@ def bridge_doctor_command(
         "--require-verl",
         help="Fail unless the exact commit is installed from a VCS direct URL.",
     ),
+    require_tokenizer_load: bool = typer.Option(
+        False,
+        "--require-tokenizer-load",
+        help="Fail unless the tokenizer loads from the local snapshot and its identity checks out.",
+    ),
+    scan_dataset_text: bool = typer.Option(
+        False,
+        "--scan-dataset-text",
+        help="Run the bounded heuristic scan over string-like Parquet fields.",
+    ),
+    sentinel: list[str] = typer.Option(
+        [],
+        "--sentinel",
+        help="Extra literal string to search for during --scan-dataset-text. Repeatable.",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Verify pins, standard artifacts, schema, scaffold, hashes and smoke status."""
     from miniverl.bridge.doctor import inspect_bridge_bundle
 
-    payload = inspect_bridge_bundle(bundle, require_verl=require_verl)
+    payload = inspect_bridge_bundle(
+        bundle,
+        require_verl=require_verl,
+        require_tokenizer_load=require_tokenizer_load,
+        scan_dataset_text=scan_dataset_text,
+        sentinels=tuple(sentinel),
+    )
     if as_json:
         _emit_json(payload)
     else:
@@ -1118,7 +1139,7 @@ def bridge_doctor_command(
         for key in (
             "target_verl",
             "model_adapter_loadability",
-            "tokenizer_identity",
+            "tokenizer_verification_level",
             "parquet_schema",
             "config_profile",
             "reward_scaffold_importability",
@@ -1127,6 +1148,15 @@ def bridge_doctor_command(
             "distributed_execution_status",
         ):
             console.print(f"  {_esc(key)}: {_esc(payload[key])}")
+        console.print("  privacy scopes:")
+        console.print(f"    portable metadata: {_esc(payload['portable_metadata_privacy'])}")
+        console.print(f"    dataset content:   {_esc(payload['dataset_content_privacy'])}")
+        console.print(f"    model weights:     {_esc(payload['model_weight_privacy'])}")
+        if payload["dataset_content_privacy"] == "not_inspected":
+            console.print(
+                "    [yellow]not_inspected does not mean passed[/yellow]; "
+                "re-run with --scan-dataset-text"
+            )
     if payload["verdict"] != "ok":
         raise typer.Exit(1)
 
