@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — single-GPU LLM post-training" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.6.3/docs/banner.svg" alt="miniVERL — single-GPU LLM post-training" width="880">
 </p>
 
 <div align="center">
@@ -8,7 +8,7 @@
 [![Build](https://github.com/DaoyuanLi2816/mini-verl/actions/workflows/build.yml/badge.svg)](https://github.com/DaoyuanLi2816/mini-verl/actions/workflows/build.yml)
 [![PyPI](https://img.shields.io/pypi/v/miniverl.svg)](https://pypi.org/project/miniverl/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/LICENSE)
 
 </div>
 
@@ -16,7 +16,7 @@
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI</strong></a> ·
   <a href="https://daoyuanli2816.github.io/mini-verl/"><strong>Stable docs</strong></a> ·
   <a href="https://daoyuanli2816.github.io/mini-verl/dev/">Development docs</a> ·
-  <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/main/README.zh-CN.md">中文</a>
+  <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/README.zh-CN.md">中文</a>
 </p>
 
 **miniVERL is a local, inspectable runtime for a documented subset of
@@ -25,7 +25,7 @@ assistant-only loss masks, teacher targets, update budgets and run artifacts
 explicit, then exports portable artifacts through a fail-closed bridge to one
 pinned upstream verl profile.
 
-PyPI `v0.6.1` is stable; `main` is development. The CUDA path has no GPU-name
+PyPI `v0.6.3` is stable; `main` is development. The CUDA path has no GPU-name
 allowlist, but fit depends on the model pair, context budget, kernels and VRAM.
 miniVERL is independent from verl and does not claim distributed execution or
 full algorithmic compatibility.
@@ -44,15 +44,15 @@ optimization in about 50 seconds on the measured laptop CPU. For inspection,
 schemas and reports without the ML stack, use `pip install miniverl`. For CUDA
 training, install the matching CUDA-enabled PyTorch wheel first, then install
 `miniverl[train,cuda]`; the extra does not select a CUDA PyTorch build. See the
-[single-GPU guide](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/single-gpu-guide.md).
+[single-GPU guide](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/single-gpu-guide.md).
 
 ## Three paths
 
 | Path | Start with | Concrete artifact | Next |
 | --- | --- | --- | --- |
-| **Align** — compare SFT, DPO, KD and OPD only when the pilot evidence supports the cost | `miniverl pilot recipes/alignment_policy_conditioned_qwen.yaml` | `alignment-card.json` | [Alignment Lab](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/alignment-lab-v1.md) |
-| **Distill locally** — strict OPD, shared backbones and padded trajectory updates on one CUDA GPU | `miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run` | `config.resolved.yaml` plus a revision-pinned PEFT adapter | [Bring your own GPU](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/single-gpu-guide.md) |
-| **Scale out** — import a documented profile, convert Parquet, export a bundle and run bridge checks | `miniverl bridge doctor scaleout-bundle` | `provenance/compatibility-report.json` | [Verified verl artifact bridge](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-bridge.md) |
+| **Align** — compare SFT, DPO, KD and OPD only when the pilot evidence supports the cost | `miniverl pilot recipes/alignment_policy_conditioned_qwen.yaml` | `alignment-card.json` | [Alignment Lab](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/alignment-lab/alignment-lab-v1.md) |
+| **Distill locally** — strict OPD, shared backbones and padded trajectory updates on one CUDA GPU | `miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run` | `config.resolved.yaml` plus a revision-pinned PEFT adapter | [Bring your own GPU](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/single-gpu-guide.md) |
+| **Scale out** — import a documented profile, convert Parquet, export a bundle and run bridge checks | `miniverl bridge doctor scaleout-bundle` | `provenance/compatibility-report.json` | [Verified verl artifact bridge](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/verl-bridge.md) |
 
 The bridge is a **verified artifact bridge**: a pinned config/data/model
 parse-load smoke at miniVERL-defined compatibility Level 3. It has never run a
@@ -64,7 +64,15 @@ environment, teacher identity, objective, or schedule semantics are missing,
 `<stem>.template.yaml` with `status: needs_user_input`. It never silently
 substitutes calculator tasks or an unqualified same-base teacher. An unresolved
 `${...}` value can never reach an accepted recipe, outputs are stem-specific,
-and an existing output family is replaced only with an explicit `--overwrite`.
+an input file can never also be an output file, and an existing output family
+is replaced only with an explicit `--overwrite`. Publication is transactional
+with in-process rollback, not multi-file crash atomicity.
+
+An exported bundle is untrusted input. `bridge doctor` inspects its reward
+scaffold statically with `ast.parse` and **never executes it** unless you pass
+`--trust-and-import-reward-code`; adapter weights are validated past the
+header; and tokenizer, safetensors and privacy results each report how far
+verification actually got rather than a single pass or fail.
 
 ## One measured alignment result
 
@@ -81,12 +89,12 @@ improved it; continued SFT and both OPD variants retained measured regressions.
 | standard OPD | 98.6% | 97.2% | 100.0% | 76.7 s |
 | verifier-gated OPD | 97.9% | 95.8% | 46.8% | 66.0 s |
 
-![Alignment and utility deltas from the saturated SFT checkpoint; small marks are all three seeds and large marks are means](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/alignment-lab/delta-from-sft.svg)
+![Alignment and utility deltas from the saturated SFT checkpoint; small marks are all three seeds and large marks are means](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.6.3/docs/alignment-lab/delta-from-sft.svg)
 
 The two sandbox safety checks tied at zero while utility still regressed.
 IFEval, XSTest, HarmBench and RewardBench were **not executed**. “Preference
 win rate” is a deterministic Minipolicy paired outcome, not human preference.
-Read the [study, seed-level values and limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/alignment-lab-v1.md).
+Read the [study, seed-level values and limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/alignment-lab/alignment-lab-v1.md).
 
 ## One measured systems result
 
@@ -97,13 +105,13 @@ reserved memory versus 3.035 GiB for dual model, while running 10.1% slower.
 All 12 preregistered equivalence comparisons passed. These are one-workload,
 one-machine measurements, not promises for other GPUs.
 
-![Measured throughput and reserved VRAM for dual-model and shared-backbone runtime cells](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/consumer-runtime-v1-pareto.svg)
+![Measured throughput and reserved VRAM for dual-model and shared-backbone runtime cells](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.6.3/docs/consumer-runtime-v1-pareto.svg)
 
-[Consumer Runtime v1 methods and caveats](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/consumer-runtime-v1.md)
+[Consumer Runtime v1 methods and caveats](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/consumer-runtime-v1.md)
 
 ## Compatibility boundary
 
-![Verified local runtime, portable artifact bundle and pinned upstream smoke; distributed verl execution remains untested](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-bridge-architecture.svg)
+![Verified local runtime, portable artifact bundle and pinned upstream smoke; distributed verl execution remains untested](https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.6.3/docs/verl-bridge-architecture.svg)
 
 The bridge targets official verl `v0.8.0` at commit `7aed6b23` and uses the
 term **miniVERL-defined compatibility Level 3**. That means a checksummed
@@ -120,21 +128,21 @@ PPO/reward scaffold, not an executable continuation of miniVERL OPD semantics.
 
 ## Detailed studies and preserved negative evidence
 
-- [RecoveryBench v1](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/recoverybench/recoverybench-v1.md): frozen-student KD
+- [RecoveryBench v1](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/recoverybench/recoverybench-v1.md): frozen-student KD
   outperformed much slower fresh-state OPD on the preregistered primary view;
   the verifier gate remained `insufficient_evidence`.
-- [Alignment Lab v1](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/alignment-lab-v1.md): the starting SFT
+- [Alignment Lab v1](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/alignment-lab/alignment-lab-v1.md): the starting SFT
   checkpoint was at the ceiling, so no positive OPD result is claimed.
-- [Calculator benchmark](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/benchmarking.md): both negative controls completed
+- [Calculator benchmark](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/benchmarking.md): both negative controls completed
   normally and measured 0% strict success. They were not configuration
   failures. Because they used the historical ambiguous protocol-v1 prompt,
   their failure cannot be attributed solely to intrinsic teacher behavior.
-- [Consumer Runtime v1](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/consumer-runtime-v1.md): padded update batches and
+- [Consumer Runtime v1](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/consumer-runtime-v1.md): padded update batches and
   shared adapters preserve the measured one-update objective within declared
   tolerances; rollout generation remains sequential.
-- [Limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/limitations.md), [math](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/math.md),
-  [reproducibility](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/reproducibility.md) and
-  [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md).
+- [Limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/limitations.md), [math](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/math.md),
+  [reproducibility](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/reproducibility.md) and
+  [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/docs/compatibility.md).
 
 New runs establish tokenizer compatibility through structural identity. The
 legacy behavioral fingerprint—token IDs for one fixed probe plus metadata—is
@@ -154,7 +162,7 @@ python -m pip install -e ".[dev]"
 pytest -q -m "not gpu and not network"
 ```
 
-Apache-2.0 licensed. See [CONTRIBUTING.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CONTRIBUTING.md) and
-[SECURITY.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/SECURITY.md). Project records: [default GPU recipe](https://github.com/DaoyuanLi2816/mini-verl/blob/main/recipes/qwen_consumer_gpu_calc.yaml),
-[frozen calculator JSON](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/gpu-calc-hard-equal-update-v2.json),
-[changelog](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md), [citation](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CITATION.cff) and [license](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE).
+Apache-2.0 licensed. See [CONTRIBUTING.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/CONTRIBUTING.md) and
+[SECURITY.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/SECURITY.md). Project records: [default GPU recipe](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/recipes/qwen_consumer_gpu_calc.yaml),
+[frozen calculator JSON](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/benchmarks/results/gpu-calc-hard-equal-update-v2.json),
+[changelog](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/CHANGELOG.md), [citation](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/CITATION.cff) and [license](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.6.3/LICENSE).

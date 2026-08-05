@@ -26,6 +26,7 @@ from miniverl.bridge.publish import (
     DEFAULT_LOCK_TIMEOUT,
     OutputTransaction,
     import_output_targets,
+    reject_source_output_alias,
 )
 from miniverl.errors import ConfigError
 from miniverl.utils.privacy import portable_payload
@@ -475,6 +476,9 @@ def import_verl_config(
             f"unsupported verl bridge profile {profile!r}", hint=f"use --profile {BRIDGE_PROFILE}"
         )
     validate_target_verl(target_verl)
+    # An input that is also an output is rejected before anything is read,
+    # reserved or created: there is no in-place import mode.
+    reject_source_output_alias({"source config": Path(source)}, import_output_targets(out))
     # Explicit choices are audited before any path is reserved or created.
     _audit_explicit_choices(
         environment=environment,

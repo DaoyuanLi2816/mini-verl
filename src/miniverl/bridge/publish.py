@@ -16,10 +16,19 @@ This module gives every invocation:
   same-filesystem rename rather than a copy;
 * restore-on-failure, so a failure part-way through the rename phase puts the
   previous family back.
+
+Scope of the guarantee: this is *transactional publication with in-process
+rollback*, not multi-file crash atomicity. Every failure this process observes
+-- an exception, a failed rename, a validation error -- is undone. A ``kill
+-9``, a kernel panic or a power loss between two renames is not, and can leave
+a mixed family on disk. Providing that would require publishing a versioned
+directory and switching one pointer atomically, which is deliberately out of
+scope; re-running the invocation with ``overwrite`` republishes a coherent set.
 """
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import uuid
@@ -36,8 +45,10 @@ __all__ = [
     "DEFAULT_LOCK_TIMEOUT",
     "OutputCollisionError",
     "OutputTransaction",
+    "SourceOutputAliasError",
     "dataset_output_targets",
     "import_output_targets",
+    "reject_source_output_alias",
 ]
 
 # A bounded wait, so two ordinary invocations against one stem serialize instead
@@ -62,6 +73,66 @@ class OutputCollisionError(ConfigError):
                 "different --out stem; nothing has been modified"
             ),
         )
+
+
+class SourceOutputAliasError(ConfigError):
+    """An input file is also one of the intended outputs. Nothing was modified."""
+
+    def __init__(self, aliases: Mapping[str, tuple[Path, Path]]) -> None:
+        self.aliases = dict(aliases)
+        listing = "\n".join(
+            f"  - {name}: {output}  aliases the input {source}"
+            for name, (source, output) in sorted(self.aliases.items())
+        )
+        super().__init__(
+            "source and output families must be distinct; choose a new --out path\n" + listing,
+            hint=(
+                "miniVERL has no in-place mode: --overwrite replaces a previous output "
+                "family, it never authorizes destroying an input"
+            ),
+        )
+
+
+def _normalize(path: Path) -> Path:
+    """Absolute, symlink-resolved form that also works for absent paths."""
+    try:
+        return path.resolve(strict=False)
+    except (OSError, RuntimeError):
+        # resolve() can fail on pathological input; absolute+normalized is the
+        # best remaining approximation and still catches ordinary aliases.
+        return Path(os.path.normpath(str(Path.cwd() / path)))
+
+
+def _same_file(left: Path, right: Path) -> bool:
+    """Whether two paths denote one file, including link and case aliases."""
+    try:
+        # Authoritative when both exist: covers symlinks, hard links and
+        # case-insensitive filesystems in one call.
+        if left.exists() and right.exists():
+            return left.samefile(right)
+    except OSError:
+        pass
+    # One side does not exist yet, so fall back to normalized textual identity.
+    # normcase folds case on Windows and is a no-op on POSIX.
+    return os.path.normcase(str(_normalize(left))) == os.path.normcase(str(_normalize(right)))
+
+
+def reject_source_output_alias(sources: Mapping[str, Path], targets: Mapping[str, Path]) -> None:
+    """Fail before anything is reserved if an input is also an output.
+
+    ``import-verl`` used to accept ``--out`` pointing at its own source config.
+    With ``--overwrite`` a successful import replaced the user's input, and a
+    rejected import *deleted* it while keeping the rejection report. There is no
+    in-place mode, so any overlap is a hard error.
+    """
+    aliases: dict[str, tuple[Path, Path]] = {}
+    for output_name, output in targets.items():
+        for source_name, source in sources.items():
+            if _same_file(Path(source), Path(output)):
+                label = output_name if len(sources) == 1 else f"{output_name} <- {source_name}"
+                aliases[label] = (Path(source), Path(output))
+    if aliases:
+        raise SourceOutputAliasError(aliases)
 
 
 def import_output_targets(out: str | Path) -> dict[str, Path]:
@@ -110,7 +181,11 @@ def _replace(source: Path, target: Path) -> None:
 
 
 class OutputTransaction:
-    """Reserve, stage, validate and atomically publish one output family."""
+    """Reserve, stage, validate and publish one output family.
+
+    Rollback covers failures this process observes, not process death between
+    two renames. See the module docstring for the exact scope.
+    """
 
     def __init__(
         self,
@@ -228,7 +303,11 @@ class OutputTransaction:
         return dict(self._staged)
 
     def commit(self) -> None:
-        """Publish the staged family, restoring the previous one on failure."""
+        """Publish the staged family, restoring the previous one on failure.
+
+        The restore path runs on any exception raised during the rename phase.
+        It cannot run if the process is killed mid-phase.
+        """
         if self.staging is None:
             raise LifecycleError("output transaction is not open; call begin() first")
         if self._committed:

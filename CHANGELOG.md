@@ -6,6 +6,76 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-08-05
+
+### Security
+
+- `miniverl bridge doctor` no longer imports the inspected bundle's reward
+  scaffold. Up to 0.6.2 it used `importlib` `exec_module`, so any top-level
+  statement in an untrusted bundle ran with the user's privileges as soon as
+  they asked for a diagnosis, while the report described the result as a
+  "side-effect-free import". The scaffold is now parsed with `ast.parse` and
+  verified statically, reporting `not_present`, `syntax_valid`,
+  `interface_statically_verified` or `trusted_dynamic_import_verified`. Top-level
+  calls, non-literal assignments, decorators, class-body statements and
+  call-valued default arguments are rejected because each runs at import time.
+- Added `miniverl bridge doctor --trust-and-import-reward-code` for bundles you
+  produced yourself. It warns before executing anything, reports
+  `untrusted_code_executed: true`, and does not claim to be a sandbox.
+- `import-verl` and `convert-dataset` reject any overlap between an input file
+  and their intended output family before taking a reservation, covering exact,
+  relative, symlink, hard-link and Windows case aliases. Previously `--out`
+  could name the source config: a successful import overwrote it and a rejected
+  import deleted it while publishing the rejection report. `--overwrite`
+  replaces a previous output family and never authorizes destroying an input.
+
+### Added
+
+- Adapter safetensors are validated past the header. dtype and shape byte
+  arithmetic, offset ordering, contiguity and full coverage of the data segment
+  are checked, then every tensor is materialized through the official reader.
+  Levels are `not_present`, `header_only`, `payload_structure_validated` and
+  `tensor_materialization_validated`. A file declaring a 4x4 F32 tensor with no
+  payload previously passed. The structural pass needs no optional dependency,
+  so a torch-free install reaches `payload_structure_validated` and reports
+  `official_reader_status: dependency_missing` instead of implying the file is
+  broken; `--require-adapter-payload` demands the strongest level and is
+  therefore not satisfied without the official reader.
+- `miniverl convert-dataset --allow-rejected-rows` opts into a partial dataset.
+  Conversion is otherwise complete-or-nothing, and a partial report carries
+  `complete_dataset_conversion: false`, `lossless_for_accepted_rows: true` and
+  the output-row-to-source-row index map.
+- `release-state.yaml` and `scripts/release_state.py` give every public
+  stable/development version claim one canonical source, gated in CI.
+- Dedicated 390px layouts for `consumer-runtime-v1-pareto`,
+  `cost-quality-pareto`, `fresh-vs-frozen` and `recovery-success`.
+
+### Changed
+
+- Conflicting miniVERL extension data across `miniverl_extensions`, the
+  conversion sidecar and `extra_info.miniverl` now fails the conversion instead
+  of silently preferring one source. Canonical-equal duplicates are accepted and
+  recorded. Diagnostics name the row and the locations, never the values.
+- Parquet bounds are enforced while reading. The dataset scan streams row groups
+  through `iter_batches` restricted to string-bearing columns and stops at
+  `max_rows`/`max_bytes`; schema validation reads the footer only. Both
+  previously materialized the whole table first. The scan reports
+  `files_inspected`, `row_groups_read`, `rows_scanned`, `rows_total` and
+  `bytes_scanned`.
+- The bridge output guarantee is stated as transactional publication with
+  in-process rollback rather than atomic multi-file publication, which it never
+  provided across `kill -9`, kernel panic or power loss.
+- `CITATION.cff` describes the current scope: an auditable single-GPU alignment
+  and distillation runtime with comparable SFT, DPO, KD and OPD arms,
+  shared-backbone role switching and a bounded verl artifact bridge.
+
+### Fixed
+
+- The mobile readability exemption list is empty: every public figure is
+  enforced at the 11px floor at 390px.
+- The docs version selector, both READMEs, `PYPI.md` and the quality record no
+  longer disagree about which release is stable.
+
 ## [0.6.2] - 2026-08-05
 
 ### Added
@@ -651,7 +721,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.3...HEAD
+[0.6.3]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.5.0...v0.6.0

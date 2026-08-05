@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import importlib.metadata
-import importlib.util
 import json
 import re
-import struct
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -20,8 +17,15 @@ from miniverl.bridge.contract import (
     VERL_REPOSITORY,
     VERL_TAG,
 )
+from miniverl.bridge.reward_static import REWARD_LEVELS, inspect_reward_scaffold
+from miniverl.bridge.safetensors_check import SAFETENSORS_LEVELS, inspect_safetensors
 
-__all__ = ["inspect_bridge_bundle"]
+__all__ = [
+    "REWARD_LEVELS",
+    "SAFETENSORS_LEVELS",
+    "TOKENIZER_LEVELS",
+    "inspect_bridge_bundle",
+]
 
 _ABSOLUTE_PATH = re.compile(
     r"(?i)(?:(?<![A-Za-z0-9])[A-Z]:[\\/]|/home/|/users/|\\\\[^\\]+\\[^\\]+)"
@@ -72,6 +76,9 @@ _DATASET_DETECTORS: tuple[tuple[str, re.Pattern[str]], ...] = (
 DATASET_SCAN_MAX_ROWS = 1000
 DATASET_SCAN_MAX_BYTES = 8 * 1024 * 1024
 _DATASET_SCAN_MAX_DEPTH = 6
+#: Rows decoded at once. Small enough that a single huge row group cannot be
+#: materialized just to honour a much smaller row bound.
+_DATASET_SCAN_BATCH_ROWS = 256
 
 
 def _sha256(path: Path) -> str:
@@ -106,56 +113,43 @@ def _check_requirements(root: Path) -> dict[str, Any]:
     }
 
 
-def _check_safetensors(path: Path) -> tuple[bool, str]:
-    try:
-        with path.open("rb") as handle:
-            raw_length = handle.read(8)
-            if len(raw_length) != 8:
-                return False, "missing safetensors header length"
-            header_length = struct.unpack("<Q", raw_length)[0]
-            if header_length < 2 or header_length > path.stat().st_size - 8:
-                return False, "invalid safetensors header length"
-            header = json.loads(handle.read(header_length).decode("utf-8"))
-        tensors = [key for key in header if key != "__metadata__"]
-        if not tensors:
-            return False, "safetensors contains no tensors"
-        return True, f"{len(tensors)} tensor header(s)"
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, struct.error) as exc:
-        return False, str(exc)
-
-
-def _check_model(root: Path) -> dict[str, Any]:
+def _check_model(root: Path, *, require_payload: bool = False) -> dict[str, Any]:
     model = root / "model"
     config = model / "adapter_config.json"
     weights = model / "adapter_model.safetensors"
     try:
         payload = json.loads(config.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        model_check = {"status": "fail", "detail": str(exc)}
-    else:
-        weights_ok, detail = _check_safetensors(weights)
-        peft_ok = str(payload.get("peft_type", "")).upper() == "LORA"
-        peft_load = "not installed; structural validation only"
-        if weights_ok and peft_ok:
-            try:
-                from peft import PeftConfig
+        return {"status": "fail", "detail": str(exc)}
 
-                loaded = PeftConfig.from_pretrained(str(model))
-                peft_load = f"loaded {type(loaded).__name__}"
-            except ImportError:
-                pass
-            except Exception as exc:
-                weights_ok = False
-                peft_load = f"PEFT rejected adapter_config.json: {exc}"
-        model_check = {
-            "status": "ok" if weights_ok and peft_ok else "fail",
-            "peft_type": payload.get("peft_type"),
-            "base_model": payload.get("base_model_name_or_path"),
-            "detail": detail,
-            "peft_config_load": peft_load,
-            "load_scope": "PEFT config plus safetensors structure; base weights not loaded",
-        }
-    return model_check
+    tensors = inspect_safetensors(weights, require_payload=require_payload)
+    weights_ok = tensors["status"] == "ok"
+    peft_ok = str(payload.get("peft_type", "")).upper() == "LORA"
+    peft_load = "not installed; structural validation only"
+    if weights_ok and peft_ok:
+        try:
+            from peft import PeftConfig
+
+            loaded = PeftConfig.from_pretrained(str(model))
+            peft_load = f"loaded {type(loaded).__name__}"
+        except ImportError:
+            pass
+        except Exception as exc:
+            weights_ok = False
+            peft_load = f"PEFT rejected adapter_config.json: {exc}"
+    return {
+        "status": "ok" if weights_ok and peft_ok else "fail",
+        "peft_type": payload.get("peft_type"),
+        "base_model": payload.get("base_model_name_or_path"),
+        "detail": tensors["detail"],
+        "safetensors": tensors,
+        "safetensors_verification_level": tensors["verification_level"],
+        "peft_config_load": peft_load,
+        "load_scope": (
+            "PEFT config plus safetensors payload structure; base model weights are "
+            "never loaded and tensor values are never interpreted"
+        ),
+    }
 
 
 def _reference_tokenizer_identity(root: Path) -> dict[str, Any]:
@@ -306,26 +300,42 @@ def _finalize_tokenizer(check: dict[str, Any], *, require_load: bool) -> dict[st
 
 
 def _check_parquet(root: Path) -> dict[str, Any]:
+    """Validate the exchange schema from Parquet metadata alone.
+
+    Column names, row counts and row-group counts all live in the footer, so a
+    verl-scale dataset must never be materialized to answer them.
+    """
     try:
         import pyarrow.parquet as pq
     except ImportError:
         return {"status": "fail", "detail": "pyarrow is not installed"}
     required = {"data_source", "prompt", "ability", "reward_model", "extra_info"}
     schemas: dict[str, list[str]] = {}
+    rows: dict[str, int] = {}
     for split in ("train", "val"):
         path = root / "data" / f"{split}.parquet"
         try:
-            table = pq.read_table(path)
+            handle = pq.ParquetFile(path)
         except Exception as exc:
             return {"status": "fail", "detail": f"{split}: {exc}"}
-        names = set(table.schema.names)
-        if not required.issubset(names) or table.num_rows < 1:
+        try:
+            names = list(handle.schema_arrow.names)
+            num_rows = handle.metadata.num_rows
+        finally:
+            handle.close()
+        if not required.issubset(set(names)) or num_rows < 1:
             return {
                 "status": "fail",
                 "detail": f"{split}: required={sorted(required)}, actual={sorted(names)}",
             }
-        schemas[split] = table.schema.names
-    return {"status": "ok", "schemas": schemas}
+        schemas[split] = names
+        rows[split] = num_rows
+    return {
+        "status": "ok",
+        "schemas": schemas,
+        "rows": rows,
+        "read_scope": "Parquet footer metadata only; no row group was decoded",
+    }
 
 
 def _check_config(root: Path) -> dict[str, Any]:
@@ -370,30 +380,14 @@ def _check_config(root: Path) -> dict[str, Any]:
     }
 
 
-def _check_reward(root: Path) -> dict[str, Any]:
+def _check_reward(root: Path, *, trust_and_import: bool = False) -> dict[str, Any]:
+    """Statically verify the reward interface.
+
+    The bundle is untrusted input. Inspection parses the scaffold and never
+    imports it, so a bundle cannot act merely by being diagnosed.
+    """
     path = root / "reward" / "reward_or_verifier_scaffold.py"
-    try:
-        spec = importlib.util.spec_from_file_location("_miniverl_exported_reward", path)
-        if spec is None or spec.loader is None:
-            raise ImportError("could not create an import specification")
-        module = importlib.util.module_from_spec(spec)
-        previous = sys.dont_write_bytecode
-        sys.dont_write_bytecode = True
-        try:
-            spec.loader.exec_module(module)
-        finally:
-            sys.dont_write_bytecode = previous
-        if not callable(getattr(module, "compute_score", None)):
-            raise ImportError("compute_score is not callable")
-    except Exception as exc:
-        return {"status": "fail", "detail": str(exc)}
-    source = path.read_text(encoding="utf-8")
-    implementation_complete = "complete and test reward_or_verifier_scaffold" not in source
-    return {
-        "status": "ok",
-        "detail": "side-effect-free import; scaffold intentionally not executed",
-        "implementation_complete": implementation_complete,
-    }
+    return inspect_reward_scaffold(path, trust_and_import=trust_and_import)
 
 
 def _check_hashes(root: Path) -> dict[str, Any]:
@@ -436,6 +430,26 @@ def _iter_strings(value: Any, depth: int = 0) -> Any:
             yield from _iter_strings(item, depth + 1)
 
 
+def _has_string_leaf(data_type: Any) -> bool:
+    """Whether an Arrow type can contain a string anywhere inside it."""
+    import pyarrow as pa
+
+    if pa.types.is_string(data_type) or pa.types.is_large_string(data_type):
+        return True
+    if pa.types.is_struct(data_type):
+        return any(_has_string_leaf(field.type) for field in data_type)
+    if pa.types.is_map(data_type):
+        return _has_string_leaf(data_type.key_type) or _has_string_leaf(data_type.item_type)
+    if hasattr(data_type, "value_type") and data_type.num_fields:
+        return _has_string_leaf(data_type.value_type)
+    return False
+
+
+def _string_like_columns(schema: Any) -> list[str]:
+    """Columns worth decoding; everything else cannot hold a secret as text."""
+    return [field.name for field in schema if _has_string_leaf(field.type)]
+
+
 def _scan_dataset_text(
     root: Path,
     *,
@@ -443,7 +457,12 @@ def _scan_dataset_text(
     max_rows: int,
     max_bytes: int,
 ) -> dict[str, Any]:
-    """Bounded, heuristic scan of string-like Parquet fields.
+    """Bounded, streaming, heuristic scan of string-like Parquet fields.
+
+    The bounds are enforced *while reading*: row groups are pulled one at a
+    time and decoding stops the moment ``max_rows`` or ``max_bytes`` is
+    reached, so a verl-scale dataset is never materialized. Row counts for
+    unread files still come from the footer, which costs nothing.
 
     This is a detector, not de-identification proof. Matched text is never
     returned or logged: only the detector category, the column and the row
@@ -465,51 +484,89 @@ def _scan_dataset_text(
     rows_scanned = 0
     rows_total = 0
     bytes_scanned = 0
+    row_groups_read = 0
+    files_inspected = 0
     truncated = False
-    active = [(name, pattern) for name, pattern in _DATASET_DETECTORS]
+    active = list(_DATASET_DETECTORS)
+
+    def _bounds_reached() -> bool:
+        return rows_scanned >= max_rows or bytes_scanned >= max_bytes
+
     for path in files:
         split = path.stem
         try:
-            table = pq.read_table(path)
+            handle = pq.ParquetFile(path)
         except Exception as exc:
             return {
                 "status": "failed",
                 "reason": f"cannot read {path.name}: {exc}",
                 "findings": [],
             }
-        rows_total += table.num_rows
-        if truncated:
-            continue
-        for index, row in enumerate(table.to_pylist()):
-            if rows_scanned >= max_rows or bytes_scanned >= max_bytes:
-                truncated = True
-                break
-            rows_scanned += 1
-            if not isinstance(row, dict):
+        try:
+            rows_total += handle.metadata.num_rows
+            if truncated:
+                # Totals still come from the footer; no row group is decoded.
                 continue
-            for column, cell in row.items():
-                for text in _iter_strings(cell):
-                    bytes_scanned += len(text.encode("utf-8", errors="ignore"))
-                    for category, pattern in active:
-                        if pattern.search(text):
-                            findings.append(
-                                {
-                                    "category": category,
-                                    "split": split,
-                                    "column": str(column),
-                                    "row": index,
-                                }
-                            )
-                    for sentinel in sentinels:
-                        if sentinel and sentinel in text:
-                            findings.append(
-                                {
-                                    "category": "user_sentinel",
-                                    "split": split,
-                                    "column": str(column),
-                                    "row": index,
-                                }
-                            )
+            columns = _string_like_columns(handle.schema_arrow)
+            if not columns:
+                continue
+            files_inspected += 1
+            file_row_index = 0
+            for group_index in range(handle.num_row_groups):
+                if _bounds_reached():
+                    truncated = True
+                    break
+                row_groups_read += 1
+                try:
+                    batches = handle.iter_batches(
+                        batch_size=_DATASET_SCAN_BATCH_ROWS,
+                        row_groups=[group_index],
+                        columns=columns,
+                    )
+                    for batch in batches:
+                        if _bounds_reached():
+                            truncated = True
+                            break
+                        for offset, row in enumerate(batch.to_pylist()):
+                            if _bounds_reached():
+                                truncated = True
+                                break
+                            rows_scanned += 1
+                            index = file_row_index + offset
+                            if not isinstance(row, dict):
+                                continue
+                            for column, cell in row.items():
+                                for text in _iter_strings(cell):
+                                    bytes_scanned += len(text.encode("utf-8", errors="ignore"))
+                                    for category, pattern in active:
+                                        if pattern.search(text):
+                                            findings.append(
+                                                {
+                                                    "category": category,
+                                                    "split": split,
+                                                    "column": str(column),
+                                                    "row": index,
+                                                }
+                                            )
+                                    for sentinel in sentinels:
+                                        if sentinel and sentinel in text:
+                                            findings.append(
+                                                {
+                                                    "category": "user_sentinel",
+                                                    "split": split,
+                                                    "column": str(column),
+                                                    "row": index,
+                                                }
+                                            )
+                        file_row_index += batch.num_rows
+                except Exception as exc:
+                    return {
+                        "status": "failed",
+                        "reason": f"cannot read row group {group_index} of {path.name}: {exc}",
+                        "findings": [],
+                    }
+        finally:
+            handle.close()
     # Deduplicate so one noisy column cannot flood the report.
     unique: list[dict[str, Any]] = []
     seen: set[tuple[Any, ...]] = set()
@@ -522,11 +579,15 @@ def _scan_dataset_text(
         "status": "failed" if unique else "passed",
         "method": "heuristic regular-expression detectors; not de-identification proof",
         "scan_scope": "sampled" if truncated else "full",
+        "files_total": len(files),
+        "files_inspected": files_inspected,
+        "row_groups_read": row_groups_read,
         "rows_scanned": rows_scanned,
         "rows_total": rows_total,
         "bytes_scanned": bytes_scanned,
         "max_rows": max_rows,
         "max_bytes": max_bytes,
+        "batch_rows": _DATASET_SCAN_BATCH_ROWS,
         "detectors": [name for name, _ in active] + (["user_sentinel"] if sentinels else []),
         "disclosure": "detector category, column and row index only; matched text is never reported",
         "findings": unique,
@@ -612,19 +673,25 @@ def inspect_bridge_bundle(
     *,
     require_verl: bool = False,
     require_tokenizer_load: bool = False,
+    require_adapter_payload: bool = False,
+    trust_and_import_reward_code: bool = False,
     scan_dataset_text: bool = False,
     sentinels: tuple[str, ...] = (),
     dataset_scan_max_rows: int = DATASET_SCAN_MAX_ROWS,
     dataset_scan_max_bytes: int = DATASET_SCAN_MAX_BYTES,
 ) -> dict[str, Any]:
-    """Return the complete bridge diagnosis; do not execute distributed code."""
+    """Return the complete bridge diagnosis.
+
+    No code from the inspected bundle runs unless ``trust_and_import_reward_code``
+    is explicitly set, and no distributed job is ever launched.
+    """
     bundle = Path(root)
     target = _check_requirements(bundle)
-    model = _check_model(bundle)
+    model = _check_model(bundle, require_payload=require_adapter_payload)
     tokenizer = _check_tokenizer(bundle, require_load=require_tokenizer_load)
     parquet = _check_parquet(bundle)
     config = _check_config(bundle)
-    reward = _check_reward(bundle)
+    reward = _check_reward(bundle, trust_and_import=trust_and_import_reward_code)
     hashes = _check_hashes(bundle)
     privacy = _check_privacy(
         bundle,
@@ -649,6 +716,9 @@ def inspect_bridge_bundle(
         "target_verl": target,
         "installed_verl": installed,
         "model_adapter_loadability": model,
+        "safetensors_verification_level": model.get(
+            "safetensors_verification_level", "not_present"
+        ),
         "tokenizer_identity": tokenizer,
         "tokenizer_verification_level": tokenizer["verification_level"],
         "portable_metadata_privacy": privacy["portable_metadata_privacy"],
@@ -656,7 +726,9 @@ def inspect_bridge_bundle(
         "model_weight_privacy": privacy["model_weight_privacy"],
         "parquet_schema": parquet,
         "config_profile": config,
-        "reward_scaffold_importability": reward,
+        "reward_scaffold_interface": reward,
+        "reward_verification_level": reward["verification_level"],
+        "reward_code_executed": bool(reward.get("code_executed", False)),
         "unsupported_semantics": compatibility.get("unsupported_semantics", []),
         "artifact_hashes": hashes,
         "privacy": privacy,

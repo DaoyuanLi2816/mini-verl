@@ -48,6 +48,11 @@ htmlcov/
 
 # Local working archives. Preserved on disk for provenance, never published.
 /.local-archive-*/
+/.takeover-archive-*/
+
+# Browser screenshots from scripts/check_docs_visual.py. CI uploads them as a
+# workflow artifact; they are never committed.
+/docs-visual-screenshots/
 
 # Editors / OS
 .vscode/

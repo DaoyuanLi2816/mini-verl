@@ -13,6 +13,7 @@ from xml.sax.saxutils import escape
 ROOT = Path(__file__).resolve().parents[1]
 RESULT = ROOT / "benchmarks/results/consumer-runtime-v1.json"
 OUTPUT = ROOT / "docs/consumer-runtime-v1-pareto.svg"
+MOBILE_OUTPUT = ROOT / "docs/consumer-runtime-v1-pareto-mobile.svg"
 FROZEN_CALCULATOR = ROOT / "benchmarks/results/gpu-calc-hard-equal-update-v2.json"
 FROZEN_CALCULATOR_SHA256 = "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc"
 
@@ -187,21 +188,131 @@ def render_pareto(payload: dict[str, Any], source_sha256: str) -> str:
     return "".join(body)
 
 
+#: Mobile canvas. The docs column is 358 px at a 390 px viewport, so a 390 px
+#: canvas renders at 0.918x and a 14 px class clears the 11 px floor. The
+#: desktop scatterplot scaled to that column would render its axis text at
+#: about 4.5 px and overlap every point label.
+MOBILE_WIDTH = 390
+MOBILE_MIN_FONT_PX = 14
+
+_MOBILE_STYLE = (
+    "text{font-family:Inter,'Segoe UI',sans-serif;fill:#edf4ff}"
+    ".title{font-size:19px;font-weight:760}"
+    ".sub{font-size:14px;fill:#aebbd2}"
+    ".runtime{font-size:16px;font-weight:740}"
+    ".head{font-size:14px;font-weight:700;fill:#dce7f8}"
+    ".cell{font-size:15px;font-weight:700}"
+    ".foot{font-size:14px;fill:#aebbd2}"
+)
+
+
+def render_pareto_mobile(payload: dict[str, Any], source_sha256: str) -> str:
+    """Render the same eight measurements as a readable narrow table.
+
+    A scatterplot cannot survive a 358 px column, so the phone layout prints
+    every batch size with its throughput and reserved memory as text. The knee
+    is stated in words instead of being something the reader has to see.
+    """
+    cells = _cell_map(payload)
+    batches = ("1", "2", "4", "auto")
+    runtimes = (
+        ("shared_backbone", "shared backbone", "#22d3ee"),
+        ("dual_model", "dual model", "#fb7185"),
+    )
+
+    def gib(cell: dict[str, Any]) -> float:
+        return float(cell["peak_reserved_bytes"]) / 2**30
+
+    def throughput(cell: dict[str, Any]) -> float:
+        return float(cell["trajectories_per_second"])
+
+    row_height = 26
+    block = 30 + row_height * (len(batches) + 1) + 18
+    header = 140
+    height = header + block * len(runtimes) + 74
+    inner = MOBILE_WIDTH - 24
+    body = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{MOBILE_WIDTH}" height="{height}" '
+        f'viewBox="0 0 {MOBILE_WIDTH} {height}" role="img" aria-labelledby="title desc">',
+        '<title id="title">Batch-4 is the Pareto knee on one RTX 4080</title>',
+        '<desc id="desc">Vertical mobile table of throughput and peak reserved CUDA memory '
+        "for the shared-backbone and dual-model runtimes at physical trajectory batch "
+        "sizes 1, 2, 4 and auto. Every value is printed as text; shared batch-4 reaches "
+        "3.48 trajectories per second at 2.23 GiB and dual batch-4 reaches 3.87 at 3.04 "
+        "GiB.</desc>",
+        f'<rect width="{MOBILE_WIDTH}" height="{height}" rx="16" fill="#060a14"/>',
+        f'<rect x="12" y="12" width="{inner}" height="{height - 24}" rx="12" '
+        'fill="#0a1222" stroke="#20304f"/>',
+        f"<style>{_MOBILE_STYLE}</style>",
+        '<text class="title" x="24" y="42">Batch-4 is the Pareto</text>',
+        '<text class="title" x="24" y="70">knee on one RTX 4080</text>',
+        '<text class="sub" x="24" y="97">8-trajectory strict OPD update · Qwen3-0.6B</text>',
+        '<text class="sub" x="24" y="118">NF4 weights / FP32 compute · 3-update medians</text>',
+    ]
+
+    top = header
+    for index, (key, name, colour) in enumerate(runtimes):
+        base = top + index * block
+        body.extend(
+            [
+                f'<rect x="24" y="{base}" width="4" height="20" rx="2" fill="{colour}"/>',
+                f'<text class="runtime" x="38" y="{base + 17}" fill="{colour}">{escape(name)}</text>',
+                f'<text class="head" x="38" y="{base + 44}">batch</text>',
+                f'<text class="head" x="228" y="{base + 44}" text-anchor="end">traj/s</text>',
+                f'<text class="head" x="{MOBILE_WIDTH - 24}" y="{base + 44}" '
+                'text-anchor="end">GiB</text>',
+            ]
+        )
+        for offset, batch in enumerate(batches):
+            cell = cells[(key, batch)]
+            line = base + 44 + row_height * (offset + 1)
+            emphasis = ' font-weight="800"' if batch == "4" else ""
+            body.extend(
+                [
+                    f'<text class="cell" x="38" y="{line}"{emphasis}>{escape(batch)}</text>',
+                    f'<text class="cell" x="228" y="{line}" text-anchor="end"{emphasis}>'
+                    f"{throughput(cell):.2f}</text>",
+                    f'<text class="cell" x="{MOBILE_WIDTH - 24}" y="{line}" '
+                    f'text-anchor="end"{emphasis}>{gib(cell):.2f}</text>',
+                ]
+            )
+
+    footer = top + block * len(runtimes) + 8
+    body.extend(
+        [
+            f'<line x1="24" y1="{footer}" x2="{MOBILE_WIDTH - 24}" y2="{footer}" stroke="#20304f"/>',
+            f'<text class="foot" x="24" y="{footer + 24}">Higher traj/s and lower GiB is '
+            "better.</text>",
+            f'<text class="foot" x="24" y="{footer + 43}">auto = all 8 padded trajectories.</text>',
+            f'<text class="foot" x="24" y="{footer + 62}">source SHA-256 '
+            f"{escape(source_sha256[:16])}</text>",
+        ]
+    )
+    body.append("</svg>\n")
+    return "".join(body)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--result", type=Path, default=RESULT)
     parser.add_argument("--output", type=Path, default=OUTPUT)
+    parser.add_argument("--mobile-output", type=Path, default=MOBILE_OUTPUT)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
 
     payload = _load_result(args.result)
-    rendered = render_pareto(payload, _sha256(args.result))
-    if args.check:
-        if not args.output.exists() or args.output.read_text(encoding="utf-8") != rendered:
-            raise SystemExit(f"generated artifact is stale: {args.output}")
-    else:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(rendered, encoding="utf-8", newline="\n")
+    digest = _sha256(args.result)
+    outputs = {
+        args.output: render_pareto(payload, digest),
+        args.mobile_output: render_pareto_mobile(payload, digest),
+    }
+    for path, rendered in outputs.items():
+        if args.check:
+            if not path.exists() or path.read_text(encoding="utf-8") != rendered:
+                raise SystemExit(f"generated artifact is stale: {path}")
+        else:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(rendered, encoding="utf-8", newline="\n")
     return 0
 
 

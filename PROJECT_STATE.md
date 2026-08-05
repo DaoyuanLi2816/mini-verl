@@ -4,7 +4,34 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-04.
+Last updated: 2026-08-05.
+
+Canonical release state: releasing `v0.6.3`.
+Every public version claim is generated from `release-state.yaml` and gated by
+`python scripts/release_state.py --check`.
+
+## v0.6.3 Security, artifact integrity and release-state hardening
+
+| item | current state |
+| --- | --- |
+| starting state | `origin/main` and local `main` both at `c62e14ba4229f32b3db06b293c615e94654debc6`; tag `v0.6.2` at `bef9f0878eb3280f450aee3868b43d61f0726557`; working tree clean; no open pull request; source version `0.6.3.dev0`; branch `v0.6.3-security-artifact-hardening` cut from that commit |
+| immutable baseline | all ten frozen result artifacts plus `docs/generated/verl-bridge-smoke.json` re-hashed at takeover and unchanged; calculator remains `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
+| reward-code execution | reproduced: a scaffold whose top level wrote `PWNED.txt` created the marker during `_check_reward`, and the report still said `side-effect-free import; scaffold intentionally not executed`. Fixed by `src/miniverl/bridge/reward_static.py`, an AST walk that never imports; levels are `not_present`, `syntax_valid`, `interface_statically_verified`, `trusted_dynamic_import_verified`, and the last one requires `--trust-and-import-reward-code` |
+| safetensors validation | reproduced: a header declaring a 4x4 F32 tensor with zero payload bytes returned `(True, '1 tensor header(s)')` while the official reader rejected it with `file not fully covered`. Fixed by `src/miniverl/bridge/safetensors_check.py`; levels are `not_present`, `header_only`, `payload_structure_validated`, `tensor_materialization_validated`, with `--require-adapter-payload` for strict callers |
+| source/output aliasing | reproduced: `import-verl --out <source> --overwrite` overwrote the source on success and **deleted** it on rejection while publishing the report. Fixed by `reject_source_output_alias`, which runs before any transaction and covers exact, relative, symlink, hard-link and Windows case aliases |
+| conversion semantics | extension data in `miniverl_extensions`, the sidecar and `extra_info.miniverl` is now reconciled: equal content deduplicates, different content fails closed naming row and locations but never values. Invalid rows fail the conversion unless `--allow-rejected-rows` is given, and a partial report carries `complete_dataset_conversion: false` |
+| Parquet bounds | reproduced by inspection: the scan called `pq.read_table().to_pylist()` before applying bounds and the schema check read every row. Both now use footer metadata and `iter_batches` per row group; an instrumented test asserts the requested row groups are exactly `[0]` when the bound is two rows into an eight-group file |
+| release-state drift | `python scripts/release_state.py --check` reported ten disagreements at takeover, including README stable `v0.6.1`, docs selector `Stable 0.6.1 / Development 0.6.2.dev0` and `quality_floor ... at v0.6.1` inside the `release: 0.6.2` record. All ten are resolved and the gate runs in `ci.yml` and `release.yml` |
+| canonical release state | `release-state.yaml` drives the package `__version__`, both READMEs, `PYPI.md`, the docs channel selector, `CITATION.cff`, the changelog comparison link, the release-checklist section, this file's header line and the quality record; a test drives the full `release 0.6.3 → stable 0.6.3 → main 0.6.4.dev0` transition and still reports the prose sections a person must write |
+| mobile visual debt | the four-figure exemption list is empty: `consumer-runtime-v1-pareto`, `cost-quality-pareto`, `fresh-vs-frozen` and `recovery-success` each ship a dedicated 390 px layout selected by a `<picture>` media query, and the desktop SVG bytes are unchanged at their pinned SHA-256 values |
+| transactional scope | wording is narrowed to transactional publication with in-process rollback; multi-file crash atomicity across `kill -9`, kernel panic or power loss is explicitly not claimed, and the versioned-directory design that would provide it is named as out of scope |
+| adversarial audit | tampered bundles were re-sealed with self-consistent `SHA256SUMS` and still rejected: hostile reward code stops at `syntax_valid`, a truncated adapter stops at `header_only`, and conflicting pinned-verl or adapter-versus-config fields fail closed. `--require-verl` is not a back door into execution, and a failing rollback re-raises the original cause rather than masking it |
+| defect introduced and fixed in this branch | the first safetensors implementation treated a *dependency gap* as evidence the file was invalid. The torch-free environment installs `safetensors` but not `numpy`, and `safe_open(framework="np")` needs `numpy`; the resulting `ModuleNotFoundError` was caught by a generic handler and reported as `the official safetensors reader rejected adapter_model.safetensors`, failing the model check and nine tests against structurally sound files. This is the mirror of the defect being fixed: the old code read "only a header" as "valid", the new code read "cannot check" as "invalid". `_materialize` now returns `materialized`, `unavailable` or `rejected`; `unavailable` keeps `payload_structure_validated` with `official_reader_status: dependency_missing` and a passing status, because the structural pass is dependency-free. The exact condition is a regression test |
+| strict adapter option | `--require-adapter-payload` demands `tensor_materialization_validated`, so an absent official reader does not satisfy it; the same file still passes without the flag |
+| local gates | ruff, ruff format and mypy clean; `pytest -m "not gpu and not network"` passes 1,757 with 2 skipped, 6 deselected at 86.02% branch coverage on commit `85a7eb3aee46109ced405a7cbfb2106edeb82516`; `pytest -m gpu` passes 5 on the RTX 4080; `pytest -m network` passes 3; `mkdocs build --strict` clean; the browser gate checks 28 rendered SVG instances across 1440x900, 1024x768, 820x1000 and 390x844 with zero exemptions; `python -m build` and `twine check` both pass. The two skips are symlink creation, which needs privileges on Windows; the hard-link and case-alias cases cover the same guard |
+| external metadata | the GitHub repository description was changed from `Auditable on-policy distillation for tool-using agents on one personal GPU.` to `Auditable one-GPU alignment and distillation runtime with shared-backbone training and a fail-closed verl artifact bridge.`, and topics `alignment`, `llm-alignment` and `peft` were added; no existing topic was removed |
+| integration | PR [#45](https://github.com/DaoyuanLi2816/mini-verl/pull/45) |
+| release state | in progress on `v0.6.3-security-artifact-hardening` |
 
 ## v0.6.2 Bridge correctness and responsive visual hardening
 

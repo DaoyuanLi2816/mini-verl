@@ -42,9 +42,16 @@ def test_verl_parquet_round_trip_preserves_chat_and_uses_an_extension_sidecar(
     pq.write_table(pa.Table.from_pylist(_rows()), source)
     canonical = tmp_path / "canonical.parquet"
 
-    first = convert_dataset(source, out=canonical, direction="from-verl-parquet")
+    # The fixture deliberately contains one invalid row, so the default
+    # complete-or-nothing contract requires the explicit partial opt-in.
+    first = convert_dataset(
+        source, out=canonical, direction="from-verl-parquet", allow_rejected_rows=True
+    )
     assert first["accepted_rows"] == 1
     assert first["rejected_rows"] == 1
+    assert first["partial_conversion"] is True
+    assert first["complete_dataset_conversion"] is False
+    assert first["lossless_for_accepted_rows"] is True
     assert first["truncation_risk"]["status"] == "not_evaluated_no_tokenizer"
     assert first["source_sha256"]
     assert first["output_sha256"]

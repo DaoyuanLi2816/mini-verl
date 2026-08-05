@@ -265,6 +265,36 @@ def test_final_rename_failure_restores_the_previous_output_family(
     assert (out.parent / "foo.import-report.json").read_bytes() == report_before
 
 
+def test_a_failing_rollback_does_not_mask_the_original_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the restore itself fails, the caller still sees the real cause."""
+    from miniverl.bridge import publish
+
+    source = _write(tmp_path)
+    out = tmp_path / "recipes" / "foo.yaml"
+    _import(source, out)
+
+    def always_fails(src: Path, dst: Path) -> None:
+        raise OSError("simulated rename failure")
+
+    # Let the backup leg (target -> .replaced) succeed and fail only the
+    # restore leg (.replaced -> target), so the rollback is what breaks.
+    real_path_replace = Path.replace
+
+    def flaky_path_replace(self: Path, target: Any) -> Path:
+        if ".replaced" in str(self):
+            raise OSError("simulated rollback failure")
+        return real_path_replace(self, target)
+
+    monkeypatch.setattr(publish, "_replace", always_fails)
+    monkeypatch.setattr(Path, "replace", flaky_path_replace)
+
+    # The original rename failure propagates, not the rollback failure.
+    with pytest.raises(OSError, match="simulated rename failure"):
+        _import(source, out, teacher_model="Qwen/Qwen3-4B", overwrite=True)
+
+
 def test_a_failed_publication_leaves_no_staging_directory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

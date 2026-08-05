@@ -62,7 +62,11 @@ dpo = [
   "trl==1.8.0",
   "datasets>=4.0,<5",
 ]
-bridge = ["pyarrow>=15"]
+# numpy is what the official safetensors reader needs for framework="np". Without
+# it the adapter payload can still be validated structurally, but
+# `bridge doctor --require-adapter-payload` can never be satisfied, so the extra
+# that exists for bridge work has to carry it.
+bridge = ["pyarrow>=15", "numpy>=1.24"]
 dev = [
   "pytest>=8.0",
   "pytest-cov>=5.0",
@@ -118,6 +122,9 @@ include = [
   "/LICENSE",
   "/THIRD_PARTY_NOTICES.md",
   "/CITATION.cff",
+  # The canonical release state; tests/unit/test_release_state.py reads it, so
+  # an extracted sdist has to carry it.
+  "/release-state.yaml",
   "/mkdocs.yml",
   "/pyproject.toml",
 ]

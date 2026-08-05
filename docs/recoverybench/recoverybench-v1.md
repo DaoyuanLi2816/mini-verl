@@ -1,4 +1,4 @@
-# RecoveryBench v1
+﻿# RecoveryBench v1
 
 RecoveryBench asks a narrow mechanism question: when the starting checkpoint,
 teacher, task schedule, optimizer and update count are controlled, does scoring
@@ -31,7 +31,10 @@ percentage points for strict success (95% paired bootstrap interval -15.89 to
 describe paired task outcomes; three student seeds do not by themselves justify
 a broad significance or generalization claim.
 
-![Three-seed RecoveryBench result](recovery-success.svg)
+<picture>
+  <source media="(max-width: 900px)" srcset="../recovery-success-mobile.svg">
+  <img src="../recovery-success.svg" alt="Three-seed mean strict task success and recovery-after-error rate for every RecoveryBench arm, with each rate printed next to its bar.">
+</picture>
 
 ## Controlled design
 
@@ -85,9 +88,15 @@ Teacher preparation cost is reported separately: 2,310.75 seconds once,
 687.05-second diagnostic is excluded from that selected-teacher preparation
 total and remains recorded.
 
-![Recovery quality and continuation cost](cost-quality-pareto.svg)
+<picture>
+  <source media="(max-width: 900px)" srcset="../cost-quality-pareto-mobile.svg">
+  <img src="../cost-quality-pareto.svg" alt="Three-seed mean recovery-after-error rate paired with continuation training time as a fraction of the slowest arm, with both values printed next to their bars.">
+</picture>
 
-![Paired fresh-minus-frozen differences](fresh-vs-frozen.svg)
+<picture>
+  <source media="(max-width: 900px)" srcset="../fresh-vs-frozen-mobile.svg">
+  <img src="../fresh-vs-frozen.svg" alt="Paired strict-task-success and recovery-after-error differences between fresh-state OPD and frozen-state KD. Both the mean difference and the upper 95 percent bootstrap bound stay below zero and are printed as text.">
+</picture>
 
 ## Interpretation
 

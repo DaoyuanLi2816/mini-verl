@@ -164,50 +164,182 @@ def _svg(title: str, subtitle: str, rows: list[tuple[str, float, float]], *, x_l
     return "".join(body)
 
 
+#: Mobile canvas. The docs content column is 358 px wide at a 390 px viewport,
+#: so a 390 px canvas renders at 0.918x and a 14 px class clears the 11 px
+#: readability floor with margin. Scaling the 1120 px desktop chart to the same
+#: column would render its 16 px text at about 5 px.
+MOBILE_WIDTH = 390
+MOBILE_MIN_FONT_PX = 14
+
+#: Every mobile class stays at or above 14 px.
+_MOBILE_STYLE = (
+    "text{font-family:Inter,'Segoe UI',sans-serif;fill:#edf4ff}"
+    ".title{font-size:19px;font-weight:760}"
+    ".sub{font-size:14px;fill:#aebbd2}"
+    ".label{font-size:16px;font-weight:700}"
+    ".series{font-size:14px;fill:#c3cfe2}"
+    ".value{font-size:15px;font-weight:760}"
+)
+
+_SERIES_COLOURS = ("#38bdf8", "#a78bfa")
+
+
+def _wrap(text: str, limit: int) -> list[str]:
+    """Greedy wrap so a long title stays inside the narrow canvas."""
+    lines: list[str] = []
+    current = ""
+    for word in text.split():
+        candidate = f"{current} {word}".strip()
+        if current and len(candidate) > limit:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _mobile_svg(
+    title: str,
+    subtitle: str,
+    rows: list[tuple[str, float, float]],
+    *,
+    series: tuple[str, str],
+    description: str,
+) -> str:
+    """Render the same numbers as a vertical, phone-first card list.
+
+    Each bar carries its series name and its exact value as text, so nothing is
+    encoded by colour alone and no value has to be read off a scaled axis.
+    """
+    title_lines = _wrap(title, 30)
+    subtitle_lines = _wrap(subtitle, 46)
+    # Line steps clear the rendered bounding box of each class: 19 px text needs
+    # more than 24 px of leading before the gate's overlap check fires.
+    header = 34 + 28 * len(title_lines) + 8 + 21 * len(subtitle_lines) + 14
+    block = 118
+    height = header + block * len(rows) + 4
+    inner_width = MOBILE_WIDTH - 24
+    content_width = MOBILE_WIDTH - 48
+    body = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{MOBILE_WIDTH}" height="{height}" '
+        f'viewBox="0 0 {MOBILE_WIDTH} {height}" role="img" aria-labelledby="title desc">',
+        f'<title id="title">{escape(title)}</title><desc id="desc">{escape(description)}</desc>',
+        f'<rect width="{MOBILE_WIDTH}" height="{height}" rx="16" fill="#060a14"/>',
+        f'<rect x="12" y="12" width="{inner_width}" height="{height - 24}" rx="12" '
+        'fill="#0a1222" stroke="#20304f"/>',
+        f"<style>{_MOBILE_STYLE}</style>",
+    ]
+    cursor = 34
+    for line in title_lines:
+        body.append(f'<text class="title" x="24" y="{cursor}">{escape(line)}</text>')
+        cursor += 28
+    cursor += 8
+    for line in subtitle_lines:
+        body.append(f'<text class="sub" x="24" y="{cursor}">{escape(line)}</text>')
+        cursor += 21
+    cursor += 14
+
+    maximum = max((max(abs(first), abs(second)) for _, first, second in rows), default=1.0) or 1.0
+    for index, (label, first, second) in enumerate(rows):
+        base = cursor + index * block
+        body.append(f'<text class="label" x="24" y="{base + 16}">{escape(label)}</text>')
+        for offset, (name, value, colour) in enumerate(
+            ((series[0], first, _SERIES_COLOURS[0]), (series[1], second, _SERIES_COLOURS[1]))
+        ):
+            line = base + 42 + offset * 44
+            body.extend(
+                [
+                    f'<text class="series" x="24" y="{line}">{escape(name)}</text>',
+                    f'<text class="value" x="{MOBILE_WIDTH - 24}" y="{line}" '
+                    f'text-anchor="end">{value:.3f}</text>',
+                    f'<rect x="24" y="{line + 8}" '
+                    f'width="{content_width * abs(value) / maximum:.1f}" height="12" rx="6" '
+                    f'fill="{colour}"/>',
+                ]
+            )
+    body.append("</svg>\n")
+    return "".join(body)
+
+
 def render_figures(
     primary: BenchmarkResult, analysis: dict[str, Any], source_hash: str
 ) -> dict[str, str]:
     means = _means(primary)
     ordered = [arm.name for arm in primary.arms if arm.seed == primary.seeds[0]]
-    figures = {
+    digest = source_hash[:12]
+    success_rows = [(name, means[name]["strict"], means[name]["recovery"]) for name in ordered]
+    slowest = max(v["seconds"] for v in means.values())
+    cost_rows = [
+        (name, means[name]["recovery"], means[name]["seconds"] / slowest) for name in ordered
+    ]
+    paired_rows = [
+        (
+            "strict task success",
+            analysis["strict_task_success"]["mean_difference"],
+            analysis["strict_task_success"]["upper_95"],
+        ),
+        (
+            "recovery after error",
+            analysis["recovery_after_error"]["mean_difference"],
+            analysis["recovery_after_error"]["upper_95"],
+        ),
+    ]
+    return {
         "recovery-success.svg": _svg(
             "RecoveryBench v1: strict success and recovery",
-            f"Three-seed means · strict success (cyan) · recovery after error (violet) · source {source_hash[:12]}",
-            [(name, means[name]["strict"], means[name]["recovery"]) for name in ordered],
+            f"Three-seed means · strict success (cyan) · recovery after error (violet) · source {digest}",
+            success_rows,
             x_label="rate (0–1)",
+        ),
+        "recovery-success-mobile.svg": _mobile_svg(
+            "RecoveryBench v1: strict success and recovery",
+            f"Three-seed means · rate 0–1 · source {digest}",
+            success_rows,
+            series=("strict success", "recovery after error"),
+            description=(
+                "Vertical mobile chart of three-seed mean strict task success and "
+                "recovery-after-error rates for every RecoveryBench arm. Each bar is "
+                "labelled with its series name and its exact rate."
+            ),
         ),
         "cost-quality-pareto.svg": _svg(
             "Recovery quality with continuation cost",
-            f"Three-seed means · recovery (cyan) · train seconds / max (violet) · source {source_hash[:12]}",
-            [
-                (
-                    name,
-                    means[name]["recovery"],
-                    means[name]["seconds"] / max(v["seconds"] for v in means.values()),
-                )
-                for name in ordered
-            ],
+            f"Three-seed means · recovery (cyan) · train seconds / max (violet) · source {digest}",
+            cost_rows,
             x_label="normalized scale",
+        ),
+        "cost-quality-pareto-mobile.svg": _mobile_svg(
+            "Recovery quality with continuation cost",
+            f"Three-seed means · normalized scale · source {digest}",
+            cost_rows,
+            series=("recovery after error", "train seconds / slowest"),
+            description=(
+                "Vertical mobile chart pairing each RecoveryBench arm's three-seed mean "
+                "recovery-after-error rate with its continuation training time as a "
+                "fraction of the slowest arm. Both values are printed as text."
+            ),
         ),
         "fresh-vs-frozen.svg": _svg(
             "Fresh-state OPD minus frozen-state KD",
-            f"Paired task differences with 10,000 bootstrap replicates · source {source_hash[:12]}",
-            [
-                (
-                    "strict task success",
-                    analysis["strict_task_success"]["mean_difference"],
-                    analysis["strict_task_success"]["upper_95"],
-                ),
-                (
-                    "recovery after error",
-                    analysis["recovery_after_error"]["mean_difference"],
-                    analysis["recovery_after_error"]["upper_95"],
-                ),
-            ],
+            f"Paired task differences with 10,000 bootstrap replicates · source {digest}",
+            paired_rows,
             x_label="mean (cyan) · upper 95% bound (violet)",
         ),
+        "fresh-vs-frozen-mobile.svg": _mobile_svg(
+            "Fresh-state OPD minus frozen-state KD",
+            f"Paired differences · 10,000 bootstrap replicates · source {digest}",
+            paired_rows,
+            series=("mean difference", "upper 95% bound"),
+            description=(
+                "Vertical mobile chart of paired strict-task-success and "
+                "recovery-after-error differences between fresh-state OPD and "
+                "frozen-state KD. Both the mean difference and the upper 95 percent "
+                "bootstrap bound stay below zero and are printed as text."
+            ),
+        ),
     }
-    return figures
 
 
 def publish(paths: dict[str, Path]) -> dict[str, str]:
@@ -248,8 +380,11 @@ def publish(paths: dict[str, Path]) -> dict[str, str]:
                 DOCS / name
                 for name in (
                     "recovery-success.svg",
+                    "recovery-success-mobile.svg",
                     "cost-quality-pareto.svg",
+                    "cost-quality-pareto-mobile.svg",
                     "fresh-vs-frozen.svg",
+                    "fresh-vs-frozen-mobile.svg",
                 )
             ),
         ]

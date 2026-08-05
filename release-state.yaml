@@ -1,0 +1,31 @@
+# Canonical release state for miniVERL.
+#
+# Every public "stable is X, development is Y" claim in this repository is
+# generated from this file and gated by `python scripts/release_state.py
+# --check`. Nothing else may hard-code a version: after v0.6.2 shipped, the
+# README still said stable was v0.6.1, the docs selector offered
+# "Stable 0.6.1 / Development 0.6.2.dev0", and the quality record combined
+# release 0.6.2 with a floor measured "at v0.6.1".
+#
+# To cut a release: set `phase: release`, set `stable` to the version being
+# published with `release_commit: pending`, set `development.version` to the same
+# version, then run `python scripts/release_state.py --write`. After the tag is
+# published, set `phase: development`, fill in the real `release_commit` and set
+# `development.version` to the next `.dev0`.
+#
+# The two phases exist because a release tree *is* the release: v0.6.2 had no
+# such distinction, which is how its tag shipped a docs selector still
+# advertising "Stable 0.6.1 / Development 0.6.2.dev0".
+schema_version: 1
+phase: release
+
+stable:
+  version: "0.6.3"
+  tag: "v0.6.3"
+  # This tree is the release, so it cannot name its own merge commit yet. The
+  # post-release state-sync replaces this with the exact tagged SHA.
+  release_commit: "pending"
+  released_at: "2026-08-05"
+
+development:
+  version: "0.6.3"

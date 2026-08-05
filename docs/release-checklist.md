@@ -1,15 +1,49 @@
-# Release checklist
+﻿# Release checklist
 
 This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
+
+## v0.6.3 Security, artifact integrity and release-state hardening
+
+- [x] `bridge doctor` executes zero Python from the inspected bundle by
+      default: the reward scaffold is parsed with `ast.parse` and verified
+      statically, and the marker-file exploit that ran during a v0.6.2
+      diagnosis is a regression test.
+- [x] A dynamic reward import happens only under
+      `--trust-and-import-reward-code`, which warns before running anything and
+      reports `untrusted_code_executed: true` rather than claiming isolation.
+- [x] Adapter safetensors are validated past the header: dtype and shape byte
+      arithmetic, offset ordering, contiguity and full coverage of the data
+      segment, then materialization through the official reader. A truncated
+      payload is rejected and `--require-adapter-payload` cannot be satisfied
+      by a header.
+- [x] No input file can be an output file. `import-verl` and `convert-dataset`
+      reject exact, relative, symlink, hard-link and case aliases before a
+      transaction exists, and `--overwrite` never authorizes destroying a
+      source.
+- [x] Conflicting miniVERL extension sources fail closed without printing
+      extension values; equal duplicates are recorded as deduplication.
+- [x] Invalid rows fail conversion unless `--allow-rejected-rows` is given, and
+      a partial run reports `complete_dataset_conversion: false`.
+- [x] Parquet schema checks read footer metadata only, and the dataset scan
+      stops reading row groups once its row or byte bound is reached.
+- [x] `python scripts/release_state.py --check` passes: README English and
+      Chinese, the docs selector, `PYPI.md`, `CITATION.cff`, the changelog
+      comparison link, the quality record and `PROJECT_STATE.md` all agree with
+      `release-state.yaml`.
+- [x] Every public scientific figure is readable at 390px and the mobile
+      readability exemption list is empty.
+- [x] Transactional wording is limited to in-process rollback; no multi-file
+      crash atomicity is claimed.
+- [x] Every frozen scientific artifact remains byte-identical.
 
 ## v0.6.1 Visual integrity and bridge correctness release
 
 - [x] Alignment Lab publication is generated as one diverging forest chart and
       two row matrices: every arm exposes all three frozen seeds and its mean,
       quantitative marks remain in-domain, and non-teacher query ratios remain
-      `— not applicable` rather than being coerced to zero.
+      `鈥?not applicable` rather than being coerced to zero.
 - [x] The scoped safety figure states that both sandbox checks tied at zero
       while utility regressed, records the external endpoints as not run, and
       does not imply a broad safety benchmark.

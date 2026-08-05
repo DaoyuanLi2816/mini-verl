@@ -121,10 +121,26 @@ Dataset conversion behaves the same way, keyed on the requested Parquet path:
 
 Each invocation takes an exclusive per-stem reservation, refuses to start if
 any intended output path already exists, stages every file in a temporary
-sibling directory, and publishes the set with same-filesystem renames that are
-rolled back on failure. A report from one invocation therefore cannot be paired
-with a recipe, template, Parquet or sidecar from another. Supplying `--out`
-does not imply replacement; pass `--overwrite` to replace an existing family:
+sibling directory, and publishes the set with same-filesystem renames.
+
+The guarantee is **transactional publication with in-process rollback**: if any
+step raises, the previous family is restored and nothing partial is left
+behind, so a report from one invocation cannot be paired with a recipe,
+template, Parquet or sidecar from another. It is not multi-file crash
+atomicity. A `kill -9`, a kernel panic or a power loss between two renames can
+still leave a mixed family on disk; recovering from that would need a versioned
+output directory behind a single atomically switched pointer, which miniVERL
+does not implement. Re-running the invocation with `--overwrite` republishes a
+coherent family.
+
+An input file may never also be an output file. `import-verl` and
+`convert-dataset` compare the source against every intended output — including
+symlink, hard-link, relative and case-insensitive aliases — and refuse before
+taking the reservation. `--overwrite` replaces a previous *output* family; it
+never authorizes overwriting or deleting an input. There is no in-place mode.
+
+Supplying `--out` does not imply replacement; pass `--overwrite` to replace an
+existing family:
 
 ```bash
 miniverl import-verl resolved-verl.yaml \
@@ -197,6 +213,61 @@ miniverl bridge doctor exports/<bundle> --require-tokenizer-load
 The committed pinned smoke record predates these levels: its bundle ships only
 `tokenizer_config.json`, which is `metadata_only` under the current check.
 
+### Reward code is inspected, never executed
+
+A bundle is untrusted input. `bridge doctor` parses
+`reward/reward_or_verifier_scaffold.py` with `ast.parse` and verifies the
+interface statically; it never imports the module, so a bundle cannot act
+merely by being diagnosed:
+
+| Level | Meaning |
+| --- | --- |
+| `not_present` | No scaffold file, or it is unreadable. |
+| `syntax_valid` | It parses as Python, but the interface check failed. |
+| `interface_statically_verified` | A top-level `compute_score(data_source, solution_str, ground_truth, extra_info=None)` exists, is synchronous, is undecorated, is not bound by assignment, and the module contains no top-level executable statement. |
+| `trusted_dynamic_import_verified` | The module was actually imported. Reached only through an explicit opt-in. |
+
+The default path stops at `interface_statically_verified`. Top-level calls,
+non-literal assignments, decorators, class-body statements and call-valued
+default arguments are all rejected, because each of them runs at import time.
+Static verification proves the interface is present and that importing would
+not obviously run code; it proves nothing about whether the reward logic is
+correct or safe to run later.
+
+If you produced the bundle yourself and want the historical behaviour:
+
+```bash
+miniverl bridge doctor exports/<bundle> --trust-and-import-reward-code
+```
+
+This executes the bundle's Python in your process with your privileges. It
+prints a warning first and reports `untrusted_code_executed: true`. A
+subprocess would not be a security sandbox either, so none is claimed.
+
+### Adapter weights are validated past the header
+
+`adapter_model.safetensors` is checked structurally, not just parsed:
+
+| Level | Meaning |
+| --- | --- |
+| `not_present` | The file is absent. |
+| `header_only` | The header was read but rejected: bad dtype, impossible shape/byte arithmetic, unordered, overlapping, gapped or trailing offsets, or a payload shorter than the header declares. |
+| `payload_structure_validated` | Offsets are contiguous and cover the data segment exactly. |
+| `tensor_materialization_validated` | Every tensor also resolved through the official `safetensors` reader. |
+
+A header-only result is never called loadable. To require a real payload:
+
+```bash
+miniverl bridge doctor exports/<bundle> --require-adapter-payload
+```
+
+The structural pass needs no optional dependency, so a torch-free install still
+reaches `payload_structure_validated` and reports
+`official_reader_status: dependency_missing` rather than pretending the file is
+broken. `--require-adapter-payload` demands the strongest level, so it is *not*
+satisfied when the official reader is unavailable — install the `[bridge]` extra
+to use it.
+
 ### Privacy is reported per inspection scope
 
 The default run reads portable metadata files only. It therefore reports three
@@ -219,10 +290,38 @@ miniverl bridge doctor exports/<bundle> \
 ```
 
 It is a heuristic detector, not de-identification proof. It reports only the
-detector category, split, column and row index—never the matched text—caps the
-rows and bytes it reads, records whether it ran `full` or `sampled`, and never
+detector category, split, column and row index—never the matched text—and never
 reads `.safetensors` as text. Model-weight privacy stays `not_inspected`
 because no meaningful check exists for it.
+
+The bounds are enforced *while reading*, not after. Row groups are pulled one
+at a time through `ParquetFile.iter_batches`, restricted to columns whose Arrow
+type can contain a string, and decoding stops the moment `max_rows` or
+`max_bytes` is reached; files past the bound contribute their footer row count
+and are never decoded. The report states `files_total`, `files_inspected`,
+`row_groups_read`, `rows_scanned`, `rows_total`, `bytes_scanned` and whether
+the scope was `full` or `sampled`, so a sampled result is visibly sampled.
+Schema validation reads the Parquet footer only.
+
+### Dataset conversion is complete-or-nothing
+
+`convert-dataset` is lossless for the rows it accepts and refuses to quietly
+drop the rest. One invalid row fails the whole conversion:
+
+```bash
+miniverl convert-dataset train.parquet --from verl-parquet --out out.parquet \
+  --allow-rejected-rows
+```
+
+Only with that flag does it publish a partial dataset, and the report then says
+so: `complete_dataset_conversion: false`, `lossless_for_accepted_rows: true`,
+plus the output-row-to-source-row index map so a dropped row stays traceable.
+
+A row can carry miniVERL extension data in `miniverl_extensions`, the
+conversion sidecar and `extra_info.miniverl`. Identical content in several
+places is accepted and recorded as a deduplication; content that disagrees
+fails closed, naming the row index and the source locations but never the
+values, which may contain teacher targets.
 
 ## Unsupported boundary
 
