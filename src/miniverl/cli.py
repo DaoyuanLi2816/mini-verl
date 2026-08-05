@@ -1109,6 +1109,19 @@ def bridge_doctor_command(
         "--require-tokenizer-load",
         help="Fail unless the tokenizer loads from the local snapshot and its identity checks out.",
     ),
+    require_adapter_payload: bool = typer.Option(
+        False,
+        "--require-adapter-payload",
+        help="Fail unless every adapter tensor payload is validated, not just the header.",
+    ),
+    trust_and_import_reward_code: bool = typer.Option(
+        False,
+        "--trust-and-import-reward-code",
+        help=(
+            "UNSAFE: execute the bundle's reward Python in this process. "
+            "Only for bundles you produced yourself."
+        ),
+    ),
     scan_dataset_text: bool = typer.Option(
         False,
         "--scan-dataset-text",
@@ -1121,13 +1134,27 @@ def bridge_doctor_command(
     ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
-    """Verify pins, standard artifacts, schema, scaffold, hashes and smoke status."""
+    """Verify pins, standard artifacts, schema, scaffold, hashes and smoke status.
+
+    Reward code is statically inspected and never executed by default.
+    """
     from miniverl.bridge.doctor import inspect_bridge_bundle
 
+    if trust_and_import_reward_code:
+        # Printed before the import happens, so the warning survives a crash
+        # caused by the untrusted module itself.
+        console.print(
+            "[red]WARNING[/red]: --trust-and-import-reward-code executes this bundle's "
+            "Python in the current process with your privileges.\n"
+            "         A subprocess would not be a security sandbox either. "
+            "Only use it on bundles you produced yourself."
+        )
     payload = inspect_bridge_bundle(
         bundle,
         require_verl=require_verl,
         require_tokenizer_load=require_tokenizer_load,
+        require_adapter_payload=require_adapter_payload,
+        trust_and_import_reward_code=trust_and_import_reward_code,
         scan_dataset_text=scan_dataset_text,
         sentinels=tuple(sentinel),
     )
@@ -1142,12 +1169,16 @@ def bridge_doctor_command(
             "tokenizer_verification_level",
             "parquet_schema",
             "config_profile",
-            "reward_scaffold_importability",
+            "reward_verification_level",
             "artifact_hashes",
             "local_smoke_status",
             "distributed_execution_status",
         ):
             console.print(f"  {_esc(key)}: {_esc(payload[key])}")
+        if payload["reward_code_executed"]:
+            console.print("  [red]reward code from this bundle was executed[/red]")
+        else:
+            console.print("  reward code: statically inspected, never executed")
         console.print("  privacy scopes:")
         console.print(f"    portable metadata: {_esc(payload['portable_metadata_privacy'])}")
         console.print(f"    dataset content:   {_esc(payload['dataset_content_privacy'])}")

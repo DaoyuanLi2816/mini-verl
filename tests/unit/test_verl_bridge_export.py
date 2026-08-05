@@ -134,7 +134,11 @@ def test_export_verl_emits_a_fail_closed_bundle_and_doctor_verifies_artifacts(
     assert diagnosis["verdict"] == "ok"
     assert diagnosis["model_adapter_loadability"]["status"] == "ok"
     assert diagnosis["parquet_schema"]["status"] == "ok"
-    assert diagnosis["reward_scaffold_importability"]["status"] == "ok"
+    assert diagnosis["reward_scaffold_interface"]["status"] == "ok"
+    # The exported scaffold is verified without ever being imported.
+    assert diagnosis["reward_verification_level"] == "interface_statically_verified"
+    assert diagnosis["reward_code_executed"] is False
+    assert diagnosis["safetensors_verification_level"] == "tensor_materialization_validated"
     assert diagnosis["artifact_hashes"]["status"] == "ok"
     assert diagnosis["distributed_execution_status"] == "not tested"
     assert diagnosis["artifact_bundle_complete"] is True

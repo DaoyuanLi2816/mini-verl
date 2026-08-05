@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import importlib.metadata
-import importlib.util
 import json
 import re
-import struct
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -20,8 +17,15 @@ from miniverl.bridge.contract import (
     VERL_REPOSITORY,
     VERL_TAG,
 )
+from miniverl.bridge.reward_static import REWARD_LEVELS, inspect_reward_scaffold
+from miniverl.bridge.safetensors_check import SAFETENSORS_LEVELS, inspect_safetensors
 
-__all__ = ["inspect_bridge_bundle"]
+__all__ = [
+    "REWARD_LEVELS",
+    "SAFETENSORS_LEVELS",
+    "TOKENIZER_LEVELS",
+    "inspect_bridge_bundle",
+]
 
 _ABSOLUTE_PATH = re.compile(
     r"(?i)(?:(?<![A-Za-z0-9])[A-Z]:[\\/]|/home/|/users/|\\\\[^\\]+\\[^\\]+)"
@@ -106,56 +110,43 @@ def _check_requirements(root: Path) -> dict[str, Any]:
     }
 
 
-def _check_safetensors(path: Path) -> tuple[bool, str]:
-    try:
-        with path.open("rb") as handle:
-            raw_length = handle.read(8)
-            if len(raw_length) != 8:
-                return False, "missing safetensors header length"
-            header_length = struct.unpack("<Q", raw_length)[0]
-            if header_length < 2 or header_length > path.stat().st_size - 8:
-                return False, "invalid safetensors header length"
-            header = json.loads(handle.read(header_length).decode("utf-8"))
-        tensors = [key for key in header if key != "__metadata__"]
-        if not tensors:
-            return False, "safetensors contains no tensors"
-        return True, f"{len(tensors)} tensor header(s)"
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, struct.error) as exc:
-        return False, str(exc)
-
-
-def _check_model(root: Path) -> dict[str, Any]:
+def _check_model(root: Path, *, require_payload: bool = False) -> dict[str, Any]:
     model = root / "model"
     config = model / "adapter_config.json"
     weights = model / "adapter_model.safetensors"
     try:
         payload = json.loads(config.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        model_check = {"status": "fail", "detail": str(exc)}
-    else:
-        weights_ok, detail = _check_safetensors(weights)
-        peft_ok = str(payload.get("peft_type", "")).upper() == "LORA"
-        peft_load = "not installed; structural validation only"
-        if weights_ok and peft_ok:
-            try:
-                from peft import PeftConfig
+        return {"status": "fail", "detail": str(exc)}
 
-                loaded = PeftConfig.from_pretrained(str(model))
-                peft_load = f"loaded {type(loaded).__name__}"
-            except ImportError:
-                pass
-            except Exception as exc:
-                weights_ok = False
-                peft_load = f"PEFT rejected adapter_config.json: {exc}"
-        model_check = {
-            "status": "ok" if weights_ok and peft_ok else "fail",
-            "peft_type": payload.get("peft_type"),
-            "base_model": payload.get("base_model_name_or_path"),
-            "detail": detail,
-            "peft_config_load": peft_load,
-            "load_scope": "PEFT config plus safetensors structure; base weights not loaded",
-        }
-    return model_check
+    tensors = inspect_safetensors(weights, require_payload=require_payload)
+    weights_ok = tensors["status"] == "ok"
+    peft_ok = str(payload.get("peft_type", "")).upper() == "LORA"
+    peft_load = "not installed; structural validation only"
+    if weights_ok and peft_ok:
+        try:
+            from peft import PeftConfig
+
+            loaded = PeftConfig.from_pretrained(str(model))
+            peft_load = f"loaded {type(loaded).__name__}"
+        except ImportError:
+            pass
+        except Exception as exc:
+            weights_ok = False
+            peft_load = f"PEFT rejected adapter_config.json: {exc}"
+    return {
+        "status": "ok" if weights_ok and peft_ok else "fail",
+        "peft_type": payload.get("peft_type"),
+        "base_model": payload.get("base_model_name_or_path"),
+        "detail": tensors["detail"],
+        "safetensors": tensors,
+        "safetensors_verification_level": tensors["verification_level"],
+        "peft_config_load": peft_load,
+        "load_scope": (
+            "PEFT config plus safetensors payload structure; base model weights are "
+            "never loaded and tensor values are never interpreted"
+        ),
+    }
 
 
 def _reference_tokenizer_identity(root: Path) -> dict[str, Any]:
@@ -370,30 +361,14 @@ def _check_config(root: Path) -> dict[str, Any]:
     }
 
 
-def _check_reward(root: Path) -> dict[str, Any]:
+def _check_reward(root: Path, *, trust_and_import: bool = False) -> dict[str, Any]:
+    """Statically verify the reward interface.
+
+    The bundle is untrusted input. Inspection parses the scaffold and never
+    imports it, so a bundle cannot act merely by being diagnosed.
+    """
     path = root / "reward" / "reward_or_verifier_scaffold.py"
-    try:
-        spec = importlib.util.spec_from_file_location("_miniverl_exported_reward", path)
-        if spec is None or spec.loader is None:
-            raise ImportError("could not create an import specification")
-        module = importlib.util.module_from_spec(spec)
-        previous = sys.dont_write_bytecode
-        sys.dont_write_bytecode = True
-        try:
-            spec.loader.exec_module(module)
-        finally:
-            sys.dont_write_bytecode = previous
-        if not callable(getattr(module, "compute_score", None)):
-            raise ImportError("compute_score is not callable")
-    except Exception as exc:
-        return {"status": "fail", "detail": str(exc)}
-    source = path.read_text(encoding="utf-8")
-    implementation_complete = "complete and test reward_or_verifier_scaffold" not in source
-    return {
-        "status": "ok",
-        "detail": "side-effect-free import; scaffold intentionally not executed",
-        "implementation_complete": implementation_complete,
-    }
+    return inspect_reward_scaffold(path, trust_and_import=trust_and_import)
 
 
 def _check_hashes(root: Path) -> dict[str, Any]:
@@ -612,19 +587,25 @@ def inspect_bridge_bundle(
     *,
     require_verl: bool = False,
     require_tokenizer_load: bool = False,
+    require_adapter_payload: bool = False,
+    trust_and_import_reward_code: bool = False,
     scan_dataset_text: bool = False,
     sentinels: tuple[str, ...] = (),
     dataset_scan_max_rows: int = DATASET_SCAN_MAX_ROWS,
     dataset_scan_max_bytes: int = DATASET_SCAN_MAX_BYTES,
 ) -> dict[str, Any]:
-    """Return the complete bridge diagnosis; do not execute distributed code."""
+    """Return the complete bridge diagnosis.
+
+    No code from the inspected bundle runs unless ``trust_and_import_reward_code``
+    is explicitly set, and no distributed job is ever launched.
+    """
     bundle = Path(root)
     target = _check_requirements(bundle)
-    model = _check_model(bundle)
+    model = _check_model(bundle, require_payload=require_adapter_payload)
     tokenizer = _check_tokenizer(bundle, require_load=require_tokenizer_load)
     parquet = _check_parquet(bundle)
     config = _check_config(bundle)
-    reward = _check_reward(bundle)
+    reward = _check_reward(bundle, trust_and_import=trust_and_import_reward_code)
     hashes = _check_hashes(bundle)
     privacy = _check_privacy(
         bundle,
@@ -649,6 +630,9 @@ def inspect_bridge_bundle(
         "target_verl": target,
         "installed_verl": installed,
         "model_adapter_loadability": model,
+        "safetensors_verification_level": model.get(
+            "safetensors_verification_level", "not_present"
+        ),
         "tokenizer_identity": tokenizer,
         "tokenizer_verification_level": tokenizer["verification_level"],
         "portable_metadata_privacy": privacy["portable_metadata_privacy"],
@@ -656,7 +640,9 @@ def inspect_bridge_bundle(
         "model_weight_privacy": privacy["model_weight_privacy"],
         "parquet_schema": parquet,
         "config_profile": config,
-        "reward_scaffold_importability": reward,
+        "reward_scaffold_interface": reward,
+        "reward_verification_level": reward["verification_level"],
+        "reward_code_executed": bool(reward.get("code_executed", False)),
         "unsupported_semantics": compatibility.get("unsupported_semantics", []),
         "artifact_hashes": hashes,
         "privacy": privacy,
