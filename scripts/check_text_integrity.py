@@ -34,6 +34,16 @@ from pathlib import Path
 #: Chinese README, so this needs no per-file allowlist.
 MOJIBAKE_LEADERS = ("鈥", "鈫", "锛", "銆", "鎴", "鑰", "娴", "鏂")
 
+#: The only files allowed to contain the damaged sequences: the detector itself
+#: and its regression tests, which must spell them out to recognise them. Keep
+#: this list at exactly these two entries -- anything else is real damage.
+FIXTURE_ALLOWLIST = frozenset(
+    {
+        "scripts/check_text_integrity.py",
+        "tests/unit/test_text_integrity.py",
+    }
+)
+
 #: Suffixes worth reading as text. Frozen scientific results are included on
 #: purpose: mojibake in a published result would be a real defect. Nothing here
 #: rewrites them -- the check only reports.
@@ -92,6 +102,8 @@ def check_text_integrity(root: Path) -> list[str]:
         if path.suffix.lower() not in TEXT_SUFFIXES or not path.is_file():
             continue
         relative = path.relative_to(root).as_posix()
+        if relative in FIXTURE_ALLOWLIST:
+            continue
         try:
             raw = path.read_bytes()
         except OSError:

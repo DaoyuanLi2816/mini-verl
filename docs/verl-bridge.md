@@ -224,15 +224,44 @@ merely by being diagnosed:
 | --- | --- |
 | `not_present` | No scaffold file, or it is unreadable. |
 | `syntax_valid` | It parses as Python, but the interface check failed. |
-| `interface_statically_verified` | A top-level `compute_score(data_source, solution_str, ground_truth, extra_info=None)` exists, is synchronous, is undecorated, is not bound by assignment, and the module contains no top-level executable statement. |
+| `interface_shape_verified` | A top-level `compute_score(data_source, solution_str, ground_truth, extra_info=None)` exists, is synchronous, is not bound by assignment, and no definition-time expression forbidden by this policy was found. |
 | `trusted_dynamic_import_verified` | The module was actually imported. Reached only through an explicit opt-in. |
 
-The default path stops at `interface_statically_verified`. Top-level calls,
-non-literal assignments, decorators, class-body statements and call-valued
-default arguments are all rejected, because each of them runs at import time.
-Static verification proves the interface is present and that importing would
-not obviously run code; it proves nothing about whether the reward logic is
-correct or safe to run later.
+The default path stops at `interface_shape_verified`. The level is named for
+what it proves: the interface has the expected *shape*. It is not a statement
+that the file is safe to import.
+
+Importing a module runs more than its top-level statements, so the check covers
+every definition-time position:
+
+| Position | Example |
+| --- | --- |
+| Top-level statements | `exploit()`, non-literal assignments, loops |
+| Class bases | `class Hidden(exploit())` |
+| Class keywords | `class Hidden(object, metaclass=exploit())` |
+| Annotations | `def compute_score(data_source: exploit())`, `-> exploit()`, `VALUE: exploit() = 1` |
+| Type parameters | Python 3.12 bounds and defaults |
+| Decorators and defaults | `@exploit()`, `extra_info=exploit()` |
+
+Ordinary type annotations and base classes are unaffected: only expressions
+that would actually evaluate — calls, lambdas, comprehensions, `await`, walrus
+— are rejected.
+
+The signature contract is enforced including keyword-only parameters, so a
+required keyword-only `extra_info` is refused: verl calls `compute_score` with
+three positional arguments and that signature would raise `TypeError`.
+
+Inspection is bounded — source bytes, AST node count, AST depth and the number
+of reported findings — so a hostile scaffold produces a bounded diagnostic
+rather than exhausting the process that asked for a diagnosis. Imports are
+listed under `imports_present` with `import_runtime_safety: not_verified`,
+because this check never runs them and an imported third-party module can do
+anything; a relative, bundle-local import is refused outright.
+
+What this proves is narrow: the interface is present and no forbidden
+definition-time expression exists. It proves nothing about whether the reward
+logic is correct, whether imported modules are side-effect free, or whether the
+file is safe to run later.
 
 If you produced the bundle yourself and want the historical behaviour:
 
@@ -243,6 +272,34 @@ miniverl bridge doctor exports/<bundle> --trust-and-import-reward-code
 This executes the bundle's Python in your process with your privileges. It
 prints a warning first and reports `untrusted_code_executed: true`. A
 subprocess would not be a security sandbox either, so none is claimed.
+
+### What the bundle claims versus what was recomputed
+
+`provenance/SHA256SUMS` lives inside the bundle it describes. Anyone who edits
+`compatibility-report.json` can regenerate it, so agreement between them proves
+internal consistency and nothing else. miniVERL implements no signature or
+transparency-log verification, and does not pretend otherwise.
+
+The diagnosis therefore reports three separate things:
+
+| Field | Meaning |
+| --- | --- |
+| `bundle_declared_claims` | Copied from the bundle. Events this run did not observe. |
+| `locally_recomputed_checks` | Performed in this process against the bytes on disk. |
+| `provenance_trust` | `unsigned_self_consistent` at best; `signature_verification: not_available`. |
+
+Historical smoke results, distributed execution and algorithm parity can only
+ever be *declared*: no doctor run launches a job or compares algorithms, so the
+top-level `distributed_execution_tested` and `algorithm_semantic_parity` flags
+are always `false` regardless of what a bundle asserts. Checksum consistency,
+config structure, the pinned requirement file, tokenizer load, adapter
+structure, Parquet schema, the reward interface and the metadata privacy
+heuristic are recomputed every time.
+
+`--require-verl` recomputes the upstream check rather than trusting a record of
+it: it loads the installed pinned verl's generated PPO config, parses the
+bundle's `verl-overrides.yaml` and performs the structured merge in this
+process. It still launches nothing.
 
 ### Adapter weights are validated past the header
 

@@ -70,9 +70,14 @@ with in-process rollback, not multi-file crash atomicity.
 
 An exported bundle is untrusted input. `bridge doctor` inspects its reward
 scaffold statically with `ast.parse` and **never executes it** unless you pass
-`--trust-and-import-reward-code`; adapter weights are validated past the
-header; and tokenizer, safetensors and privacy results each report how far
-verification actually got rather than a single pass or fail.
+`--trust-and-import-reward-code` — class bases, `metaclass=`, annotations and
+type-parameter bounds are audited too, because all of them run at import.
+Adapter weights are validated past the header, a malformed extension sidecar
+fails the conversion instead of being read as empty, and dataset conversion
+streams row groups rather than materializing the table. What a bundle *claims*
+is reported separately from what was *recomputed* locally: its own `SHA256SUMS`
+can only prove internal consistency. Tokenizer, safetensors and privacy results
+each report how far verification actually got rather than a single pass or fail.
 
 ## One measured alignment result
 

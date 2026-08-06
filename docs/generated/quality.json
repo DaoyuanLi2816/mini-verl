@@ -2,14 +2,14 @@
   "schema_version": 1,
   "release": "0.6.3",
   "status": "validated",
-  "measured_commit": "1d2b43fbb93deac5d64b4f40b8ea6121f2f67ed0",
-  "measured_at": "2026-08-05T15:40:00-07:00",
+  "measured_commit": "e8a36db60b2146b684204df8a8bea3e20c11d8e4",
+  "measured_at": "2026-08-05T18:20:00-07:00",
   "platform": "Windows 11 Pro 10.0.22631, CPython 3.12, coverage branch mode",
   "cpu_non_gpu_non_network": {
-    "passed": 1763,
+    "passed": 1830,
     "skipped": 2,
     "deselected": 6,
-    "branch_coverage_percent": 86.02,
+    "branch_coverage_percent": 86.10,
     "skip_reason": "symlink creation requires privileges on Windows; hard-link and case aliases cover the same guard"
   },
   "gpu": {
