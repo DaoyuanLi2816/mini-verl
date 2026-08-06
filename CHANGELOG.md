@@ -6,6 +6,15 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A reward scaffold saved with a UTF-8 byte-order mark is no longer reported as
+  a syntax error. CPython strips the BOM when it reads a source file, so such a
+  scaffold imports normally; the static checker handed the leading `U+FEFF` to
+  `ast.parse`, which rejected it. The failure was fail-closed — a legitimate
+  file was refused, nothing unsafe was accepted — and a BOM still cannot hide a
+  top-level call. Found while verifying the published v0.6.3 wheel on Windows.
+
 ## [0.6.3] - 2026-08-05
 
 ### Security

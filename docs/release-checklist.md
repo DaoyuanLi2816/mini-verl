@@ -6,11 +6,17 @@ after the exact release commit and its remote checks are green.
 
 ## v0.6.4 (in development)
 
-- [ ] A reward scaffold saved with a UTF-8 byte-order mark parses instead of
+- [x] A reward scaffold saved with a UTF-8 byte-order mark parses instead of
       being reported as a syntax error. CPython strips the BOM when it reads a
       source file; the static checker did not, so a scaffold written by a
       Windows editor was refused as unparseable. Found while verifying the
-      published v0.6.3 wheel.
+      published v0.6.3 wheel. Two regressions cover it, including one proving a
+      BOM cannot hide a top-level call.
+- [ ] `pinned-profile-smoke` remains excluded from the required-status-check
+      list because `verl-bridge.yml` filters on paths and therefore never
+      reports on an unrelated pull request. It still runs, and must pass, on any
+      pull request that touches bridge code. Revisit if the workflow ever loses
+      its path filter.
 
 ## v0.6.3 Security, artifact integrity and release-state hardening
 

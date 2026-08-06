@@ -218,6 +218,35 @@ def test_findings_are_bounded(tmp_path: Path) -> None:
     assert check["findings_truncated"] is True
 
 
+def test_a_byte_order_mark_does_not_look_like_a_syntax_error(tmp_path: Path) -> None:
+    """Found while verifying the published v0.6.3 wheel on Windows.
+
+    CPython strips a UTF-8 BOM when it reads a source file, so this scaffold
+    imports fine; handing the leading U+FEFF to ``ast.parse`` reported it as
+    unparseable instead.
+    """
+    target = tmp_path / "reward_or_verifier_scaffold.py"
+    target.write_bytes(b"\xef\xbb\xbf" + VALID.encode("utf-8"))
+
+    check = inspect_reward_scaffold(target)
+
+    assert check["status"] == "ok"
+    assert check["verification_level"] == "interface_shape_verified"
+    assert check["findings"] == []
+
+
+def test_a_byte_order_mark_does_not_hide_a_top_level_call(tmp_path: Path) -> None:
+    target = tmp_path / "reward_or_verifier_scaffold.py"
+    target.write_bytes(b"\xef\xbb\xbf" + (PRELUDE + "exploit()\n\n\n" + VALID).encode("utf-8"))
+
+    check = inspect_reward_scaffold(target)
+
+    assert check["status"] == "fail"
+    assert "top_level_call" in _categories(check)
+    assert check["code_executed"] is False
+    assert not (tmp_path / "PWNED.txt").exists()
+
+
 def test_undecodable_source_fails_closed(tmp_path: Path) -> None:
     target = tmp_path / "reward_or_verifier_scaffold.py"
     target.write_bytes(b"\xff\xfe\x00invalid utf-8 \xc3\x28\n")
