@@ -1,4 +1,4 @@
-﻿# Release checklist
+# Release checklist
 
 This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
@@ -43,7 +43,7 @@ after the exact release commit and its remote checks are green.
 - [x] Alignment Lab publication is generated as one diverging forest chart and
       two row matrices: every arm exposes all three frozen seeds and its mean,
       quantitative marks remain in-domain, and non-teacher query ratios remain
-      `鈥?not applicable` rather than being coerced to zero.
+      `— not applicable` rather than being coerced to zero.
 - [x] The scoped safety figure states that both sandbox checks tied at zero
       while utility regressed, records the external endpoints as not run, and
       does not imply a broad safety benchmark.

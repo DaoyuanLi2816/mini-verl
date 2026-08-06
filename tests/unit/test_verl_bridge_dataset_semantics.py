@@ -193,7 +193,9 @@ def test_invalid_row_fails_conversion_by_default(tmp_path: Path) -> None:
         _convert(source, tmp_path / "out.parquet")
 
     message = str(excinfo.value)
-    assert "1 of 2 source row(s) failed validation" in message
+    # Streaming conversion stops at the first bad row instead of reading the
+    # rest of the file to report a total it does not need.
+    assert "source row 1 failed validation" in message
     assert "--allow-rejected-rows" in message
     assert not (tmp_path / "out.parquet").exists()
 

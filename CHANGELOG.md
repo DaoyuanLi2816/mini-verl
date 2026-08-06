@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 All notable changes to miniVERL are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
@@ -203,7 +203,8 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ### Added
 
-- `miniverl align` for explicit base 鈫?SFT checkpoint 鈫?teacher/reference 鈫?  alignment 鈫?evaluation 鈫?Alignment Card workflows, plus an
+- `miniverl align` for explicit base → SFT checkpoint → teacher/reference →
+  alignment → evaluation → Alignment Card workflows, plus an
   uncertainty-aware, versioned `miniverl pilot` decision aid.
 - Policy-conditioned and frozen aligned-adapter teachers, pinned TRL DPO
   provenance, a versioned verifier-gated selector, deterministic tool-policy
@@ -442,7 +443,7 @@ Single-GPU portability and presentation release.
 ### Added
 
 - A hardware-portability guide for personal NVIDIA GPUs, including honest
-  starting points for 8鈥?2 GiB, 16鈥?4 GiB and 24鈥?2+ GiB cards, OOM controls,
+  starting points for 8–12 GiB, 16–24 GiB and 24–32+ GiB cards, OOM controls,
   and a reproducible hardware-result contribution path.
 - A prominent PyPI destination in both READMEs and package metadata.
 - Visual regression assertions that keep benchmark grid lines below axis labels
