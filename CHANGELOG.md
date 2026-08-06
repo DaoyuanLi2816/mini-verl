@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to miniVERL are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
@@ -16,7 +16,7 @@ All notable changes to miniVERL are recorded here. The format follows
   they asked for a diagnosis, while the report described the result as a
   "side-effect-free import". The scaffold is now parsed with `ast.parse` and
   verified statically, reporting `not_present`, `syntax_valid`,
-  `interface_statically_verified` or `trusted_dynamic_import_verified`. Top-level
+  `interface_shape_verified` or `trusted_dynamic_import_verified`. Top-level
   calls, non-literal assignments, decorators, class-body statements and
   call-valued default arguments are rejected because each runs at import time.
 - Added `miniverl bridge doctor --trust-and-import-reward-code` for bundles you
@@ -203,14 +203,13 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ### Added
 
-- `miniverl align` for explicit base → SFT checkpoint → teacher/reference →
-  alignment → evaluation → Alignment Card workflows, plus an
+- `miniverl align` for explicit base 鈫?SFT checkpoint 鈫?teacher/reference 鈫?  alignment 鈫?evaluation 鈫?Alignment Card workflows, plus an
   uncertainty-aware, versioned `miniverl pilot` decision aid.
 - Policy-conditioned and frozen aligned-adapter teachers, pinned TRL DPO
   provenance, a versioned verifier-gated selector, deterministic tool-policy
   evaluation and privacy-safe JSON/Markdown Alignment Cards.
 - A preregistered three-seed Alignment Lab result, 864 task-level records, a
-  matched State × Supervision diagnostic, four data-bound figures, technical
+  matched State 脳 Supervision diagnostic, four data-bound figures, technical
   report, article and reproducible short demo.
 
 ### Changed
@@ -256,7 +255,7 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ### Results
 
-- Batch-4 improved end-to-end throughput by 1.63× for dual ownership and 1.54×
+- Batch-4 improved end-to-end throughput by 1.63脳 for dual ownership and 1.54脳
   for shared ownership on the declared Qwen3-0.6B workload. Shared batch-4 used
   2.227 GiB peak reserved memory versus 3.035 GiB for dual, but was 10.1% slower.
 - Identical trajectory and teacher-target digests held across all eight cells;
@@ -443,7 +442,7 @@ Single-GPU portability and presentation release.
 ### Added
 
 - A hardware-portability guide for personal NVIDIA GPUs, including honest
-  starting points for 8–12 GiB, 16–24 GiB and 24–32+ GiB cards, OOM controls,
+  starting points for 8鈥?2 GiB, 16鈥?4 GiB and 24鈥?2+ GiB cards, OOM controls,
   and a reproducible hardware-result contribution path.
 - A prominent PyPI destination in both READMEs and package metadata.
 - Visual regression assertions that keep benchmark grid lines below axis labels

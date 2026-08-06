@@ -248,7 +248,7 @@ def test_default_doctor_never_claims_dataset_or_weight_inspection(tmp_path: Path
 
     payload = inspect_bridge_bundle(_bundle(tmp_path))
     assert payload["verdict"] == "ok"
-    assert payload["portable_metadata_privacy"] == "passed"
+    assert payload["portable_metadata_privacy"] == "heuristic_passed"
     assert payload["dataset_content_privacy"] == "not_inspected"
     assert payload["model_weight_privacy"] == "not_inspected"
     privacy = payload["privacy"]
@@ -329,7 +329,7 @@ def test_privacy_report_serializes_as_canonical_machine_json(tmp_path: Path) -> 
 
     payload = inspect_bridge_bundle(_bundle(tmp_path), scan_dataset_text=True)
     restored = json.loads(canonical_json(payload))
-    assert restored["privacy"]["portable_metadata_privacy"] == "passed"
+    assert restored["privacy"]["portable_metadata_privacy"] == "heuristic_passed"
     assert restored["privacy"]["model_weight_privacy"] == "not_inspected"
     assert restored["tokenizer_identity"]["verification_level"] == "metadata_only"
 
@@ -340,6 +340,6 @@ def test_metadata_privacy_failure_is_scoped_to_metadata(tmp_path: Path) -> None:
     bundle = _bundle(tmp_path)
     (bundle / "recipe" / "leak.txt").write_text("C:\\Users\\someone\\secret", encoding="utf-8")
     payload = inspect_bridge_bundle(bundle)
-    assert payload["portable_metadata_privacy"] == "failed"
+    assert payload["portable_metadata_privacy"] == "heuristic_failed"
     assert payload["dataset_content_privacy"] == "not_inspected"
     assert payload["privacy"]["problems"] == ["recipe/leak.txt"]

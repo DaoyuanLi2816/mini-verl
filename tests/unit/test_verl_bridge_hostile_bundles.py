@@ -113,7 +113,7 @@ def test_untampered_bundle_passes(bundle: Path) -> None:
     report = _inspect(bundle)
     assert report["verdict"] == "ok"
     assert report["artifact_hashes"]["status"] == "ok"
-    assert report["reward_verification_level"] == "interface_statically_verified"
+    assert report["reward_verification_level"] == "interface_shape_verified"
     assert report["reward_code_executed"] is False
 
 
@@ -312,4 +312,4 @@ def test_trusted_import_is_never_reached_through_require_verl(bundle: Path, tmp_
     assert not marker.exists()
     assert report["reward_code_executed"] is False
     # A clean interface still verifies statically; the body is never run.
-    assert report["reward_verification_level"] == "interface_statically_verified"
+    assert report["reward_verification_level"] == "interface_shape_verified"

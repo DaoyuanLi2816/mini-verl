@@ -119,7 +119,7 @@ def test_generated_scaffold_verifies_statically(tmp_path: Path) -> None:
     check = inspect_reward_scaffold(path)
 
     assert check["status"] == "ok"
-    assert check["verification_level"] == "interface_statically_verified"
+    assert check["verification_level"] == "interface_shape_verified"
     assert check["findings"] == []
     assert check["code_executed"] is False
     assert check["signature"] == [
