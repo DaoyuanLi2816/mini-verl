@@ -17,6 +17,10 @@ from scripts.check_text_integrity import check_text_integrity
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@pytest.mark.skipif(
+    not (ROOT / ".git").exists(),
+    reason="repository-level gate; the extracted sdist is not a git checkout",
+)
 def test_the_repository_is_clean() -> None:
     assert check_text_integrity(ROOT) == []
 
