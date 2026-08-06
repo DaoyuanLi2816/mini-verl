@@ -526,6 +526,10 @@ def inspect_reward_scaffold(path: str | Path, *, trust_and_import: bool = False)
     except UnicodeDecodeError as exc:
         check["detail"] = f"reward scaffold is not valid UTF-8: {exc.reason}"
         return _finish([_finding("encoding_error", 0, "source is not decodable as UTF-8")])
+    # CPython strips a UTF-8 BOM when it reads a source file, so a scaffold
+    # saved by a Windows editor imports fine. Handing the leading U+FEFF to
+    # ast.parse instead reports a perfectly good file as a syntax error.
+    source = source.lstrip("﻿")
 
     try:
         tree = ast.parse(source, filename=str(source_path))
