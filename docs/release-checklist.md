@@ -4,6 +4,14 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.6.4 (in development)
+
+- [ ] A reward scaffold saved with a UTF-8 byte-order mark parses instead of
+      being reported as a syntax error. CPython strips the BOM when it reads a
+      source file; the static checker did not, so a scaffold written by a
+      Windows editor was refused as unparseable. Found while verifying the
+      published v0.6.3 wheel.
+
 ## v0.6.3 Security, artifact integrity and release-state hardening
 
 - [x] `bridge doctor` executes zero Python from the inspected bundle by
@@ -37,6 +45,24 @@ after the exact release commit and its remote checks are green.
 - [x] Transactional wording is limited to in-process rollback; no multi-file
       crash atomicity is claimed.
 - [x] Every frozen scientific artifact remains byte-identical.
+
+### After the v0.6.3 tag
+
+- [x] Annotated tag `v0.6.3` resolves to release commit
+      `005a4549da713716e64c3ae80ff55fb131519f79`; release run
+      [`31084165317`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31084165317)
+      completed OIDC Trusted Publishing and GitHub Release creation.
+- [x] PyPI and the GitHub Release expose identical files. Wheel SHA-256
+      `1c620c310e8e4156f515d52128a0f26a037096347a2bc105c63f173e6563f5e0`,
+      sdist SHA-256
+      `b93d2fad63432ecd680b72fe0bf79f6b0be212af1aab82780ed8e31636edeefe`.
+- [x] The PyPI integrity API exposes one Trusted Publisher attestation bundle
+      per distribution, bound to `DaoyuanLi2816/mini-verl` and `release.yml`.
+- [x] A clean Windows Python 3.12 install from `https://pypi.org/simple`
+      reported `miniverl 0.6.3`, kept torch absent, and refused to execute a
+      hostile reward scaffold: the top-level marker write never ran and the
+      doctor reported `top_level_call` with `code_executed: false`.
+- [x] This separate state-sync change advances development to `0.6.4.dev0`.
 
 ## v0.6.1 Visual integrity and bridge correctness release
 

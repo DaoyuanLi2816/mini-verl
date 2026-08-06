@@ -17,15 +17,13 @@
 # such distinction, which is how its tag shipped a docs selector still
 # advertising "Stable 0.6.1 / Development 0.6.2.dev0".
 schema_version: 1
-phase: release
+phase: development
 
 stable:
   version: "0.6.3"
   tag: "v0.6.3"
-  # This tree is the release, so it cannot name its own merge commit yet. The
-  # post-release state-sync replaces this with the exact tagged SHA.
-  release_commit: "pending"
-  released_at: "2026-08-05"
+  release_commit: "005a4549da713716e64c3ae80ff55fb131519f79"
+  released_at: "2026-08-06"
 
 development:
-  version: "0.6.3"
+  version: "0.6.4.dev0"

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "release": "0.6.3",
-  "status": "validated",
+  "status": "released",
   "measured_commit": "e8a36db60b2146b684204df8a8bea3e20c11d8e4",
   "measured_at": "2026-08-05T18:20:00-07:00",
   "platform": "Windows 11 Pro 10.0.22631, CPython 3.12, coverage branch mode",
