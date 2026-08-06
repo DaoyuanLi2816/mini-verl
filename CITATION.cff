@@ -3,7 +3,7 @@ title: "miniVERL: Auditable single-GPU alignment and distillation runtime"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
 version: 0.6.3
-date-released: 2026-08-05
+date-released: 2026-08-06
 license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
 url: "https://github.com/DaoyuanLi2816/mini-verl"
