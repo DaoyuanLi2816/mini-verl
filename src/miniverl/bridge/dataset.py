@@ -9,6 +9,7 @@ labels as incomplete instead of lossless.
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Literal
@@ -80,9 +81,168 @@ def _sidecar_path(parquet: Path) -> Path:
     return parquet.with_suffix(parquet.suffix + ".miniverl.json")
 
 
-def _write_parquet(pa: Any, pq: Any, rows: list[dict[str, Any]], path: Path) -> None:
-    """Materialize the accepted rows. Seam kept module-level for fault injection."""
-    pq.write_table(pa.Table.from_pylist(rows), path)
+def _write_parquet(pa: Any, writer: Any, rows: list[dict[str, Any]], schema: Any) -> None:
+    """Write one buffered batch. Seam kept module-level for fault injection."""
+    writer.write_table(pa.Table.from_pylist(rows, schema=schema))
+
+
+#: Rows decoded from Parquet at a time, and the write buffer size. Small enough
+#: that a huge dataset never becomes a single Python list.
+CONVERSION_BATCH_ROWS = 512
+
+#: A partial conversion can reject an unbounded number of rows. Counts stay
+#: exact; the per-row detail array is sampled so the report cannot grow without
+#: limit. Provenance for accepted rows is never sampled.
+MAX_REPORTED_REJECTIONS = 100
+
+_SIDECAR_SCHEMA_VERSIONS = frozenset({1})
+_SIDECAR_NAMESPACE = "extra_info.miniverl"
+
+#: Any other top-level key is treated as an unknown critical field. A sidecar
+#: this version does not fully understand must not be half-applied.
+_SIDECAR_KNOWN_FIELDS = frozenset(
+    {
+        "schema_version",
+        "namespace",
+        "semantics",
+        "rows",
+        # Optional binding a sidecar may carry to name the dataset it belongs to.
+        "source_sha256",
+        "source_rows",
+        "generator",
+    }
+)
+
+
+def _sidecar_error(path: Path, detail: str) -> ConfigError:
+    """Sidecar diagnostics name the location, never the extension payload."""
+    return ConfigError(
+        f"extension sidecar {path.name} is invalid: {detail}",
+        hint=(
+            "a sidecar that exists but cannot be validated is never treated as absent, "
+            "because that would silently drop miniVERL extension provenance. Fix or "
+            "remove the sidecar. Extension values are not shown here because they may "
+            "contain teacher targets."
+        ),
+    )
+
+
+def _load_input_sidecar(path: Path, *, source_rows: int) -> dict[str, Any]:
+    """Validate an existing sidecar strictly, or fail closed.
+
+    Up to the v0.6.3 release candidate any JSON object was accepted, so ``{}``
+    and ``{"rows": []}`` both read as "no extensions" and quietly discarded the
+    provenance the sidecar existed to carry.
+    """
+    if not path.is_file():
+        return {}
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise _sidecar_error(path, f"it cannot be read as JSON ({type(exc).__name__})") from exc
+    if not isinstance(loaded, Mapping):
+        raise _sidecar_error(path, "the top level must be a JSON object")
+
+    unknown = sorted(set(loaded) - _SIDECAR_KNOWN_FIELDS)
+    if unknown:
+        raise _sidecar_error(path, f"unknown field(s) {', '.join(unknown)}")
+    version = loaded.get("schema_version")
+    if version not in _SIDECAR_SCHEMA_VERSIONS:
+        supported = ", ".join(str(item) for item in sorted(_SIDECAR_SCHEMA_VERSIONS))
+        raise _sidecar_error(path, f"schema_version {version!r} is not one of {supported}")
+    namespace = loaded.get("namespace")
+    if namespace != _SIDECAR_NAMESPACE:
+        raise _sidecar_error(path, f"namespace must be {_SIDECAR_NAMESPACE!r}, got {namespace!r}")
+    rows = loaded.get("rows")
+    if not isinstance(rows, Mapping):
+        raise _sidecar_error(path, "rows must be a JSON object keyed by source row index")
+
+    declared_rows = loaded.get("source_rows")
+    if declared_rows is not None and declared_rows != source_rows:
+        raise _sidecar_error(
+            path, f"source_rows {declared_rows!r} does not match the dataset's {source_rows}"
+        )
+
+    for key in rows:
+        text = str(key)
+        if not text.isdigit() or str(int(text)) != text:
+            raise _sidecar_error(
+                path, f"row key {text!r} is not a canonical non-negative integer string"
+            )
+        if int(text) >= source_rows:
+            raise _sidecar_error(
+                path, f"row key {text!r} is outside the source dataset's {source_rows} row(s)"
+            )
+    try:
+        canonical_json(dict(rows))
+    except (TypeError, ValueError) as exc:
+        raise _sidecar_error(path, "row values are not JSON-compatible") from exc
+    return dict(loaded)
+
+
+def _verify_sidecar_binding(sidecar: Mapping[str, Any], path: Path, *, source: Path) -> None:
+    """Check the optional digest binding after the cheap structural checks."""
+    declared = sidecar.get("source_sha256")
+    if declared is not None and declared != _sha256(source):
+        raise _sidecar_error(path, "source_sha256 does not match the dataset being converted")
+
+
+def _extra_info_type(pa: Any, source_type: Any, *, direction: str, extension_type: Any) -> Any:
+    """Output type for ``extra_info`` after the miniVERL field moves."""
+    fields = []
+    if source_type is not None and pa.types.is_struct(source_type):
+        fields = [field for field in source_type if field.name != "miniverl"]
+    if direction == "to-verl-parquet" and extension_type is not None:
+        fields.append(pa.field("miniverl", extension_type))
+    if not fields:
+        # Parquet cannot encode an empty struct; an all-null column is the exact
+        # canonical intermediate.
+        return pa.null()
+    return pa.struct(fields)
+
+
+def _output_schema(pa: Any, source_schema: Any, *, direction: str, extension_type: Any) -> Any:
+    """Derive one output schema up front so every batch writes the same shape.
+
+    Inferring a schema per batch would let an optional nested field that only
+    appears in a later row group produce an incompatible second schema.
+    """
+    fields = []
+    has_extra_info = False
+    for field in source_schema:
+        if field.name == "miniverl_extensions":
+            # Never an output column: it is reconciled into the sidecar or into
+            # ``extra_info.miniverl``.
+            continue
+        if field.name == "extra_info":
+            has_extra_info = True
+            fields.append(
+                pa.field(
+                    "extra_info",
+                    _extra_info_type(
+                        pa, field.type, direction=direction, extension_type=extension_type
+                    ),
+                )
+            )
+        else:
+            fields.append(field)
+    if not has_extra_info and direction == "to-verl-parquet" and extension_type is not None:
+        fields.append(pa.field("extra_info", pa.struct([pa.field("miniverl", extension_type)])))
+    return pa.schema(fields)
+
+
+def _extension_type(pa: Any, source_schema: Any, sidecar: Mapping[str, Any]) -> Any:
+    """Arrow type for the miniVERL extension payload, or ``None`` if there is none."""
+    for field in source_schema:
+        if field.name == "miniverl_extensions":
+            return field.type
+    rows = sidecar.get("rows") or {}
+    if not rows:
+        return None
+    try:
+        return pa.array(list(rows.values())).type
+    except (pa.ArrowInvalid, pa.ArrowTypeError, TypeError):  # pragma: no cover - exotic payloads
+        return None
 
 
 def _collect_extension_sources(
@@ -207,84 +367,115 @@ def _convert_locked(
     max_prompt_characters: int | None,
     allow_rejected_rows: bool = False,
 ) -> dict[str, Any]:
-    """Build and publish one coherent Parquet/sidecar/report family."""
+    """Build and publish one coherent Parquet/sidecar/report family.
+
+    The source is streamed a record batch at a time and accepted rows are
+    written straight into the staging file, so neither the whole table nor the
+    whole converted dataset is ever held in memory. Publication still happens
+    only in ``transaction.commit()``, which keeps strict conversion
+    complete-or-nothing.
+    """
     try:
-        rows = pq.read_table(source_path).to_pylist()
+        parquet_file = pq.ParquetFile(source_path)
+        source_schema = parquet_file.schema_arrow
+        source_rows = parquet_file.metadata.num_rows
     except Exception as exc:
         raise ConfigError(f"cannot read Parquet dataset {source_path}: {exc}") from exc
 
-    input_sidecar: dict[str, Any] = {}
     candidate_sidecar = _sidecar_path(source_path)
-    if candidate_sidecar.is_file():
-        import json
+    input_sidecar = _load_input_sidecar(candidate_sidecar, source_rows=source_rows)
+    if input_sidecar:
+        _verify_sidecar_binding(input_sidecar, candidate_sidecar, source=source_path)
 
-        try:
-            loaded = json.loads(candidate_sidecar.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
-            raise ConfigError(f"cannot read extension sidecar {candidate_sidecar}: {exc}") from exc
-        if isinstance(loaded, dict):
-            input_sidecar = loaded
+    extension_type = _extension_type(pa, source_schema, input_sidecar)
+    schema = _output_schema(pa, source_schema, direction=direction, extension_type=extension_type)
 
-    accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
+    rejected_total = 0
     extensions: dict[str, Any] = {}
     source_row_indices: dict[str, int] = {}
     deduplicated: list[dict[str, Any]] = []
     over_bound = 0
-    for source_index, raw in enumerate(rows):
-        if not isinstance(raw, Mapping):
-            rejected.append({"row": source_index, "reason": "row must be an object"})
-            continue
-        row = dict(raw)
-        reason = _validate_row(row)
-        if reason:
-            rejected.append({"row": source_index, "reason": reason})
-            continue
-        prompt = row["prompt"]
-        assert isinstance(prompt, list)
-        if max_prompt_characters is not None and _prompt_characters(prompt) > max_prompt_characters:
-            over_bound += 1
-
-        found, extra = _collect_extension_sources(
-            row, source_index=source_index, input_sidecar=input_sidecar
-        )
-        extension, merged_sources = _resolve_extension(found, source_index=source_index)
-        if merged_sources:
-            deduplicated.append({"row": source_index, "sources": merged_sources})
-        if direction == "to-verl-parquet":
-            if extension is not None:
-                extra["miniverl"] = extension
-            row["extra_info"] = extra or None
-        else:
-            # Parquet cannot encode an empty struct. ``None`` is the exact
-            # canonical intermediate when all extension fields moved to the
-            # checksummed sidecar; the reverse conversion restores the object.
-            row["extra_info"] = extra or None
-        if extension is not None:
-            # Keyed on the output row so the sidecar stays consistent with the
-            # Parquet file it accompanies; the source index is kept separately.
-            extensions[str(len(accepted))] = extension
-        source_row_indices[str(len(accepted))] = source_index
-        accepted.append(row)
-
-    if rejected and not allow_rejected_rows:
-        first = rejected[0]
-        raise ConfigError(
-            f"{len(rejected)} of {len(rows)} source row(s) failed validation; "
-            f"first failure is row {first['row']}: {first['reason']}",
-            hint=(
-                "conversion is complete-or-nothing by default. Fix the source rows, or "
-                "pass --allow-rejected-rows to publish an explicitly partial dataset"
-            ),
-        )
-    if not accepted:
-        raise ConfigError("dataset conversion accepted zero rows", hint="inspect the rejected rows")
+    accepted_total = 0
+    buffer: list[dict[str, Any]] = []
 
     staged_parquet = transaction.path("parquet")
+    writer = pq.ParquetWriter(staged_parquet, schema)
+
+    def _flush() -> None:
+        if not buffer:
+            return
+        _write_parquet(pa, writer, buffer, schema)
+        buffer.clear()
+
     try:
-        _write_parquet(pa, pq, accepted, staged_parquet)
+        source_index = -1
+        for batch in parquet_file.iter_batches(batch_size=CONVERSION_BATCH_ROWS):
+            for raw in batch.to_pylist():
+                source_index += 1
+                if not isinstance(raw, Mapping):
+                    reason = "row must be an object"
+                elif (validation := _validate_row(dict(raw))) is not None:
+                    reason = validation
+                else:
+                    reason = None
+                if reason is not None:
+                    # Fail before reading any further row group unless a partial
+                    # dataset was explicitly authorized.
+                    if not allow_rejected_rows:
+                        raise ConfigError(
+                            f"source row {source_index} failed validation: {reason}",
+                            hint=(
+                                "conversion is complete-or-nothing by default. Fix the source "
+                                "rows, or pass --allow-rejected-rows to publish an explicitly "
+                                "partial dataset"
+                            ),
+                        )
+                    rejected_total += 1
+                    if len(rejected) < MAX_REPORTED_REJECTIONS:
+                        rejected.append({"row": source_index, "reason": reason})
+                    continue
+
+                row = dict(raw)
+                prompt = row["prompt"]
+                assert isinstance(prompt, list)
+                if (
+                    max_prompt_characters is not None
+                    and _prompt_characters(prompt) > max_prompt_characters
+                ):
+                    over_bound += 1
+
+                found, extra = _collect_extension_sources(
+                    row, source_index=source_index, input_sidecar=input_sidecar
+                )
+                extension, merged_sources = _resolve_extension(found, source_index=source_index)
+                if merged_sources:
+                    deduplicated.append({"row": source_index, "sources": merged_sources})
+                if direction == "to-verl-parquet" and extension is not None:
+                    extra["miniverl"] = extension
+                # Parquet cannot encode an empty struct. ``None`` is the exact
+                # canonical intermediate when all extension fields moved to the
+                # checksummed sidecar; the reverse conversion restores the object.
+                row["extra_info"] = extra or None
+                if extension is not None:
+                    # Keyed on the output row so the sidecar stays consistent with
+                    # the Parquet file it accompanies.
+                    extensions[str(accepted_total)] = extension
+                source_row_indices[str(accepted_total)] = source_index
+                accepted_total += 1
+                buffer.append(row)
+                if len(buffer) >= CONVERSION_BATCH_ROWS:
+                    _flush()
+        _flush()
+    except ConfigError:
+        raise
     except Exception as exc:
         raise ConfigError(f"cannot write Parquet dataset {targets['parquet']}: {exc}") from exc
+    finally:
+        writer.close()
+
+    if not accepted_total:
+        raise ConfigError("dataset conversion accepted zero rows", hint="inspect the rejected rows")
     transaction.claim("parquet")
 
     emit_sidecar = bool(extensions) and direction == "from-verl-parquet"
@@ -314,14 +505,19 @@ def _convert_locked(
             "rows_truncated": 0,
         }
     )
-    partial = bool(rejected)
+    partial = bool(rejected_total)
     report: dict[str, Any] = {
         "schema_version": 3,
         "direction": direction,
-        "source_rows": len(rows),
-        "accepted_rows": len(accepted),
-        "rejected_rows": len(rejected),
+        "source_rows": source_rows,
+        "accepted_rows": accepted_total,
+        "rejected_rows": rejected_total,
+        # Counts stay exact; only the per-row detail is sampled so one very
+        # broken dataset cannot produce an unbounded report.
         "rejections": rejected,
+        "rejections_truncated": rejected_total > len(rejected),
+        "max_reported_rejections": MAX_REPORTED_REJECTIONS,
+        "conversion_batch_rows": CONVERSION_BATCH_ROWS,
         # A conversion that dropped rows is never described as lossless overall.
         "complete_dataset_conversion": not partial,
         "lossless_for_accepted_rows": True,

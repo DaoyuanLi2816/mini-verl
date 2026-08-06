@@ -65,9 +65,13 @@ calculator 环境，也不会创建身份不明确的同基座教师。未解析
 
 导出的 bundle 属于不可信输入。`bridge doctor` 用 `ast.parse` 静态检查其
 reward scaffold，**默认绝不执行它**，除非显式传入
-`--trust-and-import-reward-code`；adapter 权重的校验会越过文件头验证实际
-载荷；tokenizer、safetensors 与隐私三项各自报告验证真正到达的层级，而不是
-笼统的通过或失败。
+`--trust-and-import-reward-code`；基类、`metaclass=`、类型注解与类型参数
+边界同样会被审查，因为它们都在 import 时求值。adapter 权重的校验会越过
+文件头验证实际载荷；格式非法的 extension sidecar 会让转换失败，而不是被
+当成空文件读过去；数据集转换按 row group 流式处理，不再整表物化。bundle
+自己**声称**的内容与本地**实际重算**的结果分开报告：它自带的 `SHA256SUMS`
+只能证明内部一致性。tokenizer、safetensors 与隐私三项各自报告验证真正
+到达的层级，而不是笼统的通过或失败。
 
 ## 一项对齐实测结果
 

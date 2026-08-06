@@ -6,6 +6,7 @@ import hashlib
 import importlib.metadata
 import json
 import re
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -594,6 +595,193 @@ def _scan_dataset_text(
     }
 
 
+#: Bounds for the portable-metadata scan. A bundle must not be able to stall a
+#: diagnosis by shipping an enormous "metadata" file.
+METADATA_MAX_FILE_BYTES = 1_000_000
+METADATA_MAX_TOTAL_BYTES = 32 * 1024 * 1024
+METADATA_MAX_FINDINGS = 200
+
+#: Structured keys whose *name* means the value is a credential, whatever it
+#: looks like. Matched against the final path component only.
+_SECRET_KEY_NAME = re.compile(
+    r"(?i)^(api[_-]?key|secret([_-]?key)?|password|passwd|access[_-]?token|"
+    r"auth([_-]?token)?|token|authorization|credentials?|private[_-]?key|"
+    r"client[_-]?secret|session[_-]?key)$"
+)
+
+#: Value-shaped detectors. These run against strings wherever they are found.
+_VALUE_DETECTORS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("url_userinfo", re.compile(r"[a-zA-Z][a-zA-Z0-9+.\-]*://[^/\s:@]+:[^/\s@]+@")),
+    ("private_key_block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
+    ("aws_access_key_id", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")),
+    ("bearer_token", re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._\-]{20,}")),
+    ("absolute_local_path", _ABSOLUTE_PATH),
+)
+
+#: Text-shaped detector. Only meaningful in unstructured prose/scripts, where
+#: there is no key/value structure to inspect.
+_TEXT_CREDENTIAL = re.compile(
+    r"(?i)\b(?:api[_-]?key|secret[_-]?key|secret|password|passwd|"
+    r"access[_-]?token|auth[_-]?token|api[_-]?token|token)\b\s*[:=]\s*\S"
+)
+
+_STRUCTURED_SUFFIXES = {".json", ".yaml", ".yml"}
+_NEVER_TEXT_SUFFIXES = {".parquet", ".safetensors", ".bin", ".pt", ".onnx", ".npz"}
+
+
+def _scan_string(value: str, *, sentinels: tuple[str, ...]) -> list[str]:
+    """Detector categories matched by one string. Never returns the text."""
+    categories = [name for name, pattern in _VALUE_DETECTORS if pattern.search(value)]
+    if any(sentinel and sentinel in value for sentinel in sentinels):
+        categories.append("user_sentinel")
+    return categories
+
+
+def _walk_structured(
+    value: Any,
+    *,
+    path: str,
+    relative: str,
+    sentinels: tuple[str, ...],
+    findings: list[dict[str, Any]],
+    depth: int = 0,
+) -> None:
+    """Report credential-shaped keys and values with their JSON path only."""
+    if depth > 12 or len(findings) > METADATA_MAX_FINDINGS:
+        return
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            child = f"{path}.{key}"
+            if _SECRET_KEY_NAME.match(str(key)) and isinstance(item, str) and item.strip():
+                findings.append(
+                    {
+                        "category": "semantic_secret_key",
+                        "file": relative,
+                        "path": child,
+                        "detail": "a key whose name denotes a credential holds a non-empty value",
+                    }
+                )
+            _walk_structured(
+                item,
+                path=child,
+                relative=relative,
+                sentinels=sentinels,
+                findings=findings,
+                depth=depth + 1,
+            )
+    elif isinstance(value, (list, tuple)):
+        for index, item in enumerate(value):
+            _walk_structured(
+                item,
+                path=f"{path}[{index}]",
+                relative=relative,
+                sentinels=sentinels,
+                findings=findings,
+                depth=depth + 1,
+            )
+    elif isinstance(value, str):
+        for category in _scan_string(value, sentinels=sentinels):
+            findings.append(
+                {
+                    "category": category,
+                    "file": relative,
+                    "path": path,
+                    "detail": "a detector matched this value",
+                }
+            )
+
+
+def _scan_portable_metadata(root: Path, *, sentinels: tuple[str, ...]) -> dict[str, Any]:
+    """Bounded heuristic scan of the bundle's portable text metadata.
+
+    Structured files are parsed so a finding can name a JSON path; everything
+    else is scanned line by line. Matched text never leaves this function --
+    only the file, location and detector category do.
+    """
+    findings: list[dict[str, Any]] = []
+    files_inspected = 0
+    files_skipped_too_large = 0
+    bytes_scanned = 0
+    truncated = False
+
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.suffix.lower() in _NEVER_TEXT_SUFFIXES:
+            continue
+        if bytes_scanned >= METADATA_MAX_TOTAL_BYTES or len(findings) > METADATA_MAX_FINDINGS:
+            truncated = True
+            break
+        try:
+            size = path.stat().st_size
+        except OSError:
+            continue
+        if size > METADATA_MAX_FILE_BYTES:
+            files_skipped_too_large += 1
+            truncated = True
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        relative = path.relative_to(root).as_posix()
+        files_inspected += 1
+        bytes_scanned += len(text.encode("utf-8", errors="ignore"))
+
+        parsed: Any = None
+        if path.suffix.lower() in _STRUCTURED_SUFFIXES:
+            try:
+                parsed = (
+                    json.loads(text) if path.suffix.lower() == ".json" else yaml.safe_load(text)
+                )
+            except (json.JSONDecodeError, yaml.YAMLError):
+                parsed = None
+        if parsed is not None:
+            _walk_structured(
+                parsed, path="$", relative=relative, sentinels=sentinels, findings=findings
+            )
+            continue
+
+        for number, line in enumerate(text.splitlines(), start=1):
+            categories = _scan_string(line, sentinels=sentinels)
+            if _TEXT_CREDENTIAL.search(line):
+                categories.append("credential_assignment")
+            for category in categories:
+                findings.append(
+                    {
+                        "category": category,
+                        "file": relative,
+                        "line": number,
+                        "detail": "a detector matched this line",
+                    }
+                )
+
+    unique: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for item in findings:
+        key = (item["category"], item["file"], item.get("path"), item.get("line"))
+        if key not in seen:
+            seen.add(key)
+            unique.append(item)
+    return {
+        "status": "heuristic_failed" if unique else "heuristic_passed",
+        "method": (
+            "heuristic key-name and regular-expression detectors; not de-identification proof"
+        ),
+        "scan_scope": "sampled" if truncated else "full",
+        "files_inspected": files_inspected,
+        "files_skipped_too_large": files_skipped_too_large,
+        "bytes_scanned": bytes_scanned,
+        "max_file_bytes": METADATA_MAX_FILE_BYTES,
+        "max_total_bytes": METADATA_MAX_TOTAL_BYTES,
+        "max_findings": METADATA_MAX_FINDINGS,
+        "findings_truncated": len(unique) > METADATA_MAX_FINDINGS,
+        "disclosure": (
+            "file, JSON path or line number and detector category only; "
+            "matched text is never reported"
+        ),
+        "findings": unique[:METADATA_MAX_FINDINGS],
+    }
+
+
 def _check_privacy(
     root: Path,
     *,
@@ -603,17 +791,9 @@ def _check_privacy(
     max_bytes: int = DATASET_SCAN_MAX_BYTES,
 ) -> dict[str, Any]:
     """Report privacy per inspection scope; never widen one scope into another."""
-    problems = []
-    for path in root.rglob("*"):
-        if not path.is_file() or path.suffix in {".parquet", ".safetensors"}:
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
-            continue
-        if _ABSOLUTE_PATH.search(text):
-            problems.append(path.relative_to(root).as_posix())
-    metadata_passed = not problems
+    metadata = _scan_portable_metadata(root, sentinels=sentinels)
+    problems = sorted({finding["file"] for finding in metadata["findings"]})
+    metadata_passed = metadata["status"] == "heuristic_passed"
 
     if scan_dataset_text:
         dataset = _scan_dataset_text(
@@ -630,7 +810,8 @@ def _check_privacy(
         # ``ok``/``fail`` drives the overall verdict and never reflects a scope
         # that was not inspected.
         "status": "ok" if metadata_passed and dataset_status != "failed" else "fail",
-        "portable_metadata_privacy": "passed" if metadata_passed else "failed",
+        "portable_metadata_privacy": metadata["status"],
+        "metadata_scan": metadata,
         "dataset_content_privacy": dataset_status,
         "model_weight_privacy": "not_inspected",
         "model_weight_reason": (
@@ -668,6 +849,128 @@ def _installed_verl() -> dict[str, Any]:
     }
 
 
+#: Facts a bundle can only *assert*. Nothing in a doctor run recomputes them:
+#: they describe events that happened elsewhere, earlier, on other hardware.
+_DECLARED_ONLY_CLAIMS = (
+    "upstream_config_parse_passed",
+    "model_data_load_smoke_passed",
+    "distributed_execution_tested",
+    "algorithm_semantic_parity",
+    "launchable",
+    "distributed_execution_status",
+)
+
+
+def _bundle_declared_claims(compatibility: dict[str, Any], *, present: bool) -> dict[str, Any]:
+    """Everything the bundle says about itself, labelled as its own testimony."""
+    declared: dict[str, Any] = {
+        "source": "provenance/compatibility-report.json" if present else "absent",
+        "trust": "unsigned_self_consistent" if present else "not_verified",
+        "note": (
+            "these values are copied from the bundle and describe events this doctor run "
+            "did not observe; they are claims, not results"
+        ),
+    }
+    for name in _DECLARED_ONLY_CLAIMS:
+        if name in compatibility:
+            declared[name] = compatibility[name]
+    declared["unsupported_semantics"] = compatibility.get("unsupported_semantics", [])
+    return declared
+
+
+def _locally_recomputed_checks(
+    *,
+    target: dict[str, Any],
+    model: dict[str, Any],
+    tokenizer: dict[str, Any],
+    parquet: dict[str, Any],
+    config: dict[str, Any],
+    reward: dict[str, Any],
+    hashes: dict[str, Any],
+    privacy: dict[str, Any],
+    installed: dict[str, Any],
+    upstream: dict[str, Any],
+) -> dict[str, Any]:
+    """Only checks this process performed against the bytes on disk."""
+
+    def _verdict(check: dict[str, Any]) -> str:
+        return "passed" if check.get("status") == "ok" else "failed"
+
+    return {
+        "checksum_consistency": _verdict(hashes),
+        "pinned_requirement_file": _verdict(target),
+        "config_structure": _verdict(config),
+        "adapter_safetensors_structure": _verdict(model),
+        "tokenizer_identity": _verdict(tokenizer),
+        "parquet_schema": _verdict(parquet),
+        "reward_interface_static": _verdict(reward),
+        "portable_metadata_privacy": (
+            "passed" if privacy["portable_metadata_privacy"] == "heuristic_passed" else "failed"
+        ),
+        "installed_verl_identity": installed.get("status", "not installed"),
+        "upstream_config_parse": upstream["status"],
+        # A doctor run never launches a job and never compares algorithms.
+        "distributed_execution": "not_run",
+        "algorithm_semantic_parity": "not_run",
+    }
+
+
+def _provenance_trust(hashes: dict[str, Any]) -> dict[str, Any]:
+    """State exactly what the bundle's own checksum file can and cannot prove."""
+    consistent = hashes.get("status") == "ok"
+    return {
+        "level": "unsigned_self_consistent" if consistent else "not_verified",
+        "signature_verification": "not_available",
+        "note": (
+            "SHA256SUMS ships inside the bundle it describes, so agreement proves "
+            "internal consistency only; anyone who edits a file can regenerate it. "
+            "miniVERL implements no signature or transparency-log verification."
+        ),
+    }
+
+
+def _recompute_upstream_smoke(
+    root: Path, installed: dict[str, Any], *, enabled: bool
+) -> dict[str, Any]:
+    """Re-run the documented upstream parse/merge locally, in this process.
+
+    ``--require-verl`` used to compare only an installed commit id, which said
+    nothing about whether this bundle's config still merges into the pinned
+    upstream schema. This performs the merge now rather than trusting the
+    bundle's record of a merge someone else performed.
+    """
+    if not enabled:
+        return {"status": "not_run", "reason": "pass --require-verl to recompute the local smoke"}
+    if installed.get("status") == "not installed":
+        return {"status": "failed", "reason": "the pinned verl distribution is not installed"}
+    try:
+        from omegaconf import OmegaConf
+    except ImportError:
+        return {"status": "failed", "reason": "omegaconf is not installed"}
+    try:
+        import importlib.metadata
+
+        distribution = importlib.metadata.distribution("verl")
+        generated = Path(
+            str(distribution.locate_file("verl/trainer/config/_generated_ppo_trainer.yaml"))
+        )
+        if not generated.is_file():
+            return {"status": "failed", "reason": "installed verl omits the generated PPO config"}
+        official = OmegaConf.load(generated)
+        exported = OmegaConf.load(root / "recipe" / "verl-overrides.yaml")
+        OmegaConf.set_struct(official, True)
+        OmegaConf.merge(official, exported)
+    except Exception as exc:
+        return {"status": "failed", "reason": f"{type(exc).__name__}: {exc}"}
+    return {
+        "status": "passed",
+        "scope": (
+            "the bundle's verl-overrides.yaml parsed and merged into the installed pinned "
+            "upstream schema in this process; no distributed job was launched"
+        ),
+    }
+
+
 def inspect_bridge_bundle(
     root: str | Path,
     *,
@@ -701,17 +1004,32 @@ def inspect_bridge_bundle(
         max_bytes=dataset_scan_max_bytes,
     )
     installed = _installed_verl()
+    compatibility_path = bundle / "provenance" / "compatibility-report.json"
     try:
-        compatibility = json.loads(
-            (bundle / "provenance" / "compatibility-report.json").read_text(encoding="utf-8")
-        )
+        compatibility = json.loads(compatibility_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         compatibility = {}
     checks = (target, model, tokenizer, parquet, config, reward, hashes, privacy)
     artifact_failed = any(check.get("status") != "ok" for check in checks)
-    pinned_verl_failed = require_verl and installed.get("status") != "ok"
+    upstream = _recompute_upstream_smoke(bundle, installed, enabled=require_verl)
+    pinned_verl_failed = require_verl and (
+        installed.get("status") != "ok" or upstream["status"] != "passed"
+    )
     failed = artifact_failed or pinned_verl_failed
     local_smoke = "failed" if artifact_failed else "passed"
+    declared = _bundle_declared_claims(compatibility, present=compatibility_path.is_file())
+    recomputed = _locally_recomputed_checks(
+        target=target,
+        model=model,
+        tokenizer=tokenizer,
+        parquet=parquet,
+        config=config,
+        reward=reward,
+        hashes=hashes,
+        privacy=privacy,
+        installed=installed,
+        upstream=upstream,
+    )
     return {
         "target_verl": target,
         "installed_verl": installed,
@@ -729,25 +1047,27 @@ def inspect_bridge_bundle(
         "reward_scaffold_interface": reward,
         "reward_verification_level": reward["verification_level"],
         "reward_code_executed": bool(reward.get("code_executed", False)),
+        # Copied from the bundle for the reader's information; the doctor did not
+        # verify that this list is complete.
         "unsupported_semantics": compatibility.get("unsupported_semantics", []),
         "artifact_hashes": hashes,
         "privacy": privacy,
         "local_smoke_status": local_smoke,
         "artifact_bundle_complete": not artifact_failed,
-        "upstream_config_parse_passed": bool(
-            compatibility.get("upstream_config_parse_passed", False)
-        ),
-        "model_data_load_smoke_passed": bool(
-            compatibility.get("model_data_load_smoke_passed", False)
-        ),
+        "bundle_declared_claims": declared,
+        "locally_recomputed_checks": recomputed,
+        "provenance_trust": _provenance_trust(hashes),
+        "upstream_config_parse_recheck": upstream,
+        # Every flag below reflects what *this* process recomputed. A bundle
+        # cannot raise any of them by describing itself favourably.
+        "upstream_config_parse_passed": upstream["status"] == "passed",
+        "model_data_load_smoke_passed": upstream["status"] == "passed"
+        and not artifact_failed
+        and require_verl,
         "reward_implementation_complete": bool(reward.get("implementation_complete", False)),
         "launchable": False,
-        "distributed_execution_tested": bool(
-            compatibility.get("distributed_execution_tested", False)
-        ),
-        "algorithm_semantic_parity": bool(compatibility.get("algorithm_semantic_parity", False)),
-        "distributed_execution_status": compatibility.get(
-            "distributed_execution_status", "not tested"
-        ),
+        "distributed_execution_tested": False,
+        "algorithm_semantic_parity": False,
+        "distributed_execution_status": "not tested",
         "verdict": "fail" if failed else "ok",
     }

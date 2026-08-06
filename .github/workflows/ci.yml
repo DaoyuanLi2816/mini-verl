@@ -80,6 +80,7 @@ jobs:
           python scripts/build_pypi_readme.py --check
           python scripts/release_state.py --check
           python scripts/check_markdown_links.py
+          python scripts/check_text_integrity.py
           miniverl --help
           miniverl --version
           miniverl doctor --json > doctor.json

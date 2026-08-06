@@ -1,4 +1,4 @@
-﻿# RecoveryBench v1
+# RecoveryBench v1
 
 RecoveryBench asks a narrow mechanism question: when the starting checkpoint,
 teacher, task schedule, optimizer and update count are controlled, does scoring

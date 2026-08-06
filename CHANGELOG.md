@@ -16,9 +16,47 @@ All notable changes to miniVERL are recorded here. The format follows
   they asked for a diagnosis, while the report described the result as a
   "side-effect-free import". The scaffold is now parsed with `ast.parse` and
   verified statically, reporting `not_present`, `syntax_valid`,
-  `interface_statically_verified` or `trusted_dynamic_import_verified`. Top-level
-  calls, non-literal assignments, decorators, class-body statements and
-  call-valued default arguments are rejected because each runs at import time.
+  `interface_shape_verified` or `trusted_dynamic_import_verified`. Every
+  definition-time position is audited, not only top-level statements: class
+  bases, `metaclass=` and other class keywords, parameter and return
+  annotations, annotated-assignment annotations, type-parameter bounds,
+  decorators and call-valued defaults all run when a module is imported, so
+  `class Hidden(exploit())` is rejected rather than reported as verified.
+  Keyword-only parameters are checked too, so a required keyword-only
+  `extra_info` — which raises `TypeError` on verl's three-argument call — no
+  longer passes. Source bytes, AST nodes, AST depth and finding count are
+  bounded, imports are listed with `import_runtime_safety: not_verified`, and
+  relative bundle-local imports are refused.
+- `bridge doctor` separates what a bundle *says* from what this process
+  *recomputed*. `SHA256SUMS` ships inside the bundle it describes, so anyone who
+  edits a claim can reseal it; matching hashes prove internal consistency only.
+  Bundle testimony now appears under `bundle_declared_claims` with a
+  `provenance_trust` level of `unsigned_self_consistent`, the top-level flags
+  reflect only locally recomputed results, and `--require-verl` performs the
+  upstream OmegaConf parse and structured merge locally instead of comparing an
+  installed commit id.
+- Portable metadata privacy ran one absolute-path regex, so a manifest holding
+  an API key, a bearer token or a database URL with inline credentials passed.
+  Structured JSON/YAML is now walked so a finding can name a JSON path,
+  unstructured text reports a line number, the scan is bounded by file size,
+  total bytes and finding count, and matched text is still never reported. The
+  status is named `heuristic_passed`/`heuristic_failed` because it is a
+  detector, not de-identification proof.
+- An extension sidecar that exists but does not validate now fails the
+  conversion instead of being treated as absent. Schema version, exact
+  namespace, a `rows` mapping, canonical integer keys within the source row
+  count, JSON-compatible values, unknown top-level fields and optional
+  `source_sha256`/`source_rows` binding are all checked; sidecars published by
+  0.6.0–0.6.2 still read.
+- `convert-dataset` streams record batches through a `ParquetWriter` instead of
+  calling `read_table(...).to_pylist()`, which materialized the entire dataset
+  before converting a row. The output schema is derived once from the source
+  schema, so an optional nested field that appears only in a later row group
+  cannot produce a second incompatible schema. Strict conversion remains
+  complete-or-nothing and now stops before reading the next row group.
+- `scripts/check_text_integrity.py` fails CI on GBK-mangled UTF-8 punctuation,
+  U+FFFD and unintended byte-order marks. The release checklist's `— not
+  applicable` and the changelog's `base → SFT` arrows are repaired.
 - Added `miniverl bridge doctor --trust-and-import-reward-code` for bundles you
   produced yourself. It warns before executing anything, reports
   `untrusted_code_executed: true`, and does not claim to be a sandbox.
@@ -210,7 +248,7 @@ All notable changes to miniVERL are recorded here. The format follows
   provenance, a versioned verifier-gated selector, deterministic tool-policy
   evaluation and privacy-safe JSON/Markdown Alignment Cards.
 - A preregistered three-seed Alignment Lab result, 864 task-level records, a
-  matched State × Supervision diagnostic, four data-bound figures, technical
+  matched State 脳 Supervision diagnostic, four data-bound figures, technical
   report, article and reproducible short demo.
 
 ### Changed
@@ -256,7 +294,7 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ### Results
 
-- Batch-4 improved end-to-end throughput by 1.63× for dual ownership and 1.54×
+- Batch-4 improved end-to-end throughput by 1.63脳 for dual ownership and 1.54脳
   for shared ownership on the declared Qwen3-0.6B workload. Shared batch-4 used
   2.227 GiB peak reserved memory versus 3.035 GiB for dual, but was 10.1% slower.
 - Identical trajectory and teacher-target digests held across all eight cells;
