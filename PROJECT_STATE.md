@@ -4,11 +4,52 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-05.
+Last updated: 2026-08-06.
 
 Canonical release state: stable `v0.6.3` (`005a4549da713716e64c3ae80ff55fb131519f79`), development `0.6.4.dev0`.
 Every public version claim is generated from `release-state.yaml` and gated by
 `python scripts/release_state.py --check`.
+
+## v0.7.0 External alignment evidence — IN PROGRESS
+
+Branch `v0.7.0-foundation`, based on `0bd194600aeb65b90eadd14bfa1ec313aa2a9c36`.
+Not yet pushed. Commit author is
+`Daoyuan Li <94409450+DaoyuanLi2816@users.noreply.github.com>` on every commit,
+matching the 9:1 dominant identity since v0.6.0.
+
+### Phase A progress
+
+| item | state |
+| --- | --- |
+| 7.1 bundle-tree preflight | **done** (`71863b6`). Reproduced on Windows with a junction: `_check_hashes` walked into an outside directory and the metadata scan reported `semantic_secret_key` against a file the bundle did not contain. `preflight_bundle_tree` walks with `lstat` only and refuses symlinks, reparse points, non-regular files, escaping entries and trees over bounded file count / bytes / depth. Runs before any open; a refused bundle reports every check as `not_inspected`, never `failed`. 13 regressions; symlink cases skip locally for privileges and run on Linux CI |
+| 7.2 privacy completeness | **done** (`b1e5ab7`). `heuristic_passed_full` / `heuristic_failed` / `heuristic_incomplete` / `not_inspected`; every gap records file and reason, bounded. `--require-complete-metadata-scan` fails on incomplete. 8 regressions |
+| 7.6 text and CI cleanup | **done** (`b1e5ab7`). `脳` is `×` UTF-8 read as GBK — one character, not the three-byte CJK leaders the v0.6.3 gate looked for — so `State 脳 Supervision` and `1.63脳` survived in CHANGELOG.md through the release. Leaders extended to the Latin-1 range (`脳`, `搂`, `娄`), both lines repaired, 3 new gate cases. All four tensor-to-float warnings in `test_chunked_equivalence.py` detached |
+| 7.3 sidecar v2 binding | not started |
+| 7.4 source identity during conversion | not started |
+| 7.5 residual O(N) metadata | not started |
+| 7.7 quality provenance | not started |
+| version bump to `0.7.0.dev0` | not started |
+
+Local suite at `b1e5ab7`: 1853 passed, 6 skipped, 6 deselected. Ruff, format and
+mypy clean.
+
+### Frozen baseline recorded before any v0.7 work
+
+All eleven artifacts match their v0.6.3 digests, including the calculator at
+`53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
+
+### Feasibility verified before starting
+
+RTX 4080 16 GiB with torch 2.13+cu130; Qwen3-0.6B and Qwen3-1.7B already in the
+local HF cache; `google/IFEval`, `natolambert/xstest-v2-copy` and
+`allenai/reward-bench` reachable. No v0.7.0 tag exists, so the release number is
+uncontested.
+
+### Next action
+
+Phase A 7.3: default new extension sidecars to schema version 2 binding
+`dataset_sha256`, `dataset_rows` and generator identity, while continuing to
+read valid public v1 sidecars.
 
 ## v0.6.3 Security, artifact integrity and release-state hardening
 
