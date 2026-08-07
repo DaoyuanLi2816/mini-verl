@@ -18,6 +18,7 @@ from miniverl.bridge.contract import (
     VERL_REPOSITORY,
     VERL_TAG,
 )
+from miniverl.bridge.preflight import preflight_bundle_tree
 from miniverl.bridge.reward_static import REWARD_LEVELS, inspect_reward_scaffold
 from miniverl.bridge.safetensors_check import SAFETENSORS_LEVELS, inspect_safetensors
 
@@ -971,6 +972,52 @@ def _recompute_upstream_smoke(
     }
 
 
+def _preflight_refusal(tree: dict[str, Any]) -> dict[str, Any]:
+    """Refuse the bundle without having read any of its content.
+
+    Every per-check field is reported as ``not_inspected`` rather than
+    ``failed``: the checks did not run and did not find anything wrong. The one
+    established fact is that the tree is not a plain directory of regular files.
+    """
+    reasons = sorted({item["reason"] for item in tree["rejections"]})
+    return {
+        "bundle_tree_preflight": tree,
+        "target_verl": {"status": "not_inspected"},
+        "installed_verl": _installed_verl(),
+        "model_adapter_loadability": {"status": "not_inspected"},
+        "safetensors_verification_level": "not_inspected",
+        "tokenizer_identity": {"status": "not_inspected"},
+        "tokenizer_verification_level": "not_inspected",
+        "portable_metadata_privacy": "not_inspected",
+        "dataset_content_privacy": "not_inspected",
+        "model_weight_privacy": "not_inspected",
+        "parquet_schema": {"status": "not_inspected"},
+        "config_profile": {"status": "not_inspected"},
+        "reward_scaffold_importability": {"status": "not_inspected"},
+        "reward_verification_level": "not_inspected",
+        "unsupported_semantics": [],
+        "artifact_hashes": {"status": "not_inspected"},
+        "privacy": {"status": "not_inspected"},
+        "bundle_declared_claims": {
+            "status": "not_inspected",
+            "note": "the bundle tree was refused before any declaration was read",
+        },
+        "locally_recomputed_checks": {},
+        "provenance_trust": {"level": "not_verified", "reason": "bundle tree refused"},
+        "local_smoke_status": "not_run",
+        "artifact_bundle_complete": False,
+        "upstream_config_parse_passed": False,
+        "model_data_load_smoke_passed": False,
+        "reward_implementation_complete": False,
+        "launchable": False,
+        "distributed_execution_tested": False,
+        "algorithm_semantic_parity": False,
+        "distributed_execution_status": "not tested",
+        "detail": ("refused before reading any bundle content: " + ", ".join(reasons)),
+        "verdict": "fail",
+    }
+
+
 def inspect_bridge_bundle(
     root: str | Path,
     *,
@@ -989,6 +1036,13 @@ def inspect_bridge_bundle(
     is explicitly set, and no distributed job is ever launched.
     """
     bundle = Path(root)
+    # Every check below opens a path inside the bundle, and an open follows
+    # whatever that path resolves to. Validate the tree shape first, so a
+    # hostile bundle cannot point an entry at a file outside itself and have it
+    # hashed or searched for credentials.
+    tree = preflight_bundle_tree(bundle)
+    if tree["status"] != "ok":
+        return _preflight_refusal(tree)
     target = _check_requirements(bundle)
     model = _check_model(bundle, require_payload=require_adapter_payload)
     tokenizer = _check_tokenizer(bundle, require_load=require_tokenizer_load)
