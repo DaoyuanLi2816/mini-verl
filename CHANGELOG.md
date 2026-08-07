@@ -257,7 +257,7 @@ All notable changes to miniVERL are recorded here. The format follows
   provenance, a versioned verifier-gated selector, deterministic tool-policy
   evaluation and privacy-safe JSON/Markdown Alignment Cards.
 - A preregistered three-seed Alignment Lab result, 864 task-level records, a
-  matched State 脳 Supervision diagnostic, four data-bound figures, technical
+  matched State × Supervision diagnostic, four data-bound figures, technical
   report, article and reproducible short demo.
 
 ### Changed
@@ -303,7 +303,7 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ### Results
 
-- Batch-4 improved end-to-end throughput by 1.63脳 for dual ownership and 1.54脳
+- Batch-4 improved end-to-end throughput by 1.63× for dual ownership and 1.54×
   for shared ownership on the declared Qwen3-0.6B workload. Shared batch-4 used
   2.227 GiB peak reserved memory versus 3.035 GiB for dual, but was 10.1% slower.
 - Identical trajectory and teacher-target digests held across all eight cells;

@@ -49,6 +49,20 @@ def _repository(tmp_path: Path, name: str, content: bytes) -> Path:
         ),
         ("bom.md", b"\xef\xbb\xbf# Title\n", "byte-order mark"),
         ("broken.md", "text � here\n".encode(), "replacement character"),
+        # The Latin-1 range, which the v0.6.3 gate missed entirely: `×` is two
+        # UTF-8 bytes, so its GBK misreading is one character, not three. Both
+        # of these survived in CHANGELOG.md through the v0.6.3 release.
+        (
+            "changelog-times.md",
+            "matched State 脳 Supervision diagnostic\n".encode(),
+            "mis-decoded",
+        ),
+        (
+            "changelog-speedup.md",
+            "throughput by 1.63脳 for dual ownership\n".encode(),
+            "mis-decoded",
+        ),
+        ("section.md", "see 搂 4 of the report\n".encode(), "mis-decoded"),
     ],
 )
 def test_damage_is_reported(tmp_path: Path, name: str, content: bytes, expected: str) -> None:

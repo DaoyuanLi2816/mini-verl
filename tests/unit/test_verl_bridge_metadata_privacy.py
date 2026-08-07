@@ -144,7 +144,7 @@ def test_clean_metadata_passes_with_the_heuristic_name(tmp_path: Path) -> None:
 
     privacy = _scan(root)
 
-    assert privacy["portable_metadata_privacy"] == "heuristic_passed"
+    assert privacy["portable_metadata_privacy"] == "heuristic_passed_full"
     assert privacy["status"] == "ok"
     assert privacy["metadata_scan"]["findings"] == []
     assert "de-identification" in privacy["metadata_scan"]["method"]
@@ -184,7 +184,7 @@ def test_binary_payloads_are_never_read_as_text(tmp_path: Path) -> None:
 
     privacy = _scan(tmp_path)
 
-    assert privacy["portable_metadata_privacy"] == "heuristic_passed"
+    assert privacy["portable_metadata_privacy"] == "heuristic_passed_full"
     assert privacy["dataset_content_privacy"] == "not_inspected"
     assert privacy["model_weight_privacy"] == "not_inspected"
 
