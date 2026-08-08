@@ -62,8 +62,27 @@ class Endpoint(dict):
 
 
 def default_registry_path(root: Path | None = None) -> Path:
-    base = root or Path(__file__).resolve().parents[3]
-    return base / "benchmarks" / "external-alignment" / "registry.yaml"
+    """Where the pinned endpoint registry lives.
+
+    The registry names the exact dataset and evaluator revisions this package's
+    evaluators target, so it ships *inside* the wheel rather than only existing
+    in the repository. The build maps
+    ``benchmarks/external-alignment/registry.yaml`` next to this module, which
+    is what an installed `alignment-suite prepare` reads.
+
+    Walking up from ``__file__`` to find a repository root worked in a checkout
+    and resolved to ``lib/python3.12`` from site-packages, so the packaged copy
+    is tried first and the repository layout is the fallback for a source
+    checkout, where no packaged copy exists.
+    """
+    if root is not None:
+        return Path(root) / "benchmarks" / "external-alignment" / "registry.yaml"
+    packaged = Path(__file__).resolve().with_name("registry.yaml")
+    if packaged.is_file():
+        return packaged
+    return (
+        Path(__file__).resolve().parents[3] / "benchmarks" / "external-alignment" / "registry.yaml"
+    )
 
 
 def load_registry(path: str | Path | None = None) -> dict[str, Any]:
