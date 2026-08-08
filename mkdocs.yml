@@ -43,6 +43,7 @@ nav:
   - Align:
       - When OPD should follow SFT: alignment-lab/when-opd-should-follow-sft.md
       - "Alignment Lab v1: saturated case study": alignment-lab/alignment-lab-v1.md
+      - External benchmark governance: alignment-external/benchmark-governance.md
   - Distill locally:
       - Consumer runtime: consumer-runtime/index.md
       - Runtime benchmarking: benchmarking.md
