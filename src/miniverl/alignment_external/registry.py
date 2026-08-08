@@ -91,7 +91,7 @@ def validate_registry(payload: Any) -> list[str]:
 
     endpoints = payload.get("endpoints")
     if not isinstance(endpoints, list) or not endpoints:
-        return problems + ["endpoints must be a non-empty list"]
+        return [*problems, "endpoints must be a non-empty list"]
 
     seen_ids: set[str] = set()
     covered: set[str] = set()
