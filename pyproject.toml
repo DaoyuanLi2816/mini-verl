@@ -67,6 +67,17 @@ dpo = [
 # `bridge doctor --require-adapter-payload` can never be satisfied, so the extra
 # that exists for bridge work has to carry it.
 bridge = ["pyarrow>=15", "numpy>=1.24"]
+# External alignment benchmarks. Deliberately separate from the core and from
+# [train]: a plain `pip install miniverl` must not pull in dataset tooling,
+# judge models or a network client. The judge models themselves are ordinary
+# transformers checkpoints, so [train] supplies the runtime for them.
+alignment-benchmarks = [
+  "datasets>=4.0,<5",
+  # IFEval's language:response_language instruction cannot be verified without
+  # language identification. Absent it, that instruction reports
+  # not_applicable rather than being guessed or scored zero.
+  "langdetect>=1.0.9",
+]
 dev = [
   "pytest>=8.0",
   "pytest-cov>=5.0",

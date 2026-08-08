@@ -34,6 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_SUBPACKAGES = (
     "agent",
     "alignment",
+    "alignment_external",
     "bridge",
     "cache",
     "community",

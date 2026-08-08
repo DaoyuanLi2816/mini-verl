@@ -1,0 +1,190 @@
+# Pinned external alignment endpoints.
+#
+# Every revision, license and gating status below was read from the Hugging
+# Face Hub API on 2026-08-08, not remembered from a paper. `revision` is the
+# dataset repository commit that the evaluation loads; a different revision is
+# a different benchmark and fails closed rather than being silently accepted.
+#
+# Nothing here redistributes prompt text. The repository commits identifiers,
+# revisions, selected row ids and content digests; the prompts themselves are
+# fetched from their upstream source by the person running the evaluation.
+
+schema_version: 1
+verified_at: "2026-08-08"
+verified_against: "https://huggingface.co/api"
+
+# Categories the study must cover. An endpoint that cannot be executed is
+# reported as not_applicable, never as a zero score.
+required_categories:
+  - instruction_following
+  - over_refusal
+  - harmful_compliance
+  - preference_reward
+
+endpoints:
+  - id: ifeval
+    category: instruction_following
+    name: "IFEval"
+    dataset: "google/IFEval"
+    revision: "966cd89545d6b6acfd7638bc708b98261ca58e84"
+    config: null
+    split: "train"
+    rows_upstream: 541
+    license: "apache-2.0"
+    gated: false
+    prompt_redistribution: "not redistributed; loaded from the upstream dataset at the pinned revision"
+    output_redistribution: "per-task scores and digests only; generated text is not published"
+    evaluator:
+      kind: "deterministic_rule"
+      implementation: "miniverl.alignment_external.ifeval"
+      model: null
+      independent_implementation: true
+      instruction_types_covered: 25
+      instruction_types_in_dataset: 25
+      notes: >-
+        IFEval scores verifiable instructions programmatically, so there is no
+        judge model, no qualification step and no order-bias concern. No
+        official scorer is installable from PyPI, so this is an independent
+        implementation of all 25 instruction types present at the pinned
+        revision, verified to leave 0 of 834 instructions unscored. Two
+        verifiers are marked `approximate` and named in every result:
+        `length_constraints:number_sentences`, which segments with a regex
+        where the reference uses nltk, and `language:response_language`, which
+        uses langdetect. An instruction type without a verifier would report
+        not_applicable, never False.
+    expected_vram_gib: 0.0
+    known_limitations: >-
+      Measures only checkable surface constraints such as length, casing and
+      keyword presence. It says nothing about whether the response is correct
+      or useful. Language identification is unreliable on very short responses
+      -- "hola amigo" identifies as Somali -- so the 31 language-constrained
+      prompts carry more evaluator noise than the rest.
+
+  - id: xstest
+    category: over_refusal
+    name: "XSTest v2"
+    dataset: "natolambert/xstest-v2-copy"
+    revision: "b71afe2a6d10e5a6254ea8bcb006c48b095a15d5"
+    config: null
+    split: "prompts"
+    rows_upstream: 450
+    license: "cc-by-4.0"
+    gated: false
+    prompt_redistribution: "not redistributed; loaded from the upstream dataset at the pinned revision"
+    output_redistribution: "per-task labels and digests only"
+    evaluator:
+      kind: "deterministic_rule"
+      implementation: "miniverl.alignment_external.refusal"
+      model: null
+      notes: >-
+        The XSTest paper reports both a string-matching refusal classifier and
+        a GPT-4 judge. Only the string-matching variant fits the compute
+        contract and needs no network, so that is what runs; the endpoint is
+        reported as "XSTest v2 prompts, string-match refusal classifier"
+        rather than as the paper's GPT-4 configuration.
+    expected_vram_gib: 0.0
+    known_limitations: >-
+      A string-match refusal classifier misses refusals phrased unusually and
+      can mislabel a compliant answer that merely mentions refusal words. The
+      measured disagreement against a held-out hand-labelled subset is
+      published with the results.
+    strata_field: "type"
+    strata_count: 18
+
+  - id: jbb_behaviors
+    category: harmful_compliance
+    name: "JailbreakBench behaviours, Granite Guardian judged"
+    dataset: "JailbreakBench/JBB-Behaviors"
+    revision: "886acc352a31533ffbcf4ef22c744658688086fc"
+    config: "behaviors"
+    split: "harmful"
+    rows_upstream: 100
+    license: "mit"
+    gated: false
+    prompt_redistribution: "never redistributed; harmful behaviour text stays upstream"
+    output_redistribution: >-
+      category-level rates and per-task labels only. Model generations for this
+      endpoint are hashed, never published.
+    evaluator:
+      kind: "classifier_model"
+      implementation: "miniverl.alignment_external.harmful"
+      model: "ibm-granite/granite-guardian-3.0-2b"
+      model_revision: "e48b7b8acf438d24daa2271ada6df945b5b8895e"
+      model_license: "apache-2.0"
+      model_gated: false
+      model_parameters_b: 2.0
+      requires_qualification: true
+      notes: >-
+        This is NOT HarmBench and is not reported under that name. HarmBench's
+        official classifier is a fine-tuned 13B model and StrongREJECT's
+        reference judge is a paid API model; both exceed the compute contract.
+        `walledai/HarmBench`, `walledai/StrongREJECT` and `walledai/AdvBench`
+        are also gated on the Hub and were not accessible, so they could not be
+        pinned even as prompt sources.
+    expected_vram_gib: 5.5
+    known_limitations: >-
+      100 fixed behaviours with no adaptive attack generation, judged by a 2B
+      classifier. This measures whether the policy complies with direct
+      harmful requests under one judge. It is not a jailbreak-robustness
+      result and not a safety guarantee.
+    strata_field: "Category"
+
+  - id: rewardbench
+    category: preference_reward
+    name: "RewardBench subset, PairRM judged"
+    dataset: "allenai/reward-bench"
+    revision: "168d848cdbbea9764fae4a544dc9ca1e6cca4931"
+    config: null
+    split: "filtered"
+    rows_upstream: 2985
+    license: "odc-by"
+    gated: false
+    prompt_redistribution: "not redistributed; loaded from the upstream dataset at the pinned revision"
+    output_redistribution: "pairwise outcomes, order-disagreement rate and digests only"
+    evaluator:
+      kind: "pairwise_model"
+      implementation: "miniverl.alignment_external.preference"
+      model: "llm-blender/PairRM"
+      model_revision: "5b880cc73776ac75a835b3e0bd5169bcb5be013b"
+      model_license: "mit"
+      model_gated: false
+      model_parameters_b: 0.4
+      requires_qualification: true
+      evaluate_both_orders: true
+      notes: >-
+        Both A/B and B/A orderings are evaluated and the position-disagreement
+        rate is reported. Inconsistent pairs stay inconsistent; no winner is
+        forced. A PairRM preference is a model preference and is never
+        described as human preference.
+    expected_vram_gib: 2.0
+    known_limitations: >-
+      A 0.4B pairwise ranker calibrated on a fixed RewardBench subset. Its
+      agreement with the RewardBench labels is measured and published; below
+      the preregistered floor the endpoint is reported as not_applicable
+      rather than scored.
+    strata_field: "subset"
+    strata_count: 23
+
+# Candidates that were evaluated and rejected, with the reason. Recorded so the
+# choice is auditable rather than looking arbitrary.
+rejected_candidates:
+  - id: harmbench
+    dataset: "walledai/HarmBench"
+    reason: >-
+      Gated on the Hub; a download attempt on 2026-08-08 returned
+      DatasetNotFoundError requesting access. Accepting dataset terms is an
+      authorization the maintainer must give on their own account, and a gated
+      source cannot be reproduced by a reader either.
+  - id: strongreject
+    dataset: "walledai/StrongREJECT"
+    reason: "Gated on the Hub; same access failure as HarmBench."
+  - id: advbench
+    dataset: "walledai/AdvBench"
+    reason: "Gated on the Hub; same access failure as HarmBench."
+  - id: llama_guard_3_1b
+    model: "meta-llama/Llama-Guard-3-1B"
+    reason: >-
+      `gated: manual` on the Hub. Manual per-user approval means a reader
+      cannot reproduce the evaluation without an approval this project cannot
+      grant, so it is unsuitable as a pinned evaluator despite fitting the
+      parameter limit.
