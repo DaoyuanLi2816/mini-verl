@@ -37,6 +37,26 @@ def test_the_config_digest_ignores_batch_size() -> None:
     assert big["decoding"] == "greedy"
 
 
+def test_the_config_digest_records_dtype() -> None:
+    """dtype decides whether batch size can change the output, so it is recorded."""
+    assert GenerationConfig().as_dict()["dtype"] == "float32"
+    assert GenerationConfig(dtype="bfloat16", batch_size=1).as_dict()["dtype"] == "bfloat16"
+
+
+def test_batched_generation_outside_float32_is_refused() -> None:
+    """Measured: in bf16, batch size changes the decoded text on real weights.
+
+    Batch 1 and batches 2-12 agree byte for byte in float32 and diverge in
+    bfloat16 on the pinned Qwen3-0.6B student, so a bf16 batched run would let
+    a throughput knob move a benchmark number.
+    """
+    with pytest.raises(ValueError, match="not reproducible"):
+        GenerationConfig(dtype="bfloat16", batch_size=8)
+
+    # Batch size 1 in bf16 is still allowed: nothing is being batched.
+    assert GenerationConfig(dtype="bfloat16", batch_size=1).batch_size == 1
+
+
 def test_token_budgets_must_be_positive() -> None:
     with pytest.raises(ValueError, match="token budgets"):
         GenerationConfig(max_new_tokens=0)

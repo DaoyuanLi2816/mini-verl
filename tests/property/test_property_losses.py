@@ -257,7 +257,12 @@ def test_log1mexp_clamps_instead_of_diverging_near_zero(x, dtype_name):
         floor = float(log1mexp(torch.tensor([clamp], dtype=dtype)))
         assert value == pytest.approx(floor, rel=1e-5)
     else:
-        assert value == pytest.approx(math.log1p(-math.exp(x)), rel=1e-4)
+        # log(-expm1(x)), not log1p(-exp(x)). For tiny |x| the latter computes
+        # 1 - exp(x) with almost every significant bit cancelled: at
+        # x = -2.06e-15 it is off by 7e-4 relative, while the implementation
+        # matches a 60-digit reference exactly. Hypothesis found that case, and
+        # the inaccurate expression was the test's, not the code's.
+        assert value == pytest.approx(math.log(-math.expm1(x)), rel=1e-4)
 
 
 # ----------------------------------------------------------- reduction

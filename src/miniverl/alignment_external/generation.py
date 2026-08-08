@@ -12,7 +12,27 @@ Batching must not change what is generated. That is the whole contract here:
 * the attention mask is explicit, so a padded position can never attend into a
   neighbouring example;
 * an OOM reduces the batch size and retries. It never changes a scientific
-  setting -- not the token budget, not the decoding rule.
+  setting -- not the token budget, not the decoding rule;
+* **inference runs in float32.**
+
+That last one is not a style choice, it is what makes the rest true. Measured
+on the pinned Qwen3-0.6B student on an RTX 4080:
+
+===========  ==========================  ==================================
+dtype        batch 1 vs batches 2..12    cost of 8192 final-test generations
+===========  ==========================  ==================================
+bfloat16     diverges                    19.2 GPU h at batch size 1
+float32      byte-identical              2.0 GPU h at batch size 8
+===========  ==========================  ==================================
+
+In bf16 the reduction order inside a batched matmul differs from the
+single-row path, which shifts logits by a hair. Where the top two tokens are
+nearly tied that flips the argmax, and greedy decoding then walks off in a
+different direction -- observed diverging after roughly 15 agreeing tokens,
+which is why it looks like drift rather than a masking bug. Keeping bf16 would
+force batch size 1 to stay deterministic, spending 40% of the entire compute
+budget on generation alone. float32 makes batching exact *and* nine times
+cheaper, at 3.0 GiB peak reserved for a 0.6B student.
 
 ``assert_batch_equivalence`` is the test-facing proof that batch size 1 and
 batched decoding produce byte-identical text.
@@ -46,6 +66,9 @@ class GenerationConfig:
     batch_size: int = 8
     #: Minimum batch size an OOM backoff may reach before giving up.
     min_batch_size: int = 1
+    #: float32 is what makes batched decoding byte-identical to batch size 1.
+    #: See the module docstring for the measurement.
+    dtype: str = "float32"
 
     def __post_init__(self) -> None:
         if self.do_sample or self.temperature != 0.0:
@@ -56,6 +79,12 @@ class GenerationConfig:
             raise ValueError("token budgets must be positive")
         if not 1 <= self.min_batch_size <= self.batch_size:
             raise ValueError("min_batch_size must be between 1 and batch_size")
+        if self.dtype != "float32" and self.batch_size > 1:
+            raise ValueError(
+                f"batched generation in {self.dtype} is not reproducible: batch size "
+                "changes the decoded text. Use float32, or batch_size=1 and accept "
+                "the cost"
+            )
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -63,6 +92,9 @@ class GenerationConfig:
             "max_prompt_tokens": self.max_prompt_tokens,
             "do_sample": self.do_sample,
             "temperature": self.temperature,
+            # dtype *is* a scientific setting: it decides whether the batch size
+            # can change the output, so it belongs in the recorded digest.
+            "dtype": self.dtype,
             # batch_size is deliberately excluded: it is a throughput knob, and
             # including it would make the same decoding rule hash differently
             # after an OOM backoff.
@@ -169,6 +201,7 @@ def assert_batch_equivalence(generator: BatchedGenerator, prompts: Sequence[str]
             max_prompt_tokens=generator.config.max_prompt_tokens,
             batch_size=1,
             min_batch_size=1,
+            dtype=generator.config.dtype,
         ),
     ).generate(prompts)
     batched = generator.generate(prompts)
