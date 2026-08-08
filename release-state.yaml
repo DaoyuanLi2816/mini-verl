@@ -26,4 +26,7 @@ stable:
   released_at: "2026-08-06"
 
 development:
-  version: "0.6.4.dev0"
+  # v0.7.0 is the external alignment study. There is no v0.6.4 release: the
+  # foundation hardening in this cycle ships as part of it rather than as an
+  # intermediate maintenance version.
+  version: "0.7.0.dev0"

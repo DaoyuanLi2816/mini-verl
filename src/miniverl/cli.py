@@ -1141,6 +1141,15 @@ def bridge_doctor_command(
         "--scan-dataset-text",
         help="Run the bounded heuristic scan over string-like Parquet fields.",
     ),
+    require_complete_metadata_scan: bool = typer.Option(
+        False,
+        "--require-complete-metadata-scan",
+        help=(
+            "Fail unless every portable metadata file was actually inspected. "
+            "Without this, an incomplete scan that found nothing is reported as "
+            "heuristic_incomplete rather than failed."
+        ),
+    ),
     sentinel: list[str] = typer.Option(
         [],
         "--sentinel",
@@ -1170,6 +1179,7 @@ def bridge_doctor_command(
         require_adapter_payload=require_adapter_payload,
         trust_and_import_reward_code=trust_and_import_reward_code,
         scan_dataset_text=scan_dataset_text,
+        require_complete_metadata_scan=require_complete_metadata_scan,
         sentinels=tuple(sentinel),
     )
     if as_json:

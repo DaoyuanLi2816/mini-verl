@@ -263,18 +263,28 @@ def test_many_row_group_parquet_is_not_materialized_by_the_schema_check(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="symlink creation needs privileges")
-def test_symlinked_bundle_file_does_not_escape_the_hash_check(bundle: Path, tmp_path: Path) -> None:
-    """A symlink pointing outside the bundle must not silently validate."""
+def test_a_symlinked_bundle_file_is_refused_before_anything_is_read(
+    bundle: Path, tmp_path: Path
+) -> None:
+    """A symlink out of the bundle is refused by the tree preflight.
+
+    Up to v0.6.3 this was caught downstream: the hash check noticed a file
+    `SHA256SUMS` did not declare and failed. That worked, but only after the
+    outside file had been opened and hashed. The preflight now refuses the
+    bundle before any content is read, so the hash check never runs.
+    """
     outside = tmp_path / "outside.txt"
     outside.write_text("not part of this bundle\n", encoding="utf-8")
-    link = bundle / "recipe" / "linked.txt"
-    link.symlink_to(outside)
+    (bundle / "recipe" / "linked.txt").symlink_to(outside)
 
     report = _inspect(bundle)
 
-    # The link is a file inside the bundle that SHA256SUMS does not declare.
-    assert report["artifact_hashes"]["status"] == "fail"
-    assert "recipe/linked.txt" in report["artifact_hashes"]["problems"]
+    assert report["verdict"] == "fail"
+    assert report["bundle_tree_preflight"]["status"] == "fail"
+    assert {item["reason"] for item in report["bundle_tree_preflight"]["rejections"]} == {"symlink"}
+    # Nothing downstream ran, so nothing downstream claims a finding.
+    assert report["artifact_hashes"]["status"] == "not_inspected"
+    assert report["portable_metadata_privacy"] == "not_inspected"
 
 
 # ---------------------------------------------------- strict option wiring

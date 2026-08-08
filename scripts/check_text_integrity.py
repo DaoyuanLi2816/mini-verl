@@ -32,7 +32,13 @@ from pathlib import Path
 #: `鈥` is a mangled em dash, `鈫` a mangled arrow, `锛`/`銆` mangled CJK
 #: punctuation. None of these is ever written on purpose here, including in the
 #: Chinese README, so this needs no per-file allowlist.
-MOJIBAKE_LEADERS = ("鈥", "鈫", "锛", "銆", "鎴", "鑰", "娴", "鏂")
+#:
+#: `脳` is the Latin-1 range case rather than the CJK one: `×` (U+00D7) is
+#: `C3 97` in UTF-8, and those two bytes read as GBK are `脳`. The v0.6.3 gate
+#: only looked for three-byte CJK punctuation leaders, so `State 脳 Supervision`
+#: and `1.63脳` survived in CHANGELOG.md. `搂` (`§`) and `娄` (`¦`) damage the
+#: same way.
+MOJIBAKE_LEADERS = ("鈥", "鈫", "锛", "銆", "鎴", "鑰", "娴", "鏂", "脳", "搂", "娄")
 
 #: The only files allowed to contain the damaged sequences: the detector itself
 #: and its regression tests, which must spell them out to recognise them. Keep

@@ -18,6 +18,7 @@ from miniverl.bridge.contract import (
     VERL_REPOSITORY,
     VERL_TAG,
 )
+from miniverl.bridge.preflight import preflight_bundle_tree
 from miniverl.bridge.reward_static import REWARD_LEVELS, inspect_reward_scaffold
 from miniverl.bridge.safetensors_check import SAFETENSORS_LEVELS, inspect_safetensors
 
@@ -703,26 +704,43 @@ def _scan_portable_metadata(root: Path, *, sentinels: tuple[str, ...]) -> dict[s
     files_skipped_too_large = 0
     bytes_scanned = 0
     truncated = False
+    # Anything the scan could not look at. "No finding" over an incomplete
+    # inspection is not the same statement as "no finding".
+    gaps: list[dict[str, str]] = []
+
+    def _gap(relative: str, reason: str) -> None:
+        nonlocal truncated
+        truncated = True
+        if len(gaps) < METADATA_MAX_FINDINGS:
+            gaps.append({"file": relative, "reason": reason})
 
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix.lower() in _NEVER_TEXT_SUFFIXES:
             continue
-        if bytes_scanned >= METADATA_MAX_TOTAL_BYTES or len(findings) > METADATA_MAX_FINDINGS:
-            truncated = True
+        relative = path.relative_to(root).as_posix()
+        if bytes_scanned >= METADATA_MAX_TOTAL_BYTES:
+            _gap(relative, "total_byte_limit_reached")
+            break
+        if len(findings) > METADATA_MAX_FINDINGS:
+            _gap(relative, "finding_limit_reached")
             break
         try:
             size = path.stat().st_size
-        except OSError:
+        except OSError as exc:
+            _gap(relative, f"stat_failed: {type(exc).__name__}")
             continue
         if size > METADATA_MAX_FILE_BYTES:
             files_skipped_too_large += 1
-            truncated = True
+            _gap(relative, "file_larger_than_scan_limit")
             continue
         try:
             text = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
+        except UnicodeDecodeError:
+            _gap(relative, "not_decodable_as_utf8")
             continue
-        relative = path.relative_to(root).as_posix()
+        except OSError as exc:
+            _gap(relative, f"read_failed: {type(exc).__name__}")
+            continue
         files_inspected += 1
         bytes_scanned += len(text.encode("utf-8", errors="ignore"))
 
@@ -761,12 +779,22 @@ def _scan_portable_metadata(root: Path, *, sentinels: tuple[str, ...]) -> dict[s
         if key not in seen:
             seen.add(key)
             unique.append(item)
+    if unique:
+        status = "heuristic_failed"
+    elif truncated:
+        # Nothing was found, but not everything was looked at. Reporting this
+        # as "passed" would turn an incomplete inspection into a clean bill.
+        status = "heuristic_incomplete"
+    else:
+        status = "heuristic_passed_full"
     return {
-        "status": "heuristic_failed" if unique else "heuristic_passed",
+        "status": status,
         "method": (
             "heuristic key-name and regular-expression detectors; not de-identification proof"
         ),
         "scan_scope": "sampled" if truncated else "full",
+        "complete": not truncated,
+        "incomplete_reasons": gaps,
         "files_inspected": files_inspected,
         "files_skipped_too_large": files_skipped_too_large,
         "bytes_scanned": bytes_scanned,
@@ -789,11 +817,17 @@ def _check_privacy(
     sentinels: tuple[str, ...] = (),
     max_rows: int = DATASET_SCAN_MAX_ROWS,
     max_bytes: int = DATASET_SCAN_MAX_BYTES,
+    require_complete_metadata_scan: bool = False,
 ) -> dict[str, Any]:
     """Report privacy per inspection scope; never widen one scope into another."""
     metadata = _scan_portable_metadata(root, sentinels=sentinels)
     problems = sorted({finding["file"] for finding in metadata["findings"]})
-    metadata_passed = metadata["status"] == "heuristic_passed"
+    # An incomplete scan found nothing, which is weaker than finding nothing.
+    # By default that is reported but not failed; strict mode refuses it.
+    metadata_complete = metadata["status"] == "heuristic_passed_full"
+    metadata_passed = metadata_complete or (
+        metadata["status"] == "heuristic_incomplete" and not require_complete_metadata_scan
+    )
 
     if scan_dataset_text:
         dataset = _scan_dataset_text(
@@ -811,6 +845,8 @@ def _check_privacy(
         # that was not inspected.
         "status": "ok" if metadata_passed and dataset_status != "failed" else "fail",
         "portable_metadata_privacy": metadata["status"],
+        "portable_metadata_scan_complete": metadata_complete,
+        "strict_metadata_scan_required": require_complete_metadata_scan,
         "metadata_scan": metadata,
         "dataset_content_privacy": dataset_status,
         "model_weight_privacy": "not_inspected",
@@ -905,7 +941,9 @@ def _locally_recomputed_checks(
         "parquet_schema": _verdict(parquet),
         "reward_interface_static": _verdict(reward),
         "portable_metadata_privacy": (
-            "passed" if privacy["portable_metadata_privacy"] == "heuristic_passed" else "failed"
+            "passed"
+            if privacy["portable_metadata_privacy"] == "heuristic_passed_full"
+            else "failed"
         ),
         "installed_verl_identity": installed.get("status", "not installed"),
         "upstream_config_parse": upstream["status"],
@@ -971,6 +1009,52 @@ def _recompute_upstream_smoke(
     }
 
 
+def _preflight_refusal(tree: dict[str, Any]) -> dict[str, Any]:
+    """Refuse the bundle without having read any of its content.
+
+    Every per-check field is reported as ``not_inspected`` rather than
+    ``failed``: the checks did not run and did not find anything wrong. The one
+    established fact is that the tree is not a plain directory of regular files.
+    """
+    reasons = sorted({item["reason"] for item in tree["rejections"]})
+    return {
+        "bundle_tree_preflight": tree,
+        "target_verl": {"status": "not_inspected"},
+        "installed_verl": _installed_verl(),
+        "model_adapter_loadability": {"status": "not_inspected"},
+        "safetensors_verification_level": "not_inspected",
+        "tokenizer_identity": {"status": "not_inspected"},
+        "tokenizer_verification_level": "not_inspected",
+        "portable_metadata_privacy": "not_inspected",
+        "dataset_content_privacy": "not_inspected",
+        "model_weight_privacy": "not_inspected",
+        "parquet_schema": {"status": "not_inspected"},
+        "config_profile": {"status": "not_inspected"},
+        "reward_scaffold_importability": {"status": "not_inspected"},
+        "reward_verification_level": "not_inspected",
+        "unsupported_semantics": [],
+        "artifact_hashes": {"status": "not_inspected"},
+        "privacy": {"status": "not_inspected"},
+        "bundle_declared_claims": {
+            "status": "not_inspected",
+            "note": "the bundle tree was refused before any declaration was read",
+        },
+        "locally_recomputed_checks": {},
+        "provenance_trust": {"level": "not_verified", "reason": "bundle tree refused"},
+        "local_smoke_status": "not_run",
+        "artifact_bundle_complete": False,
+        "upstream_config_parse_passed": False,
+        "model_data_load_smoke_passed": False,
+        "reward_implementation_complete": False,
+        "launchable": False,
+        "distributed_execution_tested": False,
+        "algorithm_semantic_parity": False,
+        "distributed_execution_status": "not tested",
+        "detail": ("refused before reading any bundle content: " + ", ".join(reasons)),
+        "verdict": "fail",
+    }
+
+
 def inspect_bridge_bundle(
     root: str | Path,
     *,
@@ -979,6 +1063,7 @@ def inspect_bridge_bundle(
     require_adapter_payload: bool = False,
     trust_and_import_reward_code: bool = False,
     scan_dataset_text: bool = False,
+    require_complete_metadata_scan: bool = False,
     sentinels: tuple[str, ...] = (),
     dataset_scan_max_rows: int = DATASET_SCAN_MAX_ROWS,
     dataset_scan_max_bytes: int = DATASET_SCAN_MAX_BYTES,
@@ -989,6 +1074,13 @@ def inspect_bridge_bundle(
     is explicitly set, and no distributed job is ever launched.
     """
     bundle = Path(root)
+    # Every check below opens a path inside the bundle, and an open follows
+    # whatever that path resolves to. Validate the tree shape first, so a
+    # hostile bundle cannot point an entry at a file outside itself and have it
+    # hashed or searched for credentials.
+    tree = preflight_bundle_tree(bundle)
+    if tree["status"] != "ok":
+        return _preflight_refusal(tree)
     target = _check_requirements(bundle)
     model = _check_model(bundle, require_payload=require_adapter_payload)
     tokenizer = _check_tokenizer(bundle, require_load=require_tokenizer_load)
@@ -1002,6 +1094,7 @@ def inspect_bridge_bundle(
         sentinels=sentinels,
         max_rows=dataset_scan_max_rows,
         max_bytes=dataset_scan_max_bytes,
+        require_complete_metadata_scan=require_complete_metadata_scan,
     )
     installed = _installed_verl()
     compatibility_path = bundle / "provenance" / "compatibility-report.json"

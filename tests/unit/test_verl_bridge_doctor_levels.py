@@ -248,7 +248,7 @@ def test_default_doctor_never_claims_dataset_or_weight_inspection(tmp_path: Path
 
     payload = inspect_bridge_bundle(_bundle(tmp_path))
     assert payload["verdict"] == "ok"
-    assert payload["portable_metadata_privacy"] == "heuristic_passed"
+    assert payload["portable_metadata_privacy"] == "heuristic_passed_full"
     assert payload["dataset_content_privacy"] == "not_inspected"
     assert payload["model_weight_privacy"] == "not_inspected"
     privacy = payload["privacy"]
@@ -329,7 +329,7 @@ def test_privacy_report_serializes_as_canonical_machine_json(tmp_path: Path) -> 
 
     payload = inspect_bridge_bundle(_bundle(tmp_path), scan_dataset_text=True)
     restored = json.loads(canonical_json(payload))
-    assert restored["privacy"]["portable_metadata_privacy"] == "heuristic_passed"
+    assert restored["privacy"]["portable_metadata_privacy"] == "heuristic_passed_full"
     assert restored["privacy"]["model_weight_privacy"] == "not_inspected"
     assert restored["tokenizer_identity"]["verification_level"] == "metadata_only"
 

@@ -189,7 +189,7 @@ def test_per_token_components_for_pure_sft_are_explicit() -> None:
     assert output.per_token_ce is not None
     assert torch.equal(output.per_token_objective, output.per_token_ce)
     assert len(output.per_token_objective) == 7
-    expected = float((output.per_token_objective * weights).sum() / weights.sum())
+    expected = float(((output.per_token_objective * weights).sum() / weights.sum()).detach())
     assert output.loss == pytest.approx(expected, abs=1e-6)
 
 
@@ -224,7 +224,7 @@ def test_per_token_components_for_pure_and_mixed_distillation() -> None:
     assert mixed.per_token_ce is not None
     expected_tokens = 0.75 * mixed.per_token_divergence + 0.25 * mixed.per_token_ce
     assert torch.allclose(mixed.per_token_objective, expected_tokens)
-    expected_loss = float((expected_tokens * weights).sum() / weights.sum())
+    expected_loss = float(((expected_tokens * weights).sum() / weights.sum()).detach())
     assert mixed.loss == pytest.approx(expected_loss, abs=1e-6)
 
 
@@ -318,7 +318,9 @@ def test_bucketed_provider_matches_direct_call():
         student_logits=lm_head(hidden),
         divergence="reverse_kl",
     )
-    expected = float((direct * weights).sum() / weights.sum())
+    # detach before float(): this is a reference value, not part of any graph,
+    # and converting a requires_grad tensor to a scalar warns.
+    expected = float(((direct * weights).sum() / weights.sum()).detach())
     assert out.loss == pytest.approx(expected, abs=1e-6)
     assert out.teacher_entropy is not None
     assert out.teacher_entropy.shape == (20,)
@@ -342,7 +344,7 @@ def test_cross_entropy_only_mode_matches_torch_reference():
     reference_per_token = torch.nn.functional.cross_entropy(
         lm_head(hidden).float(), targets, reduction="none"
     )
-    expected = float((reference_per_token * weights).sum() / weights.sum())
+    expected = float(((reference_per_token * weights).sum() / weights.sum()).detach())
     assert out.loss == pytest.approx(expected, abs=1e-6)
 
 
