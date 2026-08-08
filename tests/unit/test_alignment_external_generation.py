@@ -16,6 +16,11 @@ from miniverl.alignment_external.generation import (
     _is_out_of_memory,
 )
 
+# `generate()` wraps the forward pass in `torch.no_grad()`, so driving it needs
+# torch even with a fake model. The config and OOM-detection tests below do not,
+# and stay in the torch-free set.
+requires_torch = pytest.mark.torch
+
 # ------------------------------------------------------------------- config
 
 
@@ -142,6 +147,7 @@ def _generator(model: Any, **config: Any) -> BatchedGenerator:
 # ------------------------------------------------------------------ behaviour
 
 
+@requires_torch
 def test_generation_pads_on_the_left() -> None:
     """Right padding makes a decoder-only model continue from pad tokens."""
     generator = _generator(_EchoModel(), batch_size=2)
@@ -153,6 +159,7 @@ def test_generation_pads_on_the_left() -> None:
     assert generator.tokenizer.padding_side == "right"
 
 
+@requires_torch
 def test_results_stay_aligned_to_the_prompt_order() -> None:
     generator = _generator(_EchoModel(), batch_size=2)
 
@@ -162,6 +169,7 @@ def test_results_stay_aligned_to_the_prompt_order() -> None:
     assert [r[:2] for r in results] == ["<>", "<>", "<>", "<>", "<>"]
 
 
+@requires_torch
 def test_an_oom_halves_the_batch_and_retries_without_changing_settings() -> None:
     model = _EchoModel(fail_until_batch=2)
     generator = _generator(model, batch_size=8, min_batch_size=1)
@@ -178,6 +186,7 @@ def test_an_oom_halves_the_batch_and_retries_without_changing_settings() -> None
     assert generator.config.as_dict() == before
 
 
+@requires_torch
 def test_an_oom_at_the_minimum_batch_size_is_raised() -> None:
     """Backoff has a floor; below it the run fails loudly rather than silently."""
     generator = _generator(_EchoModel(fail_until_batch=0), batch_size=1, min_batch_size=1)
@@ -186,6 +195,7 @@ def test_an_oom_at_the_minimum_batch_size_is_raised() -> None:
         generator.generate(["a"])
 
 
+@requires_torch
 def test_a_non_oom_error_is_not_swallowed() -> None:
     class _Broken(_EchoModel):
         def generate(self, **kwargs: Any) -> Any:
