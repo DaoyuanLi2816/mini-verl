@@ -45,11 +45,44 @@ local HF cache; `google/IFEval`, `natolambert/xstest-v2-copy` and
 `allenai/reward-bench` reachable. No v0.7.0 tag exists, so the release number is
 uncontested.
 
+Phase A is complete and merged as `0be43b0` (PR
+[#49](https://github.com/DaoyuanLi2816/mini-verl/pull/49)).
+
+### Phase B progress — branch `v0.7.0-external-alignment`
+
+| item | state |
+| --- | --- |
+| endpoint registry | **done** (`c020b14`). `benchmarks/external-alignment/registry.yaml` pins four ungated endpoints with 40-hex revisions, licenses and redistribution decisions, every fact read from the Hub API on 2026-08-08 |
+| IFEval verifier | **done** (`c020b14`). Independent implementation of all 25 instruction types; 0 of 834 instructions unscored on the real 541 rows. `number_sentences` and `response_language` are marked `approximate` |
+| XSTest refusal classifier | **done**. Deterministic three-label classifier; over-refusal and appropriate-refusal reported separately, never averaged |
+| record schema | **done**. `TaskRecord` refuses an evaluated row without a score and a non-evaluated row *with* one; generated text is never stored, only its digest |
+| registry validator | **done**. Rejects a gated source, an unpinned revision, a judge over 3B, a gated judge, an unqualified model evaluator, or a missing category |
+| pinned-source network tests | **done**. Six checks against the real Hub confirm 541 IFEval rows, XSTest 250/200 across 18 types, JBB 100 behaviours, RewardBench 2985 across 23 subsets |
+| Granite Guardian harmful judge | not started |
+| PairRM preference judge | not started |
+| CLI surface, offline fixtures | not started |
+| governance doc, THIRD_PARTY_NOTICES | not started |
+
+### Endpoint decisions and why
+
+HarmBench, StrongREJECT and AdvBench are all **gated**; a download attempt on
+2026-08-08 returned `DatasetNotFoundError` requesting access. Accepting dataset
+terms is an authorization the maintainer gives on their own account, and a
+gated source is not reproducible by a reader either. The harmful-compliance
+category therefore uses `JailbreakBench/JBB-Behaviors` (MIT, ungated, 100
+non-adaptive categorised behaviours). `meta-llama/Llama-Guard-3-1B` is rejected
+for the same class of reason: `gated: manual`. The judge is
+`ibm-granite/granite-guardian-3.0-2b` (apache-2.0, ungated, 2B).
+
+That endpoint is **not** reported as HarmBench. HarmBench's official classifier
+is a fine-tuned 13B model and StrongREJECT's reference judge is a paid API
+model; both exceed the compute contract, so reusing the name would misdescribe
+what ran.
+
 ### Next action
 
-Phase A 7.3: default new extension sidecars to schema version 2 binding
-`dataset_sha256`, `dataset_rows` and generator identity, while continuing to
-read valid public v1 sidecars.
+Phase B: Granite Guardian harmful-compliance judge and PairRM pairwise judge,
+each with offline fixtures and a qualification path, then the CLI surface.
 
 ## v0.6.3 Security, artifact integrity and release-state hardening
 
