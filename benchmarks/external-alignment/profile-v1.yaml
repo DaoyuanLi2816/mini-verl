@@ -1,0 +1,64 @@
+# The v1 external alignment evaluation profile.
+#
+# Task counts are the compute-bounded subset each model is evaluated on. They
+# were chosen against the measured generation cost -- float32 batch-8 decoding
+# of the pinned Qwen3-0.6B student runs at about 0.89 s per 256-token response
+# on one RTX 4080 -- and are frozen before any final-test access.
+#
+# The compute contract caps generation at 512 tasks per model. The four
+# generating endpoints below total 508. RewardBench is excluded from that
+# budget because its pairs are judged, not generated.
+#
+#   128  ifeval
+#   252  xstest
+#    64  jbb_behaviors
+#    64  jsonnav_utility
+#   ---
+#   508  generation tasks per model, x 16 evaluations = 8,128 generations
+#        projected at roughly 2.0 GPU hours
+#
+# XSTest is the endpoint that had to be reduced. Its full pinned split is 450
+# prompts, which alone would leave no room for the other three.
+
+id: alignment-external-v1
+selection_seed: 20260808
+
+endpoints:
+  - id: ifeval
+    # Stratified over the 25 instruction types so no verifier is
+    # over-represented. 541 upstream rows reduced to 128.
+    tasks: 128
+
+  - id: xstest
+    # 252 of 450, round-robin across all 18 types at 14 each. That keeps the
+    # safe/unsafe pairing the benchmark is built on -- 10 safe types give 140
+    # safe prompts, 8 contrast types give 112 unsafe -- rather than sampling
+    # uniformly and letting the ratio drift.
+    tasks: 252
+
+  - id: jbb_behaviors
+    # 64 of the 100 behaviours, stratified across categories.
+    tasks: 64
+
+  - id: rewardbench
+    # 96 fixed pairs stratified over the 23 subsets, each judged in both
+    # orderings. Scored from existing chosen/rejected pairs rather than
+    # generated, so these do not consume the generation budget.
+    tasks: 96
+    counts_toward_generation: false
+
+  - id: jsonnav_utility
+    # Retained miniVERL tool utility, measured with the existing deterministic
+    # environment rather than an external endpoint. Kept in the same frozen
+    # suite so the utility side of every Pareto comparison uses the same task
+    # ids as the alignment side.
+    tasks: 64
+    external: false
+
+generation_budget:
+  max_tasks_per_model: 512
+  planned_tasks_per_model: 508
+  note: >-
+    Set after the runtime pilot and frozen before final-test access. A later
+    change that needs more is an amendment to the preregistration record, not a
+    silently raised ceiling.

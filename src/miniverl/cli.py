@@ -42,6 +42,14 @@ bridge_app = typer.Typer(
     help="Inspect a pinned, exported verl scale-out bundle.", no_args_is_help=True
 )
 app.add_typer(bridge_app, name="bridge")
+alignment_suite_app = typer.Typer(
+    help=(
+        "Prepare, validate and report the pinned external alignment suite. "
+        "Needs the alignment-benchmarks extra."
+    ),
+    no_args_is_help=True,
+)
+app.add_typer(alignment_suite_app, name="alignment-suite")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -1617,6 +1625,142 @@ def export_benchmark(
         "  open a pull request adding this file under benchmarks/results/ "
         "(see benchmarks/README.md)"
     )
+
+
+@alignment_suite_app.command("prepare")
+def alignment_suite_prepare(
+    profile: Path = typer.Option(
+        ...,
+        "--profile",
+        exists=True,
+        dir_okay=False,
+        help="Evaluation profile, e.g. benchmarks/external-alignment/profile-v1.yaml",
+    ),
+    out: Path = typer.Option(..., "--out", help="Directory to write suite-manifest.json into."),
+    registry: Optional[Path] = typer.Option(
+        None, "--registry", help="Endpoint registry; defaults to the committed one."
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Resolve and report without writing the manifest."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the manifest summary as JSON."),
+) -> None:
+    """Freeze one evaluation suite.
+
+    This is the step that needs network access: it resolves each endpoint at
+    its pinned revision and selects tasks from benchmark metadata alone. Every
+    later step runs offline against the manifest written here.
+    """
+    import yaml as _yaml
+
+    from miniverl.alignment_external.suite import prepare_suite
+
+    payload = _yaml.safe_load(profile.read_text(encoding="utf-8"))
+    try:
+        manifest = prepare_suite(
+            profile=payload,
+            out=out,
+            registry_path=registry,
+            resolver=_hub_task_resolver(),
+            dry_run=dry_run,
+        )
+    except (ValueError, OSError) as exc:
+        from miniverl.errors import ConfigError
+
+        _fail(ConfigError(str(exc)))
+
+    summary = {
+        "profile_id": manifest["profile_id"],
+        "manifest_digest": manifest["manifest_digest"],
+        "generation_tasks_per_model": manifest["generation_tasks_per_model"],
+        "endpoints": {entry["id"]: entry["selected_tasks"] for entry in manifest["endpoints"]},
+        "written": None if dry_run else str(Path(out) / "suite-manifest.json"),
+    }
+    if as_json:
+        _emit_json(summary)
+    else:
+        console.print(summary)
+
+
+@alignment_suite_app.command("validate")
+def alignment_suite_validate(
+    results: Path = typer.Argument(..., exists=True, help="Task-level JSONL result file."),
+    manifest: Path = typer.Option(
+        ..., "--manifest", exists=True, dir_okay=False, help="suite-manifest.json to check against."
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit the problem list as JSON."),
+) -> None:
+    """Check a finished result set against the suite it claims to come from."""
+    from miniverl.alignment_external.suite import validate_results
+
+    manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+    rows = [
+        json.loads(line)
+        for line in results.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    problems = validate_results(manifest_payload, rows)
+
+    if as_json:
+        _emit_json({"rows": len(rows), "problems": problems, "valid": not problems})
+    elif problems:
+        for problem in problems:
+            err_console.print(f"[red]-[/red] {problem}")
+    else:
+        console.print(f"[green]{len(rows)} result row(s) match the suite manifest[/green]")
+    if problems:
+        raise typer.Exit(code=1)
+
+
+@alignment_suite_app.command("report")
+def alignment_suite_report(
+    results: Path = typer.Argument(..., exists=True, help="Task-level JSONL result file."),
+    as_json: bool = typer.Option(False, "--json", help="Emit the report as JSON."),
+) -> None:
+    """Aggregate task rows into per-endpoint metrics."""
+    from miniverl.alignment_external.suite import report_suite
+
+    rows = [
+        json.loads(line)
+        for line in results.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    report = report_suite(rows)
+    if as_json:
+        _emit_json(report)
+    else:
+        console.print(report)
+
+
+def _hub_task_resolver() -> Any:
+    """Resolve upstream task ids for an endpoint. Requires the benchmark extra."""
+
+    def resolve(endpoint: dict[str, Any]) -> tuple[list[str], list[str] | None]:
+        if endpoint.get("dataset") is None:
+            # A miniVERL-internal measurement: deterministic task ids, no Hub.
+            count = 256
+            return [f"{endpoint['id']}-{index:04d}" for index in range(count)], None
+        try:
+            from datasets import load_dataset
+        except ImportError as exc:  # pragma: no cover - dependency boundary
+            from miniverl.errors import MissingDependencyError
+
+            raise MissingDependencyError(
+                "datasets", "alignment-benchmarks", "external benchmark preparation"
+            ) from exc
+
+        dataset = load_dataset(
+            endpoint["dataset"],
+            endpoint.get("config"),
+            split=endpoint["split"],
+            revision=endpoint["revision"],
+        )
+        task_ids = [f"{endpoint['id']}-{index:05d}" for index in range(dataset.num_rows)]
+        field = endpoint.get("strata_field")
+        strata = [str(value) for value in dataset[field]] if field else None
+        return task_ids, strata
+
+    return resolve
 
 
 @app.command("schema")
