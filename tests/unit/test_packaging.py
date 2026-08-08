@@ -473,12 +473,25 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
     record = json.loads(
         (REPO_ROOT / "docs" / "generated" / "quality.json").read_text(encoding="utf-8")
     )
-    assert record["schema_version"] == 1
+    assert record["schema_version"] == 2
     # The floor must name the release this record measures. Hard-coding it here
     # is what let quality_floor keep saying v0.6.1 inside the v0.6.2 record.
     assert record["quality_floor"] == (
         f"1,560+ tests and 85%+ branch coverage at v{record['release']}"
     )
+
+    local = record["local_validation"]
+    release = record["release_validation"]
+    # Two different things measured on two different commits. Merging them is
+    # what made a Windows RTX 4080 count read as though it had been taken on
+    # the squash commit that was actually published.
+    assert re.fullmatch(r"[0-9a-f]{40}", local["commit"])
+    assert re.fullmatch(r"[0-9a-f]{40}", release["commit"])
+    assert local["commit"] != release["commit"]
+    assert "commit_relationship" in local
+    # No GPU runner exists, so the release commit cannot carry GPU evidence.
+    assert "none" in release["gpu_coverage"]
+
     if ".dev" in miniverl.__version__:
         assert record["status"] in {"candidate", "released"}
         if record["status"] == "candidate":
@@ -486,9 +499,8 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
     else:
         assert record["release"] == miniverl.__version__
         assert record["status"] == "validated"
-        assert re.fullmatch(r"[0-9a-f]{40}", record["measured_commit"])
         for section in ("cpu_non_gpu_non_network", "gpu", "network"):
-            assert isinstance(record[section]["passed"], int)
+            assert isinstance(local[section]["passed"], int)
 
 
 def test_repository_markdown_links_and_anchors_are_navigable() -> None:

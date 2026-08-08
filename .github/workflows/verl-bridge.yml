@@ -1,23 +1,62 @@
 name: pinned verl bridge
 
+# The smoke installs the exact pinned verl source and takes a couple of
+# minutes, so it only runs when bridge code actually changes. It used to do
+# that with a `paths:` filter on the trigger, which meant the workflow did not
+# run at all on an unrelated pull request -- and a required check that never
+# reports blocks the pull request forever rather than passing. The filter now
+# lives on the expensive job, and `pinned bridge gate` always reports a
+# terminal status, so it is safe to require.
+
 on:
   workflow_dispatch:
   pull_request:
-    paths:
-      - ".github/workflows/verl-bridge.yml"
-      - "pyproject.toml"
-      - "scripts/*verl_bridge*"
-      - "src/miniverl/bridge/**"
-      - "tests/**/*verl_bridge*"
+    branches: [main]
   push:
-    tags:
-      - "v0.6.*"
+    branches: [main]
+    # Every release tag, not only the 0.6 series. `v0.6.*` would have silently
+    # skipped the bridge smoke on the v0.7.0 release tag.
+    tags: ["v*"]
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: detect bridge changes
+    runs-on: ubuntu-latest
+    outputs:
+      bridge: ${{ steps.filter.outputs.bridge }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      - id: filter
+        name: Decide whether the pinned smoke is relevant
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" != "pull_request" ]; then
+            # A push to main or a release tag always runs the real smoke.
+            echo "bridge=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
+          changed=$(git diff --name-only "origin/$BASE_REF"...HEAD)
+          echo "changed files:"
+          echo "$changed"
+          if echo "$changed" | grep -Eq '^(\.github/workflows/verl-bridge\.yml|pyproject\.toml|scripts/[^/]*verl_bridge[^/]*|src/miniverl/bridge/.*|tests/.*verl_bridge.*)$'; then
+            echo "bridge=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bridge=false" >> "$GITHUB_OUTPUT"
+          fi
+
   pinned-profile-smoke:
+    name: pinned-profile-smoke
+    needs: changes
+    if: needs.changes.outputs.bridge == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -47,3 +86,35 @@ jobs:
           name: verl-bridge-smoke-report
           path: verl-bridge-smoke-report.json
           if-no-files-found: error
+
+  bridge-gate:
+    # Always reports, so this context can be required without deadlocking a
+    # pull request that does not touch the bridge.
+    name: pinned bridge gate
+    needs: [changes, pinned-profile-smoke]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate
+        env:
+          RELEVANT: ${{ needs.changes.outputs.bridge }}
+          SMOKE: ${{ needs.pinned-profile-smoke.result }}
+          DETECT: ${{ needs.changes.result }}
+        run: |
+          set -euo pipefail
+          echo "bridge paths changed: $RELEVANT"
+          echo "detect result:        $DETECT"
+          echo "smoke result:         $SMOKE"
+          if [ "$DETECT" != "success" ]; then
+            echo "::error::could not determine whether bridge code changed"
+            exit 1
+          fi
+          if [ "$RELEVANT" != "true" ]; then
+            echo "not_applicable: no bridge path changed, pinned smoke not required"
+            exit 0
+          fi
+          if [ "$SMOKE" != "success" ]; then
+            echo "::error::pinned verl bridge smoke did not pass ($SMOKE)"
+            exit 1
+          fi
+          echo "pinned verl bridge smoke passed"

@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Literal
 
+from miniverl import __version__
 from miniverl.bridge.publish import (
     DEFAULT_LOCK_TIMEOUT,
     OutputTransaction,
@@ -23,7 +24,7 @@ from miniverl.bridge.publish import (
 from miniverl.errors import ConfigError, MissingDependencyError
 from miniverl.utils.runs import canonical_json
 
-__all__ = ["convert_dataset"]
+__all__ = ["convert_dataset", "resolve_source_row"]
 
 Direction = Literal["from-verl-parquet", "to-verl-parquet"]
 
@@ -95,7 +96,14 @@ CONVERSION_BATCH_ROWS = 512
 #: limit. Provenance for accepted rows is never sampled.
 MAX_REPORTED_REJECTIONS = 100
 
-_SIDECAR_SCHEMA_VERSIONS = frozenset({1})
+#: v1 is what 0.6.0-0.6.3 published: it *may* carry a digest binding. v2 is
+#: what this version writes, and the binding is mandatory, so a sidecar can no
+#: longer be copied next to an unrelated Parquet file and silently believed.
+#: Field names stay `source_sha256`/`source_rows` rather than gaining a second
+#: `dataset_*` spelling for the same concept -- one validator, one vocabulary.
+_SIDECAR_SCHEMA_VERSIONS = frozenset({1, 2})
+_SIDECAR_WRITE_SCHEMA_VERSION = 2
+_SIDECAR_BOUND_SCHEMA_VERSIONS = frozenset({2})
 _SIDECAR_NAMESPACE = "extra_info.miniverl"
 
 #: Any other top-level key is treated as an unknown critical field. A sidecar
@@ -158,6 +166,15 @@ def _load_input_sidecar(path: Path, *, source_rows: int) -> dict[str, Any]:
         raise _sidecar_error(path, "rows must be a JSON object keyed by source row index")
 
     declared_rows = loaded.get("source_rows")
+    if version in _SIDECAR_BOUND_SCHEMA_VERSIONS:
+        # A v2 sidecar promises to name its dataset. Accepting one without the
+        # binding would reintroduce exactly the ambiguity v2 exists to remove.
+        missing = [field for field in ("source_sha256", "source_rows") if loaded.get(field) is None]
+        if missing:
+            raise _sidecar_error(
+                path,
+                f"schema_version {version} requires {', '.join(missing)} to bind it to one dataset",
+            )
     if declared_rows is not None and declared_rows != source_rows:
         raise _sidecar_error(
             path, f"source_rows {declared_rows!r} does not match the dataset's {source_rows}"
@@ -178,6 +195,61 @@ def _load_input_sidecar(path: Path, *, source_rows: int) -> dict[str, Any]:
     except (TypeError, ValueError) as exc:
         raise _sidecar_error(path, "row values are not JSON-compatible") from exc
     return dict(loaded)
+
+
+def resolve_source_row(runs: Sequence[Mapping[str, int]] | None, output_row: int) -> int | None:
+    """Map an output row back to its source row through the run encoding.
+
+    ``runs`` is a report's ``source_row_runs``. ``None`` -- a complete
+    conversion -- means the mapping is the identity. Returns ``None`` when the
+    output row is outside every run.
+    """
+    if runs is None:
+        return output_row
+    for run in runs:
+        offset = output_row - run["output_start"]
+        if 0 <= offset < run["length"]:
+            return run["source_start"] + offset
+    return None
+
+
+def _source_identity(path: Path) -> dict[str, Any]:
+    """Cheap identity of the source file: what it is and how big it was."""
+    try:
+        stat = path.stat()
+    except OSError as exc:
+        raise ConfigError(f"cannot stat source dataset {path}: {exc}") from exc
+    return {
+        # st_ino/st_dev are 0 on some Windows filesystems; size and mtime still
+        # move when a file is replaced, and the digest below is authoritative.
+        "inode": stat.st_ino,
+        "device": stat.st_dev,
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+
+
+def _assert_source_unchanged(path: Path, before: Mapping[str, Any], digest: str) -> None:
+    """Refuse to publish a report describing bytes the conversion did not read."""
+    after = _source_identity(path)
+    changed = sorted(field for field, value in before.items() if after.get(field) != value)
+    if changed:
+        raise ConfigError(
+            f"source dataset {path.name} changed during conversion ({', '.join(changed)})",
+            hint=(
+                "the conversion read one file and would have published a report "
+                "describing another. Nothing was published. Re-run against a "
+                "source that is not being written concurrently."
+            ),
+        )
+    if _sha256(path) != digest:
+        raise ConfigError(
+            f"source dataset {path.name} changed during conversion (content digest)",
+            hint=(
+                "the file has the same size and timestamp but different bytes. "
+                "Nothing was published."
+            ),
+        )
 
 
 def _verify_sidecar_binding(sidecar: Mapping[str, Any], path: Path, *, source: Path) -> None:
@@ -375,6 +447,12 @@ def _convert_locked(
     only in ``transaction.commit()``, which keeps strict conversion
     complete-or-nothing.
     """
+    # Identity of the source as it was when conversion started. A conversion
+    # streams the file over a long period and then publishes a report claiming
+    # a `source_sha256`; if the file is replaced in between, that claim would
+    # describe bytes the conversion never read.
+    source_identity_before = _source_identity(source_path)
+
     try:
         parquet_file = pq.ParquetFile(source_path)
         source_schema = parquet_file.schema_arrow
@@ -393,8 +471,12 @@ def _convert_locked(
     rejected: list[dict[str, Any]] = []
     rejected_total = 0
     extensions: dict[str, Any] = {}
-    source_row_indices: dict[str, int] = {}
+    # Output row -> source row as contiguous runs rather than one entry per
+    # row. A complete conversion is one run and the mapping is the identity;
+    # each rejected row starts at most one new run, so this is O(rejections).
+    remap: list[dict[str, int]] = []
     deduplicated: list[dict[str, Any]] = []
+    deduplicated_total = 0
     over_bound = 0
     accepted_total = 0
     buffer: list[dict[str, Any]] = []
@@ -450,7 +532,9 @@ def _convert_locked(
                 )
                 extension, merged_sources = _resolve_extension(found, source_index=source_index)
                 if merged_sources:
-                    deduplicated.append({"row": source_index, "sources": merged_sources})
+                    deduplicated_total += 1
+                    if len(deduplicated) < MAX_REPORTED_REJECTIONS:
+                        deduplicated.append({"row": source_index, "sources": merged_sources})
                 if direction == "to-verl-parquet" and extension is not None:
                     extra["miniverl"] = extension
                 # Parquet cannot encode an empty struct. ``None`` is the exact
@@ -461,7 +545,16 @@ def _convert_locked(
                     # Keyed on the output row so the sidecar stays consistent with
                     # the Parquet file it accompanies.
                     extensions[str(accepted_total)] = extension
-                source_row_indices[str(accepted_total)] = source_index
+                if remap and remap[-1]["source_start"] + remap[-1]["length"] == source_index:
+                    remap[-1]["length"] += 1
+                else:
+                    remap.append(
+                        {
+                            "output_start": accepted_total,
+                            "source_start": source_index,
+                            "length": 1,
+                        }
+                    )
                 accepted_total += 1
                 buffer.append(row)
                 if len(buffer) >= CONVERSION_BATCH_ROWS:
@@ -476,18 +569,31 @@ def _convert_locked(
 
     if not accepted_total:
         raise ConfigError("dataset conversion accepted zero rows", hint="inspect the rejected rows")
+
+    # Everything is staged and nothing is published yet, so this is the last
+    # point at which the whole family can still be discarded.
+    source_digest = _sha256(source_path)
+    _assert_source_unchanged(source_path, source_identity_before, source_digest)
+
     transaction.claim("parquet")
 
     emit_sidecar = bool(extensions) and direction == "from-verl-parquet"
     if emit_sidecar:
+        # Bind the sidecar to the exact Parquet it is published beside, hashed
+        # from the staged bytes this transaction is about to commit. Without
+        # this a sidecar could be copied next to an unrelated dataset and its
+        # row keys silently reinterpreted against different rows.
         transaction.write_json(
             "sidecar",
             {
-                "schema_version": 1,
-                "namespace": "extra_info.miniverl",
+                "schema_version": _SIDECAR_WRITE_SCHEMA_VERSION,
+                "namespace": _SIDECAR_NAMESPACE,
                 "semantics": (
                     "miniVERL token provenance and teacher targets; never PPO reference log-probabilities"
                 ),
+                "source_sha256": _sha256(staged_parquet),
+                "source_rows": accepted_total,
+                "generator": {"name": "miniverl", "version": __version__},
                 "rows": extensions,
             },
         )
@@ -523,11 +629,20 @@ def _convert_locked(
         "lossless_for_accepted_rows": True,
         "partial_conversion": partial,
         "partial_conversion_authorized": bool(allow_rejected_rows) if partial else None,
-        # Output row -> original source row, so a partial file keeps provenance.
-        "source_row_indices": source_row_indices if partial else None,
+        # Output row -> original source row, so a partial file keeps full
+        # provenance. Contiguous runs, not one entry per row: a complete
+        # conversion is a single identity run and each rejection starts at
+        # most one more.
+        "source_row_runs": remap if partial else None,
+        "source_row_mapping_encoding": (
+            "contiguous runs; output row output_start+k maps to source row "
+            "source_start+k for k in [0, length)"
+        ),
         "extension_deduplication": deduplicated,
+        "extension_deduplication_total": deduplicated_total,
+        "extension_deduplication_truncated": deduplicated_total > len(deduplicated),
         "truncation_risk": truncation,
-        "source_sha256": _sha256(source_path),
+        "source_sha256": source_digest,
         # Hashed from the staged bytes that this same transaction publishes.
         "output_sha256": _sha256(staged_parquet),
         "extension_namespace": "extra_info.miniverl",

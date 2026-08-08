@@ -6,7 +6,7 @@ and what it printed.
 
 Last updated: 2026-08-06.
 
-Canonical release state: stable `v0.6.3` (`005a4549da713716e64c3ae80ff55fb131519f79`), development `0.6.4.dev0`.
+Canonical release state: stable `v0.6.3` (`005a4549da713716e64c3ae80ff55fb131519f79`), development `0.7.0.dev0`.
 Every public version claim is generated from `release-state.yaml` and gated by
 `python scripts/release_state.py --check`.
 

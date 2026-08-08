@@ -4,7 +4,40 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
-## v0.6.4 (in development)
+## v0.7.0 External alignment evidence (in development)
+
+Phase A, foundation hardening, changes no scientific result.
+
+- [x] `bridge doctor` validates the bundle tree before opening any file in it.
+      Reproduced on Windows with a junction: the hash check walked into a
+      directory outside the bundle and the metadata scan reported
+      `semantic_secret_key` against a file the bundle did not contain. Symlinks,
+      reparse points, non-regular files, escaping entries and oversized trees
+      are refused, and a refused bundle reports every check as `not_inspected`.
+- [x] The portable metadata privacy scan distinguishes
+      `heuristic_passed_full` from `heuristic_incomplete`, records each gap
+      with its file and reason, and `--require-complete-metadata-scan` fails on
+      an incomplete inspection.
+- [x] New extension sidecars are schema version 2 and bind the digest and row
+      count of the dataset they are published beside. Sidecars published by
+      0.6.0-0.6.3 still read.
+- [x] Conversion captures source identity up front and re-checks it before
+      publishing, so a report can never describe bytes the conversion did not
+      read.
+- [x] Output-to-source row provenance is encoded as contiguous runs rather than
+      one entry per row, and extension deduplication detail is bounded with an
+      exact total.
+- [x] The text gate covers Latin-1 range mojibake; two CHANGELOG lines that
+      survived v0.6.3 are repaired. The tensor-to-float warnings in
+      `test_chunked_equivalence.py` are gone.
+- [x] The quality record separates the locally measured commit and platform
+      from the exact release commit validated by CI, and states that no GPU
+      runner exists.
+- [ ] Phases B-J: external benchmark governance, evaluation runtime,
+      non-saturated checkpoint selection, teacher qualification, the method
+      matrix, preregistration and the final study.
+
+## v0.6.4 (superseded by v0.7.0)
 
 - [x] A reward scaffold saved with a UTF-8 byte-order mark parses instead of
       being reported as a syntax error. CPython strips the BOM when it reads a

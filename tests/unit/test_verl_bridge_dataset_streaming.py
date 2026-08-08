@@ -20,7 +20,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from miniverl.bridge.dataset import convert_dataset
+from miniverl.bridge.dataset import convert_dataset, resolve_source_row
 from miniverl.errors import ConfigError
 
 
@@ -275,7 +275,7 @@ def test_partial_conversion_still_requires_the_explicit_option(tmp_path: Path) -
     assert report["complete_dataset_conversion"] is False
     assert report["accepted_rows"] == 9
     assert report["rejected_rows"] == 1
-    assert report["source_row_indices"]["3"] == 4
+    assert resolve_source_row(report["source_row_runs"], 3) == 4
 
 
 def test_rejection_detail_is_bounded(tmp_path: Path) -> None:

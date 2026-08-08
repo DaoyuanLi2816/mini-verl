@@ -16,6 +16,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
+from miniverl.bridge.dataset import resolve_source_row
 from miniverl.errors import ConfigError
 
 SECRET_TARGET = "teacher-logits-do-not-print-me"
@@ -213,7 +214,10 @@ def test_explicit_partial_mode_is_labelled_incomplete(tmp_path: Path) -> None:
     assert report["complete_dataset_conversion"] is False
     assert report["lossless_for_accepted_rows"] is True
     # Output row -> original source row, so the dropped row stays traceable.
-    assert report["source_row_indices"] == {"0": 0, "1": 2}
+    # Encoded as contiguous runs rather than one entry per row.
+    runs = report["source_row_runs"]
+    assert [resolve_source_row(runs, index) for index in range(2)] == [0, 2]
+    assert resolve_source_row(runs, 2) is None
     assert report["rejections"][0]["row"] == 1
 
 
@@ -225,7 +229,7 @@ def test_complete_conversion_is_labelled_complete(tmp_path: Path) -> None:
     assert report["partial_conversion"] is False
     assert report["complete_dataset_conversion"] is True
     assert report["partial_conversion_authorized"] is None
-    assert report["source_row_indices"] is None
+    assert report["source_row_runs"] is None
 
 
 def test_zero_accepted_rows_always_fails(tmp_path: Path) -> None:
