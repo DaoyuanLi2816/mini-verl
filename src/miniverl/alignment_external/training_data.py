@@ -109,7 +109,7 @@ def build_examples(
     A truncated preference pair is a different pair, and a truncated prompt can
     remove the very context that made the preferred answer preferred.
     """
-    for index, row in enumerate(rows):
+    for row in rows:
         chosen_parsed = parse_transcript(str(row.get("chosen", "")))
         rejected_parsed = parse_transcript(str(row.get("rejected", "")))
         if chosen_parsed is None or rejected_parsed is None:
