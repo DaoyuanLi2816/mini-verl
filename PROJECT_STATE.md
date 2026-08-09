@@ -104,12 +104,60 @@ what ran.
 The envelope is 48 GPU hours. Nothing above has been spent except the
 measurement runs that produced the generation figure.
 
+PR B merged as `08dc3c3`. Contributor audit over `v0.6.3..HEAD` shows exactly
+one author.
+
+### Phase C progress — branch `v0.7.0-preregistration`
+
+| item | state |
+| --- | --- |
+| endpoint overlap | **done** (`3e689b1`). RewardBench carries 404 XSTest-derived rows; excluded so the over-refusal and preference endpoints cannot move together and read as corroboration |
+| training data | **done** (`b0dbaaf`). `Anthropic/hh-rlhf` (MIT), disjoint from every endpoint. 17,416 usable of 20,000 real rows. Over-long examples dropped, never truncated; split from a hash of the example's identity, not its row position |
+| SFT candidates | **done** (`08fe30f`). One bounded run, adapters at updates 0/4/8/16, 81 s, peak reserved 4.008 GiB against the 14.5 gate |
+| final-test isolation | **done** (`08fe30f`). `prepare_suite(reserved_task_ids=...)` withholds the frozen final-test ids from every selection suite and records the count; an exhausted pool fails closed |
+| preregistration | **done** (`d7fbae9`), amended below. Not yet merged, so nothing is frozen and no final-test task has been scored |
+| candidate evaluation | **blocked**, see below |
+| teacher qualification | not started |
+
+### Preregistration amendment 1, and why it exists
+
+The first candidate-evaluation run scored all four candidates and none cleared
+the saturation gate. That was not a finding about the candidates. The script
+substituted `1 - over_refusal` for retained tool utility, which is not the
+preregistered endpoint: it sits near 1.0 for any policy that rarely refuses,
+so it failed the `[0.20, 0.90]` band structurally.
+
+Recorded as amendment 1 rather than silently fixed, because the gap was found
+*after* eval-split values were visible. The amendment names the alignment and
+utility endpoints the profile and governance document already listed; no band
+was widened, no metric added or dropped to change which candidates pass. The
+superseded run is preserved under
+`artifacts/v07-start-selection/superseded/`.
+
+Pre-amendment eval-split values, kept for the record:
+
+| candidate | instruction following | over-refusal | appropriate refusal | proxy utility |
+| --- | ---: | ---: | ---: | ---: |
+| update-000 | 0.411 | 0.060 | 0.174 | 0.940 |
+| update-004 | 0.442 | 0.000 | 0.022 | 1.000 |
+| update-008 | 0.411 | 0.000 | 0.022 | 1.000 |
+| update-016 | 0.579 | 0.040 | 0.022 | 0.960 |
+
+### Blocker: retained tool utility needs the agent rollout stack
+
+JSONNav is a multi-turn tool environment, so the utility endpoint cannot be
+scored from a single completion. `RolloutRunner` needs a `CausalLMBackend`
+built by `miniverl.models.factory.build_student`, which takes a full
+`RunConfig` rather than a bare model. `score_jsonnav_utility` currently raises
+`NotImplementedError` instead of substituting another proxy — the last proxy is
+what forced the amendment.
+
 ### Next action
 
-Merge PR B, then Phase C: run the SFT candidate checkpoints and the two teacher
-candidates on the eval split, apply the committed gates, and write
-`benchmarks/preregistration/alignment-external-v1.yaml`. The preregistration
-must merge and be public before any final-test access.
+Wire `score_jsonnav_utility` through `build_student` + `RolloutRunner`, rerun
+the candidate evaluation under the amended gate, then qualify the two teacher
+candidates. The preregistration merges only after both selections are recorded;
+no final-test task may be scored before that merge is public.
 
 ## v0.6.3 Security, artifact integrity and release-state hardening
 

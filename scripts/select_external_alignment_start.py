@@ -27,8 +27,51 @@ from typing import Any
 import yaml
 
 PROFILE = Path("benchmarks/external-alignment/profile-v1.yaml")
+PREREGISTRATION_PATH = Path("benchmarks/preregistration/alignment-external-v1.yaml")
 SELECTION_TASKS = {"ifeval": 64, "xstest": 96, "jbb_behaviors": 32}
 SELECTION_SEED = 90210
+JSONNAV_TASKS = 64
+
+#: Read once so the gate applied here is literally the one in the public
+#: contract; a threshold cannot drift between the document and the run.
+PREREGISTRATION = yaml.safe_load(PREREGISTRATION_PATH.read_text(encoding="utf-8"))
+
+
+def score_harmful_compliance(
+    judge: Any, prompts: list[str], responses: list[str], categories: list[str]
+) -> float | None:
+    """Fraction of harmful behaviours the policy complied with.
+
+    ``unclear`` verdicts are excluded from the denominator rather than folded
+    into either outcome; a judge that could not decide has not observed a
+    refusal. ``None`` when nothing was decidable.
+    """
+    from miniverl.alignment_external.harmful import summarize_harmful
+
+    records = [
+        {"category": category, "label": judge.classify(prompt, response)[0]}
+        for prompt, response, category in zip(prompts, responses, categories, strict=True)
+    ]
+    return summarize_harmful(records)["harmful_compliance_rate"]
+
+
+def score_jsonnav_utility(model: Any, tokenizer: Any, *, tasks: int, seed: int) -> float | None:
+    """Deterministic JSONNav success rate -- the preregistered utility endpoint.
+
+    JSONNav is a multi-turn tool environment, so this drives the real agent
+    loop rather than scoring a single completion. Running it any other way
+    would measure something else and call it retained tool utility.
+    """
+    raise NotImplementedError(
+        "retained tool utility must be measured through the agent rollout stack.\n"
+        "JSONNav is a multi-turn tool environment: RolloutRunner needs a\n"
+        "CausalLMBackend built by miniverl.models.factory.build_student, which\n"
+        "takes a full RunConfig rather than a bare model. Wiring that is the\n"
+        "next task; until it exists this raises rather than substituting a\n"
+        "single-completion proxy, because the previous proxy (1 - over_refusal)\n"
+        "is exactly what produced a structurally impossible gate result and\n"
+        "forced preregistration amendment 1."
+    )
 
 
 def _parse_args() -> argparse.Namespace:
@@ -99,9 +142,7 @@ def main() -> int:
 
     # 1. Freeze the final-test suite. This picks ids only; nothing is scored.
     final_profile = yaml.safe_load(PROFILE.read_text(encoding="utf-8"))
-    final = prepare_suite(
-        profile=final_profile, out=out / "final-suite", resolver=resolver
-    )
+    final = prepare_suite(profile=final_profile, out=out / "final-suite", resolver=resolver)
     reserved = {e["id"]: e["task_ids"] for e in final["endpoints"]}
     print(f"final suite frozen: {final['manifest_digest'][:16]}")
 
@@ -164,9 +205,7 @@ def main() -> int:
         satisfied = total = 0
         for task_id, response in zip(entry["task_ids"], responses, strict=True):
             row = source[index_of[task_id]]
-            scored = evaluate_ifeval_response(
-                response, row["instruction_id_list"], row["kwargs"]
-            )
+            scored = evaluate_ifeval_response(response, row["instruction_id_list"], row["kwargs"])
             satisfied += scored["strict_instructions_satisfied"]
             total += scored["instructions_evaluated"]
         metrics["instruction_following"] = satisfied / total if total else 0.0
@@ -179,14 +218,24 @@ def main() -> int:
         )
         xs_index = {f"xstest-{i:05d}": i for i in range(xs_source.num_rows)}
         xs_types = [str(xs_source[xs_index[t]]["type"]) for t in xs_entry["task_ids"]]
-        xs_responses = generator.generate(
-            [f"{p}\n\nAssistant: " for p in prompts["xstest"]]
-        )
+        xs_responses = generator.generate([f"{p}\n\nAssistant: " for p in prompts["xstest"]])
         summary = summarize_xstest(label_responses(xs_types, xs_responses))
         metrics["over_refusal"] = summary["over_refusal_rate"] or 0.0
         metrics["appropriate_refusal"] = summary["appropriate_refusal_rate"] or 0.0
-        # Retained utility for the gate: answering the safe prompts at all.
-        metrics["retained_utility"] = 1.0 - metrics["over_refusal"]
+
+        # Harmful compliance on the JBB behaviours, judged by Granite Guardian.
+        jbb_responses = generator.generate(
+            [f"{p}\n\nAssistant: " for p in prompts["jbb_behaviors"]]
+        )
+        metrics["harmful_compliance"] = score_harmful_compliance(jbb_responses)
+
+        # Retained tool utility on JSONNav -- the endpoint the preregistration
+        # names. An earlier run substituted `1 - over_refusal` here, which sits
+        # near 1.0 for any policy that rarely refuses and so failed the band
+        # structurally rather than because a candidate was saturated.
+        metrics["retained_tool_utility"] = score_jsonnav_utility(
+            generator, tasks=JSONNAV_TASKS, seed=SELECTION_SEED
+        )
 
         results[name] = {
             "update": candidate["update"],
@@ -197,11 +246,14 @@ def main() -> int:
         del model, base, generator
         torch.cuda.empty_cache()
 
+    gate = PREREGISTRATION["starting_checkpoint"]["gate"]
     decision = select_starting_checkpoint(
         [
             {"id": name, "metrics": payload["metrics"]}
             for name, payload in sorted(results.items(), key=lambda kv: kv[1]["update"])
-        ]
+        ],
+        alignment_endpoints=gate["alignment_endpoints"],
+        utility_endpoint=gate["utility_endpoint"],
     )
     record = {
         "schema_version": 1,
