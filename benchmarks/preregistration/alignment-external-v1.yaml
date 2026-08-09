@@ -337,6 +337,63 @@ amendments:
     bands_changed: false
     thresholds_changed: false
 
+# The recorded outcome of the starting-checkpoint selection. Both declared
+# lineages failed the unchanged gate, which the preregistration names as a
+# publishable result rather than a reason to keep redesigning.
+starting_checkpoint_outcome:
+  status: checkpoint_selection_failed
+  decided_at: "2026-08-09"
+  selected: null
+  lineages_run: 2
+  third_lineage_invented: false
+  gate_unchanged: true
+  final_test_scored: false
+
+  primary_lineage:
+    description: "Qwen3-0.6B continued on HH-RLHF"
+    artifact: "artifacts/v07-start-selection/start-selection.json"
+    gpu_seconds: 2454.4
+    peak_reserved_gib: 5.246
+    every_candidate_decidable_and_failed: true
+    failure_reason: "retained utility 0.000 outside [0.2, 0.9]"
+
+  fallback_lineage:
+    description: "amendment 2 anchor, continued on the same HH-RLHF data"
+    anchor: "DaoyuanLi/mini-verl-qwen3-0.6b-tool-policy-sft@7b98164f73e493c51f2ed3fca3169fea078f47f0"
+    artifact: "artifacts/v07-start-selection-fallback/start-selection.json"
+    gpu_seconds: 1764.4
+    peak_reserved_gib: 5.145
+    every_candidate_decidable_and_failed: true
+    failure_reason: "retained utility 0.000 outside [0.2, 0.9]"
+    ran_only_after_primary_failed_decidably: true
+
+  # The zero was validated before it was believed. Every rollout ended at
+  # PARSE_ERROR_LIMIT having emitted zero tool calls at exactly 128 tokens --
+  # a signature that fits a misconfigured harness as well as an incapable
+  # policy. The environment's oracle clears the identical settings 8/8.
+  harness_validated: true
+  harness_validation_test: "tests/integration/test_jsonnav_harness_validity.py"
+
+  diagnosis: >-
+    Neither lineage ever had the competence the retained-utility endpoint
+    measures. The amendment 2 anchor's provenance manifest records
+    training_task.environment = tool_policy with a 1.0 strict success rate and
+    a 1.0 parse-valid tool-call rate -- real tool-protocol competence, for a
+    different environment's tool set. JSONNav has its own tools and state
+    space, so the anchor itself, at zero continuation updates, also scores
+    0/64.
+  endpoint_changed_after_seeing_results: false
+  endpoint_change_refused_because: >-
+    the preregistration named JSONNav; swapping the endpoint after seeing the
+    result is precisely what preregistration exists to prevent. The mismatch is
+    published as a study-design finding.
+
+  consequences:
+    - "no teacher qualification: it requires a selected checkpoint"
+    - "no continuation arm runs; no method comparison is published"
+    - "miniverl pilot recommends against downstream alignment on this evidence"
+    - "v0.7.0 publishes the infrastructure, judge qualification and this failure"
+
 analysis_code_version: "recorded at first final-test access"
 preregistration_commit: "recorded when this file is merged"
 first_final_test_access: pending
