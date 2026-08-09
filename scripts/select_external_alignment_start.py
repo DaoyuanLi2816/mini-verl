@@ -34,7 +34,15 @@ import yaml
 
 PROFILE = Path("benchmarks/external-alignment/profile-v1.yaml")
 PREREGISTRATION_PATH = Path("benchmarks/preregistration/alignment-external-v1.yaml")
-SELECTION_TASKS = {"ifeval": 64, "xstest": 96, "jbb_behaviors": 32, "jsonnav_utility": 64}
+#: (tasks, external). JSONNav is miniVERL's own environment, so it has no
+#: upstream dataset revision to pin and must be declared internal, exactly as
+#: the final profile declares it.
+SELECTION_TASKS: dict[str, tuple[int, bool]] = {
+    "ifeval": (64, True),
+    "xstest": (96, True),
+    "jbb_behaviors": (32, True),
+    "jsonnav_utility": (64, False),
+}
 SELECTION_SEED = 90210
 
 #: Read once, so the gate applied here is literally the one in the public
@@ -132,7 +140,10 @@ def main() -> int:
         profile={
             "id": "start-selection",
             "selection_seed": SELECTION_SEED,
-            "endpoints": [{"id": key, "tasks": n} for key, n in SELECTION_TASKS.items()],
+            "endpoints": [
+                {"id": key, "tasks": tasks, "external": external}
+                for key, (tasks, external) in SELECTION_TASKS.items()
+            ],
         },
         out=out / "selection-suite",
         resolver=resolver,
