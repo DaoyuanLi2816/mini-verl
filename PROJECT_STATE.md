@@ -58,10 +58,22 @@ Phase A is complete and merged as `0be43b0` (PR
 | record schema | **done**. `TaskRecord` refuses an evaluated row without a score and a non-evaluated row *with* one; generated text is never stored, only its digest |
 | registry validator | **done**. Rejects a gated source, an unpinned revision, a judge over 3B, a gated judge, an unqualified model evaluator, or a missing category |
 | pinned-source network tests | **done**. Six checks against the real Hub confirm 541 IFEval rows, XSTest 250/200 across 18 types, JBB 100 behaviours, RewardBench 2985 across 23 subsets |
-| Granite Guardian harmful judge | not started |
-| PairRM preference judge | not started |
-| CLI surface, offline fixtures | not started |
-| governance doc, THIRD_PARTY_NOTICES | not started |
+| Granite Guardian harmful judge | **done**. `unclear` is excluded from the rate, never folded into `refused`; qualification floor required before the endpoint counts |
+| PairRM preference judge | **done**. Both orderings evaluated; an order-inconsistent pair is a tie, not a coin flip, and the disagreement rate is published beside every win rate |
+| deterministic generation | **done**. Measured on the RTX 4080: bf16 batched decoding diverges from batch size 1, float32 is byte-identical. float32 batch 8 costs 2.0 GPU h for all 8,128 final-test generations against 19.2 GPU h for bf16 at batch 1, so float32 is required and `dtype` is in the recorded config digest |
+| CLI surface | **done**. `alignment-suite prepare/validate/report`; verified end to end against the live Hub, manifest digest `e7c946b9be1bba4a8af21be342030450d5f8238dd9bc10021f88779cae3c0867`, 508 generation tasks per model |
+| evaluation profile | **done**. `profile-v1.yaml`: ifeval 128, xstest 252, jbb 64, jsonnav 64 generating (508, under the 512 ceiling) plus rewardbench 96 judged |
+| governance doc, THIRD_PARTY_NOTICES | **done** |
+| checkpoint and teacher gates | **done**. First candidate in a committed order that clears the gate, evaluated on train/eval only; a missing metric is undecidable rather than failed; no qualified teacher is a publishable outcome |
+
+Two defects reached CI that the local machine could not show, both now covered
+by a local gate:
+
+* the fake-model generation tests drove `torch.no_grad()`, so they belonged in
+  the torch-marked set rather than the torch-free subset;
+* `default_registry_path` walked up from `__file__` to find a repository root,
+  which resolves to `lib/python3.12` from site-packages. The registry now ships
+  inside the wheel, and a test asserts it resolves under any install layout.
 
 ### Endpoint decisions and why
 
@@ -79,10 +91,25 @@ is a fine-tuned 13B model and StrongREJECT's reference judge is a paid API
 model; both exceed the compute contract, so reusing the name would misdescribe
 what ran.
 
+### Compute budget, measured rather than estimated
+
+| phase | projected | basis |
+| --- | --- | --- |
+| final-test generation | 2.0 GPU h | 0.89 s per 256-token float32 batch-8 response x 8,128 |
+| judge passes | ~1.5 GPU h | Granite Guardian 2B over 64 behaviours x 16, PairRM over 96 pairs x 16 x 2 orders |
+| teacher preparation and qualification | <= 8 GPU h | contract allocation, not yet spent |
+| checkpoint candidates and calibration | <= 4 GPU h | contract allocation, not yet spent |
+| continuation training | <= 28 GPU h | 5 methods x 3 seeds x 8 optimizer updates |
+
+The envelope is 48 GPU hours. Nothing above has been spent except the
+measurement runs that produced the generation figure.
+
 ### Next action
 
-Phase B: Granite Guardian harmful-compliance judge and PairRM pairwise judge,
-each with offline fixtures and a qualification path, then the CLI surface.
+Merge PR B, then Phase C: run the SFT candidate checkpoints and the two teacher
+candidates on the eval split, apply the committed gates, and write
+`benchmarks/preregistration/alignment-external-v1.yaml`. The preregistration
+must merge and be public before any final-test access.
 
 ## v0.6.3 Security, artifact integrity and release-state hardening
 
