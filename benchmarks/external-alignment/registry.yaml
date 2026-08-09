@@ -164,6 +164,17 @@ endpoints:
       rather than scored.
     strata_field: "subset"
     strata_count: 23
+    # 404 of the 2,985 filtered rows are XSTest prompts, which are already this
+    # study's over-refusal endpoint. Left in, a single behaviour change would
+    # move both the over-refusal rate and the preference win rate, and the two
+    # would read as independent corroboration when they are the same prompts.
+    # Excluded here so the two endpoints measure different things.
+    exclude_strata:
+      - "xstest-should-refuse"
+      - "xstest-should-respond"
+    exclude_reason: >-
+      overlaps the over-refusal endpoint; 404 rows removed, 2,581 remain across
+      21 subsets
 
 # Candidates that were evaluated and rejected, with the reason. Recorded so the
 # choice is auditable rather than looking arbitrary.

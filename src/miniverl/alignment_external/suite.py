@@ -150,6 +150,26 @@ def prepare_suite(
             raise ValueError(f"endpoint {endpoint_id}: tasks must be positive")
 
         task_ids, strata = resolver(entry)
+        # An endpoint may exclude strata that overlap another endpoint, so two
+        # supposedly independent measurements do not share prompts.
+        excluded = {str(name) for name in (entry.get("exclude_strata") or [])}
+        excluded_count = 0
+        if excluded:
+            if strata is None:
+                raise ValueError(
+                    f"endpoint {endpoint_id}: exclude_strata needs a strata_field to filter on"
+                )
+            kept = [
+                (task_id, stratum)
+                for task_id, stratum in zip(task_ids, strata, strict=True)
+                if str(stratum) not in excluded
+            ]
+            excluded_count = len(task_ids) - len(kept)
+            if not kept:
+                raise ValueError(f"endpoint {endpoint_id}: exclude_strata removed every task")
+            task_ids = [item[0] for item in kept]
+            strata = [item[1] for item in kept]
+
         selected = select_task_ids(
             task_ids, strata, limit=limit, seed=int(profile["selection_seed"])
         )
@@ -168,6 +188,8 @@ def prepare_suite(
                 "split": entry["split"],
                 "evaluator": entry["evaluator"],
                 "external": is_external,
+                "excluded_strata": sorted(excluded),
+                "excluded_tasks": excluded_count,
                 "requested_tasks": limit,
                 "selected_tasks": len(selected),
                 "task_ids": selected,

@@ -53,6 +53,29 @@ A keyword heuristic or a substituted 2B classifier is not HarmBench, and this
 project does not publish it under that name. What it *is* stays on the label:
 100 fixed behaviours, no adaptive attack generation, one 2B judge.
 
+## One endpoint overlap, found and removed before the study
+
+RewardBench's filtered split contains two XSTest-derived subsets:
+`xstest-should-refuse` (154 rows) and `xstest-should-respond` (250). That is 404
+of its 2,985 rows — the same prompts as this study's over-refusal endpoint.
+
+Left in, a single behaviour change would move both the over-refusal rate *and*
+the preference win rate, and the two would read as independent corroboration
+when they are the same data. Both subsets are therefore excluded from the
+preference endpoint's selection pool, leaving 2,581 rows across 21 subsets,
+which is ample for the 96 pairs the profile draws.
+
+The exclusion lives in the registry, is applied when the suite is frozen, and
+is recorded in the manifest as `excluded_tasks: 404`. A test asserts the
+overlap is exactly 404 rows upstream, so a change to RewardBench cannot quietly
+alter what is being excluded.
+
+Training data was checked the same way. The continuation arms train on
+`Anthropic/hh-rlhf` (MIT), which shares no subset with RewardBench and no
+prompts with any of the four endpoints. `LLM-LAT/harmful-dataset` was rejected
+for declaring no licence at all, and `PKU-Alignment/PKU-SafeRLHF` for being
+CC-BY-NC, which would attach a non-commercial restriction to the whole study.
+
 ## Redistribution
 
 Nothing in this repository republishes benchmark prompt text. For every
