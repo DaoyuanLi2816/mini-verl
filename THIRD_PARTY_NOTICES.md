@@ -73,6 +73,35 @@ both **Apache-2.0**, pinned by revision:
 No model weights are committed to this repository, and `.gitignore` refuses the
 common weight extensions so they cannot be added by accident.
 
+## External alignment benchmarks
+
+The v0.7.0 external alignment study evaluates against four upstream datasets and
+two upstream evaluator models. **None of their content is redistributed here.**
+The repository commits identifiers, pinned revisions, selected row ids, content
+digests and resulting scores; prompts and model generations stay upstream, and
+harmful-compliance generations are stored only as SHA-256 digests.
+
+| Asset | Licence | Pinned revision |
+| --- | --- | --- |
+| `google/IFEval` | Apache-2.0 | `966cd89545d6b6acfd7638bc708b98261ca58e84` |
+| `natolambert/xstest-v2-copy` | CC-BY-4.0 | `b71afe2a6d10e5a6254ea8bcb006c48b095a15d5` |
+| `JailbreakBench/JBB-Behaviors` | MIT | `886acc352a31533ffbcf4ef22c744658688086fc` |
+| `allenai/reward-bench` | ODC-By | `168d848cdbbea9764fae4a544dc9ca1e6cca4931` |
+| `ibm-granite/granite-guardian-3.0-2b` | Apache-2.0 | `e48b7b8acf438d24daa2271ada6df945b5b8895e` |
+| `llm-blender/PairRM` | MIT | `5b880cc73776ac75a835b3e0bd5169bcb5be013b` |
+
+The IFEval scorer in `src/miniverl/alignment_external/ifeval.py` is an
+independent implementation written from the published instruction semantics. No
+official scorer is installable from PyPI and none was copied; where it
+substitutes for a reference dependency the affected instruction types are
+marked `approximate` in every result.
+
+The XSTest refusal classifier is likewise independent, and is the paper's
+string-matching variant rather than its GPT-4 judge configuration. Neither
+endpoint is reported under a benchmark name whose official evaluator was not
+run — see
+[benchmark governance](docs/alignment-external/benchmark-governance.md).
+
 ## Other assets
 
 `docs/banner.svg` was drawn for this project. It uses no third-party artwork,

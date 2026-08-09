@@ -34,6 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REQUIRED_SUBPACKAGES = (
     "agent",
     "alignment",
+    "alignment_external",
     "bridge",
     "cache",
     "community",
@@ -129,6 +130,35 @@ def test_no_subpackage_was_left_out_of_the_required_list() -> None:
     assert found == set(REQUIRED_SUBPACKAGES), (
         f"packages on disk {sorted(found)} do not match REQUIRED_SUBPACKAGES"
     )
+
+
+def test_the_endpoint_registry_resolves_wherever_miniverl_is_installed() -> None:
+    """The registry has to be findable from an installed package, not just a checkout.
+
+    It first resolved by walking up from ``__file__`` to a repository root,
+    which works in a source tree and lands on ``lib/python3.12`` from
+    site-packages. Only the extracted-sdist job caught that, so this asserts
+    the property directly: whatever the layout, the default path exists and
+    loads.
+    """
+    from miniverl.alignment_external.registry import default_registry_path, load_registry
+
+    path = default_registry_path()
+    assert path.is_file(), f"the endpoint registry is not reachable at {path}"
+    assert load_registry()["endpoints"]
+
+
+def test_the_registry_travels_inside_the_wheel() -> None:
+    """A built wheel must carry the registry beside the module that loads it."""
+    wheels = sorted((REPO_ROOT / "dist").glob("*.whl"))
+    if not wheels:
+        pytest.skip("no built wheel to inspect; run python -m build first")
+
+    with zipfile.ZipFile(wheels[-1]) as archive:
+        names = set(archive.namelist())
+
+    assert "miniverl/alignment_external/registry.yaml" in names
+    assert "miniverl/alignment_external/profile-v1.yaml" in names
 
 
 @pytest.mark.parametrize("name", TORCH_FREE_MODULES)

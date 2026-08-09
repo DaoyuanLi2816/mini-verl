@@ -40,6 +40,9 @@ TOY_RECIPE = REPO_ROOT / "recipes" / "toy_cpu.yaml"
 #: Every documented command, spelled exactly as it is typed.
 EXPECTED_COMMANDS = {
     "align",
+    "alignment-suite prepare",
+    "alignment-suite validate",
+    "alignment-suite report",
     "doctor",
     "validate",
     "demo",
