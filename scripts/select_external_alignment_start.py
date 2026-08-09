@@ -3,13 +3,18 @@
 The order matters and is enforced here rather than left to discipline:
 
 1. freeze the final-test suite, which only picks task ids and reads no result;
-2. prepare a selection suite that withholds every one of those ids;
-3. generate from each candidate in the committed order;
-4. score, then take the FIRST candidate that clears the gate.
+2. prepare a selection suite that withholds every one of those ids, JSONNav
+   included;
+3. score every candidate in the committed order;
+4. take the FIRST candidate that clears the gate.
 
-Step 2 is what keeps the final test's single read intact. Step 4 is what keeps
-this a gate rather than a search -- the best-scoring candidate is not selected,
-the first adequate one is.
+Step 2 keeps the final test's single read intact. Step 4 keeps this a gate
+rather than a search: the best-scoring candidate is not selected, the first
+adequate one is.
+
+Retained tool utility is the real JSONNav verifier rate through the agent
+runtime. The superseded `1 - over_refusal` proxy is what forced preregistration
+amendment 1, so there is no proxy path here at all.
 
     python scripts/select_external_alignment_start.py \
         --candidates artifacts/v07-sft-candidates \
@@ -19,6 +24,7 @@ the first adequate one is.
 from __future__ import annotations
 
 import argparse
+import gc
 import json
 import time
 from pathlib import Path
@@ -28,50 +34,13 @@ import yaml
 
 PROFILE = Path("benchmarks/external-alignment/profile-v1.yaml")
 PREREGISTRATION_PATH = Path("benchmarks/preregistration/alignment-external-v1.yaml")
-SELECTION_TASKS = {"ifeval": 64, "xstest": 96, "jbb_behaviors": 32}
+SELECTION_TASKS = {"ifeval": 64, "xstest": 96, "jbb_behaviors": 32, "jsonnav_utility": 64}
 SELECTION_SEED = 90210
-JSONNAV_TASKS = 64
 
-#: Read once so the gate applied here is literally the one in the public
-#: contract; a threshold cannot drift between the document and the run.
+#: Read once, so the gate applied here is literally the one in the public
+#: contract and a threshold cannot drift between document and run.
 PREREGISTRATION = yaml.safe_load(PREREGISTRATION_PATH.read_text(encoding="utf-8"))
-
-
-def score_harmful_compliance(
-    judge: Any, prompts: list[str], responses: list[str], categories: list[str]
-) -> float | None:
-    """Fraction of harmful behaviours the policy complied with.
-
-    ``unclear`` verdicts are excluded from the denominator rather than folded
-    into either outcome; a judge that could not decide has not observed a
-    refusal. ``None`` when nothing was decidable.
-    """
-    from miniverl.alignment_external.harmful import summarize_harmful
-
-    records = [
-        {"category": category, "label": judge.classify(prompt, response)[0]}
-        for prompt, response, category in zip(prompts, responses, categories, strict=True)
-    ]
-    return summarize_harmful(records)["harmful_compliance_rate"]
-
-
-def score_jsonnav_utility(model: Any, tokenizer: Any, *, tasks: int, seed: int) -> float | None:
-    """Deterministic JSONNav success rate -- the preregistered utility endpoint.
-
-    JSONNav is a multi-turn tool environment, so this drives the real agent
-    loop rather than scoring a single completion. Running it any other way
-    would measure something else and call it retained tool utility.
-    """
-    raise NotImplementedError(
-        "retained tool utility must be measured through the agent rollout stack.\n"
-        "JSONNav is a multi-turn tool environment: RolloutRunner needs a\n"
-        "CausalLMBackend built by miniverl.models.factory.build_student, which\n"
-        "takes a full RunConfig rather than a bare model. Wiring that is the\n"
-        "next task; until it exists this raises rather than substituting a\n"
-        "single-completion proxy, because the previous proxy (1 - over_refusal)\n"
-        "is exactly what produced a structurally impossible gate result and\n"
-        "forced preregistration amendment 1."
-    )
+GATE = PREREGISTRATION["starting_checkpoint"]["gate"]
 
 
 def _parse_args() -> argparse.Namespace:
@@ -83,7 +52,10 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _resolver() -> Any:
+    """Upstream task ids per endpoint, cached so each dataset loads once."""
     from datasets import load_dataset
+
+    from miniverl.alignment_external.jsonnav_utility import JSONNAV_TASK_PREFIX
 
     cache: dict[str, tuple[list[str], list[str] | None]] = {}
 
@@ -91,8 +63,12 @@ def _resolver() -> Any:
         key = str(endpoint["id"])
         if key in cache:
             return cache[key]
-        if endpoint.get("dataset") is None:
-            resolved = ([f"{key}-{index:04d}" for index in range(256)], None)
+        if key == JSONNAV_TASK_PREFIX:
+            # A fixed generated pool, so selection and final draw from the same
+            # id space and disjointness is checkable.
+            resolved = ([f"{key}-{index:05d}" for index in range(256)], None)
+        elif endpoint.get("dataset") is None:
+            resolved = ([f"{key}-{index:05d}" for index in range(256)], None)
         else:
             loaded = load_dataset(
                 endpoint["dataset"],
@@ -109,17 +85,16 @@ def _resolver() -> Any:
     return resolve
 
 
-def _prompts_for(endpoint_id: str, task_ids: list[str], registry: dict[str, Any]) -> list[str]:
-    """Load the actual prompt text for the selected ids."""
+def _rows_for(endpoint_id: str, task_ids: list[str], registry: dict[str, Any]) -> list[Any]:
+    """Upstream rows behind the selected ids, in manifest order."""
     from datasets import load_dataset
 
     entry = next(e for e in registry["endpoints"] if e["id"] == endpoint_id)
     loaded = load_dataset(
         entry["dataset"], entry.get("config"), split=entry["split"], revision=entry["revision"]
     )
-    column = {"ifeval": "prompt", "xstest": "prompt", "jbb_behaviors": "Goal"}[endpoint_id]
-    by_index = {f"{endpoint_id}-{index:05d}": index for index in range(loaded.num_rows)}
-    return [str(loaded[by_index[task_id]][column]) for task_id in task_ids]
+    index_of = {f"{endpoint_id}-{i:05d}": i for i in range(loaded.num_rows)}
+    return [loaded[index_of[task_id]] for task_id in task_ids]
 
 
 def main() -> int:
@@ -129,53 +104,68 @@ def main() -> int:
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
     from miniverl.alignment_external.generation import BatchedGenerator, GenerationConfig
+    from miniverl.alignment_external.harmful import HarmfulJudge, summarize_harmful
     from miniverl.alignment_external.ifeval import evaluate_ifeval_response
+    from miniverl.alignment_external.jsonnav_utility import JsonNavSettings, score_jsonnav_tasks
     from miniverl.alignment_external.refusal import label_responses, summarize_xstest
     from miniverl.alignment_external.registry import load_registry
     from miniverl.alignment_external.selection import select_starting_checkpoint
     from miniverl.alignment_external.suite import prepare_suite
+    from miniverl.config.models import Quantization
+    from miniverl.models.hf import HFBackend
+    from miniverl.models.tokenizers import HFTokenizerAdapter
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     registry = load_registry()
     resolver = _resolver()
 
-    # 1. Freeze the final-test suite. This picks ids only; nothing is scored.
-    final_profile = yaml.safe_load(PROFILE.read_text(encoding="utf-8"))
-    final = prepare_suite(profile=final_profile, out=out / "final-suite", resolver=resolver)
+    final = prepare_suite(
+        profile=yaml.safe_load(PROFILE.read_text(encoding="utf-8")),
+        out=out / "final-suite",
+        resolver=resolver,
+    )
     reserved = {e["id"]: e["task_ids"] for e in final["endpoints"]}
     print(f"final suite frozen: {final['manifest_digest'][:16]}")
 
-    # 2. Selection suite, withholding every final-test id.
     selection = prepare_suite(
         profile={
             "id": "start-selection",
             "selection_seed": SELECTION_SEED,
-            "endpoints": [{"id": key, "tasks": count} for key, count in SELECTION_TASKS.items()],
+            "endpoints": [{"id": key, "tasks": n} for key, n in SELECTION_TASKS.items()],
         },
         out=out / "selection-suite",
         resolver=resolver,
         reserved_task_ids=reserved,
     )
+    by_id = {e["id"]: e for e in selection["endpoints"]}
     for entry in selection["endpoints"]:
         print(
             f"  {entry['id']}: {entry['selected_tasks']} tasks, "
             f"{entry['reserved_for_final_test']} withheld for the final test"
         )
+    overlap = {
+        key: sorted(set(by_id[key]["task_ids"]) & set(reserved.get(key, []))) for key in by_id
+    }
+    if any(overlap.values()):
+        raise SystemExit(f"selection overlaps the final test: {overlap}")
 
     manifest = json.loads((Path(args.candidates) / "candidates.json").read_text(encoding="utf-8"))
-    tokenizer = AutoTokenizer.from_pretrained(manifest["candidates"][0]["path"])
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    raw_tokenizer = AutoTokenizer.from_pretrained(manifest["candidates"][0]["path"])
+    if raw_tokenizer.pad_token_id is None:
+        raw_tokenizer.pad_token = raw_tokenizer.eos_token
 
-    prompts = {
-        entry["id"]: _prompts_for(entry["id"], entry["task_ids"], registry)
-        for entry in selection["endpoints"]
-    }
+    ifeval_rows = _rows_for("ifeval", by_id["ifeval"]["task_ids"], registry)
+    xstest_rows = _rows_for("xstest", by_id["xstest"]["task_ids"], registry)
+    jbb_rows = _rows_for("jbb_behaviors", by_id["jbb_behaviors"]["task_ids"], registry)
+    jbb_prompts = [str(row["Goal"]) for row in jbb_rows]
+    jbb_categories = [str(row["Category"]) for row in jbb_rows]
 
-    results: dict[str, dict[str, Any]] = {}
+    generations: dict[str, dict[str, Any]] = {}
     started = time.time()
     torch.cuda.reset_peak_memory_stats()
+
+    # Pass one: every candidate generates. The judge is not resident yet.
     for candidate in manifest["candidates"]:
         name = f"update-{candidate['update']:03d}"
         base = AutoModelForCausalLM.from_pretrained(
@@ -185,90 +175,136 @@ def main() -> int:
             attn_implementation="eager",
         )
         model = PeftModel.from_pretrained(base, candidate["path"]).to("cuda").eval()
+        for parameter in model.parameters():
+            parameter.requires_grad_(False)
+
         generator = BatchedGenerator(
-            model, tokenizer, GenerationConfig(batch_size=args.batch_size, max_new_tokens=256)
+            model,
+            raw_tokenizer,
+            GenerationConfig(batch_size=args.batch_size, max_new_tokens=256),
+        )
+        ifeval_responses = generator.generate(
+            [f"{row['prompt']}\n\nAssistant: " for row in ifeval_rows]
+        )
+        xstest_responses = generator.generate(
+            [f"{row['prompt']}\n\nAssistant: " for row in xstest_rows]
+        )
+        jbb_responses = generator.generate([f"{p}\n\nAssistant: " for p in jbb_prompts])
+
+        backend = HFBackend(
+            model=model,
+            tokenizer=HFTokenizerAdapter(
+                raw_tokenizer, manifest["student_model"], manifest["student_revision"]
+            ),
+            model_id=manifest["student_model"],
+            model_revision=manifest["student_revision"],
+            device="cuda",
+            dtype=torch.float32,
+            quantization=Quantization.NONE,
+            gradient_checkpointing=False,
+            attn_implementation="eager",
+            lora=True,
+            adapter_provenance={"adapter_digest": candidate["adapter_digest"]},
+        )
+        jsonnav = score_jsonnav_tasks(
+            backend=backend,
+            task_ids=by_id["jsonnav_utility"]["task_ids"],
+            settings=JsonNavSettings(),
         )
 
-        metrics: dict[str, float] = {}
-
-        ifeval_prompts = prompts["ifeval"]
-        responses = generator.generate([f"{p}\n\nAssistant: " for p in ifeval_prompts])
-        entry = next(e for e in selection["endpoints"] if e["id"] == "ifeval")
-        from datasets import load_dataset
-
-        source = load_dataset(
-            "google/IFEval",
-            split="train",
-            revision=next(e for e in registry["endpoints"] if e["id"] == "ifeval")["revision"],
+        generations[name] = {
+            "update": candidate["update"],
+            "adapter_digest": candidate["adapter_digest"],
+            "ifeval": ifeval_responses,
+            "xstest": xstest_responses,
+            "jbb": jbb_responses,
+            "jsonnav": jsonnav,
+        }
+        print(
+            f"{name}: generated; jsonnav {jsonnav['solved']}/{jsonnav['tasks']} "
+            f"= {jsonnav['success_rate']:.3f}"
         )
-        index_of = {f"ifeval-{i:05d}": i for i in range(source.num_rows)}
+
+        del backend, generator, model, base
+        gc.collect()
+        torch.cuda.empty_cache()
+
+    # Pass two: the judge, now that no candidate is resident.
+    judge_entry = next(e for e in registry["endpoints"] if e["id"] == "jbb_behaviors")["evaluator"]
+    judge = HarmfulJudge(judge_entry["model"], judge_entry["model_revision"]).load()
+
+    results: dict[str, dict[str, Any]] = {}
+    for name, payload in generations.items():
         satisfied = total = 0
-        for task_id, response in zip(entry["task_ids"], responses, strict=True):
-            row = source[index_of[task_id]]
+        for row, response in zip(ifeval_rows, payload["ifeval"], strict=True):
             scored = evaluate_ifeval_response(response, row["instruction_id_list"], row["kwargs"])
             satisfied += scored["strict_instructions_satisfied"]
             total += scored["instructions_evaluated"]
-        metrics["instruction_following"] = satisfied / total if total else 0.0
 
-        xs_entry = next(e for e in selection["endpoints"] if e["id"] == "xstest")
-        xs_source = load_dataset(
-            "natolambert/xstest-v2-copy",
-            split="prompts",
-            revision=next(e for e in registry["endpoints"] if e["id"] == "xstest")["revision"],
+        xs = summarize_xstest(
+            label_responses([str(row["type"]) for row in xstest_rows], payload["xstest"])
         )
-        xs_index = {f"xstest-{i:05d}": i for i in range(xs_source.num_rows)}
-        xs_types = [str(xs_source[xs_index[t]]["type"]) for t in xs_entry["task_ids"]]
-        xs_responses = generator.generate([f"{p}\n\nAssistant: " for p in prompts["xstest"]])
-        summary = summarize_xstest(label_responses(xs_types, xs_responses))
-        metrics["over_refusal"] = summary["over_refusal_rate"] or 0.0
-        metrics["appropriate_refusal"] = summary["appropriate_refusal_rate"] or 0.0
-
-        # Harmful compliance on the JBB behaviours, judged by Granite Guardian.
-        jbb_responses = generator.generate(
-            [f"{p}\n\nAssistant: " for p in prompts["jbb_behaviors"]]
-        )
-        metrics["harmful_compliance"] = score_harmful_compliance(jbb_responses)
-
-        # Retained tool utility on JSONNav -- the endpoint the preregistration
-        # names. An earlier run substituted `1 - over_refusal` here, which sits
-        # near 1.0 for any policy that rarely refuses and so failed the band
-        # structurally rather than because a candidate was saturated.
-        metrics["retained_tool_utility"] = score_jsonnav_utility(
-            generator, tasks=JSONNAV_TASKS, seed=SELECTION_SEED
+        harmful = summarize_harmful(
+            [
+                {"category": category, "label": judge.classify(prompt, response)[0]}
+                for prompt, response, category in zip(
+                    jbb_prompts, payload["jbb"], jbb_categories, strict=True
+                )
+            ]
         )
 
         results[name] = {
-            "update": candidate["update"],
-            "adapter_digest": candidate["adapter_digest"],
-            "metrics": metrics,
+            "update": payload["update"],
+            "adapter_digest": payload["adapter_digest"],
+            "metrics": {
+                "instruction_following": (satisfied / total) if total else None,
+                "over_refusal": xs["over_refusal_rate"],
+                "appropriate_refusal": xs["appropriate_refusal_rate"],
+                "harmful_compliance": harmful["harmful_compliance_rate"],
+                "retained_tool_utility": payload["jsonnav"]["success_rate"],
+            },
+            "jsonnav": {
+                key: value for key, value in payload["jsonnav"].items() if key != "records"
+            },
         }
-        print(f"{name}: {json.dumps(metrics, sort_keys=True)}")
-        del model, base, generator
-        torch.cuda.empty_cache()
+        print(f"{name}: {json.dumps(results[name]['metrics'], sort_keys=True)}")
 
-    gate = PREREGISTRATION["starting_checkpoint"]["gate"]
     decision = select_starting_checkpoint(
         [
             {"id": name, "metrics": payload["metrics"]}
             for name, payload in sorted(results.items(), key=lambda kv: kv[1]["update"])
         ],
-        alignment_endpoints=gate["alignment_endpoints"],
-        utility_endpoint=gate["utility_endpoint"],
+        alignment_endpoints=GATE["alignment_endpoints"],
+        utility_endpoint=GATE["utility_endpoint"],
     )
+
     record = {
         "schema_version": 1,
+        "lineage": "primary: Qwen3-0.6B continued on HH-RLHF",
         "final_suite_digest": final["manifest_digest"],
         "selection_suite_digest": selection["manifest_digest"],
         "candidate_results": results,
         "decision": decision,
+        "judge": judge.identity(),
         "gpu_seconds": round(time.time() - started, 1),
         "peak_reserved_gib": round(torch.cuda.max_memory_reserved() / 1024**3, 3),
         "split_used": "eval only; every final-test task id was withheld",
+        "final_test_scored": False,
     }
     (out / "start-selection.json").write_text(
         json.dumps(record, indent=2, sort_keys=True), encoding="utf-8"
     )
-    print(f"\ndecision: {json.dumps(decision, sort_keys=True)}")
+    (out / "jsonnav-records.json").write_text(
+        json.dumps(
+            {name: payload["jsonnav"]["records"] for name, payload in generations.items()},
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    print(f"\ndecision: {json.dumps(decision['selected'])} ({decision['status']})")
+    for entry in decision["candidates"]:
+        print(f"  {entry['id']}: {entry['reason']}")
     return 0
 
 
