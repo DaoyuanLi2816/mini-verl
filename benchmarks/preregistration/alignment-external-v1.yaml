@@ -267,6 +267,76 @@ amendments:
     bands_changed: false
     thresholds_changed: false
 
+  - id: 2
+    date: "2026-08-09"
+    before_final_test_access: true
+    before_observing_the_affected_measurement: true
+    what: >-
+      Declared one fallback starting-checkpoint lineage, to be used only if
+      every candidate in the primary lineage fails the unchanged gate.
+    why: >-
+      The primary lineage is Qwen3-0.6B continued on HH-RLHF, which is not a
+      tool-use corpus, so its retained tool utility may sit below the 0.20 band
+      floor for reasons that have nothing to do with saturation. Writing the
+      contingency now, before any real JSONNav number exists, is what stops it
+      from being a reaction to a disappointing result.
+    disclosure: >-
+      No JSONNav utility value has been observed for any candidate at the time
+      this amendment is written. The fallback anchor is a public pre-v0.7
+      adapter, so it was not chosen from the current external eval outcomes.
+    fallback_lineage:
+      trigger: "every primary candidate fails the unchanged gate"
+      anchor_repository: "DaoyuanLi/mini-verl-qwen3-0.6b-tool-policy-sft"
+      anchor_revision: "7b98164f73e493c51f2ed3fca3169fea078f47f0"
+      procedure: "the same HH-RLHF continuation, the same 0/4/8/16 order"
+      selection_suite: "new, deterministic, disjoint from the final test"
+      families_reported_separately: true
+      if_fallback_also_fails: "publish checkpoint_selection_failed; run nothing downstream"
+    bands_changed: false
+    thresholds_changed: false
+    candidate_order_changed: false
+
+  - id: 3
+    date: "2026-08-09"
+    before_final_test_access: true
+    what: >-
+      Split the preference endpoint in two. RewardBench chosen/rejected pairs
+      qualify PairRM and nothing else; a separate fixed held-out prompt set
+      measures whether one policy is preferred over the shared starting policy.
+      The final profile is rebalanced to 500 generation tasks to make room.
+    why: >-
+      Agreement with RewardBench labels says whether the judge can rank a pair
+      a human already ranked. It says nothing about whether a trained arm is
+      preferred over the baseline, which is the question the study asks.
+      Reporting the former as an arm's win rate would answer a different
+      question than the one advertised.
+    preference_endpoint:
+      source: "Anthropic/hh-rlhf held-out eval subset"
+      prompts: 64
+      disjoint_from:
+        - continuation training examples
+        - starting-checkpoint selection
+        - every final-test endpoint
+      comparison: "arm response vs the shared starting-SFT response"
+      orders: "both, A/B and B/A"
+      reported:
+        - arm_win_rate
+        - starting_policy_win_rate
+        - ties
+        - order_disagreement_rate
+      never_called: "human preference"
+    profile_change:
+      reason: >-
+        adding 64 generated preference prompts to the frozen 508 would breach
+        the 512 ceiling, so XSTest drops from 252 to 180 -- exactly 10 per each
+        of its 18 types, which keeps the safe/unsafe structure intact.
+      superseded_profile_tasks: 508
+      revised_profile_tasks: 500
+      driven_by: "measurement semantics and the pre-existing compute ceiling"
+      driven_by_model_outcome: false
+    bands_changed: false
+    thresholds_changed: false
+
 analysis_code_version: "recorded at first final-test access"
 preregistration_commit: "recorded when this file is merged"
 first_final_test_access: pending

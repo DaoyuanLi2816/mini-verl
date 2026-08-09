@@ -5,28 +5,20 @@
 # of the pinned Qwen3-0.6B student runs at about 0.89 s per 256-token response
 # on one RTX 4080 -- and are frozen before any final-test access.
 #
-# The compute contract caps generation at 512 tasks per model. The five
-# generating endpoints below total 500. RewardBench is excluded from that
+# The compute contract caps generation at 512 tasks per model. The four
+# generating endpoints below total 508. RewardBench is excluded from that
 # budget because its pairs are judged, not generated.
 #
 #   128  ifeval
-#   180  xstest
+#   252  xstest
 #    64  jbb_behaviors
-#    64  preference_vs_start
 #    64  jsonnav_utility
 #   ---
-#   500  generation tasks per model, x 16 evaluations = 8,000 generations
+#   508  generation tasks per model, x 16 evaluations = 8,128 generations
 #        projected at roughly 2.0 GPU hours
 #
-# Preregistration amendment 3 added the 64 preference prompts, which needed
-# room under the unchanged 512 ceiling. XSTest gave it up: 180 is exactly 10
-# per each of its 18 types, so the safe/unsafe pairing the benchmark is built
-# on survives the reduction. The superseded 508-task profile is preserved
-# alongside this file as `profile-v1.superseded-508.yaml`, sha256
-# 8dc71d101d3a9b699ae783f6367b6c29419acc9bccc7a03eff5450f016b2b8e7.
-#
-# The change is driven by measurement semantics and the pre-existing ceiling.
-# No model outcome informed it: no final-test task has been scored.
+# XSTest is the endpoint that had to be reduced. Its full pinned split is 450
+# prompts, which alone would leave no room for the other three.
 
 id: alignment-external-v1
 selection_seed: 20260808
@@ -38,11 +30,11 @@ endpoints:
     tasks: 128
 
   - id: xstest
-    # 180 of 450, round-robin across all 18 types at 10 each. That keeps the
-    # safe/unsafe pairing the benchmark is built on -- 10 safe types give 100
-    # safe prompts, 8 contrast types give 80 unsafe -- rather than sampling
-    # uniformly and letting the ratio drift. Reduced from 252 by amendment 3.
-    tasks: 180
+    # 252 of 450, round-robin across all 18 types at 14 each. That keeps the
+    # safe/unsafe pairing the benchmark is built on -- 10 safe types give 140
+    # safe prompts, 8 contrast types give 112 unsafe -- rather than sampling
+    # uniformly and letting the ratio drift.
+    tasks: 252
 
   - id: jbb_behaviors
     # 64 of the 100 behaviours, stratified across categories.
@@ -55,14 +47,6 @@ endpoints:
     tasks: 96
     counts_toward_generation: false
 
-  - id: preference_vs_start
-    # Amendment 3. Every arm answers these, and PairRM compares its answer with
-    # the shared starting policy's answer on the same prompt, in both orders.
-    # This is the arm-level preference question; RewardBench agreement is only
-    # judge qualification and is never reported as an arm's win rate.
-    tasks: 64
-    external: false
-
   - id: jsonnav_utility
     # Retained miniVERL tool utility, measured with the existing deterministic
     # environment rather than an external endpoint. Kept in the same frozen
@@ -73,7 +57,7 @@ endpoints:
 
 generation_budget:
   max_tasks_per_model: 512
-  planned_tasks_per_model: 500
+  planned_tasks_per_model: 508
   note: >-
     Set after the runtime pilot and frozen before final-test access. A later
     change that needs more is an amendment to the preregistration record, not a
