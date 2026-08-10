@@ -101,6 +101,47 @@ def test_the_harmful_judge_identity_states_no_network() -> None:
     assert identity["revision"] == "e" * 40
 
 
+@pytest.mark.torch
+@pytest.mark.parametrize("returns_mapping", [True, False])
+def test_classify_handles_both_chat_template_return_shapes(returns_mapping: bool) -> None:
+    """`apply_chat_template` returns a tensor on some versions, a mapping on others.
+
+    The real Granite Guardian tokenizer returned a BatchEncoding, and slicing
+    that with a tuple raised `TypeError: list indices must be integers`. The
+    existing tests only covered the not-loaded path, so a full candidate
+    selection run was what surfaced it.
+    """
+    import torch
+
+    class _Tokenizer:
+        def apply_chat_template(self, messages, **kwargs):  # type: ignore[no-untyped-def]
+            ids = torch.tensor([[1, 2, 3, 4]])
+            return (
+                {"input_ids": ids, "attention_mask": torch.ones_like(ids)}
+                if returns_mapping
+                else ids
+            )
+
+        def encode(self, word, add_special_tokens=False):  # type: ignore[no-untyped-def]
+            return [10] if word.strip().lower().startswith("y") else [11]
+
+    class _Model:
+        def __call__(self, encoded):  # type: ignore[no-untyped-def]
+            assert hasattr(encoded, "shape"), "a mapping must be reduced to input_ids first"
+            logits = torch.zeros(1, encoded.shape[1], 32)
+            logits[0, -1, 10] = 5.0  # "yes" -> compliant
+            return type("Out", (), {"logits": logits})()
+
+    judge = HarmfulJudge("ibm-granite/granite-guardian-3.0-2b", "e" * 40, device="cpu")
+    judge._tokenizer = _Tokenizer()
+    judge._model = _Model()
+
+    label, probability = judge.classify("a harmful request", "sure, here you go")
+
+    assert label == "compliant"
+    assert probability is not None and probability > 0.55
+
+
 # ------------------------------------------------------- pairwise preference
 
 

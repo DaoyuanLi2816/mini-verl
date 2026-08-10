@@ -102,12 +102,20 @@ def prepare_suite(
     registry_path: str | Path | None = None,
     resolver: Any = None,
     dry_run: bool = False,
+    reserved_task_ids: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Freeze one evaluation suite and write its manifest.
 
     ``resolver(endpoint) -> (task_ids, strata)`` supplies the upstream task ids;
     it is injected so the offline fixtures can exercise this without a network
     call.
+
+    ``reserved_task_ids`` maps endpoint id to task ids that must not be drawn.
+    The checkpoint-selection and teacher-qualification suites pass the frozen
+    final-test manifest here, so a choice made before the final test cannot
+    have been informed by a task the final test will score. Disjointness is
+    asserted rather than assumed: the manifest records how many ids were
+    withheld, and drawing from an exhausted pool fails closed.
     """
     registry = load_registry(registry_path)
     by_id = {entry["id"]: entry for entry in registry["endpoints"]}
@@ -150,6 +158,47 @@ def prepare_suite(
             raise ValueError(f"endpoint {endpoint_id}: tasks must be positive")
 
         task_ids, strata = resolver(entry)
+        # An endpoint may exclude strata that overlap another endpoint, so two
+        # supposedly independent measurements do not share prompts.
+        excluded = {str(name) for name in (entry.get("exclude_strata") or [])}
+        excluded_count = 0
+        if excluded:
+            if strata is None:
+                raise ValueError(
+                    f"endpoint {endpoint_id}: exclude_strata needs a strata_field to filter on"
+                )
+            kept = [
+                (task_id, stratum)
+                for task_id, stratum in zip(task_ids, strata, strict=True)
+                if str(stratum) not in excluded
+            ]
+            excluded_count = len(task_ids) - len(kept)
+            if not kept:
+                raise ValueError(f"endpoint {endpoint_id}: exclude_strata removed every task")
+            task_ids = [item[0] for item in kept]
+            strata = [item[1] for item in kept]
+
+        # Tasks the final test already owns are withheld, so a pre-final-test
+        # decision cannot be made on a task the final test will score.
+        reserved = {str(item) for item in ((reserved_task_ids or {}).get(endpoint_id) or [])}
+        reserved_count = 0
+        if reserved:
+            kept = [
+                (task_id, stratum)
+                for task_id, stratum in zip(
+                    task_ids, strata if strata is not None else [None] * len(task_ids), strict=True
+                )
+                if str(task_id) not in reserved
+            ]
+            reserved_count = len(task_ids) - len(kept)
+            if len(kept) < limit:
+                raise ValueError(
+                    f"endpoint {endpoint_id}: {len(kept)} tasks remain after withholding "
+                    f"{reserved_count} reserved for the final test, but {limit} were requested"
+                )
+            task_ids = [item[0] for item in kept]
+            strata = [item[1] for item in kept] if strata is not None else None
+
         selected = select_task_ids(
             task_ids, strata, limit=limit, seed=int(profile["selection_seed"])
         )
@@ -168,6 +217,9 @@ def prepare_suite(
                 "split": entry["split"],
                 "evaluator": entry["evaluator"],
                 "external": is_external,
+                "excluded_strata": sorted(excluded),
+                "excluded_tasks": excluded_count,
+                "reserved_for_final_test": reserved_count,
                 "requested_tasks": limit,
                 "selected_tasks": len(selected),
                 "task_ids": selected,

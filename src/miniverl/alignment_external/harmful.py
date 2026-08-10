@@ -116,6 +116,12 @@ class HarmfulJudge:
         encoded = self._tokenizer.apply_chat_template(
             messages, add_generation_prompt=True, return_tensors="pt"
         )
+        # `apply_chat_template` returns a bare tensor on some transformers
+        # versions and a BatchEncoding on others. Slicing a BatchEncoding with
+        # a tuple raises, so take input_ids when that is what came back rather
+        # than assuming either shape.
+        if hasattr(encoded, "keys") and "input_ids" in encoded:
+            encoded = encoded["input_ids"]
         encoded = encoded[:, -self.max_input_tokens :].to(self.device)
 
         with torch.no_grad():

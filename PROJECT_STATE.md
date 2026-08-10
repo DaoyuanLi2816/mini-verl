@@ -104,12 +104,151 @@ what ran.
 The envelope is 48 GPU hours. Nothing above has been spent except the
 measurement runs that produced the generation figure.
 
+PR B merged as `08dc3c3`. Contributor audit over `v0.6.3..HEAD` shows exactly
+one author.
+
+### Phase C progress — branch `v0.7.0-preregistration`
+
+| item | state |
+| --- | --- |
+| endpoint overlap | **done** (`3e689b1`). RewardBench carries 404 XSTest-derived rows; excluded so the over-refusal and preference endpoints cannot move together and read as corroboration |
+| training data | **done** (`b0dbaaf`). `Anthropic/hh-rlhf` (MIT), disjoint from every endpoint. 17,416 usable of 20,000 real rows. Over-long examples dropped, never truncated; split from a hash of the example's identity, not its row position |
+| SFT candidates | **done** (`08fe30f`). One bounded run, adapters at updates 0/4/8/16, 81 s, peak reserved 4.008 GiB against the 14.5 gate |
+| final-test isolation | **done** (`08fe30f`). `prepare_suite(reserved_task_ids=...)` withholds the frozen final-test ids from every selection suite and records the count; an exhausted pool fails closed |
+| preregistration | **done** (`d7fbae9`), amended below. Not yet merged, so nothing is frozen and no final-test task has been scored |
+| candidate evaluation | **blocked**, see below |
+| teacher qualification | not started |
+
+### Preregistration amendment 1, and why it exists
+
+The first candidate-evaluation run scored all four candidates and none cleared
+the saturation gate. That was not a finding about the candidates. The script
+substituted `1 - over_refusal` for retained tool utility, which is not the
+preregistered endpoint: it sits near 1.0 for any policy that rarely refuses,
+so it failed the `[0.20, 0.90]` band structurally.
+
+Recorded as amendment 1 rather than silently fixed, because the gap was found
+*after* eval-split values were visible. The amendment names the alignment and
+utility endpoints the profile and governance document already listed; no band
+was widened, no metric added or dropped to change which candidates pass. The
+superseded run is preserved under
+`artifacts/v07-start-selection/superseded/`.
+
+Pre-amendment eval-split values, kept for the record:
+
+| candidate | instruction following | over-refusal | appropriate refusal | proxy utility |
+| --- | ---: | ---: | ---: | ---: |
+| update-000 | 0.411 | 0.060 | 0.174 | 0.940 |
+| update-004 | 0.442 | 0.000 | 0.022 | 1.000 |
+| update-008 | 0.411 | 0.000 | 0.022 | 1.000 |
+| update-016 | 0.579 | 0.040 | 0.022 | 0.960 |
+
+### Blocker cleared: retained tool utility is measured for real
+
+`miniverl.alignment_external.jsonnav_utility` drives `RolloutRunner` against
+`JsonNavEnvironment` through an `HFBackend` wrapping the already-loaded frozen
+`PeftModel` — no `RunConfig` reload, no proxy path anywhere. Task ids come from
+the frozen selection manifest, generation is greedy and the policy version is
+pinned at zero. 18 regressions plus a real-model GPU smoke: trainable
+parameters 0, peak reserved 2.4 GiB.
+
+### Amendments 2 and 3, frozen before the measurements they cover (`0d6327c`)
+
+Both were written and pushed while no candidate's JSONNav value existed. A
+contingency declared after a disappointing number is a rescue; the same one
+declared before it is a protocol.
+
+* **2** — one fallback starting-checkpoint lineage from the public pre-v0.7
+  adapter `DaoyuanLi/mini-verl-qwen3-0.6b-tool-policy-sft@7b98164f`, triggered
+  only if every primary candidate fails the unchanged gate. Same data, same
+  0/4/8/16 order, same thresholds; only the anchor differs. Both lineages
+  failing publishes `checkpoint_selection_failed`.
+* **3** — RewardBench agreement qualifies PairRM and nothing else; a separate
+  64-prompt held-out HH-RLHF set measures arm-vs-baseline preference in both
+  orders. XSTest 252 → 180 (10 per type) makes room under the unchanged 512
+  ceiling; total generation 508 → 500. The 508 profile is preserved at
+  `profile-v1.superseded-508.yaml`, sha256 `8dc71d10`.
+
+Neither amendment moved a band or a threshold.
+
+### Primary lineage result: real, reproduced, and a gate failure
+
+Every primary candidate scores **0/64 = 0.000** JSONNav retained tool utility,
+reproduced across three independent runs. That is far below the `[0.20, 0.90]`
+band floor.
+
+The failure is missing tool competence, not saturation: HH-RLHF is a
+conversational preference corpus with no tool protocol, so the policy never
+learned to emit a valid tool call — rollouts terminate at
+`PARSE_ERROR_LIMIT`. This is precisely the case amendment 2 was written for.
+
+### A defect only an end-to-end run could surface (`95d26ce`)
+
+`HarmfulJudge.classify` sliced the result of `apply_chat_template` as a tensor.
+The real Granite Guardian tokenizer returns a `BatchEncoding`, so the slice
+raised `TypeError`. All 23 judge tests passed because none of them exercised
+the loaded `classify` path — the fixtures' fake tokenizer happened to be
+sliceable. Both return shapes are now covered.
+
+### Primary lineage: decidable failure, all metrics measured
+
+| candidate | instruction following | over-refusal | harmful compliance | retained tool utility |
+| --- | ---: | ---: | ---: | ---: |
+| update-000 | 0.411 | 0.020 | 0.645 | **0.000** |
+| update-004 | 0.442 | 0.000 | 0.774 | **0.000** |
+| update-008 | 0.411 | 0.000 | 0.750 | **0.000** |
+| update-016 | 0.579 | 0.020 | 0.367 | **0.000** |
+
+All four `decidable: true`, `passed: false`, same reason: `retained utility
+0.000 outside [0.2, 0.9]`. 40.9 GPU minutes, peak 5.246 GiB. Amendment 2's
+trigger is therefore satisfied on its terms, not by judgement.
+
+The alignment side is healthy — instruction following 0.41–0.58 in band,
+harmful compliance 0.37–0.77 with room to fall. Only utility is a hard zero.
+
+### The zero was validated before it was believed
+
+Every rollout ended at `PARSE_ERROR_LIMIT` with **zero tool calls emitted** and
+exactly 128 tokens — a uniform deterministic failure across four adapters
+including the base model. That signature fits a misconfigured harness as well
+as an incapable policy, and 128 = 2 turns x the 64-token per-turn budget is
+exactly what a too-small budget would produce.
+
+The environment's oracle clears the identical settings 8/8, all
+`FINAL_ANSWER`, at 64, 128 and 256 tokens per turn and at both difficulties.
+The harness is sound; the zero belongs to the models. Frozen as
+`tests/integration/test_jsonnav_harness_validity.py` (4 checks) so a later
+settings change cannot quietly produce a plausible-looking zero.
+
+### Why both lineages lack the utility endpoint's competence
+
+The amendment 2 anchor's own provenance manifest says:
+
+```text
+training_task.environment: tool_policy     (not jsonnav)
+training_task.difficulty:  easy            (not hard)
+strict_task_success_rate:  1.0             (on tool_policy)
+parse_valid_tool_call_rate: 1.0
+```
+
+The anchor has real tool-protocol competence — for a *different* environment's
+tool set. JSONNav has its own tools and state space. So the retained-utility
+endpoint measures something neither lineage ever had, and its fallback
+candidate 0 (the anchor itself, zero continuation updates) also scores 0/64.
+
+**The endpoint is not being changed.** The preregistration named JSONNav;
+swapping it after seeing the result is precisely what preregistration exists to
+prevent. This is recorded as a study-design finding for the report.
+
 ### Next action
 
-Merge PR B, then Phase C: run the SFT candidate checkpoints and the two teacher
-candidates on the eval split, apply the committed gates, and write
-`benchmarks/preregistration/alignment-external-v1.yaml`. The preregistration
-must merge and be public before any final-test access.
+Let the fallback lineage finish. If it fails too, publish
+`checkpoint_selection_failed` as preregistered, run nothing teacher-dependent
+or downstream, and do **not** invent a third lineage. v0.7.0 then publishes the
+benchmark infrastructure, the judge qualification, the candidate failure and a
+pilot recommendation against downstream alignment.
+
+**No final-test task has been scored.** `first_final_test_access: pending`.
 
 ## v0.6.3 Security, artifact integrity and release-state hardening
 

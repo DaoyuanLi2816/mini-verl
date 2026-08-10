@@ -209,16 +209,28 @@ def test_the_committed_profile_prepares_end_to_end(tmp_path: Path) -> None:
         "xstest": 450,
         "jbb_behaviors": 100,
         "rewardbench": 2985,
+        "preference_vs_start": 256,
         "jsonnav_utility": 256,
     }
 
     manifest = prepare_suite(profile=profile, out=tmp_path, resolver=_resolver(counts))
 
-    assert manifest["generation_tasks_per_model"] == 508
+    # 500 after amendment 3: XSTest gave up 72 tasks so the 64 arm-level
+    # preference prompts fit under the unchanged 512 ceiling.
+    assert manifest["generation_tasks_per_model"] == 500
+    assert (
+        manifest["generation_tasks_per_model"]
+        <= profile["generation_budget"]["max_tasks_per_model"]
+    )
     by_id = {entry["id"]: entry for entry in manifest["endpoints"]}
+    assert by_id["xstest"]["selected_tasks"] == 180
+    assert by_id["preference_vs_start"]["selected_tasks"] == 64
     assert by_id["jsonnav_utility"]["external"] is False
     assert by_id["jsonnav_utility"]["dataset"] is None
+    assert by_id["preference_vs_start"]["external"] is False
     assert by_id["ifeval"]["external"] is True
+    # RewardBench is judged, not generated, so it stays outside the budget.
+    assert by_id["rewardbench"]["selected_tasks"] == 96
     # Every endpoint's selection is pinned by a digest.
     assert all(entry["task_ids_digest"] for entry in manifest["endpoints"])
 
