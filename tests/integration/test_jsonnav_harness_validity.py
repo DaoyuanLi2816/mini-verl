@@ -24,7 +24,10 @@ from miniverl.alignment_external.jsonnav_utility import JsonNavSettings
 from miniverl.config.models import RolloutConfig
 from miniverl.environments.jsonnav import JsonNavEnvironment
 
-pytestmark = [pytest.mark.torch, pytest.mark.slow]
+# `network` as well as `torch`: the oracle replays scripted actions rather than
+# sampling, but building the transcript still needs the real pinned tokenizer,
+# so this fetches Qwen3-0.6B and cannot run where outgoing traffic is disabled.
+pytestmark = [pytest.mark.torch, pytest.mark.network, pytest.mark.slow]
 
 STUDENT = "Qwen/Qwen3-0.6B"
 REVISION = "c1899de289a04d12100db370d81485cdf75e47ca"
