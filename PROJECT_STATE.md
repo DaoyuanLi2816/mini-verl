@@ -4,9 +4,9 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-10.
+Last updated: 2026-08-11.
 
-Canonical release state: releasing `v0.7.0`.
+Canonical release state: stable `v0.7.0` (`148822964dbb73e97ce06ef740f907364166a724`), development `0.7.1.dev0`.
 Every public version claim is generated from `release-state.yaml` and gated by
 `python scripts/release_state.py --check`.
 

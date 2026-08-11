@@ -4,6 +4,11 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.7.1 (in development)
+
+- [ ] Define and review the next maintenance scope before implementation. No
+      new scientific experiment is authorized by the v0.7.0 state sync.
+
 ## v0.7.0 External Alignment Gate evidence release
 
 The preregistered study terminated at checkpoint selection. Later experimental
@@ -73,10 +78,17 @@ unauthorized after checkpoint-selection failure**.
 
 ## After the tag
 
-- [ ] Verify the OIDC workflow, PyPI hashes/attestations, GitHub Release and
-      clean public installs.
-- [ ] Comment on issue #39 with the public evidence and keep it open.
-- [ ] Merge the separate state-sync PR advancing main to `0.7.1.dev0`.
+- [x] Release run
+      [`31468663273`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31468663273)
+      completed OIDC Trusted Publishing, attestation verification, exact clean
+      install and GitHub Release creation for commit
+      `148822964dbb73e97ce06ef740f907364166a724`.
+- [x] PyPI and the GitHub Release expose identical files: wheel SHA-256
+      `469ae44fe414cd5f56af0fe36091cbd8f12ba34072f67132800aebd7e2746420`,
+      sdist SHA-256
+      `0ec9e43384b749a64e8263c10e314fce1df87769d053939559917400cfecbce4`.
+- [x] Issue #39 has an owner-authored public evidence comment and remains open.
+- [x] This separate state-sync PR advances main to `0.7.1.dev0` after merge.
 
 ## v0.6.4 (superseded by v0.7.0)
 
