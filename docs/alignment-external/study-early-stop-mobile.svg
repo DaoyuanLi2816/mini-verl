@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="950" viewBox="0 0 390 950" role="img">
+  <title>External alignment study flow stopped at checkpoint selection</title>
+  <desc>Endpoint governance and candidate generation completed. Candidate selection stopped because retained utility was zero of 64. Teacher qualification and continuation training did not run, and the reserved final test was not accessed.</desc>
+  <style>text{font-family:Arial,sans-serif;fill:#e8edf7}.title{font-size:30px;font-weight:700}.sub{font-size:17px;fill:#b9c4d8}.head{font-size:16px;font-weight:700;fill:#8fd3ff}.label{font-size:16px;font-weight:700}.value{font-size:15px}.small{font-size:14px;fill:#b9c4d8}.box{fill:#111a2c;stroke:#53698d;stroke-width:2}.stop{fill:#2a1720;stroke:#ff8b8b;stroke-width:3}.ok{fill:#13261f;stroke:#69d6a2;stroke-width:2}.pending{fill:#171c29;stroke:#8793a8;stroke-width:2;stroke-dasharray:8 6}</style>
+  <rect width="390" height="950" rx="24" fill="#090f1c"/>
+<text x="22" y="48" class="title">Study early stop</text>
+<text x="22" y="78" class="sub">Preregistered gate enforced</text>
+<rect x="18" y="120" width="354" height="72" rx="14" class="ok"/>
+<text x="38" y="150" class="label">Endpoint governance</text>
+<text x="38" y="175" class="value">COMPLETE</text>
+<path d="M195 192 V 252" stroke="#8793a8" stroke-width="3" />
+<rect x="18" y="252" width="354" height="72" rx="14" class="ok"/>
+<text x="38" y="282" class="label">Candidate generation</text>
+<text x="38" y="307" class="value">COMPLETE</text>
+<path d="M195 324 V 384" stroke="#8793a8" stroke-width="3" />
+<rect x="18" y="384" width="354" height="72" rx="14" class="stop"/>
+<text x="38" y="414" class="label">Candidate selection</text>
+<text x="38" y="439" class="value">STOPPED · utility 0/64</text>
+<path d="M195 456 V 516" stroke="#8793a8" stroke-width="3" stroke-dasharray="7 6" />
+<rect x="18" y="516" width="354" height="72" rx="14" class="pending"/>
+<text x="38" y="546" class="label">Teacher qualification</text>
+<text x="38" y="571" class="value">NOT RUN</text>
+<path d="M195 588 V 648" stroke="#8793a8" stroke-width="3" stroke-dasharray="7 6" />
+<rect x="18" y="648" width="354" height="72" rx="14" class="pending"/>
+<text x="38" y="678" class="label">Continuation training</text>
+<text x="38" y="703" class="value">NOT RUN</text>
+<path d="M195 720 V 780" stroke="#8793a8" stroke-width="3" stroke-dasharray="7 6" />
+<rect x="18" y="780" width="354" height="72" rx="14" class="pending"/>
+<text x="38" y="810" class="label">Reserved final test</text>
+<text x="38" y="835" class="value">NOT ACCESSED</text>
+<text x="22" y="920" class="small">No checkpoint · no teacher · no method result</text>
+</svg>

@@ -25,10 +25,34 @@ assistant-only loss masks, teacher targets, update budgets and run artifacts
 explicit, then exports portable artifacts through a fail-closed bridge to one
 pinned upstream verl profile.
 
-PyPI `v0.6.3` is stable; `main` is development. The CUDA path has no GPU-name
+PyPI `v0.7.0` is stable; `main` is development. The CUDA path has no GPU-name
 allowlist, but fit depends on the model pair, context budget, kernels and VRAM.
 miniVERL is independent from verl and does not claim distributed execution or
 full algorithmic compatibility.
+
+## v0.7.0 — External Alignment Gate: a preregistered selection failure
+
+miniVERL's first real external-alignment study stopped before teacher or method
+training: both predeclared starting-policy lineages scored **0/64** on the
+retained JSONNav utility gate for every candidate. The unchanged floor was
+20%. This release publishes the endpoint infrastructure, all 512 portable
+selection rows and the fail-fast diagnosis; it does **not** publish a
+post-training method comparison.
+
+| selected checkpoints | qualified teachers | continuation arms | final-test tasks accessed |
+| ---: | ---: | ---: | ---: |
+| **0** | **0** | **0** | **0** |
+
+```bash
+miniverl pilot --study-result benchmarks/results/alignment-external-v1.json --json
+```
+
+The command returns `do_not_continue_this_study` and
+`insufficient_evidence`, not SFT/DPO/KD/OPD. Granite Guardian was used only as
+an unqualified selection diagnostic; Granite qualification, PairRM
+qualification, teacher qualification and the reserved final test did not run.
+Read the [early-stop study](docs/alignment-external/alignment-external-v1.md)
+and [typed result](benchmarks/results/alignment-external-v1.json).
 
 ## Install and run the 60-second demo
 
@@ -79,7 +103,7 @@ is reported separately from what was *recomputed* locally: its own `SHA256SUMS`
 can only prove internal consistency. Tokenizer, safetensors and privacy results
 each report how far verification actually got rather than a single pass or fail.
 
-## One measured alignment result
+## Earlier measured alignment result
 
 Alignment Lab v1 is a **saturated tool-policy case study**, not a broad safety
 benchmark. The shared SFT checkpoint already achieved 100% policy compliance

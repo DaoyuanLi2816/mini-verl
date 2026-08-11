@@ -93,7 +93,7 @@ def main() -> int:
         revision=STUDENT_REVISION,
         dtype=torch.bfloat16,
         attn_implementation="eager",
-    ).to("cuda")
+    ).to("cuda")  # type: ignore[arg-type]
     model.gradient_checkpointing_enable()
     model.enable_input_require_grads()
     model = get_peft_model(

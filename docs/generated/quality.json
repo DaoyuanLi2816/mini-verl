@@ -1,41 +1,41 @@
 {
   "schema_version": 2,
-  "release": "0.6.3",
-  "status": "released",
-  "quality_floor": "1,560+ tests and 85%+ branch coverage at v0.6.3",
+  "release": "0.7.0",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 85%+ branch coverage at v0.7.0",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
-    "commit": "e8a36db60b2146b684204df8a8bea3e20c11d8e4",
-    "commit_relationship": "final pull-request head; the squash merge that became the release commit has a different hash and was not itself measured here",
-    "measured_at": "2026-08-05T18:20:00-07:00",
+    "commit": "013993a8cd5002a9ed166ba1e6948305f92c1bfb",
+    "commit_relationship": "implementation commit plus the following quality-record-only update; the final pull-request head is validated by CI",
+    "measured_at": "2026-08-10T23:56:04-07:00",
     "platform": "Windows 11 Pro 10.0.22631",
     "python": "CPython 3.12",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 1830,
-      "skipped": 2,
-      "deselected": 6,
-      "branch_coverage_percent": 86.1,
+      "passed": 2098,
+      "skipped": 6,
+      "deselected": 21,
+      "branch_coverage_percent": 86.35,
       "skip_reason": "symlink creation requires privileges on Windows; hard-link and case aliases cover the same guard"
     },
     "gpu": {
-      "passed": 5,
+      "passed": 8,
       "hardware": "NVIDIA GeForce RTX 4080"
     },
     "network": {
-      "passed": 3
+      "passed": 15
     }
   },
   "release_validation": {
     "scope": "the exact published commit, validated by CI rather than locally",
-    "commit": "005a4549da713716e64c3ae80ff55fb131519f79",
+    "commit": "pending",
     "workflows": {
       "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31080175904",
       "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31080175961",
       "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31080175972",
       "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31084165317"
     },
-    "conclusion": "success",
+    "conclusion": "pending exact release-commit CI",
     "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement"
   }
 }

@@ -96,7 +96,7 @@ def main() -> int:
         revision=STUDENT_REVISION,
         dtype=torch.bfloat16,
         attn_implementation="eager",
-    ).to("cuda")
+    ).to("cuda")  # type: ignore[arg-type]
     base.gradient_checkpointing_enable()
     base.enable_input_require_grads()
 
@@ -137,7 +137,11 @@ def main() -> int:
             if path.is_file():
                 digest.update(path.name.encode())
                 digest.update(path.read_bytes())
-        record = {"update": update, "path": str(target), "adapter_digest": digest.hexdigest()}
+        record: dict[str, Any] = {
+            "update": update,
+            "path": str(target),
+            "adapter_digest": digest.hexdigest(),
+        }
         print(f"saved fallback candidate at update {update}: {record['adapter_digest'][:16]}")
         return record
 

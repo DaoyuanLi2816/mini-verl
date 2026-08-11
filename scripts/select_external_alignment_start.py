@@ -18,7 +18,10 @@ amendment 1, so there is no proxy path here at all.
 
     python scripts/select_external_alignment_start.py \
         --candidates artifacts/v07-sft-candidates \
-        --out artifacts/v07-start-selection
+        --out artifacts/v07-start-selection \
+        --lineage-id primary \
+        --lineage-description "Qwen3-0.6B continued on HH-RLHF" \
+        --lineage-anchor "Qwen/Qwen3-0.6B@c1899de289a04d12100db370d81485cdf75e47ca"
 """
 
 from __future__ import annotations
@@ -55,8 +58,27 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--candidates", required=True, type=Path)
     parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument(
+        "--lineage-id",
+        required=True,
+        choices=("primary", "fallback"),
+        help="Typed preregistered lineage identifier; never inferred from an output path.",
+    )
+    parser.add_argument(
+        "--lineage-description",
+        required=True,
+        help="Human-readable lineage description recorded in the evidence artifact.",
+    )
+    parser.add_argument(
+        "--lineage-anchor",
+        required=True,
+        help="Pinned base or adapter identity anchoring this lineage.",
+    )
     parser.add_argument("--batch-size", type=int, default=8)
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.lineage_description.strip() or not args.lineage_anchor.strip():
+        parser.error("lineage description and anchor must be non-empty")
+    return args
 
 
 def _resolver() -> Any:
@@ -74,7 +96,10 @@ def _resolver() -> Any:
         if key == JSONNAV_TASK_PREFIX:
             # A fixed generated pool, so selection and final draw from the same
             # id space and disjointness is checkable.
-            resolved = ([f"{key}-{index:05d}" for index in range(256)], None)
+            resolved: tuple[list[str], list[str] | None] = (
+                [f"{key}-{index:05d}" for index in range(256)],
+                None,
+            )
         elif endpoint.get("dataset") is None:
             resolved = ([f"{key}-{index:05d}" for index in range(256)], None)
         else:
@@ -291,7 +316,10 @@ def main() -> int:
 
     record = {
         "schema_version": 1,
-        "lineage": "primary: Qwen3-0.6B continued on HH-RLHF",
+        "lineage": f"{args.lineage_id}: {args.lineage_description}",
+        "lineage_id": args.lineage_id,
+        "lineage_description": args.lineage_description,
+        "lineage_anchor": args.lineage_anchor,
         "final_suite_digest": final["manifest_digest"],
         "selection_suite_digest": selection["manifest_digest"],
         "candidate_results": results,

@@ -57,7 +57,7 @@ def verify_smoke(bundle: str | Path, *, out: str | Path) -> dict[str, Any]:
     diagnosis = inspect_bridge_bundle(bundle, require_verl=True)
     distribution = importlib.metadata.distribution("verl")
     generated_path = Path(
-        distribution.locate_file("verl/trainer/config/_generated_ppo_trainer.yaml")
+        str(distribution.locate_file("verl/trainer/config/_generated_ppo_trainer.yaml"))
     )
     if not generated_path.is_file():
         raise ConfigError(f"installed verl distribution omits {generated_path.name}")

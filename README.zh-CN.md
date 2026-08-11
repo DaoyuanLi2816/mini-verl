@@ -24,9 +24,30 @@
 掩码、教师目标、更新预算与运行产物，并通过 fail-closed 桥接把可移植产物
 交给一个锁定的上游 verl 配置。
 
-PyPI `v0.6.3` 是稳定版；`main` 是开发版。CUDA 路径没有显卡型号白名单，
+PyPI `v0.7.0` 是稳定版；`main` 是开发版。CUDA 路径没有显卡型号白名单，
 但能否运行取决于模型组合、上下文预算、内核和显存。miniVERL 独立于 verl，
 不声称已经验证分布式执行或完整算法兼容性。
+
+## v0.7.0 — External Alignment Gate：一次预注册的选点失败
+
+miniVERL 的第一次真实外部对齐研究在教师与方法训练之前停止：两个预先声明
+的起始策略 lineage 中，每个候选在 retained JSONNav utility gate 上都得到
+**0/64**，而未改动的下限是 20%。本版本发布 endpoint 基础设施、全部 512 条
+可移植 selection 记录和 fail-fast 诊断；它**不发布**后训练方法比较。
+
+| 选中 checkpoint | 合格教师 | continuation arm | 已访问 final-test task |
+| ---: | ---: | ---: | ---: |
+| **0** | **0** | **0** | **0** |
+
+```bash
+miniverl pilot --study-result benchmarks/results/alignment-external-v1.json --json
+```
+
+该命令返回 `do_not_continue_this_study` 和 `insufficient_evidence`，不会推荐
+SFT、DPO、KD 或 OPD。Granite Guardian 只作为未资格认证的 selection
+diagnostic 使用；Granite、PairRM 和教师资格认证均未运行，保留的 final test
+也未访问。详见[早停研究](docs/alignment-external/alignment-external-v1.md)与
+[类型化结果](benchmarks/results/alignment-external-v1.json)。
 
 ## 安装与 60 秒演示
 
@@ -73,7 +94,7 @@ reward scaffold，**默认绝不执行它**，除非显式传入
 只能证明内部一致性。tokenizer、safetensors 与隐私三项各自报告验证真正
 到达的层级，而不是笼统的通过或失败。
 
-## 一项对齐实测结果
+## 更早的一项对齐实测结果
 
 Alignment Lab v1 是一个**已饱和的工具策略案例研究**，不是广义安全评测。
 共同的 SFT 起点在三个 seed 上都已经达到 100% 策略合规和 100% 工具效用。

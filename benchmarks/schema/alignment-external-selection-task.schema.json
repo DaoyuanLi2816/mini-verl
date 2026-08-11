@@ -1,0 +1,91 @@
+{
+  "$id": "https://daoyuanli2816.github.io/mini-verl/schemas/alignment-external-selection-task.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adapter_digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "candidate_id": {
+      "pattern": "^update-[0-9]{3}$",
+      "type": "string"
+    },
+    "document_seed": {
+      "type": "integer"
+    },
+    "environment_task_id": {
+      "type": "string"
+    },
+    "generated_token_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "lineage_id": {
+      "enum": [
+        "primary",
+        "fallback"
+      ]
+    },
+    "parse_error_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "parsed_tool_call_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "solved": {
+      "type": "boolean"
+    },
+    "suite_digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "suite_task_id": {
+      "type": "string"
+    },
+    "task_seed": {
+      "type": "integer"
+    },
+    "termination_reason": {
+      "type": "string"
+    },
+    "tool_call_count": {
+      "minimum": 0,
+      "type": "integer"
+    },
+    "trajectory_digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "update": {
+      "minimum": 0,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "lineage_id",
+    "candidate_id",
+    "update",
+    "suite_task_id",
+    "environment_task_id",
+    "document_seed",
+    "task_seed",
+    "adapter_digest",
+    "solved",
+    "termination_reason",
+    "tool_call_count",
+    "parsed_tool_call_count",
+    "parse_error_count",
+    "generated_token_count",
+    "trajectory_digest",
+    "suite_digest"
+  ],
+  "title": "miniVERL external-alignment selection task evidence",
+  "type": "object"
+}

@@ -4,9 +4,11 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
-## v0.7.0 External alignment evidence (in development)
+## v0.7.0 External Alignment Gate evidence release
 
-Phase A, foundation hardening, changes no scientific result.
+The preregistered study terminated at checkpoint selection. Later experimental
+phases are not unfinished work: they were **not run — scientifically
+unauthorized after checkpoint-selection failure**.
 
 - [x] `bridge doctor` validates the bundle tree before opening any file in it.
       Reproduced on Windows with a junction: the hash check walked into a
@@ -33,9 +35,48 @@ Phase A, foundation hardening, changes no scientific result.
 - [x] The quality record separates the locally measured commit and platform
       from the exact release commit validated by CI, and states that no GPU
       runner exists.
-- [ ] Phases B-J: external benchmark governance, evaluation runtime,
-      non-saturated checkpoint selection, teacher qualification, the method
-      matrix, preregistration and the final study.
+- [x] External endpoint governance, evaluator adapters, deterministic suite
+      reservation, HH-RLHF preparation and two declared candidate lineages are
+      present with pinned identities.
+- [x] Checkpoint selection completed for two lineages and eight candidates.
+      Every candidate measured 0/64 JSONNav retained utility against the
+      unchanged `[0.20, 0.90]` gate; no checkpoint was selected.
+- [x] Amendment 4 records its post-selection/pre-release timing, the fallback
+      lineage-label defect, task-identical selection manifests and unqualified
+      judge status. No quantitative value, gate, threshold, endpoint or
+      decision changed; final-test access is `not_accessed`.
+- [x] Original fallback bytes are preserved at SHA-256
+      `53efeb1af196fe8a2fd3733f3f9d6a9ce101fcc76365fc45515adc47cc7d3cd3`;
+      the corrected metadata projection is
+      `6f23de43f03a69275d8bedc9b029a1b728fb2004a9b3a225c66ba1fee671592b`.
+- [x] Primary and fallback selection manifests are both
+      `e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b`:
+      separately generated, task-identical, final-test disjoint and not
+      independent samples.
+- [x] The early-stop result is schema validated; 512 privacy-safe JSONNav task
+      rows are published with SHA-256
+      `18d5733e70bfe292e282bd5b6e3fc94869837fab30a151a642aa11c3e4c9d771`.
+- [x] Granite Guardian is labelled `unqualified_diagnostic_only`; Granite and
+      PairRM qualification, PairRM method preference and teacher qualification
+      are `not_run`.
+- [x] Teacher qualification: **not run — scientifically unauthorized after
+      checkpoint-selection failure**.
+- [x] Continuation SFT/DPO/KD/OPD method matrix: **not run — scientifically
+      unauthorized after checkpoint-selection failure**.
+- [x] Reserved final test: **not accessed — scientifically unauthorized after
+      checkpoint-selection failure**; zero tasks scored.
+- [x] `miniverl pilot --study-result ...` returns
+      `do_not_continue_this_study` / `insufficient_evidence` and preserves the
+      existing recipe-evidence path.
+- [x] The evidence-release PR's exact final head passes CI, build, docs,
+      generated-artifact, visual, package and attribution gates before merge.
+
+## After the tag
+
+- [ ] Verify the OIDC workflow, PyPI hashes/attestations, GitHub Release and
+      clean public installs.
+- [ ] Comment on issue #39 with the public evidence and keep it open.
+- [ ] Merge the separate state-sync PR advancing main to `0.7.1.dev0`.
 
 ## v0.6.4 (superseded by v0.7.0)
 
@@ -45,7 +86,7 @@ Phase A, foundation hardening, changes no scientific result.
       Windows editor was refused as unparseable. Found while verifying the
       published v0.6.3 wheel. Two regressions cover it, including one proving a
       BOM cannot hide a top-level call.
-- [ ] `pinned-profile-smoke` remains excluded from the required-status-check
+- `pinned-profile-smoke` remains excluded from the required-status-check
       list because `verl-bridge.yml` filters on paths and therefore never
       reports on an unrelated pull request. It still runs, and must pass, on any
       pull request that touches bridge code. Revisit if the workflow ever loses

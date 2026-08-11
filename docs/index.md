@@ -24,6 +24,20 @@ The result is a typed trajectory log, checksummed teacher cache, manifest and
 self-contained report. For CUDA wheels and memory-aware recipes, use the
 [single-GPU guide](single-gpu-guide.md).
 
+## v0.7.0 evidence release: the external study stopped at its first gate
+
+**0 selected checkpoints · 0 qualified teachers · 0 continuation arms · 0
+final-test tasks accessed.** Every candidate in both declared lineages scored
+0/64 retained JSONNav utility against an unchanged 20% floor. The result is a
+preregistered checkpoint-selection failure, not a method comparison.
+
+```bash
+miniverl pilot --study-result benchmarks/results/alignment-external-v1.json --json
+```
+
+[Read the early-stop study](alignment-external/alignment-external-v1.md){ .md-button .md-button--primary }
+[Inspect the evidence contract](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.7.0/benchmarks/results/alignment-external-v1.json){ .md-button }
+
 ## Choose a path
 
 <div class="path-grid" markdown>

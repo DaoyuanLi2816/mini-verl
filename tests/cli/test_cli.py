@@ -381,6 +381,35 @@ def test_pilot_is_bounded_explainable_and_does_not_load_models(tmp_path: Path) -
     assert payload["reasons"]
 
 
+def test_pilot_consumes_the_external_early_stop_without_recommending_a_method() -> None:
+    result = REPO_ROOT / "benchmarks/results/alignment-external-v1.json"
+    payload = _payload(_invoke("pilot", "--study-result", str(result), "--json"))
+
+    assert payload["study_status"] == "terminated_at_checkpoint_selection"
+    assert payload["recommendation"] == "do_not_continue"
+    assert payload["recommendation_scope"] == "do_not_continue_this_study"
+    assert payload["method_recommendation"] == "insufficient_evidence"
+    assert payload["universal_claim"] is False
+    assert payload["evidence"]["sha256"]
+    assert not any(
+        method in json.dumps(payload).lower() for method in ("continued sft", "dpo", "kd", "opd")
+    )
+
+
+def test_pilot_rejects_an_inconsistent_external_result(tmp_path: Path) -> None:
+    source = json.loads(
+        (REPO_ROOT / "benchmarks/results/alignment-external-v1.json").read_text(encoding="utf-8")
+    )
+    source["selected_checkpoint"] = "update-004"
+    broken = tmp_path / "broken-result.json"
+    broken.write_text(json.dumps(source), encoding="utf-8")
+
+    result = _invoke("pilot", "--study-result", str(broken), "--json")
+
+    assert result.exit_code != 0
+    assert "selected_checkpoint" in result.output
+
+
 @pytest.mark.parametrize(
     "options",
     [

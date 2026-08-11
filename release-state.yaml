@@ -17,16 +17,16 @@
 # such distinction, which is how its tag shipped a docs selector still
 # advertising "Stable 0.6.1 / Development 0.6.2.dev0".
 schema_version: 1
-phase: development
+phase: release
 
 stable:
-  version: "0.6.3"
-  tag: "v0.6.3"
-  release_commit: "005a4549da713716e64c3ae80ff55fb131519f79"
-  released_at: "2026-08-06"
+  version: "0.7.0"
+  tag: "v0.7.0"
+  release_commit: pending
+  released_at: "2026-08-10"
 
 development:
   # v0.7.0 is the external alignment study. There is no v0.6.4 release: the
   # foundation hardening in this cycle ships as part of it rather than as an
   # intermediate maintenance version.
-  version: "0.7.0.dev0"
+  version: "0.7.0"

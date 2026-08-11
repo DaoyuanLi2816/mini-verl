@@ -1,0 +1,30 @@
+{
+  "correction": {
+    "candidate_metrics_changed": false,
+    "changed_json_paths": [
+      "$.lineage",
+      "$.lineage_id",
+      "$.lineage_description",
+      "$.lineage_anchor"
+    ],
+    "corrected_artifact": {
+      "path": "benchmarks/evidence/alignment-external-v1/fallback-start-selection.corrected.json",
+      "sha256": "d68ea994672c112b38149c87fed5cb069c26c1be10154187780f98151d19ed65"
+    },
+    "kind": "non_quantitative_metadata_correction",
+    "original_artifact": {
+      "path": "benchmarks/evidence/alignment-external-v1/fallback-start-selection.original.json",
+      "sha256": "8ff55066c795f29c6ae835f37e545a8306f7486c1d2308c814435cacff0da409"
+    },
+    "original_source_artifact": {
+      "path": "benchmarks/evidence/alignment-external-v1/fallback-start-selection.source.raw",
+      "sha256": "53efeb1af196fe8a2fd3733f3f9d6a9ce101fcc76365fc45515adc47cc7d3cd3"
+    },
+    "original_source_path": "artifacts/v07-start-selection-fallback/start-selection.json",
+    "original_source_sha256": "53efeb1af196fe8a2fd3733f3f9d6a9ce101fcc76365fc45515adc47cc7d3cd3",
+    "quantitative_values_changed": false,
+    "reason": "generator hard-coded the primary lineage label",
+    "selection_decision_changed": false
+  },
+  "schema_version": 1
+}

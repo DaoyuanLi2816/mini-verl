@@ -1,0 +1,16 @@
+{
+  "absolute_paths_included": false,
+  "artifact": {
+    "path": "benchmarks/evidence/alignment-external-v1/jsonnav-selection-records.jsonl",
+    "sha256": "694d68cd997bc4b2aa7dd88ebf6572616c9a140fb0df4a672c301095a4f16c7c"
+  },
+  "candidates": 8,
+  "generated_response_text_included": false,
+  "lineages": 2,
+  "parse_error_count_derivation": "2 when termination is PARSE_ERROR_LIMIT: the pinned RolloutConfig limit is 2 and rollout stops immediately when that limit is reached",
+  "restricted_prompt_text_included": false,
+  "rows": 512,
+  "schema": "benchmarks/schema/alignment-external-selection-task.schema.json",
+  "schema_version": 1,
+  "tasks_per_candidate": 64
+}

@@ -6,9 +6,11 @@ Alignment Lab and pinned verl-bridge work lives in `PROJECT_STATE.md` and
 
 ## Scientific follow-up
 
-- [ ] [Preregister and execute real external alignment endpoints](https://github.com/DaoyuanLi2816/mini-verl/issues/39) (for example
-      IFEval, XSTest, HarmBench and RewardBench) in a future release; keep them
-      separate from Alignment Lab v1's sandbox-policy checks.
+- [ ] [External alignment issue #39](https://github.com/DaoyuanLi2816/mini-verl/issues/39):
+      v0.7.0 preregistered and executed the starting-checkpoint gate, which
+      failed before teacher/method training. Method-level coverage, evaluator
+      qualification and the reserved final test remain unexecuted; keep the
+      issue open without treating a follow-up study as committed work.
 - [ ] Evaluate a less saturated task family with at least three prespecified
       seeds, eval-only selection and a reserved one-read test split.
 - [ ] Extend matched-budget JSON-navigation and SQLite evidence only when the

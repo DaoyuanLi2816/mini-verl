@@ -10,6 +10,7 @@ so ``miniverl --help``, ``doctor``, ``validate``, ``inspect``, ``report`` and
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -618,33 +619,80 @@ def qualify_teacher_command(
 
 @app.command()
 def pilot(
-    recipe: Path = typer.Argument(..., help="Alignment recipe containing bounded pilot evidence."),
+    recipe: Optional[Path] = typer.Argument(
+        None, help="Alignment recipe containing bounded pilot evidence."
+    ),
+    study_result: Optional[Path] = typer.Option(
+        None,
+        "--study-result",
+        help="Schema-validated external-study result; does not load a model.",
+    ),
     out: Optional[Path] = typer.Option(None, "--out", help="Optional JSON output path."),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
     """Recommend a method from explicit pilot evidence without loading a model."""
-    from miniverl.alignment import PilotEvidence, recommend_alignment_method
-    from miniverl.config import RunConfig
     from miniverl.utils.runs import write_json_atomic
 
+    payload: dict[str, Any]
     try:
-        config = RunConfig.from_yaml(recipe)
-        if config.alignment is None:
-            raise ConfigError("miniverl pilot requires a recipe with an alignment section")
-        evidence = config.alignment.pilot or PilotEvidence()
-        result = recommend_alignment_method(evidence)
-        payload = result.model_dump(mode="json")
+        if recipe is not None and study_result is not None:
+            raise ConfigError("miniverl pilot accepts either a recipe or --study-result, not both")
+        if study_result is not None:
+            from miniverl.alignment_external.result import load_alignment_external_result
+
+            result = load_alignment_external_result(study_result)
+            if result.study_status != "terminated_at_checkpoint_selection":
+                raise ConfigError(
+                    "this pilot evidence path currently requires "
+                    "study_status=terminated_at_checkpoint_selection"
+                )
+            payload = {
+                "study_status": result.study_status,
+                "recommendation": "do_not_continue",
+                "recommendation_scope": "do_not_continue_this_study",
+                "method_recommendation": "insufficient_evidence",
+                "reasons": [
+                    "no candidate satisfied the retained-utility gate",
+                    "no starting checkpoint was selected",
+                    "teacher qualification was not run",
+                    "no continuation method was authorized",
+                    "the reserved final test was not accessed",
+                ],
+                "evidence": {
+                    "path": str(study_result),
+                    "sha256": hashlib.sha256(study_result.read_bytes()).hexdigest(),
+                    "preregistration": result.preregistration.model_dump(mode="json"),
+                    "task_evidence": result.checkpoint_selection.task_evidence.model_dump(
+                        mode="json"
+                    ),
+                },
+                "universal_claim": False,
+            }
+        else:
+            if recipe is None:
+                raise ConfigError("miniverl pilot requires a recipe or --study-result")
+            from miniverl.alignment import PilotEvidence, recommend_alignment_method
+            from miniverl.config import RunConfig
+
+            config = RunConfig.from_yaml(recipe)
+            if config.alignment is None:
+                raise ConfigError("miniverl pilot requires a recipe with an alignment section")
+            evidence = config.alignment.pilot or PilotEvidence()
+            recommendation = recommend_alignment_method(evidence)
+            payload = recommendation.model_dump(mode="json")
         if out is not None:
             write_json_atomic(out, payload)
     except (ValidationError, MiniVerlError) as exc:
         if isinstance(exc, MiniVerlError):
             _fail(exc)
-        err_console.print(f"[red]invalid recipe[/red] {_esc(recipe)}\n{_esc(exc)}")
+        source = recipe if recipe is not None else study_result
+        err_console.print(f"[red]invalid pilot evidence[/red] {_esc(source)}\n{_esc(exc)}")
         raise typer.Exit(1) from None
     if as_json:
         _emit_json(payload)
         return
-    console.print(f"[bold]recommendation[/bold] {_esc(payload['recommendation'])}")
+    recommendation_text = payload.get("method_recommendation", payload["recommendation"])
+    console.print(f"[bold]recommendation[/bold] {_esc(recommendation_text)}")
     for reason in payload["reasons"]:
         console.print(f"  - {_esc(reason)}")
     if out is not None:

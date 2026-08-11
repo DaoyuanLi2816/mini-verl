@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: "miniVERL: Auditable single-GPU alignment and distillation runtime"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
-version: 0.6.3
-date-released: 2026-08-06
+version: 0.7.0
+date-released: 2026-08-10
 license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
 url: "https://github.com/DaoyuanLi2816/mini-verl"
@@ -32,7 +32,11 @@ abstract: >-
   algorithmic parity with PPO. miniVERL is designed for one personal CUDA GPU,
   automatically selects bf16 or fp16, and requires neither Ray nor a cluster.
   Published performance is measured on one RTX 4080; other GPU models use the
-  same code path but remain unmeasured.
+  same code path but remain unmeasured. The v0.7.0 external-alignment study
+  terminated at its preregistered checkpoint-selection gate: two declared
+  lineages and eight candidates all scored 0/64 retained JSONNav utility, so
+  no teacher qualification, continuation method comparison or reserved final
+  test was run.
 authors:
   - family-names: Li
     given-names: Daoyuan

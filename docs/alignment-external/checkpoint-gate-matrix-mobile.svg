@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="390" height="1240" viewBox="0 0 390 1240" role="img">
+  <title>Checkpoint gate matrix: all eight candidates failed retained utility</title>
+  <desc>Primary and fallback lineages each contain four candidates. Every candidate scored zero of 64 on retained JSONNav utility, below the 20 percent gate floor.</desc>
+  <style>text{font-family:Arial,sans-serif;fill:#e8edf7}.title{font-size:30px;font-weight:700}.sub{font-size:17px;fill:#b9c4d8}.head{font-size:16px;font-weight:700;fill:#8fd3ff}.label{font-size:16px;font-weight:700}.value{font-size:15px}.small{font-size:14px;fill:#b9c4d8}.box{fill:#111a2c;stroke:#53698d;stroke-width:2}.stop{fill:#2a1720;stroke:#ff8b8b;stroke-width:3}.ok{fill:#13261f;stroke:#69d6a2;stroke-width:2}.pending{fill:#171c29;stroke:#8793a8;stroke-width:2;stroke-dasharray:8 6}</style>
+  <rect width="390" height="1240" rx="24" fill="#090f1c"/>
+<text x="22" y="45" class="title">Checkpoint gate matrix</text>
+<text x="22" y="74" class="sub">8 candidates · same task IDs</text>
+<line x1="22" y1="98" x2="368" y2="98" stroke="#53698d"/>
+<rect x="18" y="104" width="354" height="116" rx="12" class="stop"/>
+<text x="32" y="128" class="label">primary · update-000</text>
+<text x="32" y="155" class="value">Instruction 41.1% · over-refusal 2.0%</text>
+<text x="32" y="182" class="value">JSONNav 0/64 · FAIL</text>
+<text x="32" y="206" class="small">required utility: 20–90%</text>
+<rect x="18" y="236" width="354" height="116" rx="12" class="stop"/>
+<text x="32" y="260" class="label">primary · update-004</text>
+<text x="32" y="287" class="value">Instruction 44.2% · over-refusal 0.0%</text>
+<text x="32" y="314" class="value">JSONNav 0/64 · FAIL</text>
+<text x="32" y="338" class="small">required utility: 20–90%</text>
+<rect x="18" y="368" width="354" height="116" rx="12" class="stop"/>
+<text x="32" y="392" class="label">primary · update-008</text>
+<text x="32" y="419" class="value">Instruction 41.1% · over-refusal 0.0%</text>
+<text x="32" y="446" class="value">JSONNav 0/64 · FAIL</text>
+<text x="32" y="470" class="small">required utility: 20–90%</text>
+<rect x="18" y="500" width="354" height="116" rx="12" class="stop"/>
+<text x="32" y="524" class="label">primary · update-016</text>
+<text x="32" y="551" class="value">Instruction 57.9% · over-refusal 2.0%</text>
+<text x="32" y="578" class="value">JSONNav 0/64 · FAIL</text>
+<text x="32" y="602" class="small">required utility: 20–90%</text>
+<rect x="18" y="632" width="354" height="116" rx="12" class="stop"/>
+<text x="32" y="656" class="label">fallback · update-000</text>
+<text x="32" y="683" class="value">Instruction 42.1% · over-refusal 0.0%</text>
+<text x="32" y="710" class="value">JSONNav 0/64 · FAIL</text>
+<text x="32" y="734" class="small">required utility: 20–90%</text>
+<rect x="18" y="764" width="354" height="116" rx="12" class="stop"/>
+<text x="32" y="788" class="label">fallback · update-004</text>
+<text x="32" y="815" class="value">Instruction 43.2% · over-refusal 0.0%</text>
+<text x="32" y="842" class="value">JSONNav 0/64 · FAIL</text>
+<text x="32" y="866" class="small">required utility: 20–90%</text>
+<rect x="18" y="896" width="354" height="116" rx="12" class="stop"/>
+<text x="32" y="920" class="label">fallback · update-008</text>
+<text x="32" y="947" class="value">Instruction 42.1% · over-refusal 2.0%</text>
+<text x="32" y="974" class="value">JSONNav 0/64 · FAIL</text>
+<text x="32" y="998" class="small">required utility: 20–90%</text>
+<rect x="18" y="1028" width="354" height="116" rx="12" class="stop"/>
+<text x="32" y="1052" class="label">fallback · update-016</text>
+<text x="32" y="1079" class="value">Instruction 55.8% · over-refusal 56.0%</text>
+<text x="32" y="1106" class="value">JSONNav 0/64 · FAIL</text>
+<text x="32" y="1130" class="small">required utility: 20–90%</text>
+<text x="22" y="1186" class="small">Granite values excluded:</text>
+<text x="22" y="1208" class="small">unqualified diagnostic only.</text>
+</svg>

@@ -24,6 +24,7 @@ import json
 import math
 import re
 import threading
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,7 @@ VIEWPORTS = ((1440, 900), (1024, 768), (820, 1000), (390, 844))
 PAGES = (
     "/",
     "/alignment-lab/alignment-lab-v1/",
+    "/alignment-external/alignment-external-v1/",
     "/consumer-runtime/",
     "/recoverybench/recoverybench-v1/",
     "/verl-bridge/",
@@ -55,7 +57,7 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
 
 
 @contextlib.contextmanager
-def _server(site: Path):
+def _server(site: Path) -> Iterator[str]:
     handler = functools.partial(_QuietHandler, directory=str(site))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -197,6 +199,12 @@ def _assert_page(page: Any, *, route: str, width: int) -> list[dict[str, Any]]:
         )
         if not selected or not all(src.endswith("-mobile.svg") for src in selected):
             raise AssertionError(f"mobile alignment figures did not activate: {selected}")
+    if route == "/alignment-external/alignment-external-v1/" and width == 390:
+        selected = page.locator("picture.alignment-figure img").evaluate_all(
+            "nodes => nodes.map(node => node.currentSrc)"
+        )
+        if len(selected) != 2 or not all(src.endswith("-mobile.svg") for src in selected):
+            raise AssertionError(f"mobile external-alignment figures did not activate: {selected}")
 
     return images
 

@@ -41,6 +41,7 @@ nav:
   - Home: index.md
   - Start on one GPU: single-gpu-guide.md
   - Align:
+      - "External Alignment Gate v1: early stop": alignment-external/alignment-external-v1.md
       - When OPD should follow SFT: alignment-lab/when-opd-should-follow-sft.md
       - "Alignment Lab v1: saturated case study": alignment-lab/alignment-lab-v1.md
       - External benchmark governance: alignment-external/benchmark-governance.md
