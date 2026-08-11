@@ -6,16 +6,39 @@ and what it printed.
 
 Last updated: 2026-08-10.
 
-Canonical release state: stable `v0.6.3` (`005a4549da713716e64c3ae80ff55fb131519f79`), development `0.7.0.dev0`.
+Canonical release state: releasing `v0.7.0`.
 Every public version claim is generated from `release-state.yaml` and gated by
 `python scripts/release_state.py --check`.
 
-## v0.7.0 External alignment evidence — IN PROGRESS
+## v0.7.0 External Alignment Gate — EVIDENCE RELEASE IN PROGRESS
 
-Branch `v0.7.0-foundation`, based on `0bd194600aeb65b90eadd14bfa1ec313aa2a9c36`.
-Not yet pushed. Commit author is
-`Daoyuan Li <94409450+DaoyuanLi2816@users.noreply.github.com>` on every commit,
-matching the 9:1 dominant identity since v0.6.0.
+Branch `v0.7.0-evidence-release` starts from the exact post-PR-#52 main commit
+`a8272e2b5674e12107461a81d285f1a3d56588a5`. PR #51 merged the public
+preregistration/outcome as `c50aa93b95e6fe4a6aa6251491d3c2b5a9480ebe`;
+PR #52 corrected the handoff boundary before merge. Every source commit author
+is `Daoyuan Li <94409450+DaoyuanLi2816@users.noreply.github.com>`.
+
+Current scientific state is terminal and unchanged: two declared lineages,
+eight candidates, 0/64 JSONNav retained utility for every candidate, no
+selected checkpoint, no teacher qualification, no continuation method and no
+final-test access. The release work is evidence projection and documentation,
+not a restarted experiment.
+
+### Evidence-release identities
+
+| evidence | state / SHA-256 |
+| --- | --- |
+| original fallback selection | preserved byte-for-byte; `53efeb1af196fe8a2fd3733f3f9d6a9ce101fcc76365fc45515adc47cc7d3cd3` |
+| corrected fallback projection | lineage metadata only; `6f23de43f03a69275d8bedc9b029a1b728fb2004a9b3a225c66ba1fee671592b` |
+| primary / fallback selection manifests | both `e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b`; separately generated, task-identical, not independent |
+| portable JSONNav selection rows | 512 rows, no prompts/responses/absolute paths; `18d5733e70bfe292e282bd5b6e3fc94869837fab30a151a642aa11c3e4c9d771` |
+| early-stop result | schema-validated; digest recorded by the final release validation |
+| final test | `not_accessed`, zero tasks scored |
+
+Amendment 4 is explicitly post-selection and pre-release. It changes no
+quantitative value, gate, threshold, endpoint or decision. Granite Guardian is
+an unqualified diagnostic only; Granite and PairRM qualification, method-level
+preference evaluation and teacher qualification are `not_run`.
 
 ### Phase A progress
 
@@ -209,11 +232,11 @@ harmful compliance 0.37–0.77 with room to fall. Only utility is a hard zero.
 
 ### The zero was validated before it was believed
 
-Every rollout ended at `PARSE_ERROR_LIMIT` with **zero tool calls emitted** and
-exactly 128 tokens — a uniform deterministic failure across four adapters
-including the base model. That signature fits a misconfigured harness as well
-as an incapable policy, and 128 = 2 turns x the 64-token per-turn budget is
-exactly what a too-small budget would produce.
+Every primary-lineage rollout ended at `PARSE_ERROR_LIMIT` with zero valid tool
+calls and exactly 128 tokens. Fallback-lineage rollouts emitted two to four
+JSONNav tool calls and ended by final answer, max turns or repeated-call limit,
+but still solved 0/64 for every adapter. These are distinct observed failure
+behaviors, not one uniform signature.
 
 The environment's oracle clears the identical settings 8/8, all
 `FINAL_ANSWER`, at 64, 128 and 256 tokens per turn and at both difficulties.
@@ -257,13 +280,14 @@ Contributor audit over the merged range: 16 commits, sole author
 GPU spent across all of v0.7 so far: **1.2 hours** of the 48-hour envelope,
 peak reserved 5.25 GiB against the 14.5 GiB gate.
 
-### Next action
+### Release action
 
-Both lineages failed and the outcome is merged. The next session executes
-`docs/handoffs/v0.7.0-final-execution-prompt.md`: make `miniverl pilot` return
-the recommendation against downstream alignment, write the study page and its
-data-bound figures, update both READMEs, add an evidence comment to issue #39
-while keeping it open, and release v0.7.0.
+The evidence-release branch adds the schema-valid early-stop result, portable
+selection rows, original/corrected fallback relation, identical-suite
+disclosure, `miniverl pilot --study-result`, the study page and data-bound
+figures. After its full green validation it will release v0.7.0, add an
+evidence comment to issue #39 while keeping the issue open, then advance main
+to `0.7.1.dev0` through a separate state-sync PR.
 
 No continuation arm, no teacher qualification and no method comparison will
 run — none of them is scientifically authorized by the selection outcome.

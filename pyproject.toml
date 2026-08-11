@@ -110,6 +110,10 @@ path = "src/miniverl/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/miniverl"]
+# The release toolchain's Twine 6.2 rejects Core Metadata 2.5. Hatchling 1.31
+# emits 2.5 by default, so pin the emitted standard to the version that the
+# required `twine check` gate can inspect.
+core-metadata-version = "2.4"
 
 # The pinned endpoint registry names the exact dataset and evaluator revisions
 # the packaged evaluators target, so it has to travel with the wheel: an
@@ -120,6 +124,7 @@ packages = ["src/miniverl"]
 "benchmarks/external-alignment/profile-v1.yaml" = "miniverl/alignment_external/profile-v1.yaml"
 
 [tool.hatch.build.targets.sdist]
+core-metadata-version = "2.4"
 include = [
   "/src/miniverl",
   "/tests",

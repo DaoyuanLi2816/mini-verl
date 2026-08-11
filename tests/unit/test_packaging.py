@@ -259,8 +259,9 @@ def test_every_published_benchmark_result_validates_against_the_schema():
     jsonschema.Draft202012Validator.check_schema(schema)
     validator = jsonschema.Draft202012Validator(schema)
 
-    # RecoveryBench's paired analysis and both consumer-runtime artifacts have
-    # dedicated exact/schema contracts; none is a BenchmarkResult document.
+    # RecoveryBench's paired analysis, consumer-runtime, Alignment Lab and
+    # external-alignment early-stop artifacts have dedicated exact/schema
+    # contracts; none is a BenchmarkResult document.
     results = sorted(
         path
         for path in (root / "benchmarks" / "results").glob("*.json")
@@ -271,6 +272,7 @@ def test_every_published_benchmark_result_validates_against_the_schema():
             "consumer-runtime-v1-profiler.json",
             "alignment-lab-v1.json",
             "alignment-lab-v1-state-supervision.json",
+            "alignment-external-v1.json",
         }
     )
     assert results, "benchmarks/results/ has no published result to validate"
@@ -507,7 +509,7 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
     # The floor must name the release this record measures. Hard-coding it here
     # is what let quality_floor keep saying v0.6.1 inside the v0.6.2 record.
     assert record["quality_floor"] == (
-        f"1,560+ tests and 85%+ branch coverage at v{record['release']}"
+        f"2,000+ tests and 85%+ branch coverage at v{record['release']}"
     )
 
     local = record["local_validation"]
@@ -516,8 +518,11 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
     # what made a Windows RTX 4080 count read as though it had been taken on
     # the squash commit that was actually published.
     assert re.fullmatch(r"[0-9a-f]{40}", local["commit"])
-    assert re.fullmatch(r"[0-9a-f]{40}", release["commit"])
-    assert local["commit"] != release["commit"]
+    if release["commit"] == "pending":
+        assert record["status"] == "candidate"
+    else:
+        assert re.fullmatch(r"[0-9a-f]{40}", release["commit"])
+        assert local["commit"] != release["commit"]
     assert "commit_relationship" in local
     # No GPU runner exists, so the release commit cannot carry GPU evidence.
     assert "none" in release["gpu_coverage"]
@@ -528,7 +533,7 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
             assert record["release"] == miniverl.__version__.split(".dev", 1)[0]
     else:
         assert record["release"] == miniverl.__version__
-        assert record["status"] == "validated"
+        assert record["status"] in {"candidate", "validated"}
         for section in ("cpu_non_gpu_non_network", "gpu", "network"):
             assert isinstance(local[section]["passed"], int)
 

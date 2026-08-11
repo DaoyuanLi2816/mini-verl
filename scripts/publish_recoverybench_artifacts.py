@@ -248,13 +248,13 @@ def _mobile_svg(
         for offset, (name, value, colour) in enumerate(
             ((series[0], first, _SERIES_COLOURS[0]), (series[1], second, _SERIES_COLOURS[1]))
         ):
-            line = base + 42 + offset * 44
+            bar_y = base + 42 + offset * 44
             body.extend(
                 [
-                    f'<text class="series" x="24" y="{line}">{escape(name)}</text>',
-                    f'<text class="value" x="{MOBILE_WIDTH - 24}" y="{line}" '
+                    f'<text class="series" x="24" y="{bar_y}">{escape(name)}</text>',
+                    f'<text class="value" x="{MOBILE_WIDTH - 24}" y="{bar_y}" '
                     f'text-anchor="end">{value:.3f}</text>',
-                    f'<rect x="24" y="{line + 8}" '
+                    f'<rect x="24" y="{bar_y + 8}" '
                     f'width="{content_width * abs(value) / maximum:.1f}" height="12" rx="6" '
                     f'fill="{colour}"/>',
                 ]

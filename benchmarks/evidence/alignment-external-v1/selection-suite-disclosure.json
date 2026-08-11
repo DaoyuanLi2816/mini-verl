@@ -1,0 +1,26 @@
+{
+  "fallback_final_suite": {
+    "path": "benchmarks/evidence/alignment-external-v1/fallback-final-suite.original.json",
+    "sha256": "5b0bbdb5cbf71f18adb51638818577b44273637bd42f20c8f86e0626ba74ec90"
+  },
+  "fallback_selection_suite": {
+    "path": "benchmarks/evidence/alignment-external-v1/fallback-selection-suite.original.json",
+    "sha256": "e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b"
+  },
+  "final_test_disjoint": true,
+  "independent_task_set": false,
+  "primary_final_suite": {
+    "path": "benchmarks/evidence/alignment-external-v1/primary-final-suite.original.json",
+    "sha256": "5b0bbdb5cbf71f18adb51638818577b44273637bd42f20c8f86e0626ba74ec90"
+  },
+  "primary_selection_suite": {
+    "path": "benchmarks/evidence/alignment-external-v1/primary-selection-suite.original.json",
+    "sha256": "e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b"
+  },
+  "quantitative_effect": "none; both lineages were evaluated on the same task IDs",
+  "reason": "same deterministic seed, endpoint counts, algorithm, and reserved final-test IDs",
+  "schema_version": 1,
+  "selected_task_ids_sha256": "87d02ca7b4baf8262fc64bee703eb1446b086a1fc19e5f79565d608772fc2b78",
+  "separately_generated": true,
+  "task_ids_identical": true
+}

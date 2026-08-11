@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="791" viewBox="0 0 1120 791" role="img">
+  <title>Checkpoint gate matrix: all eight candidates failed retained utility</title>
+  <desc>Four primary and four fallback candidates show instruction following, over-refusal, zero of 64 retained JSONNav utility and a failed gate. Granite diagnostics are excluded.</desc>
+  <style>text{font-family:Arial,sans-serif;fill:#e8edf7}.title{font-size:30px;font-weight:700}.sub{font-size:17px;fill:#b9c4d8}.head{font-size:16px;font-weight:700;fill:#8fd3ff}.label{font-size:16px;font-weight:700}.value{font-size:15px}.small{font-size:14px;fill:#b9c4d8}.box{fill:#111a2c;stroke:#53698d;stroke-width:2}.stop{fill:#2a1720;stroke:#ff8b8b;stroke-width:3}.ok{fill:#13261f;stroke:#69d6a2;stroke-width:2}.pending{fill:#171c29;stroke:#8793a8;stroke-width:2;stroke-dasharray:8 6}</style>
+  <rect width="1120" height="791" rx="24" fill="#090f1c"/>
+<text x="42" y="58" class="title">Checkpoint gate matrix · 0 selected</text>
+<text x="42" y="91" class="sub">Both predeclared lineages · same deterministic selection task IDs</text>
+<text x="42" y="135" class="head">LINEAGE / CANDIDATE</text>
+<text x="395" y="135" class="head">INSTRUCTION</text>
+<text x="565" y="135" class="head">OVER-REFUSAL</text>
+<text x="760" y="135" class="head">JSONNAV UTILITY</text>
+<text x="985" y="135" class="head">GATE</text>
+<rect x="34" y="149" width="1052" height="58" rx="10" class="stop"/>
+<text x="50" y="183" class="label">primary · update-000</text>
+<text x="416" y="183" class="value">41.1%</text>
+<text x="612" y="183" class="value">2.0%</text>
+<text x="812" y="183" class="value">0 / 64</text>
+<text x="1000" y="183" class="label">FAIL</text>
+<rect x="34" y="217" width="1052" height="58" rx="10" class="stop"/>
+<text x="50" y="251" class="label">primary · update-004</text>
+<text x="416" y="251" class="value">44.2%</text>
+<text x="612" y="251" class="value">0.0%</text>
+<text x="812" y="251" class="value">0 / 64</text>
+<text x="1000" y="251" class="label">FAIL</text>
+<rect x="34" y="285" width="1052" height="58" rx="10" class="stop"/>
+<text x="50" y="319" class="label">primary · update-008</text>
+<text x="416" y="319" class="value">41.1%</text>
+<text x="612" y="319" class="value">0.0%</text>
+<text x="812" y="319" class="value">0 / 64</text>
+<text x="1000" y="319" class="label">FAIL</text>
+<rect x="34" y="353" width="1052" height="58" rx="10" class="stop"/>
+<text x="50" y="387" class="label">primary · update-016</text>
+<text x="416" y="387" class="value">57.9%</text>
+<text x="612" y="387" class="value">2.0%</text>
+<text x="812" y="387" class="value">0 / 64</text>
+<text x="1000" y="387" class="label">FAIL</text>
+<rect x="34" y="421" width="1052" height="58" rx="10" class="stop"/>
+<text x="50" y="455" class="label">fallback · update-000</text>
+<text x="416" y="455" class="value">42.1%</text>
+<text x="612" y="455" class="value">0.0%</text>
+<text x="812" y="455" class="value">0 / 64</text>
+<text x="1000" y="455" class="label">FAIL</text>
+<rect x="34" y="489" width="1052" height="58" rx="10" class="stop"/>
+<text x="50" y="523" class="label">fallback · update-004</text>
+<text x="416" y="523" class="value">43.2%</text>
+<text x="612" y="523" class="value">0.0%</text>
+<text x="812" y="523" class="value">0 / 64</text>
+<text x="1000" y="523" class="label">FAIL</text>
+<rect x="34" y="557" width="1052" height="58" rx="10" class="stop"/>
+<text x="50" y="591" class="label">fallback · update-008</text>
+<text x="416" y="591" class="value">42.1%</text>
+<text x="612" y="591" class="value">2.0%</text>
+<text x="812" y="591" class="value">0 / 64</text>
+<text x="1000" y="591" class="label">FAIL</text>
+<rect x="34" y="625" width="1052" height="58" rx="10" class="stop"/>
+<text x="50" y="659" class="label">fallback · update-016</text>
+<text x="416" y="659" class="value">55.8%</text>
+<text x="612" y="659" class="value">56.0%</text>
+<text x="812" y="659" class="value">0 / 64</text>
+<text x="1000" y="659" class="label">FAIL</text>
+<text x="42" y="734" class="small">Necessary gate: retained JSONNav utility in [20%, 90%]. All candidates measured 0%.</text>
+<text x="42" y="761" class="small">Granite Guardian values are omitted here: qualification did not run and the diagnostic did not drive failure.</text>
+</svg>

@@ -8,7 +8,7 @@ import hashlib
 import html
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
 from miniverl.config import RunConfig
 from miniverl.evaluation.benchmark import (
@@ -18,6 +18,15 @@ from miniverl.evaluation.benchmark import (
 )
 from miniverl.evaluation.schema import BenchmarkResult
 from miniverl.utils.runs import canonical_json, write_json, write_text
+
+
+class _FigureRow(TypedDict):
+    name: str
+    success: list[float]
+    success_mean: float
+    seconds: list[float]
+    seconds_mean: float
+    optimizer_steps: list[int]
 
 
 def _digest(value: Any) -> str:
@@ -79,7 +88,7 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
     """Render success and training-time small multiples directly from result fields."""
     grouped = result.by_arm()
     names = list(grouped)
-    rows = []
+    rows: list[_FigureRow] = []
     for name in names:
         arms = grouped[name]
         success = [arm.strict_task_success_rate or 0.0 for arm in arms]

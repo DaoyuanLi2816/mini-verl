@@ -6,6 +6,40 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-10
+
+### External Alignment Gate result
+
+- The first preregistered external-alignment study terminated at starting-
+  checkpoint selection. Two declared lineages and eight candidates all
+  measured 0/64 retained JSONNav utility against the unchanged 20% floor. No
+  checkpoint was selected; teacher qualification, continuation SFT/DPO/KD/OPD
+  training and the reserved final test did not run. This is a study-design and
+  precondition finding, not a post-training method comparison.
+- Added a schema-valid early-stop result and 512 privacy-safe JSONNav
+  selection rows. `miniverl pilot --study-result ...` returns
+  `do_not_continue_this_study` and `insufficient_evidence` without turning one
+  stopped study into a universal method recommendation.
+- Preserved the original fallback selection artifact and published a corrected
+  lineage-only projection plus correction manifest. The primary and fallback
+  selection manifests are disclosed as separately generated but byte- and
+  task-identical, not independent samples.
+- Granite Guardian values are explicitly unqualified diagnostics. Granite and
+  PairRM qualification, PairRM method preference and teacher qualification are
+  `not_run`; the necessary retained-utility failure does not depend on them.
+- Added a generated checkpoint gate matrix and study-flow diagram with mobile
+  layouts, plus the external-study page, English/Chinese release framing and
+  browser visual coverage.
+
+### Foundation and artifact hardening
+
+- The bridge validates bundle trees before opening content; refuses symlinks,
+  reparse points, non-regular or escaping entries and bounded-tree violations;
+  and distinguishes complete, incomplete and uninspected privacy checks.
+- Dataset extension sidecars bind source digest and row count, conversion
+  revalidates source identity before publication, and row provenance uses
+  bounded contiguous runs.
+
 ### Fixed
 
 - A reward scaffold saved with a UTF-8 byte-order mark is no longer reported as
@@ -768,7 +802,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.3...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.3...v0.7.0
 [0.6.3]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.0...v0.6.1

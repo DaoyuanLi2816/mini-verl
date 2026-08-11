@@ -47,6 +47,7 @@ def test_versioned_docs_and_browser_visual_gate_are_wired() -> None:
     for page in (
         '"/"',
         '"/alignment-lab/alignment-lab-v1/"',
+        '"/alignment-external/alignment-external-v1/"',
         '"/consumer-runtime/"',
         '"/recoverybench/recoverybench-v1/"',
         '"/verl-bridge/"',
@@ -62,6 +63,7 @@ def test_versioned_docs_and_browser_visual_gate_are_wired() -> None:
         "responsive table problem",
         "mobile bridge did not select the vertical layout",
         "mobile alignment figures did not activate",
+        "mobile external-alignment figures did not activate",
         "figure did not load",
         "text below",
     ):

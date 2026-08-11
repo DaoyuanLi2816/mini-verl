@@ -337,6 +337,33 @@ amendments:
     bands_changed: false
     thresholds_changed: false
 
+  - id: 4
+    date: "2026-08-10"
+    title: "post-selection evidence correction before release"
+    timing: >-
+      After both checkpoint-selection outcomes were observed and after the
+      preregistration merge, before release, with no final-test access.
+    what: >-
+      Corrected the fallback artifact's non-quantitative lineage provenance,
+      disclosed that the separately generated primary and fallback selection
+      manifests contain identical task ids, and narrowed evaluator status to
+      the evidence actually produced. Granite Guardian ran only as an
+      unqualified selection diagnostic; Granite qualification, PairRM
+      qualification, method-level preference evaluation and teacher
+      qualification did not run.
+    why: >-
+      The selection generator hard-coded the primary lineage label, both suites
+      used the same deterministic seed, endpoint counts, algorithm and reserved
+      final ids, and earlier handoff wording described evaluator implementation
+      too broadly. Original artifact bytes remain preserved and the correction
+      changes no candidate value or decision.
+    preregistration_merge_commit: "c50aa93b95e6fe4a6aa6251491d3c2b5a9480ebe"
+    quantitative_values_changed: false
+    gate_changed: false
+    threshold_changed: false
+    selection_decision_changed: false
+    final_test_access: not_accessed
+
 # The recorded outcome of the starting-checkpoint selection. Both declared
 # lineages failed the unchanged gate, which the preregistration names as a
 # publishable result rather than a reason to keep redesigning.
@@ -367,10 +394,10 @@ starting_checkpoint_outcome:
     failure_reason: "retained utility 0.000 outside [0.2, 0.9]"
     ran_only_after_primary_failed_decidably: true
 
-  # The zero was validated before it was believed. Every rollout ended at
-  # PARSE_ERROR_LIMIT having emitted zero tool calls at exactly 128 tokens --
-  # a signature that fits a misconfigured harness as well as an incapable
-  # policy. The environment's oracle clears the identical settings 8/8.
+  # The zero was validated before it was believed. Primary-lineage rollouts
+  # emitted no valid tool call and ended at PARSE_ERROR_LIMIT; fallback-lineage
+  # rollouts did emit JSONNav tool calls but never solved a task. The
+  # environment's oracle clears the identical settings 8/8.
   harness_validated: true
   harness_validation_test: "tests/integration/test_jsonnav_harness_validity.py"
 
@@ -392,8 +419,9 @@ starting_checkpoint_outcome:
     - "no teacher qualification: it requires a selected checkpoint"
     - "no continuation arm runs; no method comparison is published"
     - "miniverl pilot recommends against downstream alignment on this evidence"
-    - "v0.7.0 publishes the infrastructure, judge qualification and this failure"
+    - "v0.7.0 publishes evaluator infrastructure, portable selection evidence and this failure"
 
 analysis_code_version: "recorded at first final-test access"
-preregistration_commit: "recorded when this file is merged"
-first_final_test_access: pending
+preregistration_commit: "c50aa93b95e6fe4a6aa6251491d3c2b5a9480ebe"
+first_final_test_access: not_accessed
+study_terminated_before_final_test: true

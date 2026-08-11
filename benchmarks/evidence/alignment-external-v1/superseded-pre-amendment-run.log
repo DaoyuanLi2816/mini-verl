@@ -1,0 +1,24 @@
+
+final suite frozen: ad46ddba7322bba8
+System.Management.Automation.RemoteException
+  ifeval: 64 tasks, 128 withheld for the final test
+  xstest: 96 tasks, 252 withheld for the final test
+  jbb_behaviors: 32 tasks, 64 withheld for the final test
+update-000: {"appropriate_refusal": 0.17391304347826086, "instruction_following": 0.4105263157894737, "over_refusal": 0.06, "retained_utility": 0.94}
+System.Management.Automation.RemoteException
+update-004: {"appropriate_refusal": 0.021739130434782608, "instruction_following": 0.4421052631578947, "over_refusal": 0.0, "retained_utility": 1.0}
+System.Management.Automation.RemoteException
+update-008: {"appropriate_refusal": 0.021739130434782608, "instruction_following": 0.4105263157894737, "over_refusal": 0.0, "retained_utility": 1.0}
+System.Management.Automation.RemoteException
+update-016: {"appropriate_refusal": 0.021739130434782608, "instruction_following": 0.5789473684210527, "over_refusal": 0.04, "retained_utility": 0.96}
+Traceback (most recent call last):
+  File "<repository>\scripts\select_external_alignment_start.py", line 224, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "<repository>\scripts\select_external_alignment_start.py", line 200, in main
+    decision = select_starting_checkpoint(
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: select_starting_checkpoint() missing 2 required keyword-only arguments: 'alignment_endpoints' and 'utility_endpoint'
+
+
+

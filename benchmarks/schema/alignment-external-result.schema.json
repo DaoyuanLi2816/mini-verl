@@ -1,0 +1,873 @@
+{
+  "$defs": {
+    "AmendmentRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "gate_changed": {
+          "title": "Gate Changed",
+          "type": "boolean"
+        },
+        "id": {
+          "minimum": 1,
+          "title": "Id",
+          "type": "integer"
+        },
+        "quantitative_values_changed": {
+          "title": "Quantitative Values Changed",
+          "type": "boolean"
+        },
+        "selection_decision_changed": {
+          "title": "Selection Decision Changed",
+          "type": "boolean"
+        },
+        "threshold_changed": {
+          "title": "Threshold Changed",
+          "type": "boolean"
+        },
+        "timing": {
+          "title": "Timing",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "timing",
+        "quantitative_values_changed",
+        "gate_changed",
+        "threshold_changed",
+        "selection_decision_changed"
+      ],
+      "title": "AmendmentRecord",
+      "type": "object"
+    },
+    "ArtifactProjectionRef": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "projection": {
+          "const": "absolute_paths_replaced",
+          "title": "Projection",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "source_sha256",
+        "projection"
+      ],
+      "title": "ArtifactProjectionRef",
+      "type": "object"
+    },
+    "ArtifactRef": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "ArtifactRef",
+      "type": "object"
+    },
+    "CandidateMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "appropriate_refusal": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Appropriate Refusal",
+          "type": "number"
+        },
+        "instruction_following": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Instruction Following",
+          "type": "number"
+        },
+        "over_refusal": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Over Refusal",
+          "type": "number"
+        },
+        "retained_tool_utility": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Retained Tool Utility",
+          "type": "number"
+        }
+      },
+      "required": [
+        "instruction_following",
+        "over_refusal",
+        "appropriate_refusal",
+        "retained_tool_utility"
+      ],
+      "title": "CandidateMetrics",
+      "type": "object"
+    },
+    "CandidateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Adapter Digest",
+          "type": "string"
+        },
+        "candidate_id": {
+          "title": "Candidate Id",
+          "type": "string"
+        },
+        "failure_reason": {
+          "title": "Failure Reason",
+          "type": "string"
+        },
+        "gate_passed": {
+          "const": false,
+          "title": "Gate Passed",
+          "type": "boolean"
+        },
+        "jsonnav_solved": {
+          "const": 0,
+          "title": "Jsonnav Solved",
+          "type": "integer"
+        },
+        "jsonnav_tasks": {
+          "const": 64,
+          "title": "Jsonnav Tasks",
+          "type": "integer"
+        },
+        "metrics": {
+          "$ref": "#/$defs/CandidateMetrics"
+        },
+        "unqualified_diagnostic": {
+          "$ref": "#/$defs/UnqualifiedDiagnostic"
+        },
+        "update": {
+          "minimum": 0,
+          "title": "Update",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "update",
+        "adapter_digest",
+        "metrics",
+        "unqualified_diagnostic",
+        "jsonnav_tasks",
+        "jsonnav_solved",
+        "gate_passed",
+        "failure_reason"
+      ],
+      "title": "CandidateResult",
+      "type": "object"
+    },
+    "CheckpointSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "gate": {
+          "$ref": "#/$defs/GateContract"
+        },
+        "lineages": {
+          "items": {
+            "$ref": "#/$defs/LineageResult"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Lineages",
+          "type": "array"
+        },
+        "selection_suite_disclosure": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "status": {
+          "const": "checkpoint_selection_failed",
+          "title": "Status",
+          "type": "string"
+        },
+        "task_evidence": {
+          "$ref": "#/$defs/ArtifactRef"
+        }
+      },
+      "required": [
+        "status",
+        "gate",
+        "lineages",
+        "selection_suite_disclosure",
+        "task_evidence"
+      ],
+      "title": "CheckpointSelection",
+      "type": "object"
+    },
+    "ContinuationState": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "results_artifact": {
+                "$ref": "#/$defs/ArtifactRef"
+              }
+            },
+            "required": [
+              "results_artifact"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "authorized_methods": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Authorized Methods",
+          "type": "array"
+        },
+        "results_artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "enum": [
+            "not_run",
+            "completed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "authorized_methods"
+      ],
+      "title": "ContinuationState",
+      "type": "object"
+    },
+    "EvaluatorState": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "qualification_status": {
+                "const": "qualified"
+              }
+            },
+            "required": [
+              "qualification_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "qualification_artifact": {
+                "$ref": "#/$defs/ArtifactRef"
+              }
+            },
+            "required": [
+              "qualification_artifact"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "execution_status": {
+          "enum": [
+            "executed_on_selection_split",
+            "not_run_for_method_comparison"
+          ],
+          "title": "Execution Status",
+          "type": "string"
+        },
+        "headline_eligible": {
+          "title": "Headline Eligible",
+          "type": "boolean"
+        },
+        "implementation_status": {
+          "const": "implemented",
+          "title": "Implementation Status",
+          "type": "string"
+        },
+        "method_preference_status": {
+          "anyOf": [
+            {
+              "const": "not_run",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method Preference Status"
+        },
+        "qualification_artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "qualification_required": {
+          "title": "Qualification Required",
+          "type": "boolean"
+        },
+        "qualification_status": {
+          "enum": [
+            "not_required",
+            "not_run",
+            "qualified",
+            "failed"
+          ],
+          "title": "Qualification Status",
+          "type": "string"
+        },
+        "result_usage": {
+          "title": "Result Usage",
+          "type": "string"
+        },
+        "scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scope"
+        }
+      },
+      "required": [
+        "implementation_status",
+        "execution_status",
+        "qualification_required",
+        "qualification_status",
+        "result_usage",
+        "headline_eligible"
+      ],
+      "title": "EvaluatorState",
+      "type": "object"
+    },
+    "Evaluators": {
+      "additionalProperties": false,
+      "properties": {
+        "granite_guardian": {
+          "$ref": "#/$defs/EvaluatorState"
+        },
+        "ifeval": {
+          "$ref": "#/$defs/EvaluatorState"
+        },
+        "pairrm": {
+          "$ref": "#/$defs/EvaluatorState"
+        },
+        "xstest_string_match": {
+          "$ref": "#/$defs/EvaluatorState"
+        }
+      },
+      "required": [
+        "ifeval",
+        "xstest_string_match",
+        "granite_guardian",
+        "pairrm"
+      ],
+      "title": "Evaluators",
+      "type": "object"
+    },
+    "FailureRobustness": {
+      "additionalProperties": false,
+      "properties": {
+        "all_candidates_failed_necessary_condition": {
+          "const": true,
+          "title": "All Candidates Failed Necessary Condition",
+          "type": "boolean"
+        },
+        "depends_on_granite_diagnostic": {
+          "const": false,
+          "title": "Depends On Granite Diagnostic",
+          "type": "boolean"
+        },
+        "depends_on_pairrm": {
+          "const": false,
+          "title": "Depends On Pairrm",
+          "type": "boolean"
+        },
+        "necessary_gate_condition": {
+          "const": "retained_tool_utility >= 0.20",
+          "title": "Necessary Gate Condition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "necessary_gate_condition",
+        "all_candidates_failed_necessary_condition",
+        "depends_on_granite_diagnostic",
+        "depends_on_pairrm"
+      ],
+      "title": "FailureRobustness",
+      "type": "object"
+    },
+    "FinalTestState": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "not_accessed",
+            "completed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "tasks_scored": {
+          "minimum": 0,
+          "title": "Tasks Scored",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "status",
+        "tasks_scored"
+      ],
+      "title": "FinalTestState",
+      "type": "object"
+    },
+    "GateContract": {
+      "additionalProperties": false,
+      "properties": {
+        "changed_after_observation": {
+          "const": false,
+          "title": "Changed After Observation",
+          "type": "boolean"
+        },
+        "selection_rule": {
+          "title": "Selection Rule",
+          "type": "string"
+        },
+        "utility_high": {
+          "title": "Utility High",
+          "type": "number"
+        },
+        "utility_low": {
+          "title": "Utility Low",
+          "type": "number"
+        },
+        "utility_metric": {
+          "const": "retained_tool_utility",
+          "title": "Utility Metric",
+          "type": "string"
+        }
+      },
+      "required": [
+        "utility_metric",
+        "utility_low",
+        "utility_high",
+        "selection_rule",
+        "changed_after_observation"
+      ],
+      "title": "GateContract",
+      "type": "object"
+    },
+    "LineageResult": {
+      "additionalProperties": false,
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/CandidateResult"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Candidates",
+          "type": "array"
+        },
+        "corrected_artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "gpu_seconds": {
+          "exclusiveMinimum": 0.0,
+          "title": "Gpu Seconds",
+          "type": "number"
+        },
+        "lineage_anchor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Lineage Anchor"
+        },
+        "lineage_description": {
+          "title": "Lineage Description",
+          "type": "string"
+        },
+        "lineage_id": {
+          "enum": [
+            "primary",
+            "fallback"
+          ],
+          "title": "Lineage Id",
+          "type": "string"
+        },
+        "original_artifact": {
+          "$ref": "#/$defs/ArtifactRef"
+        },
+        "peak_reserved_gib": {
+          "exclusiveMinimum": 0.0,
+          "title": "Peak Reserved Gib",
+          "type": "number"
+        }
+      },
+      "required": [
+        "lineage_id",
+        "lineage_description",
+        "lineage_anchor",
+        "original_artifact",
+        "corrected_artifact",
+        "candidates",
+        "gpu_seconds",
+        "peak_reserved_gib"
+      ],
+      "title": "LineageResult",
+      "type": "object"
+    },
+    "TeacherQualificationState": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "artifact": {
+                "$ref": "#/$defs/ArtifactRef"
+              }
+            },
+            "required": [
+              "artifact"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "artifact": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "not_run",
+            "completed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "reason"
+      ],
+      "title": "TeacherQualificationState",
+      "type": "object"
+    },
+    "UnqualifiedDiagnostic": {
+      "additionalProperties": false,
+      "properties": {
+        "evaluator": {
+          "const": "granite_guardian",
+          "title": "Evaluator",
+          "type": "string"
+        },
+        "harmful_compliance": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Harmful Compliance",
+          "type": "number"
+        },
+        "headline_eligible": {
+          "const": false,
+          "title": "Headline Eligible",
+          "type": "boolean"
+        },
+        "qualification_status": {
+          "const": "not_run",
+          "title": "Qualification Status",
+          "type": "string"
+        },
+        "result_usage": {
+          "const": "unqualified_diagnostic_only",
+          "title": "Result Usage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evaluator",
+        "harmful_compliance",
+        "qualification_status",
+        "result_usage",
+        "headline_eligible"
+      ],
+      "title": "UnqualifiedDiagnostic",
+      "type": "object"
+    }
+  },
+  "$id": "https://daoyuanli2816.github.io/mini-verl/schemas/alignment-external-result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "study_status": {
+            "const": "terminated_at_checkpoint_selection"
+          }
+        },
+        "required": [
+          "study_status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "continuation_methods": {
+            "properties": {
+              "authorized_methods": {
+                "maxItems": 0
+              },
+              "status": {
+                "const": "not_run"
+              }
+            }
+          },
+          "final_test": {
+            "properties": {
+              "status": {
+                "const": "not_accessed"
+              },
+              "tasks_scored": {
+                "const": 0
+              }
+            }
+          },
+          "outcome_code": {
+            "const": "checkpoint_selection_failed"
+          },
+          "selected_checkpoint": {
+            "type": "null"
+          },
+          "teacher_qualification": {
+            "properties": {
+              "status": {
+                "const": "not_run"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "evaluators": {
+          "properties": {
+            "granite_guardian": {
+              "properties": {
+                "headline_eligible": {
+                  "const": false
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "amendments": {
+      "items": {
+        "$ref": "#/$defs/AmendmentRecord"
+      },
+      "title": "Amendments",
+      "type": "array"
+    },
+    "checkpoint_selection": {
+      "$ref": "#/$defs/CheckpointSelection"
+    },
+    "continuation_methods": {
+      "$ref": "#/$defs/ContinuationState"
+    },
+    "evaluators": {
+      "$ref": "#/$defs/Evaluators"
+    },
+    "failure_robustness": {
+      "$ref": "#/$defs/FailureRobustness"
+    },
+    "final_test": {
+      "$ref": "#/$defs/FinalTestState"
+    },
+    "first_final_test_access": {
+      "const": "not_accessed",
+      "title": "First Final Test Access",
+      "type": "string"
+    },
+    "harness_validation": {
+      "additionalProperties": true,
+      "title": "Harness Validation",
+      "type": "object"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "outcome_code": {
+      "title": "Outcome Code",
+      "type": "string"
+    },
+    "preregistration": {
+      "$ref": "#/$defs/ArtifactRef"
+    },
+    "preregistration_merge_commit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "title": "Preregistration Merge Commit",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "selected_checkpoint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Selected Checkpoint"
+    },
+    "study_id": {
+      "const": "alignment-external-v1",
+      "title": "Study Id",
+      "type": "string"
+    },
+    "study_status": {
+      "enum": [
+        "completed_method_comparison",
+        "terminated_at_checkpoint_selection",
+        "terminated_at_teacher_qualification",
+        "invalidated"
+      ],
+      "title": "Study Status",
+      "type": "string"
+    },
+    "study_terminated_before_final_test": {
+      "const": true,
+      "title": "Study Terminated Before Final Test",
+      "type": "boolean"
+    },
+    "superseded_proxy_artifact": {
+      "$ref": "#/$defs/ArtifactProjectionRef"
+    },
+    "teacher_qualification": {
+      "$ref": "#/$defs/TeacherQualificationState"
+    }
+  },
+  "required": [
+    "schema_version",
+    "study_id",
+    "preregistration",
+    "preregistration_merge_commit",
+    "amendments",
+    "study_status",
+    "outcome_code",
+    "selected_checkpoint",
+    "checkpoint_selection",
+    "evaluators",
+    "teacher_qualification",
+    "continuation_methods",
+    "final_test",
+    "first_final_test_access",
+    "study_terminated_before_final_test",
+    "failure_robustness",
+    "harness_validation",
+    "superseded_proxy_artifact",
+    "limitations"
+  ],
+  "title": "AlignmentExternalResult",
+  "type": "object"
+}
