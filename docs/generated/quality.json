@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "release": "0.7.0",
-  "status": "candidate",
+  "status": "released",
   "quality_floor": "2,000+ tests and 85%+ branch coverage at v0.7.0",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
@@ -28,14 +28,14 @@
   },
   "release_validation": {
     "scope": "the exact published commit, validated by CI rather than locally",
-    "commit": "pending",
+    "commit": "148822964dbb73e97ce06ef740f907364166a724",
     "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31080175904",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31080175961",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31080175972",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31084165317"
+      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31468298531",
+      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31468298548",
+      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31468298534",
+      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31468663273"
     },
-    "conclusion": "pending exact release-commit CI",
+    "conclusion": "success",
     "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement"
   }
 }
