@@ -353,7 +353,7 @@
   "superseded_proxy_artifact": {
     "path": "benchmarks/evidence/alignment-external-v1/superseded-pre-amendment-run.log",
     "projection": "absolute_paths_replaced",
-    "sha256": "3f39fc0dda90035b40444e03155ce71d063e06463c7af55b7a38f88cdc0ea608",
+    "sha256": "5297a31cf3a1d7e2546598ec4a527915b321edac1c976f317b89cd7b0c7a2eaf",
     "source_sha256": "9efd0bbc3f74c93e6cef8ced00de65796230eaada2838c94026e168b871a26af"
   },
   "teacher_qualification": {

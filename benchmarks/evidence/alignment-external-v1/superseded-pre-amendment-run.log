@@ -19,6 +19,3 @@ Traceback (most recent call last):
     decision = select_starting_checkpoint(
                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 TypeError: select_starting_checkpoint() missing 2 required keyword-only arguments: 'alignment_endpoints' and 'utility_endpoint'
-
-
-

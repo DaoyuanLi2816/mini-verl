@@ -165,6 +165,7 @@ def publish_source_projections() -> None:
             "<repository>\\\\",
             source,
         )
+        sanitized = sanitized.rstrip("\r\n") + "\n"
         SUPERSEDED_PORTABLE.write_text(sanitized, encoding="utf-8", newline="")
     elif not SUPERSEDED_PORTABLE.is_file():
         raise FileNotFoundError(f"missing both local and portable evidence: {SUPERSEDED_LOCAL}")
