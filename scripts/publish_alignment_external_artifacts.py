@@ -51,6 +51,7 @@ RESULT_SCHEMA = ROOT / "benchmarks/schema/alignment-external-result.schema.json"
 TASK_SCHEMA = ROOT / "benchmarks/schema/alignment-external-selection-task.schema.json"
 DOCS = ROOT / "docs/alignment-external"
 PREREG_MERGE = "c50aa93b95e6fe4a6aa6251491d3c2b5a9480ebe"
+SUPERSEDED_SOURCE_SHA256 = "9efd0bbc3f74c93e6cef8ced00de65796230eaada2838c94026e168b871a26af"
 
 
 def _source(local: Path, portable: Path) -> Path:
@@ -156,6 +157,8 @@ def publish_source_projections() -> None:
             raise FileNotFoundError(f"missing both local and portable evidence: {local}")
 
     if SUPERSEDED_LOCAL.is_file():
+        if _sha256(SUPERSEDED_LOCAL) != SUPERSEDED_SOURCE_SHA256:
+            raise ValueError("the superseded source log no longer matches its recorded digest")
         source = SUPERSEDED_LOCAL.read_text(encoding="utf-8")
         sanitized = re.sub(
             r"[A-Za-z]:\\[^\"\r\n]*?\\mini-verl\\",
@@ -581,7 +584,7 @@ def build_result(
         },
         "superseded_proxy_artifact": {
             **_ref(SUPERSEDED_PORTABLE),
-            "source_sha256": _sha256(SUPERSEDED),
+            "source_sha256": SUPERSEDED_SOURCE_SHA256,
             "projection": "absolute_paths_replaced",
         },
         "limitations": [
