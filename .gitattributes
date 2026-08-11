@@ -24,6 +24,10 @@
 *.svg   text eol=lf
 *.cff   text eol=lf
 
+# The fallback selection source is retained byte-for-byte alongside its
+# newline-normalized, human-readable JSON projection.
+benchmarks/evidence/alignment-external-v1/*.raw binary
+
 # Anything genuinely binary must never be touched.
 *.png   binary
 *.jpg   binary

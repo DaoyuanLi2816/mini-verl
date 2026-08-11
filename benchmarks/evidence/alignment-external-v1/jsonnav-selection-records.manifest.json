@@ -2,7 +2,7 @@
   "absolute_paths_included": false,
   "artifact": {
     "path": "benchmarks/evidence/alignment-external-v1/jsonnav-selection-records.jsonl",
-    "sha256": "18d5733e70bfe292e282bd5b6e3fc94869837fab30a151a642aa11c3e4c9d771"
+    "sha256": "694d68cd997bc4b2aa7dd88ebf6572616c9a140fb0df4a672c301095a4f16c7c"
   },
   "candidates": 8,
   "generated_response_text_included": false,

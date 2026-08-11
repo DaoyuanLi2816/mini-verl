@@ -132,6 +132,9 @@ def test_metadata_correction_preserves_every_quantitative_field() -> None:
     assert original["decision"] == corrected["decision"]
     assert manifest["correction"]["quantitative_values_changed"] is False
     assert manifest["correction"]["selection_decision_changed"] is False
+    assert manifest["correction"]["original_source_artifact"]["sha256"] == (
+        "53efeb1af196fe8a2fd3733f3f9d6a9ce101fcc76365fc45515adc47cc7d3cd3"
+    )
 
 
 def test_selection_suites_are_identical_but_not_independent() -> None:
@@ -195,6 +198,7 @@ def test_generated_artifacts_and_figures_are_byte_identical() -> None:
         ROOT / "benchmarks/schema/alignment-external-result.schema.json",
         ROOT / "benchmarks/schema/alignment-external-selection-task.schema.json",
         ROOT / "benchmarks/evidence/alignment-external-v1/fallback-start-selection.original.json",
+        ROOT / "benchmarks/evidence/alignment-external-v1/fallback-start-selection.source.raw",
         ROOT / "benchmarks/evidence/alignment-external-v1/primary-start-selection.original.json",
         ROOT / "benchmarks/evidence/alignment-external-v1/primary-jsonnav-records.original.json",
         ROOT / "benchmarks/evidence/alignment-external-v1/fallback-jsonnav-records.original.json",

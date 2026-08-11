@@ -39,6 +39,7 @@ SUPERSEDED_LOCAL = ROOT / "artifacts/v07-start-selection/superseded/pre-amendmen
 EVIDENCE = ROOT / "benchmarks/evidence/alignment-external-v1"
 PRIMARY_PORTABLE = EVIDENCE / "primary-start-selection.original.json"
 FALLBACK_PORTABLE = EVIDENCE / "fallback-start-selection.original.json"
+FALLBACK_RAW = EVIDENCE / "fallback-start-selection.source.raw"
 PRIMARY_RECORDS_PORTABLE = EVIDENCE / "primary-jsonnav-records.original.json"
 FALLBACK_RECORDS_PORTABLE = EVIDENCE / "fallback-jsonnav-records.original.json"
 PRIMARY_SELECTION_PORTABLE = EVIDENCE / "primary-selection-suite.original.json"
@@ -113,6 +114,17 @@ def _json_line(value: object) -> str:
     )
 
 
+def _write_text(path: Path, content: str) -> None:
+    """Write generated text with platform-independent LF bytes."""
+    path.write_text(content, encoding="utf-8", newline="")
+
+
+def _write_source_projection(source: Path, target: Path) -> None:
+    """Project textual source bytes to LF without changing their content."""
+    normalized = source.read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    target.write_bytes(normalized)
+
+
 def _ref(path: Path) -> dict[str, str]:
     return {"path": path.relative_to(ROOT).as_posix(), "sha256": _sha256(path)}
 
@@ -152,9 +164,18 @@ def publish_source_projections() -> None:
     )
     for local, portable in pairs:
         if local.is_file():
-            portable.write_bytes(local.read_bytes())
+            _write_source_projection(local, portable)
         elif not portable.is_file():
             raise FileNotFoundError(f"missing both local and portable evidence: {local}")
+
+    if FALLBACK_LOCAL.is_file():
+        if _sha256(FALLBACK_LOCAL) != (
+            "53efeb1af196fe8a2fd3733f3f9d6a9ce101fcc76365fc45515adc47cc7d3cd3"
+        ):
+            raise ValueError("the fallback selection source no longer matches its recorded digest")
+        FALLBACK_RAW.write_bytes(FALLBACK_LOCAL.read_bytes())
+    elif not FALLBACK_RAW.is_file():
+        raise FileNotFoundError(f"missing preserved fallback source: {FALLBACK_RAW}")
 
     if SUPERSEDED_LOCAL.is_file():
         if _sha256(SUPERSEDED_LOCAL) != SUPERSEDED_SOURCE_SHA256:
@@ -166,14 +187,14 @@ def publish_source_projections() -> None:
             source,
         )
         sanitized = sanitized.rstrip("\r\n") + "\n"
-        SUPERSEDED_PORTABLE.write_text(sanitized, encoding="utf-8", newline="")
+        _write_text(SUPERSEDED_PORTABLE, sanitized)
     elif not SUPERSEDED_PORTABLE.is_file():
         raise FileNotFoundError(f"missing both local and portable evidence: {SUPERSEDED_LOCAL}")
 
 
 def publish_correction() -> tuple[Path, Path]:
     original_target = FALLBACK_PORTABLE
-    original_target.write_bytes(FALLBACK.read_bytes())
+    _write_source_projection(FALLBACK, original_target)
     corrected = copy.deepcopy(_json(FALLBACK))
     lineage = LINEAGES["fallback"]
     corrected.update(
@@ -185,7 +206,7 @@ def publish_correction() -> tuple[Path, Path]:
         }
     )
     corrected_target = EVIDENCE / "fallback-start-selection.corrected.json"
-    corrected_target.write_text(_pretty(corrected), encoding="utf-8")
+    _write_text(corrected_target, _pretty(corrected))
     manifest = {
         "schema_version": 1,
         "correction": {
@@ -193,7 +214,8 @@ def publish_correction() -> tuple[Path, Path]:
             "reason": "generator hard-coded the primary lineage label",
             "original_artifact": _ref(original_target),
             "original_source_path": FALLBACK_LOCAL.relative_to(ROOT).as_posix(),
-            "original_source_sha256": _sha256(FALLBACK),
+            "original_source_artifact": _ref(FALLBACK_RAW),
+            "original_source_sha256": _sha256(FALLBACK_RAW),
             "corrected_artifact": _ref(corrected_target),
             "changed_json_paths": [
                 "$.lineage",
@@ -207,7 +229,7 @@ def publish_correction() -> tuple[Path, Path]:
         },
     }
     manifest_target = EVIDENCE / "fallback-correction-manifest.json"
-    manifest_target.write_text(_pretty(manifest), encoding="utf-8")
+    _write_text(manifest_target, _pretty(manifest))
     return corrected_target, manifest_target
 
 
@@ -243,7 +265,7 @@ def publish_suite_disclosure() -> Path:
     if not task_ids_identical or not final_disjoint:
         raise ValueError("selection-suite disclosure did not validate")
     target = EVIDENCE / "selection-suite-disclosure.json"
-    target.write_text(_pretty(disclosure), encoding="utf-8")
+    _write_text(target, _pretty(disclosure))
     return target
 
 
@@ -285,7 +307,7 @@ def publish_task_evidence() -> Path:
     if len(rows) != 512:
         raise ValueError(f"expected 512 portable JSONNav rows, got {len(rows)}")
     target = EVIDENCE / "jsonnav-selection-records.jsonl"
-    target.write_text("".join(f"{_json_line(row)}\n" for row in rows), encoding="utf-8")
+    _write_text(target, "".join(f"{_json_line(row)}\n" for row in rows))
     manifest = {
         "schema_version": 1,
         "artifact": _ref(target),
@@ -302,9 +324,7 @@ def publish_task_evidence() -> Path:
             "and rollout stops immediately when that limit is reached"
         ),
     }
-    (EVIDENCE / "jsonnav-selection-records.manifest.json").write_text(
-        _pretty(manifest), encoding="utf-8"
-    )
+    _write_text(EVIDENCE / "jsonnav-selection-records.manifest.json", _pretty(manifest))
     return target
 
 
@@ -750,11 +770,11 @@ def publish() -> dict[str, str]:
     _assert_source_contract()
     corrected, correction_manifest = publish_correction()
     disclosure = publish_suite_disclosure()
-    TASK_SCHEMA.write_text(_pretty(task_schema()), encoding="utf-8")
+    _write_text(TASK_SCHEMA, _pretty(task_schema()))
     task_evidence = publish_task_evidence()
     result = build_result(corrected, correction_manifest, disclosure, task_evidence)
-    RESULT.write_text(_pretty(result), encoding="utf-8")
-    RESULT_SCHEMA.write_text(_pretty(result_schema()), encoding="utf-8")
+    _write_text(RESULT, _pretty(result))
+    _write_text(RESULT_SCHEMA, _pretty(result_schema()))
     outputs = {
         "checkpoint-gate-matrix.svg": render_gate_matrix(result, mobile=False),
         "checkpoint-gate-matrix-mobile.svg": render_gate_matrix(result, mobile=True),
@@ -762,7 +782,7 @@ def publish() -> dict[str, str]:
         "study-early-stop-mobile.svg": render_flow(result, mobile=True),
     }
     for name, content in outputs.items():
-        (DOCS / name).write_text(content, encoding="utf-8")
+        _write_text(DOCS / name, content)
     return {
         "result_sha256": _sha256(RESULT),
         "task_evidence_sha256": _sha256(task_evidence),
