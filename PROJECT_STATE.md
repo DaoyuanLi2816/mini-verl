@@ -29,9 +29,9 @@ not a restarted experiment.
 | evidence | state / SHA-256 |
 | --- | --- |
 | original fallback selection | preserved byte-for-byte; `53efeb1af196fe8a2fd3733f3f9d6a9ce101fcc76365fc45515adc47cc7d3cd3` |
-| corrected fallback projection | lineage metadata only; `6f23de43f03a69275d8bedc9b029a1b728fb2004a9b3a225c66ba1fee671592b` |
-| primary / fallback selection manifests | both `e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b`; separately generated, task-identical, not independent |
-| portable JSONNav selection rows | 512 rows, no prompts/responses/absolute paths; `18d5733e70bfe292e282bd5b6e3fc94869837fab30a151a642aa11c3e4c9d771` |
+| corrected fallback projection | lineage metadata only; `d68ea994672c112b38149c87fed5cb069c26c1be10154187780f98151d19ed65` |
+| primary / fallback selection manifests | source-run files both `e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b`; public LF projections both `2e218db65e39bc7412271e00f7043b287c402c05298bec6618d1a3c3f242a4d5`; separately generated, task-identical, not independent |
+| portable JSONNav selection rows | 512 rows, no prompts/responses/absolute paths; `694d68cd997bc4b2aa7dd88ebf6572616c9a140fb0df4a672c301095a4f16c7c` |
 | early-stop result | schema-validated; digest recorded by the final release validation |
 | final test | `not_accessed`, zero tasks scored |
 
