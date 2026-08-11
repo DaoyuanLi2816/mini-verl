@@ -53,14 +53,16 @@ unauthorized after checkpoint-selection failure**.
 - [x] Original fallback bytes are preserved at SHA-256
       `53efeb1af196fe8a2fd3733f3f9d6a9ce101fcc76365fc45515adc47cc7d3cd3`;
       the corrected metadata projection is
-      `6f23de43f03a69275d8bedc9b029a1b728fb2004a9b3a225c66ba1fee671592b`.
-- [x] Primary and fallback selection manifests are both
-      `e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b`:
-      separately generated, task-identical, final-test disjoint and not
-      independent samples.
+      `d68ea994672c112b38149c87fed5cb069c26c1be10154187780f98151d19ed65`.
+- [x] Primary and fallback source-run selection manifests are both
+      `e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b`;
+      their public LF projections are both
+      `2e218db65e39bc7412271e00f7043b287c402c05298bec6618d1a3c3f242a4d5`.
+      They were separately generated, task-identical, final-test disjoint and
+      are not independent samples.
 - [x] The early-stop result is schema validated; 512 privacy-safe JSONNav task
       rows are published with SHA-256
-      `18d5733e70bfe292e282bd5b6e3fc94869837fab30a151a642aa11c3e4c9d771`.
+      `694d68cd997bc4b2aa7dd88ebf6572616c9a140fb0df4a672c301095a4f16c7c`.
 - [x] Granite Guardian is labelled `unqualified_diagnostic_only`; Granite and
       PairRM qualification, PairRM method preference and teacher qualification
       are `not_run`.

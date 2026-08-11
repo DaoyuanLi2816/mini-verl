@@ -104,12 +104,14 @@ design mismatch is the published finding.
 
 The primary and fallback selection manifests were separately generated from
 the same deterministic seed, endpoint counts, algorithm and reserved final
-IDs. They are byte-identical (SHA-256
-`e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b`),
-contain identical task IDs and are disjoint from the final suite. They are
-**not independent evaluation samples**. Using the same tasks has no effect on
-the conclusion that both lineages failed the necessary gate, but it limits how
-the two runs may be described.
+IDs. The source-run files are byte-identical (SHA-256
+`e1e165e3547c7784b17e93b7e665df66ea6cafa70bec093a69377bc6683bc20b`);
+their public LF projections are also byte-identical (SHA-256
+`2e218db65e39bc7412271e00f7043b287c402c05298bec6618d1a3c3f242a4d5`).
+They contain identical task IDs and are disjoint from the final suite. They
+are **not independent evaluation samples**. Using the same tasks has no effect
+on the conclusion that both lineages failed the necessary gate, but it limits
+how the two runs may be described.
 
 ## Metadata correction and provenance
 
@@ -118,7 +120,7 @@ are preserved with SHA-256
 `53efeb1af196fe8a2fd3733f3f9d6a9ce101fcc76365fc45515adc47cc7d3cd3`.
 The [corrected projection](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.7.0/benchmarks/evidence/alignment-external-v1/fallback-start-selection.corrected.json)
 has SHA-256
-`6f23de43f03a69275d8bedc9b029a1b728fb2004a9b3a225c66ba1fee671592b`.
+`d68ea994672c112b38149c87fed5cb069c26c1be10154187780f98151d19ed65`.
 Only `lineage`, `lineage_id`, `lineage_description` and `lineage_anchor` differ;
 candidate metrics and the selection decision compare equal. See the
 [correction manifest](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.7.0/benchmarks/evidence/alignment-external-v1/fallback-correction-manifest.json).
@@ -169,4 +171,4 @@ pytest -q tests/unit/test_alignment_external_evidence_release.py
 
 The portable JSONNav evidence contains 512 rows and no prompts, response text
 or absolute paths. Its SHA-256 is
-`18d5733e70bfe292e282bd5b6e3fc94869837fab30a151a642aa11c3e4c9d771`.
+`694d68cd997bc4b2aa7dd88ebf6572616c9a140fb0df4a672c301095a4f16c7c`.
