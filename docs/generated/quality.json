@@ -5,7 +5,7 @@
   "quality_floor": "2,000+ tests and 85%+ branch coverage at v0.7.0",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
-    "commit": "6089150ee7963ceb97aea423479a49053e111ae1",
+    "commit": "c3ee73d7c017a0c0061ba438e5320966133abd7a",
     "commit_relationship": "implementation commit plus the following quality-record-only update; the final pull-request head is validated by CI",
     "measured_at": "2026-08-10T23:56:04-07:00",
     "platform": "Windows 11 Pro 10.0.22631",
