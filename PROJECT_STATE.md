@@ -289,6 +289,13 @@ figures. After its full green validation it will release v0.7.0, add an
 evidence comment to issue #39 while keeping the issue open, then advance main
 to `0.7.1.dev0` through a separate state-sync PR.
 
+Local release gates on implementation commit `b50120b7f3709382b90f9ed100f572f3a424452a`
+plus its quality-record-only update pass 2,098 CPU tests with 6 platform skips
+and 21 deselections at 86.35% combined branch coverage. The available RTX 4080
+suite passes 8 tests and the opt-in network suite passes 15. Ruff, format,
+mypy, actionlint, strict MkDocs, four-viewport browser checks, package/Twine,
+clean-install and extracted-sdist gates pass.
+
 No continuation arm, no teacher qualification and no method comparison will
 run — none of them is scientifically authorized by the selection outcome.
 
