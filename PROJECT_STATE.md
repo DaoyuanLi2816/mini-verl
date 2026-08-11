@@ -4,7 +4,7 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-06.
+Last updated: 2026-08-10.
 
 Canonical release state: stable `v0.6.3` (`005a4549da713716e64c3ae80ff55fb131519f79`), development `0.7.0.dev0`.
 Every public version claim is generated from `release-state.yaml` and gated by
@@ -115,9 +115,10 @@ one author.
 | training data | **done** (`b0dbaaf`). `Anthropic/hh-rlhf` (MIT), disjoint from every endpoint. 17,416 usable of 20,000 real rows. Over-long examples dropped, never truncated; split from a hash of the example's identity, not its row position |
 | SFT candidates | **done** (`08fe30f`). One bounded run, adapters at updates 0/4/8/16, 81 s, peak reserved 4.008 GiB against the 14.5 gate |
 | final-test isolation | **done** (`08fe30f`). `prepare_suite(reserved_task_ids=...)` withholds the frozen final-test ids from every selection suite and records the count; an exhausted pool fails closed |
-| preregistration | **done** (`d7fbae9`), amended below. Not yet merged, so nothing is frozen and no final-test task has been scored |
-| candidate evaluation | **blocked**, see below |
-| teacher qualification | not started |
+| preregistration | **done**. PR #51 merged as `c50aa93b95e6fe4a6aa6251491d3c2b5a9480ebe`; the early-stop outcome is public and frozen |
+| candidate evaluation | **done: checkpoint selection failed**. Both declared lineages completed; every candidate failed the necessary JSONNav retained-utility condition at 0/64 |
+| judge qualification | **not run**. Granite Guardian values are unqualified diagnostics only; PairRM qualification and method preference were not run |
+| teacher qualification | **not run — scientifically unauthorized** because no starting checkpoint was selected |
 
 ### Preregistration amendment 1, and why it exists
 
@@ -261,13 +262,19 @@ peak reserved 5.25 GiB against the 14.5 GiB gate.
 Both lineages failed and the outcome is merged. The next session executes
 `docs/handoffs/v0.7.0-final-execution-prompt.md`: make `miniverl pilot` return
 the recommendation against downstream alignment, write the study page and its
-data-bound figures, update both READMEs, close issue #39 with the executed
-evidence, and release v0.7.0.
+data-bound figures, update both READMEs, add an evidence comment to issue #39
+while keeping it open, and release v0.7.0.
 
 No continuation arm, no teacher qualification and no method comparison will
 run — none of them is scientifically authorized by the selection outcome.
 
-**No final-test task has been scored.** `first_final_test_access: pending`.
+Before release, correct the fallback lineage metadata with original-byte
+provenance, disclose that the two separately generated selection suites are
+task-identical, and remove every unsupported judge-qualification claim. Add an
+evidence comment to issue #39 and keep it open because the method-level and
+final-test acceptance gates remain unexecuted.
+
+**No final-test task has been scored.** `first_final_test_access: not_accessed`.
 
 ## v0.6.3 Security, artifact integrity and release-state hardening
 
