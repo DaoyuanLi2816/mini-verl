@@ -68,7 +68,7 @@ unauthorized after checkpoint-selection failure**.
 - [x] `miniverl pilot --study-result ...` returns
       `do_not_continue_this_study` / `insufficient_evidence` and preserves the
       existing recipe-evidence path.
-- [ ] The evidence-release PR's exact final head passes CI, build, docs,
+- [x] The evidence-release PR's exact final head passes CI, build, docs,
       generated-artifact, visual, package and attribution gates before merge.
 
 ## After the tag
