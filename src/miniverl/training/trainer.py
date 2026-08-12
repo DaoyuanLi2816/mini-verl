@@ -2450,21 +2450,26 @@ class OPDTrainer:
             "policy_version": self.policy_version,
             "rollout_policy_version": rollout_policy_version,
             "seconds": round(time.perf_counter() - cycle_started, 3),
-            "rollout_seconds": round(rollout_seconds, 4),
-            "teacher_scoring_seconds": round(teacher_scoring_seconds, 4),
-            "teacher_scored_positions_per_second": (
-                round(
-                    selected_count / teacher_scoring_seconds,
-                    2,
-                )
-                if teacher_scoring_seconds > 0
-                else None
-            ),
             "rollouts": stats.to_dict(),
             "selection": selection_stats,
             "memory": gpu.snapshot().to_dict(),
             "ts": utc_now(),
         }
+        # These phase timings describe the portable prompt-data runtime added
+        # for the verl-style OPD path. Keep the established environment-backed
+        # metric contract byte-stable so resume comparisons remain exact.
+        if self.prompt_dataset is not None:
+            cycle_metrics.update(
+                {
+                    "rollout_seconds": round(rollout_seconds, 4),
+                    "teacher_scoring_seconds": round(teacher_scoring_seconds, 4),
+                    "teacher_scored_positions_per_second": (
+                        round(selected_count / teacher_scoring_seconds, 2)
+                        if teacher_scoring_seconds > 0
+                        else None
+                    ),
+                }
+            )
         if self._cache is not None:
             cycle_metrics["cache"] = self._cache.stats().model_dump(mode="json")
         self.metrics_log.write(cycle_metrics)

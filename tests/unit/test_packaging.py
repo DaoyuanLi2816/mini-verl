@@ -278,8 +278,9 @@ def test_every_published_benchmark_result_validates_against_the_schema():
     validator = jsonschema.Draft202012Validator(schema)
 
     # RecoveryBench's paired analysis, consumer-runtime, Alignment Lab and
-    # external-alignment early-stop artifacts have dedicated exact/schema
-    # contracts; none is a BenchmarkResult document.
+    # external-alignment early-stop and single-GPU runtime-conformance
+    # artifacts have dedicated exact/schema contracts; none is a
+    # BenchmarkResult document.
     results = sorted(
         path
         for path in (root / "benchmarks" / "results").glob("*.json")
@@ -291,6 +292,7 @@ def test_every_published_benchmark_result_validates_against_the_schema():
             "alignment-lab-v1.json",
             "alignment-lab-v1-state-supervision.json",
             "alignment-external-v1.json",
+            "rtx4080-verl-opd-runtime-v1.json",
         }
     )
     assert results, "benchmarks/results/ has no published result to validate"
