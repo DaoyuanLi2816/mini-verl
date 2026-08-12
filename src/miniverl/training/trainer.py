@@ -2315,6 +2315,8 @@ class OPDTrainer:
         cycle_started = time.perf_counter()
         rollout_policy_version = self.parameter_version
         self._last_selection_stats = []
+        rollout_seconds = 0.0
+        teacher_scoring_seconds = 0.0
 
         if mode is TrainingMode.OFFLINE_KD and self._offline_samples is not None:
             samples = self._offline_batch_for_cycle()
@@ -2355,6 +2357,7 @@ class OPDTrainer:
             if mode is TrainingMode.SFT or self.teacher is None:
                 samples = self._build_samples_ce_only(trajectories)
             else:
+                teacher_scoring_started = time.perf_counter()
                 swap = self.plan.strategy is MemoryStrategy.SWAP
                 student_state = None
                 if swap:
@@ -2370,6 +2373,7 @@ class OPDTrainer:
                             self.student.load_trainable_state_dict(student_state)
                 if swap:
                     samples = self._reload_targets_from_cache(samples)
+                teacher_scoring_seconds = time.perf_counter() - teacher_scoring_started
 
             self.events.emit(
                 "rollouts_collected",
@@ -2389,6 +2393,8 @@ class OPDTrainer:
                 ),
                 generated_tokens=stats.generated_tokens,
                 rollout_tokens_per_second=round(stats.generated_tokens / rollout_seconds, 2),
+                rollout_seconds=round(rollout_seconds, 4),
+                teacher_scoring_seconds=round(teacher_scoring_seconds, 4),
             )
             if mode is TrainingMode.OFFLINE_KD:
                 self._offline_samples = samples
@@ -2430,6 +2436,10 @@ class OPDTrainer:
         selection_stats = aggregate_selection_stats(
             self._last_selection_stats or [sample.selection.stats for sample in samples]
         )
+        selected_for_rate = selection_stats.get("selected_model_tokens")
+        selected_count = (
+            int(selected_for_rate) if isinstance(selected_for_rate, (int, float)) else 0
+        )
         cycle_metrics: dict[str, Any] = {
             "phase": f"{config.run.mode.value}_cycle",
             "cycle": self.cycle,
@@ -2440,6 +2450,16 @@ class OPDTrainer:
             "policy_version": self.policy_version,
             "rollout_policy_version": rollout_policy_version,
             "seconds": round(time.perf_counter() - cycle_started, 3),
+            "rollout_seconds": round(rollout_seconds, 4),
+            "teacher_scoring_seconds": round(teacher_scoring_seconds, 4),
+            "teacher_scored_positions_per_second": (
+                round(
+                    selected_count / teacher_scoring_seconds,
+                    2,
+                )
+                if teacher_scoring_seconds > 0
+                else None
+            ),
             "rollouts": stats.to_dict(),
             "selection": selection_stats,
             "memory": gpu.snapshot().to_dict(),

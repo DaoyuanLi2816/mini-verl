@@ -28,6 +28,7 @@ __all__ = [
     "VerlOPDV08Profile",
     "compile_verl_opd_v08",
     "load_verl_opd_v08",
+    "load_verl_opd_v08_source",
     "parse_overrides",
 ]
 
@@ -239,6 +240,8 @@ class MiniVerlTeacherAdapterExtensions(_StrictModel):
 
 
 class MiniVerlLocalExtensions(_StrictModel):
+    student_revision: str | None = None
+    teacher_revision: str | None = None
     runtime: MiniVerlRuntimeExtensions = Field(default_factory=MiniVerlRuntimeExtensions)
     memory: MiniVerlMemoryExtensions = Field(default_factory=MiniVerlMemoryExtensions)
     batching: MiniVerlBatchingExtensions = Field(default_factory=MiniVerlBatchingExtensions)
@@ -514,6 +517,12 @@ _FIELD_RULES: dict[str, _Rule] = {
     ),
     "trainer.nnodes": _rule("placement.node_count", "locally_reinterpreted", "must be one", "high"),
     "miniverl.runtime.mode": _rule(None, "informational_only", "miniVERL-only local extension"),
+    "miniverl.student_revision": _rule(
+        "student.revision", "informational_only", "miniVERL-only immutable Hub revision"
+    ),
+    "miniverl.teacher_revision": _rule(
+        "teacher.revision", "informational_only", "miniVERL-only immutable Hub revision"
+    ),
     "miniverl.memory.vram_limit_gib": _rule(
         None, "informational_only", "miniVERL-only planner limit"
     ),
@@ -838,6 +847,34 @@ def load_verl_opd_v08(
         raise ConfigError(f"cannot read resolved verl OPD YAML {path}: {exc}") from exc
     if not isinstance(payload, Mapping):
         raise ConfigError("verl OPD YAML must contain one mapping")
+    return compile_verl_opd_v08(
+        payload,
+        overrides=overrides,
+        require_executable=require_executable,
+    )
+
+
+def load_verl_opd_v08_source(
+    source: str | Path,
+    *,
+    overrides: Sequence[str] = (),
+    require_executable: bool = True,
+) -> CompiledLocalExecutionPlan:
+    """Load a path or the packaged Qwen3 quickstart profile."""
+    source_text = str(source)
+    if source_text != "builtin:qwen3-0.6b-1.7b-opd":
+        return load_verl_opd_v08(
+            Path(source), overrides=overrides, require_executable=require_executable
+        )
+    from importlib.resources import files
+
+    resource = files("miniverl").joinpath("resources/qwen3_0_6b_1_7b_opd.yaml")
+    try:
+        payload = yaml.safe_load(resource.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ConfigError(f"cannot read packaged OPD profile: {exc}") from exc
+    if not isinstance(payload, Mapping):
+        raise ConfigError("packaged OPD profile must contain one mapping")
     return compile_verl_opd_v08(
         payload,
         overrides=overrides,
