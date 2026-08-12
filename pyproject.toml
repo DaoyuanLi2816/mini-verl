@@ -195,6 +195,7 @@ markers = [
   "gpu: requires a CUDA GPU (deselected in CPU CI)",
   "torch: requires the [train] extra (torch/transformers/peft)",
   "network: requires network access (deselected in CI)",
+  "verl_conformance: imports the exact pinned official verl source",
   "slow: takes more than a few seconds",
 ]
 

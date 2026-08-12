@@ -45,6 +45,9 @@ class CacheEntryMeta(BaseModel):
     checksum: str
     selected_span_types: dict[str, int] = Field(default_factory=dict)
     ordered_span_types: list[str] | None = None
+    prompt_row_digest: str | None = None
+    actor_response_token_ids: list[int] | None = None
+    binding_checksum: str | None = None
 
 
 class CacheShardMeta(BaseModel):
@@ -74,6 +77,7 @@ class CacheIndex(BaseModel):
     top_k: int = Field(ge=1)
     temperature: float = Field(gt=0.0)
     loss_mode: str
+    score_implementation_version: str | None = None
     dtype: str = "float32"
     entries_per_shard: int = Field(default=32, ge=1, le=4096)
     entries: dict[str, CacheEntryMeta] = Field(default_factory=dict)
@@ -127,6 +131,8 @@ class TeacherTargetBatch:
     temperature: float = 1.0
     top_k: int = 0
     span_types: list[str] = field(default_factory=list)
+    prompt_row_digest: str | None = None
+    actor_response_token_ids: list[int] | None = None
 
 
 class CacheCompressionStats(BaseModel):

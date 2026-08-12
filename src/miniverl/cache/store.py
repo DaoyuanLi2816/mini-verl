@@ -63,6 +63,23 @@ _TENSOR_FIELDS = (
 logger = get_logger("cache")
 
 
+def _binding_checksum(
+    *,
+    prompt_row_digest: str | None,
+    actor_response_token_ids: list[int] | None,
+    policy_version: int,
+    score_implementation_version: str | None,
+) -> str:
+    payload = {
+        "actor_response_token_ids": actor_response_token_ids,
+        "policy_version": policy_version,
+        "prompt_row_digest": prompt_row_digest,
+        "score_implementation_version": score_implementation_version,
+    }
+    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def _replace_shard_file(source: Path, target: Path) -> None:
     source.replace(target)
 
@@ -161,6 +178,7 @@ class TeacherCache:
         top_k: int,
         temperature: float,
         loss_mode: str,
+        score_implementation_version: str | None = None,
         dtype: str = "float32",
         entries_per_shard: int = 32,
         overwrite: bool = False,
@@ -200,6 +218,7 @@ class TeacherCache:
             top_k=top_k,
             temperature=temperature,
             loss_mode=loss_mode,
+            score_implementation_version=score_implementation_version,
             dtype=dtype,
             entries_per_shard=entries_per_shard,
         )
@@ -251,6 +270,7 @@ class TeacherCache:
         top_k: int,
         temperature: float,
         loss_mode: str,
+        score_implementation_version: str | None = None,
         dtype: str,
     ) -> None:
         """Reject reuse when any objective or teacher identity component changed."""
@@ -276,6 +296,8 @@ class TeacherCache:
             "loss_mode": loss_mode,
             "dtype": dtype,
         }
+        if score_implementation_version is not None:
+            expected["score_implementation_version"] = score_implementation_version
         if self.index.schema_version >= 2:
             expected["tokenizer_identity"] = dict(tokenizer_identity or {})
             expected["teacher_adapter_provenance"] = (
@@ -344,6 +366,12 @@ class TeacherCache:
         span_counts: dict[str, int] = {}
         for name in batch.span_types:
             span_counts[name] = span_counts.get(name, 0) + 1
+        binding_checksum = _binding_checksum(
+            prompt_row_digest=batch.prompt_row_digest,
+            actor_response_token_ids=batch.actor_response_token_ids,
+            policy_version=batch.policy_version,
+            score_implementation_version=self.index.score_implementation_version,
+        )
 
         self._pending[batch.trajectory_id] = {
             "tensors": tensors,
@@ -355,6 +383,9 @@ class TeacherCache:
                 "tail_is_exact_zero": tail_is_exact_zero,
                 "selected_span_types": span_counts,
                 "ordered_span_types": list(batch.span_types),
+                "prompt_row_digest": batch.prompt_row_digest,
+                "actor_response_token_ids": batch.actor_response_token_ids,
+                "binding_checksum": binding_checksum,
             },
         }
         self._pending_order.append(batch.trajectory_id)
@@ -375,6 +406,9 @@ class TeacherCache:
             checksum=digest.hexdigest(),
             selected_span_types=span_counts,
             ordered_span_types=list(batch.span_types),
+            prompt_row_digest=batch.prompt_row_digest,
+            actor_response_token_ids=batch.actor_response_token_ids,
+            binding_checksum=binding_checksum,
         )
 
     def _next_shard_name(self) -> str:
@@ -430,6 +464,9 @@ class TeacherCache:
                 checksum=meta["checksum"],
                 selected_span_types=meta["selected_span_types"],
                 ordered_span_types=meta["ordered_span_types"],
+                prompt_row_digest=meta["prompt_row_digest"],
+                actor_response_token_ids=meta["actor_response_token_ids"],
+                binding_checksum=meta["binding_checksum"],
             )
         self._write_index(next_index)
         self.index = next_index
@@ -452,6 +489,8 @@ class TeacherCache:
         trajectory_id: str,
         *,
         expect_policy_version: int | None = None,
+        expect_prompt_row_digest: str | None = None,
+        expect_actor_response_token_ids: list[int] | None = None,
         device: str = "cpu",
     ) -> TeacherTargetBatch:
         """Load one trajectory's targets, enforcing the policy-version contract."""
@@ -471,6 +510,34 @@ class TeacherCache:
                 hint="that would make the update off-policy. Re-score the trajectory, "
                 "or switch to run.mode=offline_kd if fixed targets are intended.",
             )
+        if (
+            expect_prompt_row_digest is not None
+            and entry.prompt_row_digest != expect_prompt_row_digest
+        ):
+            raise StaleCacheError(
+                f"teacher targets for {trajectory_id!r} have prompt-row digest "
+                f"{entry.prompt_row_digest!r}, expected {expect_prompt_row_digest!r}"
+            )
+        if (
+            expect_actor_response_token_ids is not None
+            and entry.actor_response_token_ids != expect_actor_response_token_ids
+        ):
+            raise StaleCacheError(
+                f"teacher targets for {trajectory_id!r} do not match the exact actor "
+                "response token IDs"
+            )
+        if entry.binding_checksum is not None:
+            actual_binding = _binding_checksum(
+                prompt_row_digest=entry.prompt_row_digest,
+                actor_response_token_ids=entry.actor_response_token_ids,
+                policy_version=entry.policy_version,
+                score_implementation_version=self.index.score_implementation_version,
+            )
+            if actual_binding != entry.binding_checksum:
+                raise CacheCorruptionError(
+                    f"binding checksum mismatch for {trajectory_id!r}: expected "
+                    f"{entry.binding_checksum[:16]}..., got {actual_binding[:16]}..."
+                )
         shard_path = self.path / entry.shard
         if not shard_path.is_file():
             raise CacheCorruptionError(f"shard {entry.shard} referenced by the index is missing")
@@ -516,6 +583,8 @@ class TeacherCache:
             temperature=entry.temperature,
             top_k=entry.top_k,
             span_types=span_types,
+            prompt_row_digest=entry.prompt_row_digest,
+            actor_response_token_ids=entry.actor_response_token_ids,
         )
 
     def __contains__(self, trajectory_id: object) -> bool:

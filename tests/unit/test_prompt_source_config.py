@@ -74,3 +74,26 @@ def test_plain_string_prompts_require_an_explicit_opt_in() -> None:
 
     assert config.source.allow_plain_string_prompts is True
     assert config.source.truncation.value == "left"
+
+
+def test_verl_forward_kl_topk_requires_its_exact_supported_contract() -> None:
+    base = {
+        "models": _models(),
+        "environment": {"name": "calculator"},
+        "loss": {
+            "mode": "forward_kl_topk",
+            "divergence": "forward_kl",
+            "aggregation": "token-mean",
+            "temperature": 1.0,
+            "scale_by_temperature_squared": False,
+            "top_k": 8,
+            "log_prob_min_clamp": -10.0,
+        },
+    }
+    config = RunConfig.model_validate(base)
+    assert config.loss.mode.value == "forward_kl_topk"
+    assert config.loss.aggregation.value == "token-mean"
+
+    incompatible = {**base, "loss": {**base["loss"], "aggregation": "native_per_trajectory"}}
+    with pytest.raises(ValidationError, match=r"requires loss\.aggregation=token-mean"):
+        RunConfig.model_validate(incompatible)

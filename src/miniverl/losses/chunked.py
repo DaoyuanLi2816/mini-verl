@@ -45,6 +45,7 @@ __all__ = [
     "ChunkTargetProvider",
     "ExactTargetProvider",
     "BucketedTargetProvider",
+    "VerlTopKTargetProvider",
     "LossOutput",
     "chunked_selected_position_loss",
 ]
@@ -135,6 +136,42 @@ class BucketedTargetProvider:
                 self.tail_log_prob[start:end],
                 tail_epsilon=self.tail_epsilon,
             )
+
+
+@dataclass
+class VerlTopKTargetProvider:
+    """Official verl v0.8 top-k-only teacher supervision."""
+
+    topk_indices: torch.Tensor
+    topk_log_probs: torch.Tensor
+    log_prob_min_clamp: float | None = None
+    loss_max_clamp: float | None = None
+    kind: str = "verl_forward_kl_topk"
+    diagnostics: list[dict[str, torch.Tensor]] = field(default_factory=list)
+
+    def divergence(self, start: int, end: int, student_logits: torch.Tensor) -> torch.Tensor:
+        from miniverl.losses.verl_topk import verl_forward_kl_topk
+
+        output = verl_forward_kl_topk(
+            student_logits,
+            self.topk_log_probs[start:end],
+            self.topk_indices[start:end],
+            log_prob_min_clamp=self.log_prob_min_clamp,
+            loss_max_clamp=self.loss_max_clamp,
+        )
+        self.diagnostics.append(
+            {
+                "student_mass": output.student_mass.detach().to("cpu"),
+                "teacher_mass": output.teacher_mass.detach().to("cpu"),
+                "overlap_count": output.overlap_count.detach().to("cpu"),
+                "overlap_token_advantage": output.overlap_token_advantage.detach().to("cpu"),
+            }
+        )
+        return output.loss
+
+    def teacher_entropy(self, start: int, end: int) -> torch.Tensor:
+        """Entropy is undefined without the omitted tail distribution."""
+        return torch.full((end - start,), float("nan"), dtype=torch.float32)
 
 
 @dataclass
