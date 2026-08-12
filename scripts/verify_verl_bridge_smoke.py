@@ -7,7 +7,7 @@ import importlib.metadata
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from omegaconf import OmegaConf
 
@@ -65,6 +65,7 @@ def verify_smoke(bundle: str | Path, *, out: str | Path) -> dict[str, Any]:
     official = OmegaConf.to_container(official_config, resolve=False)
     if not isinstance(official, Mapping):
         raise ConfigError("official generated PPO config is not a YAML mapping")
+    official = cast(Mapping[str, Any], official)
     missing = [field for field in _OFFICIAL_FIELDS if not _has_path(official, field)]
     if missing:
         raise ConfigError("official verl config is missing bridge fields: " + ", ".join(missing))
@@ -73,6 +74,7 @@ def verify_smoke(bundle: str | Path, *, out: str | Path) -> dict[str, Any]:
     exported = OmegaConf.to_container(exported_omegaconf, resolve=False)
     if not isinstance(exported, Mapping):
         raise ConfigError("exported verl overrides are not an OmegaConf mapping")
+    exported = cast(Mapping[str, Any], exported)
     missing_export_fields = [
         field for field in _OFFICIAL_EXPORT_FIELDS if not _has_path(official, field)
     ]

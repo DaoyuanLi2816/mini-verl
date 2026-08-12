@@ -30,6 +30,7 @@ __all__ = [
     "load_verl_opd_v08",
     "load_verl_opd_v08_source",
     "parse_overrides",
+    "publish_imported_verl_opd_v08",
 ]
 
 VERL_OPD_V08_PROFILE = "verl-opd-v0.8-single-gpu-v1"
@@ -880,3 +881,67 @@ def load_verl_opd_v08_source(
         overrides=overrides,
         require_executable=require_executable,
     )
+
+
+def publish_imported_verl_opd_v08(
+    source: str | Path,
+    *,
+    out: str | Path,
+    overrides: Sequence[str] = (),
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Transactionally publish one canonical, round-trippable OPD profile family."""
+    from miniverl.bridge.publish import (
+        OutputTransaction,
+        import_output_targets,
+        reject_source_output_alias,
+    )
+
+    source_path = Path(source)
+    targets = import_output_targets(out)
+    reject_source_output_alias({"source config": source_path}, targets)
+    compiled = load_verl_opd_v08(source_path, overrides=overrides)
+    rendered = yaml.safe_dump(
+        compiled.source.model_dump(mode="python"),
+        sort_keys=False,
+        allow_unicode=True,
+        width=100,
+    ).encode("utf-8")
+    # Prove the exact bytes about to be published remain executable without
+    # relying on the first in-memory model instance.
+    reparsed = yaml.safe_load(rendered)
+    validated = compile_verl_opd_v08(reparsed)
+    report = {
+        "schema_version": 1,
+        "status": "accepted",
+        "profile": VERL_OPD_V08_PROFILE,
+        "target_verl": {"tag": VERL_TAG, "commit": VERL_COMMIT},
+        "source_config_sha256": hashlib.sha256(source_path.read_bytes()).hexdigest(),
+        "generated_profile_sha256": hashlib.sha256(rendered).hexdigest(),
+        "generated_profile_validated": validated.executable,
+        "environment_required": False,
+        "compiled_digest": compiled.compiled_digest,
+        "round_trip_compiled_digest": validated.compiled_digest,
+        "field_classification": [item.model_dump(mode="json") for item in compiled.compatibility],
+        "generated_path": targets["recipe"].name,
+        "report_path": targets["report"].name,
+        "claim": (
+            "Runnable only through the documented pure-OPD single-GPU profile; "
+            "not arbitrary verl YAML or distributed execution."
+        ),
+    }
+    transaction = OutputTransaction(
+        targets=targets,
+        stem=targets["recipe"].stem,
+        lock_root=targets["recipe"].parent,
+        overwrite=overwrite,
+    )
+    transaction.begin()
+    try:
+        transaction.write_bytes("recipe", rendered)
+        transaction.write_json("report", report)
+        transaction.discard("template")
+        transaction.commit()
+    finally:
+        transaction.close()
+    return report

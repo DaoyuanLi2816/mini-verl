@@ -7,6 +7,7 @@ import yaml
 from typer.testing import CliRunner
 
 from miniverl.bridge.contract import BRIDGE_PROFILE, VERL_TAG
+from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.cli import app
 
 
@@ -239,6 +240,39 @@ def test_import_verl_cli_explicit_contract_writes_a_valid_recipe(tmp_path: Path)
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["status"] == "accepted"
     assert out.is_file()
+
+
+def test_import_verl_v2_writes_a_round_trippable_prompt_opd_profile(tmp_path: Path) -> None:
+    from miniverl.bridge.opd_v08 import load_verl_opd_v08
+
+    source = Path("examples/verl-opd-v0.8-single-gpu.yaml")
+    out = tmp_path / "local-opd.yaml"
+    result = CliRunner().invoke(
+        app,
+        [
+            "import-verl",
+            "--config",
+            str(source),
+            "--profile",
+            VERL_OPD_V08_PROFILE,
+            "--set",
+            'data.train_files=["train.parquet"]',
+            "--out",
+            str(out),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "accepted"
+    assert payload["generated_profile_validated"] is True
+    assert payload["environment_required"] is False
+    report = json.loads((tmp_path / "local-opd.import-report.json").read_text(encoding="utf-8"))
+    assert report["compiled_digest"] == payload["compiled_digest"]
+    round_trip = load_verl_opd_v08(out)
+    assert round_trip.executable is True
+    assert round_trip.source.data.train_files == ["train.parquet"]
 
 
 def test_benchmark_export_community_exact_command_needs_no_training_stack(

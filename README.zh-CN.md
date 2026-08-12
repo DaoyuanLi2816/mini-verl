@@ -19,27 +19,28 @@
   <a href="README.md">English</a>
 </p>
 
-**miniVERL 是一个本地、可检查的单卡对齐与蒸馏运行时。** 它运行原生
-SFT、DPO、KD 与严格 OPD recipe，保留仅 assistant token 的 loss mask 和
-policy-version 来源，并通过 fail-closed 桥接与一个锁定的 verl profile 交换
-标准 HF/PEFT/Parquet 产物。
+**在一张个人 GPU 上运行有明确边界的 verl 风格在线策略蒸馏。** miniVERL
+读取类型化的 verl v0.8 OPD profile 与 Parquet prompt，在本地执行 actor rollout
+→ teacher scoring → actor update，并导出标准 PEFT/Parquet/config 产物用于扩展。
+原生 SFT、DPO、KD 与 tool-agent recipe 仍然保留。
 
-PyPI `v0.7.1` 是稳定版；`main` 是开发版。miniVERL 独立于 verl，不声称可
+PyPI `v0.8.0` 是稳定版；`main` 是开发版。miniVERL 独立于 verl，不声称可
 执行任意 verl YAML、分布式任务或具备完整算法兼容性。
 
-## 大约一分钟完成安装与验证
+## 仅用 pip 的 OPD quickstart
 
 ```bash
 python -m pip install "miniverl[train]"
-miniverl doctor
-miniverl demo --fast --output runs/quickstart
-miniverl inspect runs/quickstart/trajectories.jsonl
-miniverl evidence validate alignment-external-v1
+miniverl data sample --format verl-parquet --out prompts.parquet
+miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config builtin:qwen3-0.6b-1.7b-opd \
+  --set 'data.train_files=["prompts.parquet"]'
+miniverl run --profile verl-opd-v0.8-single-gpu-v1 --config builtin:qwen3-0.6b-1.7b-opd \
+  --set 'data.train_files=["prompts.parquet"]' --dry-run
 ```
 
-确定性 demo 不下载模型，会生成类型化 trajectory、带校验和的 teacher cache、
-manifest 与报告。证据命令读取 wheel 自带数据，无需 Git checkout。若只需 schema
-与检查功能，可仅安装 `miniverl`。
+sample、plan 与 dry run 无需 Git checkout，plan 也不加载权重。在一张 CUDA GPU
+上去掉 `--dry-run` 即可执行锁定的 Qwen3-0.6B/1.7B NF4 recipe，并生成可加载的
+PEFT adapter。参见 [OPD quickstart](docs/opd-quickstart.md)。
 
 ## 支持的硬件与运行边界
 
@@ -51,34 +52,29 @@ miniVERL 在 CPU 或一张 NVIDIA CUDA GPU 上运行单个本地进程。CUDA �
 
 ## verl 兼容性摘要
 
-桥接锁定官方 verl `v0.8.0`、commit `7aed6b23`。已验证的边界是带校验和的标准
-产物以及锁定版本的配置解析、模型/数据加载冒烟测试，不包括原生 checkpoint
-等价或已完成的 verl 作业。若数据集、环境、教师、目标或 schedule 语义未解析，
-导入会 fail closed；它不会替换成 calculator task 或虚构教师。
+可执行 profile 锁定官方 verl `v0.8.0`、commit `7aed6b23`，支持单 actor、单 teacher、
+`n=1`、纯 GKD `forward_kl_topk`、token-mean、LoRA/QLoRA，且不使用 reward 或 KL
+penalty。PG OPD、task-reward mixture、多 teacher、多模态与分布式字段会 fail closed。
 
-当前导出仍为 `launchable: false`：缺少 base snapshot，reward scaffold 会失败关闭，
-且必要映射仍是占位符。入口名为 `launch.template.sh`；readiness、parse/load 证据、
-launchability、分布式执行与语义等价分别报告。参见[桥接契约](docs/verl-bridge.md)。
+兼容的 OPD 导出不包含 reward scaffold；它保留 student/teacher 身份、Parquet 原始
+字节与 OPD overrides，但在精确 base snapshot 尚未 materialize 时仍为
+`launchable: false`。解析、产物可加载性、launchability 与分布式执行分别报告。
+参见[桥接契约](docs/verl-bridge.md)。
 
-## 一项系统实测结果
+## RTX 4080 运行时实测
 
-在一张 RTX 4080、Qwen3-0.6B 与 8 条固定 SQLite trajectory 上，physical batch 4
-将 dual-model update throughput 从 2.369 提高到 3.866 trajectories/s。
-shared-backbone batch 4 的 peak reserved memory 为 2.227 GiB，dual model 为
-3.035 GiB，但前者慢 10.1%。12 项预注册等价比较全部通过。这只是单机单 workload
-数据，不是对其他 GPU 的承诺。
-
-![dual-model 与 shared-backbone runtime 的实测吞吐和 reserved VRAM](docs/consumer-runtime-v1-pareto.svg)
-
-[Consumer Runtime v1 方法与限制](docs/consumer-runtime-v1.md)
+打包的 Qwen3-0.6B/1.7B recipe 完成了两条 16-token rollout 与一次 OPD update；
+**peak reserved VRAM 为 3.1758 GiB**，首次 update 在 **12.0224 秒**完成，标准
+PEFT adapter 成功重新加载。这只证明一个运行时/产物路径；没有运行对齐质量
+endpoint 或方法比较。[精确 recipe、计时与哈希](docs/opd-quickstart.md)。
 
 ## 三条使用路径
 
 | 路径 | 起点 | 真实产物 | 下一步 |
 | --- | --- | --- | --- |
-| **Align** — 仅在 pilot 证据支持成本时使用 SFT、DPO、KD 或 OPD | `miniverl pilot recipes/alignment_policy_conditioned_qwen.yaml` | `alignment-card.json` | [Alignment Lab](docs/alignment-lab/alignment-lab-v1.md) |
-| **本地蒸馏** — 在一张 CUDA GPU 上运行严格 OPD、共享 backbone 与 padded update | `miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run` | resolved config 与锁定 revision 的 PEFT adapter | [使用自己的 GPU](docs/single-gpu-guide.md) |
-| **Scale out** — 转换 Parquet、导出标准产物并检查不支持边界 | `miniverl bridge doctor scaleout-bundle` | `provenance/compatibility-report.json` | [产物桥接](docs/verl-bridge.md) |
+| **本地运行 OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml` | compiled plan、trajectory、target 与 PEFT adapter | [Plan 与 run](docs/opd-quickstart.md) |
+| **带入 verl config** | `miniverl import-verl --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out local-opd.yaml` | 字段报告与可往返 profile | [兼容性](docs/compatibility.md) |
+| **移动数据与产物** | `miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout` | Parquet + PEFT + OPD override bundle | [桥接契约](docs/verl-bridge.md) |
 
 ## 研究记录与保留的负结果
 

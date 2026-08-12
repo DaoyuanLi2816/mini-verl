@@ -23,6 +23,23 @@ regeneration hint.
 
 ## Pinned bridge, not generic compatibility
 
+v0.8 adds the separately versioned `verl-opd-v0.8-single-gpu-v1` executable
+profile: one local actor, one teacher, one generation, pure GKD
+`forward_kl_topk`, token-mean aggregation, LoRA/QLoRA and Parquet prompts.
+`import-verl --config` publishes a canonical profile plus field report;
+`export-verl` recognizes a completed compatible run and emits reward-free OPD
+overrides. PG OPD, task-reward mixtures, multiple teachers, multimodal and all
+distributed semantics fail closed. Local physical phase scheduling is always
+labelled as a reinterpretation of upstream resource fields.
+
+The [machine-readable field matrix](generated/verl-opd-v0.8-compatibility.json)
+is regenerated directly from the typed compiler and its pinned resolved
+fixture; CI compares the committed bytes with the generator output.
+
+The older `single-gpu-online-distillation-v1` import/export contract remains
+available for migration and retains its historical non-launchable PPO/reward
+scaffold semantics.
+
 Compatibility Level 1 covers standard Hugging Face, PEFT, safetensors,
 tokenizer and Parquet artifacts. Level 2 is a fail-closed 14-field config
 whitelist. **miniVERL-defined compatibility Level 3** adds the generated

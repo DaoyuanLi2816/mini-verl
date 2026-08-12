@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
@@ -62,7 +63,12 @@ def _sha256(path: Path) -> str:
 
 
 def _model_source(run: Path) -> Path:
-    candidates = (run / "model", run / "exported-adapter", run / "adapter")
+    candidates = (
+        run / "final-peft-adapter",
+        run / "model",
+        run / "exported-adapter",
+        run / "adapter",
+    )
     for candidate in candidates:
         if all((candidate / name).is_file() for name in _MODEL_REQUIRED):
             return candidate
@@ -270,7 +276,7 @@ def _verl_overrides(
             }
         )
 
-    overrides = {
+    overrides: dict[str, Any] = {
         "data": {
             "train_files": ["data/train.parquet"],
             "val_files": ["data/val.parquet"],
@@ -408,6 +414,260 @@ def _write_hashes(root: Path) -> None:
     write_text(checksum, "\n".join(lines) + "\n")
 
 
+_OPD_PROFILE = "verl-opd-v0.8-single-gpu-v1"
+
+
+def _opd_run_contract(run: Path) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Return the executable OPD source/profile pair, or select the legacy exporter."""
+    report_path = run / "verl-compatibility-report.json"
+    if not report_path.is_file():
+        return None
+    try:
+        report = read_json(report_path)
+        source_path = run / "verl-source-config.json"
+        source = read_json(source_path) if source_path.is_file() else report.get("source")
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"cannot read source-run OPD compatibility artifacts: {exc}") from exc
+    if report.get("profile") != _OPD_PROFILE:
+        return None
+    if report.get("executable") is not True or not isinstance(source, dict):
+        raise ConfigError("source run does not carry an executable verl OPD compatibility plan")
+    required = {
+        "distillation.distillation_loss.loss_mode": "forward_kl_topk",
+        "distillation.distillation_loss.use_task_rewards": False,
+        "distillation.distillation_loss.use_policy_gradient": False,
+        "actor_rollout_ref.actor.use_kl_loss": False,
+        "algorithm.use_kl_in_reward": False,
+    }
+    for field, expected in required.items():
+        if _get(source, field) != expected:
+            raise ConfigError(
+                f"OPD export refuses unsupported source semantic {field}={_get(source, field)!r}"
+            )
+    return source, report
+
+
+def _resolve_source_file(run: Path, raw: str) -> Path:
+    candidate = Path(raw)
+    for path in (candidate, run / candidate, run.parent / candidate):
+        if path.is_file():
+            return path
+    raise ConfigError(f"source-run Parquet file is unavailable: {raw}")
+
+
+def _copy_opd_data(
+    run: Path, source: dict[str, Any], destination: Path
+) -> tuple[dict[str, list[str]], dict[str, Any]]:
+    destination.mkdir()
+    exported: dict[str, list[str]] = {"train": [], "val": []}
+    evidence: dict[str, Any] = {}
+    for split, field in (("train", "data.train_files"), ("val", "data.val_files")):
+        values = _get(source, field)
+        if not isinstance(values, list) or not all(isinstance(item, str) for item in values):
+            raise ConfigError(f"OPD source field {field} must be a list of Parquet paths")
+        if split == "train" and not values:
+            raise ConfigError("OPD export requires at least one training Parquet file")
+        records: list[dict[str, Any]] = []
+        for index, raw in enumerate(values):
+            source_path = _resolve_source_file(run, raw)
+            name = f"{split}.parquet" if len(values) == 1 else f"{split}-{index:03d}.parquet"
+            target = destination / name
+            shutil.copy2(source_path, target)
+            digest = _sha256(target)
+            exported[split].append(f"data/{name}")
+            records.append(
+                {
+                    "source_index": index,
+                    "bundle_path": f"data/{name}",
+                    "sha256": digest,
+                    "bytes": target.stat().st_size,
+                }
+            )
+        evidence[split] = records
+    return exported, evidence
+
+
+def _opd_overrides(
+    source: dict[str, Any], adapter: dict[str, Any], data_paths: dict[str, list[str]]
+) -> dict[str, Any]:
+    """Preserve the supported source profile while rebasing portable paths."""
+    overrides: dict[str, Any] = {
+        root: copy.deepcopy(source[root])
+        for root in ("data", "actor_rollout_ref", "algorithm", "distillation", "trainer")
+        if root in source
+    }
+    data = overrides["data"]
+    data["train_files"] = data_paths["train"]
+    data["val_files"] = data_paths["val"]
+    model = overrides["actor_rollout_ref"]["model"]
+    model["path"] = "model/base"
+    model["lora_adapter_path"] = "model"
+    model["lora_rank"] = adapter["rank"]
+    model["lora_alpha"] = adapter["alpha"]
+    model["target_modules"] = adapter["target_modules"]
+    teacher = overrides["distillation"]["teacher_models"]["teacher_model"]
+    teacher["model_path"] = "teacher/base"
+    # The compiler accepts this resource declaration so it can reject or
+    # reinterpret distributed intent, but the pinned FSDP-generated config has
+    # no such teacher inference key. It therefore belongs in provenance, not
+    # in an override file that promises to parse upstream.
+    teacher.get("inference", {}).pop("pipeline_model_parallel_size", None)
+    return overrides
+
+
+def _opd_launch_script(adapter: dict[str, Any], teacher: dict[str, Any]) -> str:
+    return f"""#!/usr/bin/env bash
+set -euo pipefail
+
+# Template only: no distributed verl execution was tested by miniVERL.
+BUNDLE_ROOT="$(cd "$(dirname "${{BASH_SOURCE[0]}}")/.." && pwd)"
+if [[ ! -f "$BUNDLE_ROOT/model/base/config.json" ]]; then
+  echo "materialize student base {adapter["base_model"]}@{adapter["revision"]}" >&2
+  exit 2
+fi
+if [[ ! -f "$BUNDLE_ROOT/teacher/base/config.json" ]]; then
+  echo "materialize teacher {teacher["model_id"]}@{teacher["revision"]}" >&2
+  exit 2
+fi
+if [[ "{str(teacher["upstream_materialization_required"]).lower()}" == "true" ]]; then
+  echo "merge/materialize the recorded teacher adapter into an immutable teacher snapshot" >&2
+  exit 2
+fi
+echo "All artifact prerequisites are present; review the pinned OPD overrides before launch." >&2
+echo "No distributed launch command is emitted because distributed execution was not tested." >&2
+exit 2
+"""
+
+
+def _opd_bundle_readme() -> str:
+    return f"""# miniVERL pure-OPD scale-out bundle
+
+This checksummed bundle preserves a local `{_OPD_PROFILE}` run as standard
+PEFT, tokenizer and Parquet artifacts plus pure GKD `forward_kl_topk`
+overrides for [`verl {VERL_TAG}`]({VERL_REPOSITORY}/tree/{VERL_TAG}) at
+`{VERL_COMMIT}`. It contains no reward scaffold because task rewards are
+disabled by contract.
+
+`recipe/launch.template.sh` remains fail-closed until the exact student and
+teacher snapshots are materialized. The bundle has not run distributed verl;
+it does not claim full verl compatibility or algorithmic parity beyond the
+documented loss/config conformance checks.
+"""
+
+
+def _export_opd_bundle(
+    run: Path,
+    *,
+    manifest_path: Path,
+    model_source: Path,
+    adapter: dict[str, Any],
+    source: dict[str, Any],
+    compatibility: dict[str, Any],
+    destination: Path,
+) -> dict[str, Any]:
+    student_id = _get(source, "actor_rollout_ref.model.path")
+    student_revision = _get(source, "miniverl.student_revision")
+    if student_id != adapter["base_model"] or student_revision != adapter["revision"]:
+        raise ConfigError("standard student adapter identity differs from the compiled OPD source")
+    teacher_id = _get(source, "distillation.teacher_models.teacher_model.model_path")
+    teacher_revision = _get(source, "miniverl.teacher_revision")
+    if not isinstance(teacher_id, str) or not isinstance(teacher_revision, str):
+        raise ConfigError("compiled OPD source has no pinned teacher identity")
+    teacher_adapter_path = _get(source, "miniverl.teacher_adapter.path")
+    teacher_adapter_revision = _get(source, "miniverl.teacher_adapter.revision")
+    teacher = {
+        "model_id": teacher_id,
+        "revision": teacher_revision,
+        "materialized_path": "teacher/base",
+        "status": "identity only; exact snapshot is not bundled",
+        "adapter": {"path": teacher_adapter_path, "revision": teacher_adapter_revision},
+        "upstream_materialization_required": teacher_adapter_path is not None,
+    }
+    blockers = [
+        "student base snapshot is not bundled",
+        "teacher base snapshot is not bundled",
+        "distributed verl execution was not tested",
+    ]
+    if teacher_adapter_path is not None:
+        blockers.append(
+            "teacher adapter requires an explicit merge/materialization step for upstream verl"
+        )
+    temporary = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
+    temporary.mkdir()
+    try:
+        _copy_model(model_source, temporary / "model")
+        write_json(
+            temporary / "model/base-model.json",
+            {
+                "materialized_path": "model/base",
+                "model_id": adapter["base_model"],
+                "revision": adapter["revision"],
+                "status": "identity only; exact snapshot is not bundled",
+            },
+        )
+        teacher_dir = temporary / "teacher"
+        teacher_dir.mkdir()
+        write_json(teacher_dir / "teacher-model.json", teacher)
+        data_paths, data_evidence = _copy_opd_data(run, source, temporary / "data")
+        overrides = _opd_overrides(source, adapter, data_paths)
+        recipe = temporary / "recipe"
+        recipe.mkdir()
+        write_text(
+            recipe / "verl-opd-overrides.yaml",
+            yaml.safe_dump(overrides, sort_keys=False, allow_unicode=True, width=100),
+        )
+        write_text(recipe / "launch.template.sh", _opd_launch_script(adapter, teacher))
+        write_text(recipe / "REQUIRED_VERL.txt", required_verl_text())
+        provenance = temporary / "provenance"
+        provenance.mkdir()
+        write_json(
+            provenance / "miniverl-manifest.json", portable_payload(read_json(manifest_path))
+        )
+        write_json(provenance / "source-config.json", portable_payload(source))
+        plan_path = run / "local-execution-plan.json"
+        write_json(
+            provenance / "compiled-plan.json",
+            portable_payload(read_json(plan_path)) if plan_path.is_file() else compatibility,
+        )
+        report: dict[str, Any] = {
+            "schema_version": 2,
+            "profile": _OPD_PROFILE,
+            "target_verl": {
+                "repository": VERL_REPOSITORY,
+                "tag": VERL_TAG,
+                "commit": VERL_COMMIT,
+            },
+            "miniverl_version": __version__,
+            "target_semantics": "pure GKD forward_kl_topk OPD",
+            "artifact_complete": True,
+            "artifact_bundle_complete": True,
+            "config_semantics_supported": True,
+            "student_artifact_loadable": True,
+            "teacher_artifact_loadable": False,
+            "dataset_loadable": True,
+            "upstream_parse_passed": False,
+            "upstream_config_parse_passed": False,
+            "upstream_tiny_smoke_passed": False,
+            "model_data_load_smoke_passed": False,
+            "launchable": False,
+            "distributed_execution_tested": False,
+            "algorithm_semantic_parity": False,
+            "reward_required": False,
+            "launch_blockers": blockers,
+            "data_round_trip": data_evidence,
+            "unsupported_semantics": list(_UNSUPPORTED),
+            "distributed_execution_status": "not tested",
+        }
+        write_json(provenance / "compatibility-report.json", report)
+        write_text(temporary / "README.md", _opd_bundle_readme())
+        _write_hashes(temporary)
+        temporary.replace(destination)
+    except BaseException:
+        shutil.rmtree(temporary, ignore_errors=True)
+        raise
+    return report
+
+
 def export_verl_bundle(
     run: str | Path,
     *,
@@ -422,6 +682,25 @@ def export_verl_bundle(
         raise ConfigError(f"miniVERL run is missing manifest.json: {run_path}")
     model_source = _model_source(run_path)
     adapter = _adapter_contract(model_source)
+    opd_contract = _opd_run_contract(run_path)
+    if opd_contract is not None:
+        destination = Path(out)
+        if destination.exists():
+            raise ConfigError(
+                f"export destination already exists: {destination}",
+                hint="choose a new directory so an earlier verified bundle cannot be mixed in",
+            )
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        source, compatibility = opd_contract
+        return _export_opd_bundle(
+            run_path,
+            manifest_path=manifest_path,
+            model_source=model_source,
+            adapter=adapter,
+            source=source,
+            compatibility=compatibility,
+            destination=destination,
+        )
     source_config, source_config_file = _source_config(run_path)
     source_run_values = _source_run_values(source_config)
     overrides, placeholder_defaults = _verl_overrides(adapter, source_config)

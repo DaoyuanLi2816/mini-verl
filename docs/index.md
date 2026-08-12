@@ -1,26 +1,29 @@
 # miniVERL
 
-Auditable single-GPU alignment and distillation runtime with native SFT, DPO,
-KD and strict OPD recipes, inspectable artifacts and a bounded bridge to one
-pinned verl profile. miniVERL is independent; distributed execution and full
-algorithm compatibility are not claimed.
+Run a documented subset of verl v0.8 on-policy distillation on one consumer
+GPU. Bring a typed OPD profile and Parquet prompts, inspect rollout → teacher
+scoring → update locally, then export standard artifacts. miniVERL is
+independent; distributed execution and full verl compatibility are not claimed.
 
 [Install and run locally](single-gpu-guide.md){ .md-button .md-button--primary }
 [Read the compatibility boundary](verl-bridge.md){ .md-button }
 
-## Install and verify in about a minute
+## Pip-only OPD quickstart
 
 ```bash
 python -m pip install "miniverl[train]"
-miniverl demo --fast --output runs/quickstart
-miniverl inspect runs/quickstart/trajectories.jsonl
-miniverl evidence validate alignment-external-v1
+miniverl data sample --format verl-parquet --out prompts.parquet
+miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
+  --config builtin:qwen3-0.6b-1.7b-opd \
+  --set 'data.train_files=["prompts.parquet"]'
+miniverl run --profile verl-opd-v0.8-single-gpu-v1 \
+  --config builtin:qwen3-0.6b-1.7b-opd \
+  --set 'data.train_files=["prompts.parquet"]' --dry-run
 ```
 
-The deterministic demo downloads no model and produces typed trajectories, a
-checksummed teacher cache, manifest and report. Packaged evidence commands need
-no repository checkout. For CUDA, install the matching CUDA-enabled PyTorch
-wheel first; the `[cuda]` extra does not select one.
+Planning loads no weights. Remove `--dry-run` on one CUDA GPU to execute the
+pinned Qwen3 recipe and export a standard PEFT adapter. Install the matching
+CUDA-enabled PyTorch wheel first; the `[cuda]` extra does not select one.
 
 ## Runtime and compatibility boundary
 
@@ -28,20 +31,18 @@ miniVERL runs one local CPU process or one NVIDIA CUDA GPU. Fit depends on the
 model pair, context, kernels and VRAM; there is no GPU-name allowlist. Ray,
 FSDP, Megatron, PPO, GRPO and distributed launch are outside the runtime.
 
-The artifact bridge pins verl `v0.8.0` at `7aed6b23`. It verifies standard
-artifact interchange and pinned config/model/data parse-load smoke. Current
-exports are not launchable and do not establish algorithmic parity.
+The executable profile pins verl `v0.8.0` at `7aed6b23`: one actor, one teacher,
+`n=1`, GKD `forward_kl_topk`, token-mean and no reward/KL penalty. Unsupported
+algorithm or distributed semantics fail closed. Exports remain unlaunchable
+until exact base snapshots are materialized.
 
-## Measured systems evidence
+## Measured runtime evidence
 
-On one RTX 4080 with Qwen3-0.6B and eight fixed SQLite trajectories, padded
-updates increased dual-model update throughput from 2.369 to 3.866
-trajectories/s. Shared-backbone batch 4 used 2.227 GiB peak reserved memory
-versus 3.035 GiB for dual model while running 10.1% slower. All 12
-preregistered equivalence comparisons passed. This is one measured workload,
-not a hardware-wide promise.
+One RTX 4080 run of the pinned Qwen3-0.6B/1.7B recipe completed its first OPD
+update in 12.0224 s at 3.1758 GiB peak reserved VRAM, then reloaded its standard
+PEFT adapter. No quality endpoint or method comparison ran.
 
-[Consumer Runtime methods and caveats](consumer-runtime/index.md){ .md-button }
+[Exact quickstart evidence](opd-quickstart.md){ .md-button }
 
 ## Choose a path
 
@@ -49,50 +50,48 @@ not a hardware-wide promise.
 
 <div class="path-card" markdown>
 
-## Align
+## Run OPD locally
 
-Choose SFT, DPO, offline KD or OPD from explicit pilot evidence.
+Plan, execute, inspect and resume one local pure-OPD run.
 
 ```bash
-miniverl pilot recipes/alignment_tool_policy_toy.yaml --json
+miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml
 ```
 
-**Artifact:** an [Alignment Card](alignment-lab/alignment-lab-v1.md#reproducibility-and-artifacts)
-with starting checkpoint, metrics, cost and limitations.
+**Artifact:** a checksummed local execution plan, trajectories and PEFT adapter.
 
-**Next:** [When should OPD follow SFT?](alignment-lab/when-opd-should-follow-sft.md)
+**Next:** [Plan and run](opd-quickstart.md)
 
 </div>
 
 <div class="path-card" markdown>
 
-## Distill locally
+## Bring a verl config
 
-Use strict OPD, shared-backbone role switching and padded trajectory updates on
-one CUDA GPU.
+Import the resolved, documented OPD subset with field-by-field classifications.
 
 ```bash
-miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run --json
+miniverl import-verl --profile verl-opd-v0.8-single-gpu-v1 \
+  --config verl-opd.yaml --out local-opd.yaml
 ```
 
-**Artifact:** a resolved recipe and typed provenance plan before model loading.
+**Artifact:** a round-trippable profile and `local-opd.import-report.json`.
 
-**Next:** [Consumer-GPU shared runtime](consumer-runtime/index.md)
+**Next:** [Supported field boundary](compatibility.md)
 
 </div>
 
 <div class="path-card" markdown>
 
-## Scale out
+## Move data and artifacts
 
 Convert Parquet, export standard artifacts and inspect the unsupported boundary.
 
 ```bash
-miniverl bridge doctor exports/my-bundle --json
+miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
 ```
 
-**Artifact:** `provenance/compatibility-report.json` with separate readiness
-flags; current bundles are not launchable.
+**Artifact:** PEFT + Parquet + OPD overrides and separate readiness flags.
 
 **Next:** [verl bridge contract](verl-bridge.md)
 

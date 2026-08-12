@@ -1,22 +1,22 @@
 {
   "schema_version": 2,
-  "release": "0.7.1",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 85%+ branch coverage at v0.7.1",
+  "release": "0.8.0",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 85%+ branch coverage at v0.8.0",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
-    "commit": "5142ed681a9c538b3175faf64561968a43cab547",
-    "commit_relationship": "implementation commit plus following validation-record-only updates; the final pull-request head is validated by CI",
-    "measured_at": "2026-08-11T03:05:00-07:00",
+    "commit": "4fe229ebd87d2c6ea2e6007033f4fe0cb7877c98",
+    "commit_relationship": "exact implementation commit plus following validation-record-only updates; the final pull-request head is validated by CI",
+    "measured_at": "2026-08-12T01:18:27-07:00",
     "platform": "Windows 11 Pro 10.0.22631",
     "python": "CPython 3.12",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2110,
-      "skipped": 6,
+      "passed": 2178,
+      "skipped": 9,
       "deselected": 21,
-      "branch_coverage_percent": 86.19,
-      "skip_reason": "symlink creation requires privileges on Windows; hard-link and case aliases cover the same guard"
+      "branch_coverage_percent": 85.3,
+      "skip_reason": "six platform/privilege skips plus three pinned-verl conformance skips while the official package was intentionally absent from the general environment; the conformance tests were run separately against the pin"
     },
     "gpu": {
       "passed": 8,
@@ -28,15 +28,15 @@
   },
   "release_validation": {
     "scope": "the exact published commit, validated by CI rather than locally",
-    "commit": "830a4ca5d873bce4cdcc7c43a44d827b096e8c0c",
+    "commit": "pending",
     "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31566406949",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31566406885",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31566406859",
-      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31566406861",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31566663507"
+      "ci": null,
+      "build": null,
+      "docs": null,
+      "pinned_verl_bridge": null,
+      "release": null
     },
-    "conclusion": "success",
+    "conclusion": "pending",
     "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement"
   }
 }

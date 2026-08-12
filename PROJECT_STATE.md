@@ -4,9 +4,9 @@ Living build log for **miniVERL** (`mini-verl` / `miniverl` / CLI `miniverl`).
 A checkbox is not evidence: every completed item names the command that was run
 and what it printed.
 
-Last updated: 2026-08-11.
+Last updated: 2026-08-12.
 
-Canonical release state: stable `v0.7.1` (`830a4ca5d873bce4cdcc7c43a44d827b096e8c0c`), development `0.8.0.dev0`.
+Canonical release state: releasing `v0.8.0`.
 Every public version claim is generated from `release-state.yaml` and gated by
 `python scripts/release_state.py --check`.
 
@@ -83,6 +83,26 @@ teacher target batch and update completed at 10.8684 s, 11.0630 s and 12.0224 s
 from construction start. The standard PEFT adapter load passed. This is a
 systems result only; no alignment endpoint or method comparison ran. The
 machine-readable record is `benchmarks/results/rtx4080-verl-opd-runtime-v1.json`.
+
+## v0.8.0 single-GPU verl OPD pivot — PR E
+
+`import-verl --profile verl-opd-v0.8-single-gpu-v1 --config ...` now publishes
+a transactional, canonical OPD profile plus a field-by-field report; it uses
+the same typed compiler as `plan`/`run`, consumes Parquet paths and needs no
+ToolEnvironment or reward. The legacy environment-profile importer remains
+available under its original profile name.
+
+`export-verl` recognizes a completed compatible OPD run and emits the standard
+student PEFT adapter, exact student/teacher identities, byte-preserved Parquet,
+source config, compiled plan and pure `forward_kl_topk` overrides. It emits no
+reward scaffold. Student/teacher/data loadability, upstream parse/tiny-smoke,
+launchability and distributed execution are independent fields. Missing base
+snapshots and teacher-adapter materialization keep new bundles fail-closed and
+`launchable: false`; no distributed command or execution claim is generated.
+
+The generated `docs/generated/verl-opd-v0.8-compatibility.json` binds 72 source
+fields to the pinned compiler fixture. Upstream parse conformance is recomputed
+against verl `7aed6b23`; it does not imply a model launch or distributed job.
 
 ## v0.7.1 Product correction — RELEASE CANDIDATE
 

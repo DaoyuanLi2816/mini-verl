@@ -21,8 +21,8 @@ Alignment Lab and pinned verl-bridge work lives in `PROJECT_STATE.md` and
 ## Runtime scope
 
 - [ ] Cross-tokenizer distillation with an explicit alignment contract.
-- [ ] Batched or engine-backed rollout decoding; v0.4 batches update forwards,
-      while rollout generation remains deliberately sequential.
+- [ ] Engine-backed decoding beyond the current padded local-HF prompt batches;
+      tool-environment multi-turn generation remains deliberately sequential.
 - [ ] Additional tested model families beyond Qwen2/Qwen3.
 - [ ] Entropy-aware divergence mixing after a prespecified experiment; current
       code records teacher entropy but does not implement the method.
