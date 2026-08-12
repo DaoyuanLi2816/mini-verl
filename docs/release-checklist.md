@@ -4,6 +4,12 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.8.1 development
+
+- [ ] Define the focused v0.8.1 scope before changing runtime semantics.
+- [ ] Preserve v0.8.0 tags, public artifacts and frozen benchmark bytes.
+- [ ] Complete the full release, compatibility and public-distribution gates.
+
 ## v0.8.0 single-GPU verl OPD pivot
 
 - [x] Implement and validate the documented `verl-opd-v0.8-single-gpu-v1`
@@ -117,10 +123,13 @@ unauthorized after checkpoint-selection failure**.
 
 ## After the tag
 
-- [ ] Verify the exact v0.8.0 merge-commit release workflow, OIDC publication,
+- [x] Verify the exact v0.8.0 merge-commit release workflow, OIDC publication,
       PyPI attestations, public clean install and GitHub Release.
-- [ ] Record identical public wheel/sdist hashes and advance main to
-      `0.8.1.dev0` in a separate state-sync PR.
+- [x] PyPI and the GitHub Release expose identical v0.8.0 files: wheel SHA-256
+      `1f1e608f894bc79451db752412fd82101b327ab74ffa7726ebcc98aeb66c57b9`,
+      sdist SHA-256
+      `c2a6576c4583990900baa0f2b36c25fe37959c6bb773d29529cf50606a7dc175`.
+- [x] Advance development to `0.8.1.dev0` in this separate state-sync PR.
 
 - [x] v0.7.1 release run
       [`31566663507`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31566663507)
