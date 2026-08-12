@@ -1,8 +1,8 @@
+# ruff: noqa: E402 - skip collection before importing torch-backed miniVERL code
+
 """Numerical conformance against the exact installed official verl source."""
 
 from __future__ import annotations
-
-# ruff: noqa: E402 - skip collection before importing torch-backed miniVERL code
 
 import importlib.metadata
 import importlib.util

@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 # ruff: noqa: E402 - skip collection before importing torch-backed miniVERL code
+
+from __future__ import annotations
 
 import pytest
 
