@@ -997,6 +997,10 @@ def verl_run_command(
         compiled = load_verl_opd_v08_source(config, overrides=overrides)
         system_plan = build_system_plan(compiled)
         native = compile_native_run_config(compiled, system_plan=system_plan)
+        from miniverl.config.models import VerlParquetSourceConfig
+
+        if not isinstance(native.source, VerlParquetSourceConfig):  # pragma: no cover
+            raise ConfigError("verl OPD compiler produced a non-Parquet native source")
         if dry_run:
             payload = {
                 "dry_run": True,
@@ -1015,6 +1019,18 @@ def verl_run_command(
         from miniverl.trainer import OPDTrainer
         from miniverl.utils.runs import read_jsonl, write_json_atomic
 
+        if not as_json:
+            console.print("[bold]verl-style local OPD[/bold]")
+            console.print(f"  data       {_esc(', '.join(native.source.train_files))}")
+            console.print(f"  actor      {_esc(native.models.student.model_id)}")
+            console.print(
+                f"  rollout    local HF, n=1, max response "
+                f"{_esc(native.source.max_response_length)}"
+            )
+            console.print(f"  teacher    {_esc(native.models.teacher.model_id)}")
+            console.print("  distill    forward_kl_topk / token-mean / no reward")
+            console.print(f"  trainer    {_esc(native.train.cycles)} optimizer update(s)")
+            console.print(f"  placement  {_esc(system_plan.local_execution['strategy'])}")
         construction_started = time.perf_counter()
         trainer_instance = OPDTrainer.from_config(
             native,
@@ -1111,6 +1127,27 @@ def verl_run_command(
             if resume is None:
                 measurements = fresh_measurements
                 write_json_atomic(paths.root / "verl-reference-measurements.json", measurements)
+        if resume is None:
+            from miniverl.models.adapter_io import export_adapter
+
+            export_started = time.perf_counter()
+            adapter_manifest, adapter_manifest_path = export_adapter(
+                paths.root,
+                paths.checkpoints / "final",
+                paths.root / "final-peft-adapter",
+                local_files_only=offline,
+            )
+            measurements["peft_export_seconds"] = round(time.perf_counter() - export_started, 4)
+            measurements["peft_adapter"] = {
+                "directory": "final-peft-adapter",
+                "manifest": adapter_manifest_path.name,
+                "checksums": adapter_manifest["checksums"],
+                "load_verified": True,
+            }
+            measurements["run_disk_bytes"] = sum(
+                item.stat().st_size for item in paths.root.rglob("*") if item.is_file()
+            )
+            write_json_atomic(paths.root / "verl-reference-measurements.json", measurements)
     except (MiniVerlError, ModuleNotFoundError, ValidationError) as exc:
         _fail(exc)
         return

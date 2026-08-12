@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "kind": "single_gpu_runtime_conformance",
+  "status": "measured",
+  "measured_at": "2026-08-12T07:34:15Z",
+  "miniverl_version": "0.8.0.dev0",
+  "source_commit": "d441c458ab5e30a939352e64391b6f875b489c99",
+  "profile": "verl-opd-v0.8-single-gpu-v1",
+  "verl": {
+    "tag": "v0.8.0",
+    "commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+    "distributed_execution_tested": false
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 4080",
+    "gpu_count": 1,
+    "vram_gib": 15.992,
+    "driver": "596.49",
+    "torch": "2.13.0+cu130"
+  },
+  "models": {
+    "student": {
+      "id": "Qwen/Qwen3-0.6B",
+      "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "quantization": "nf4",
+      "adapter": "lora-r8-alpha16"
+    },
+    "teacher": {
+      "id": "Qwen/Qwen3-1.7B",
+      "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "quantization": "nf4"
+    }
+  },
+  "recipe": {
+    "runtime_strategy": "dual_model_resident",
+    "prompt_limit": 128,
+    "response_limit": 16,
+    "logical_batch": 2,
+    "rollout_physical_batch": 2,
+    "update_physical_batch": 1,
+    "top_k": 32,
+    "optimizer_updates": 1,
+    "compiled_plan_sha256": "a4e7a377e313022766c80098cadd67577743905c9c2a96862696b5afeeabfa8c",
+    "input_parquet_sha256": "a686aaa602a5a6cd3411de137190779e692806ddedd03f4d728e808539800c54"
+  },
+  "measurements": {
+    "peak_allocated_gib": 2.1713,
+    "peak_reserved_gib": 3.1758,
+    "time_to_first_rollout_seconds": 10.8684,
+    "time_to_first_teacher_target_batch_seconds": 11.063,
+    "time_to_first_optimizer_update_seconds": 12.0224,
+    "rollout_tokens_per_second": 23.39,
+    "teacher_scored_positions_per_second": 164.44,
+    "update_selected_positions_per_second": 41.2463,
+    "checkpoint_bytes": 27649321,
+    "run_disk_bytes": 27757228,
+    "resume_load_seconds": 9.4933
+  },
+  "artifacts": {
+    "checkpoint_adapter_sha256": "8c20e2136593c7a37bd084df6324bdd8e937561e63af6c8eec05e5b543589667",
+    "standard_peft_adapter_sha256": "595046de169790870bc87d6a04f043ebab0ed94bee2ab7bc37db8cf30665ef58",
+    "standard_peft_manifest_sha256": "e6d0e7b0ad8b39221775ad0655c3fbb355baa0d659ca3c89927e46030890353c",
+    "standard_peft_load_verified": true
+  },
+  "scientific_scope": {
+    "runtime_correctness_only": true,
+    "alignment_quality_evaluated": false,
+    "opd_beats_sft_dpo_or_kd_claimed": false
+  }
+}
