@@ -314,8 +314,11 @@ def _check_parquet(root: Path) -> dict[str, Any]:
     required = {"data_source", "prompt", "ability", "reward_model", "extra_info"}
     schemas: dict[str, list[str]] = {}
     rows: dict[str, int] = {}
-    for split in ("train", "val"):
-        path = root / "data" / f"{split}.parquet"
+    files = sorted((root / "data").glob("*.parquet"))
+    if not files:
+        return {"status": "fail", "detail": "no Parquet data file is present"}
+    for path in files:
+        split = path.stem
         try:
             handle = pq.ParquetFile(path)
         except Exception as exc:
@@ -341,6 +344,68 @@ def _check_parquet(root: Path) -> dict[str, Any]:
 
 
 def _check_config(root: Path) -> dict[str, Any]:
+    opd_path = root / "recipe" / "verl-opd-overrides.yaml"
+    if opd_path.is_file():
+        try:
+            payload = yaml.safe_load(opd_path.read_text(encoding="utf-8"))
+            adapter = json.loads(
+                (root / "model" / "adapter_config.json").read_text(encoding="utf-8")
+            )
+            base = json.loads((root / "model" / "base-model.json").read_text(encoding="utf-8"))
+            teacher_identity = json.loads(
+                (root / "teacher" / "teacher-model.json").read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError, yaml.YAMLError) as exc:
+            return {"status": "fail", "detail": str(exc)}
+        required_roots = {"data", "actor_rollout_ref", "algorithm", "distillation", "trainer"}
+        actual = set(payload) if isinstance(payload, dict) else set()
+        opd_problems: list[str] = []
+        if not required_roots.issubset(actual):
+            opd_problems.append("missing required pure-OPD root")
+        try:
+            model = payload["actor_rollout_ref"]["model"]
+            expected = {
+                "path": "model/base",
+                "lora_adapter_path": "model",
+                "lora_rank": adapter["r"],
+                "lora_alpha": adapter["lora_alpha"],
+                "target_modules": adapter["target_modules"],
+            }
+            for field, value in expected.items():
+                if model.get(field) != value:
+                    opd_problems.append(f"actor_rollout_ref.model.{field}")
+            loss = payload["distillation"]["distillation_loss"]
+            semantic_expected = {
+                "loss_mode": "forward_kl_topk",
+                "use_task_rewards": False,
+                "use_policy_gradient": False,
+            }
+            for field, value in semantic_expected.items():
+                if loss.get(field) != value:
+                    opd_problems.append(f"distillation.distillation_loss.{field}")
+            if payload["distillation"].get("enabled") is not True:
+                opd_problems.append("distillation.enabled")
+            if payload["actor_rollout_ref"]["actor"].get("use_kl_loss") is not False:
+                opd_problems.append("actor_rollout_ref.actor.use_kl_loss")
+            if payload["algorithm"].get("use_kl_in_reward") is not False:
+                opd_problems.append("algorithm.use_kl_in_reward")
+            teacher = payload["distillation"]["teacher_models"]["teacher_model"]
+            if teacher.get("model_path") != "teacher/base":
+                opd_problems.append("distillation.teacher_models.teacher_model.model_path")
+            if not teacher_identity.get("model_id") or not teacher_identity.get("revision"):
+                opd_problems.append("teacher/teacher-model.json identity")
+            if base.get("model_id") != adapter["base_model_name_or_path"]:
+                opd_problems.append("base-model.json model_id")
+            if base.get("revision") != adapter["revision"]:
+                opd_problems.append("base-model.json revision")
+        except (KeyError, TypeError):
+            opd_problems.append("invalid pure-OPD handoff structure")
+        return {
+            "status": "ok" if not opd_problems else "fail",
+            "profile": "verl-opd-v0.8-single-gpu-v1",
+            "roots": sorted(actual),
+            "model_handoff_problems": opd_problems,
+        }
     try:
         payload = yaml.safe_load(
             (root / "recipe" / "verl-overrides.yaml").read_text(encoding="utf-8")
@@ -388,6 +453,14 @@ def _check_reward(root: Path, *, trust_and_import: bool = False) -> dict[str, An
     The bundle is untrusted input. Inspection parses the scaffold and never
     imports it, so a bundle cannot act merely by being diagnosed.
     """
+    if (root / "recipe" / "verl-opd-overrides.yaml").is_file():
+        return {
+            "status": "ok",
+            "verification_level": "not_applicable_pure_opd",
+            "implementation_complete": False,
+            "code_executed": False,
+            "detail": "task rewards are disabled by the pure-OPD profile",
+        }
     path = root / "reward" / "reward_or_verifier_scaffold.py"
     return inspect_reward_scaffold(path, trust_and_import=trust_and_import)
 
@@ -888,6 +961,13 @@ def _installed_verl() -> dict[str, Any]:
 #: Facts a bundle can only *assert*. Nothing in a doctor run recomputes them:
 #: they describe events that happened elsewhere, earlier, on other hardware.
 _DECLARED_ONLY_CLAIMS = (
+    "artifact_complete",
+    "config_semantics_supported",
+    "student_artifact_loadable",
+    "teacher_artifact_loadable",
+    "dataset_loadable",
+    "upstream_parse_passed",
+    "upstream_tiny_smoke_passed",
     "upstream_config_parse_passed",
     "model_data_load_smoke_passed",
     "distributed_execution_tested",
@@ -995,7 +1075,13 @@ def _recompute_upstream_smoke(
         if not generated.is_file():
             return {"status": "failed", "reason": "installed verl omits the generated PPO config"}
         official = OmegaConf.load(generated)
-        exported = OmegaConf.load(root / "recipe" / "verl-overrides.yaml")
+        recipe = root / "recipe"
+        override_path = (
+            recipe / "verl-opd-overrides.yaml"
+            if (recipe / "verl-opd-overrides.yaml").is_file()
+            else recipe / "verl-overrides.yaml"
+        )
+        exported = OmegaConf.load(override_path)
         OmegaConf.set_struct(official, True)
         OmegaConf.merge(official, exported)
     except Exception as exc:
@@ -1146,6 +1232,7 @@ def inspect_bridge_bundle(
         "artifact_hashes": hashes,
         "privacy": privacy,
         "local_smoke_status": local_smoke,
+        "artifact_complete": not artifact_failed,
         "artifact_bundle_complete": not artifact_failed,
         "bundle_declared_claims": declared,
         "locally_recomputed_checks": recomputed,
@@ -1154,10 +1241,18 @@ def inspect_bridge_bundle(
         # Every flag below reflects what *this* process recomputed. A bundle
         # cannot raise any of them by describing itself favourably.
         "upstream_config_parse_passed": upstream["status"] == "passed",
-        "model_data_load_smoke_passed": upstream["status"] == "passed"
+        "upstream_parse_passed": upstream["status"] == "passed",
+        "upstream_tiny_smoke_passed": False,
+        "model_data_load_smoke_passed": config.get("profile") != "verl-opd-v0.8-single-gpu-v1"
+        and upstream["status"] == "passed"
         and not artifact_failed
         and require_verl,
+        "config_semantics_supported": config.get("status") == "ok",
+        "student_artifact_loadable": model.get("status") == "ok",
+        "teacher_artifact_loadable": False,
+        "dataset_loadable": parquet.get("status") == "ok",
         "reward_implementation_complete": bool(reward.get("implementation_complete", False)),
+        "reward_required": config.get("profile") != "verl-opd-v0.8-single-gpu-v1",
         "launchable": False,
         "distributed_execution_tested": False,
         "algorithm_semantic_parity": False,

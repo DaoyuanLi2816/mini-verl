@@ -21,19 +21,40 @@ claimed.
 
 | State | Current value | Meaning |
 | --- | --- | --- |
-| `artifact_bundle_complete` | `true` | PEFT, safetensors, Parquet, config and provenance are present and hashed. |
-| `upstream_config_parse_passed` | `false` in a new bundle | Set only by a separate pinned upstream smoke record, never inferred at export time. |
-| `model_data_load_smoke_passed` | `false` in a new bundle | The export itself does not load the base snapshot or execute a model. |
-| `reward_implementation_complete` | `false` | The generated reward function deliberately fails closed. |
-| `launchable` | `false` | Base weights, reward logic and confirmed mappings are incomplete. |
+| `artifact_complete` | `true` | Required PEFT, Parquet, config, identity and provenance files are present and hashed. |
+| `config_semantics_supported` | `true` for a compatible OPD run | The source is the bounded pure-GKD profile, not a PPO reinterpretation. |
+| `student_artifact_loadable` | separate check | Standard PEFT structure and payload are checked independently. |
+| `teacher_artifact_loadable` | `false` in a new bundle | Teacher identity is preserved; the exact snapshot is not bundled. |
+| `dataset_loadable` | separate check | Every exported Parquet footer and required column is checked. |
+| `upstream_parse_passed` | `false` in a new bundle | Set only when doctor recomputes a merge under the exact installed pin. |
+| `upstream_tiny_smoke_passed` | `false` | No model execution occurs during export or doctor. |
+| `launchable` | `false` | Exact student/teacher snapshots are not materialized in the bundle. |
 | `distributed_execution_tested` | `false` | No distributed job ran. |
-| `algorithm_semantic_parity` | `false` | The target is a PPO/reward scaffold, not a continuation of miniVERL OPD. |
+| `algorithm_semantic_parity` | `false` | Conformance is scoped to documented config/loss behavior, not an end-to-end distributed algorithm. |
 
 The committed [pinned smoke record](generated/verl-bridge-smoke.json) verifies a
 specific artifact-only upstream parse/load exercise. It remains separate from
 the readiness state of a newly exported bundle and from any execution claim.
 
-## Import a resolved profile subset
+## Import the executable OPD v2 profile
+
+The v2 importer consumes the same typed source used by `plan` and `run`; it
+does not require a `ToolEnvironment` and does not invent a reward:
+
+```bash
+miniverl import-verl \
+  --profile verl-opd-v0.8-single-gpu-v1 \
+  --config verl-opd.yaml \
+  --set 'data.train_files=["data/train.parquet"]' \
+  --out local-opd.yaml
+```
+
+`local-opd.yaml` is a canonical, round-trippable input to `miniverl run`.
+`local-opd.import-report.json` records every source-field classification and
+both source/output digests. PG OPD, task rewards, KL penalties, `n>1`,
+multi-teacher and distributed semantics remain hard errors.
+
+## Legacy environment-profile import
 
 `import-verl` accepts the documented, resolved field subset—not arbitrary
 Hydra/OmegaConf or verl YAML. With only a source profile, it writes
@@ -156,7 +177,7 @@ miniverl import-verl resolved-verl.yaml \
 
 Every runnable output passes `RunConfig` validation before publication.
 
-## Export a portable bundle
+## Export a pure-OPD portable bundle
 
 ```bash
 miniverl export-verl --run runs/<run-id> \
@@ -166,30 +187,34 @@ miniverl export-verl --run runs/<run-id> \
 miniverl bridge doctor exports/<bundle> --require-verl
 ```
 
-The bundle contains:
+For a compatible `verl-opd-v0.8-single-gpu-v1` run, the bundle contains:
 
 ```text
-model/       adapter_config.json, adapter_model.safetensors, tokenizer metadata,
-             base-model.json (identity only; base snapshot is not bundled)
-data/        train.parquet, val.parquet
-recipe/      verl-overrides.yaml, launch.template.sh, REQUIRED_VERL.txt
-reward/      reward_or_verifier_scaffold.py (fails closed)
-provenance/  source manifest/result, compatibility-report.json, SHA256SUMS
+model/       student PEFT adapter, tokenizer metadata, base-model identity
+teacher/     teacher identity and adapter/materialization requirements
+data/        original train/validation Parquet bytes, without row reordering
+recipe/      verl-opd-overrides.yaml, launch.template.sh, REQUIRED_VERL.txt
+provenance/  source config, compiled plan, source manifest,
+             compatibility-report.json, SHA256SUMS
 README.md
 ```
 
-Available source-run response length and learning rate are preserved in the
-override file. The miniVERL total-token bound, cycle schedule and environment
-identity are preserved in `source_run_values`; they are not relabelled as
-equivalent verl intent. Any prompt limit or schedule value inserted for the PPO
-scaffold appears in `placeholder_defaults` with `source_run_intent: false`.
+The OPD override explicitly enables distillation, selects
+`forward_kl_topk`, disables policy-gradient/task-reward/KL-reward paths and
+preserves supported source data, optimizer, rollout and schedule values. Pure
+OPD has no reward scaffold. A same-base teacher adapter is recorded but blocks
+launch until it is explicitly merged/materialized as a teacher snapshot that
+the pinned upstream can consume.
 
-`bridge doctor` verifies pins, standard adapter structure, tokenizer state,
-Parquet schema, override structure, reward importability, privacy scopes and
-hashes. An `ok` verdict means the artifact checks passed; it still returns
-`launchable: false` while the fail-closed reward scaffold remains. The template
-script also refuses to proceed without the immutable base snapshot and a
-completed reward implementation.
+`bridge doctor` verifies pins, adapter structure, tokenizer state, Parquet
+schema, pure-OPD override structure, privacy scopes and hashes. An `ok` verdict
+means those local artifact checks passed; it does not mean launchable or
+distributed-tested. `launch.template.sh` refuses to proceed without both exact
+base snapshots and never emits an unverified distributed launch command.
+
+Historical `single-gpu-online-distillation-v1` runs continue to export the
+legacy PPO/reward scaffold for compatibility. That output remains explicitly
+non-launchable and is not relabelled as OPD.
 
 ### Tokenizer verification levels
 

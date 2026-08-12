@@ -1399,10 +1399,14 @@ def eval_command(
 
 @app.command("import-verl")
 def import_verl_command(
-    source: Path = typer.Argument(..., help="Pinned verl YAML configuration."),
+    source: Optional[Path] = typer.Argument(None, help="Pinned verl YAML configuration."),
+    config: Optional[Path] = typer.Option(
+        None, "--config", help="Resolved verl YAML configuration (v2 spelling)."
+    ),
     profile: str = typer.Option(..., "--profile", help="Documented bridge profile."),
-    target_verl: str = typer.Option(..., "--target-verl", help="Pinned verl tag or commit."),
+    target_verl: str = typer.Option("v0.8.0", "--target-verl", help="Pinned verl tag or commit."),
     out: Path = typer.Option(..., "--out", help="New miniVERL recipe path."),
+    overrides: list[str] = typer.Option([], "--set", help="Repeatable dotted key=value override."),
     environment: Optional[str] = typer.Option(
         None, "--environment", help="Explicit registered miniVERL environment."
     ),
@@ -1427,20 +1431,44 @@ def import_verl_command(
 ) -> None:
     """Import the documented whitelist, never generic verl YAML."""
     try:
-        from miniverl.bridge.config import import_verl_config
+        if source is not None and config is not None:
+            raise ConfigError("pass the verl YAML once, as a positional path or --config")
+        selected_source = config or source
+        if selected_source is None:
+            raise ConfigError("a resolved verl YAML path is required", hint="pass --config FILE")
+        from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 
-        report = import_verl_config(
-            source,
-            profile=profile,
-            target_verl=target_verl,
-            out=out,
-            environment=environment,
-            teacher_model=teacher_model,
-            teacher_adapter=teacher_adapter,
-            loss_profile=loss_profile,
-            schedule_mapping=schedule_mapping,
-            overwrite=overwrite,
-        )
+        if profile == VERL_OPD_V08_PROFILE:
+            from miniverl.bridge.contract import validate_target_verl
+            from miniverl.bridge.opd_v08 import publish_imported_verl_opd_v08
+
+            validate_target_verl(target_verl)
+            report = publish_imported_verl_opd_v08(
+                selected_source,
+                out=out,
+                overrides=overrides,
+                overwrite=overwrite,
+            )
+        else:
+            if overrides:
+                raise ConfigError(
+                    "--set is supported by the verl OPD v2 profile only",
+                    hint=f"use --profile {VERL_OPD_V08_PROFILE}",
+                )
+            from miniverl.bridge.config import import_verl_config
+
+            report = import_verl_config(
+                selected_source,
+                profile=profile,
+                target_verl=target_verl,
+                out=out,
+                environment=environment,
+                teacher_model=teacher_model,
+                teacher_adapter=teacher_adapter,
+                loss_profile=loss_profile,
+                schedule_mapping=schedule_mapping,
+                overwrite=overwrite,
+            )
     except MiniVerlError as exc:
         _fail(exc)
         return
@@ -1530,7 +1558,7 @@ def export_verl_command(
     out: Path = typer.Option(..., "--out", help="New scale-out bundle directory."),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
-    """Export a self-checking miniVERL-defined Level-3 artifact bundle."""
+    """Export a self-checking OPD bundle or the versioned legacy bridge profile."""
     try:
         from miniverl.bridge.export import export_verl_bundle
 
@@ -1594,9 +1622,10 @@ def bridge_doctor_command(
     ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
-    """Verify pins, standard artifacts, schema, scaffold, hashes and smoke status.
+    """Verify pins, standard artifacts, schema, semantics, hashes and smoke status.
 
-    Reward code is statically inspected and never executed by default.
+    Legacy reward code is statically inspected and never executed by default;
+    pure OPD bundles have no reward code.
     """
     from miniverl.bridge.doctor import inspect_bridge_bundle
 

@@ -19,30 +19,30 @@
   <a href="README.zh-CN.md">中文</a>
 </p>
 
-**miniVERL is a local, inspectable single-GPU alignment and distillation
-runtime.** It runs native SFT, DPO, KD and strict OPD recipes, preserves
-assistant-only loss masks and policy-version provenance, and exchanges standard
-HF/PEFT/Parquet artifacts through a fail-closed bridge to one pinned verl
-profile.
+**Run a documented subset of verl-style on-policy distillation on one consumer
+GPU.** miniVERL accepts a typed verl v0.8 OPD profile and Parquet prompts,
+executes actor rollout → teacher scoring → actor update locally, and exports
+standard PEFT/Parquet/config artifacts for scale-out. Native SFT, DPO, KD and
+tool-agent recipes remain available.
 
-PyPI `v0.7.1` is stable; `main` is development. miniVERL is independent from
+PyPI `v0.8.0` is stable; `main` is development. miniVERL is independent from
 verl. It does not claim arbitrary verl YAML execution, distributed execution,
 or full algorithmic compatibility.
 
-## Install and verify in about a minute
+## Pip-only OPD quickstart
 
 ```bash
 python -m pip install "miniverl[train]"
-miniverl doctor
-miniverl demo --fast --output runs/quickstart
-miniverl inspect runs/quickstart/trajectories.jsonl
-miniverl evidence validate alignment-external-v1
+miniverl data sample --format verl-parquet --out prompts.parquet
+miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config builtin:qwen3-0.6b-1.7b-opd \
+  --set 'data.train_files=["prompts.parquet"]'
+miniverl run --profile verl-opd-v0.8-single-gpu-v1 --config builtin:qwen3-0.6b-1.7b-opd \
+  --set 'data.train_files=["prompts.parquet"]' --dry-run
 ```
 
-The deterministic demo downloads no model and produces typed trajectories, a
-checksummed teacher cache, manifest and report. The evidence command reads
-self-contained package data; it works from a wheel without a Git checkout.
-For schemas and inspection without the ML stack, install `miniverl` alone.
+The sample, plan and dry run need no Git checkout; planning loads no weights.
+Remove `--dry-run` on one CUDA GPU to execute the pinned Qwen3-0.6B/1.7B NF4
+recipe and produce a loadable PEFT adapter. [Follow the OPD quickstart](docs/opd-quickstart.md).
 
 ## Supported hardware and runtime boundary
 
@@ -55,39 +55,32 @@ See the [single-GPU guide](docs/single-gpu-guide.md).
 
 ## verl compatibility summary
 
-The bridge targets official verl `v0.8.0` at commit `7aed6b23`. Its verified
-boundary is checksummed standard artifacts plus pinned config-parse and
-model/data-load smoke—not native checkpoint parity or a completed verl job.
-Imports fail closed when dataset, environment, teacher, objective or schedule
-semantics are unresolved; they never substitute calculator tasks or invent an
-unqualified teacher.
+The executable profile targets official verl `v0.8.0` at commit `7aed6b23` and
+supports one actor, one teacher, `n=1`, pure GKD `forward_kl_topk`, token-mean
+aggregation, LoRA/QLoRA and no reward/KL penalty. PG OPD, task-reward mixtures,
+multi-teacher, multimodal and distributed fields fail closed.
 
-Current exports remain `launchable: false`: the base snapshot is absent, the
-reward scaffold fails closed and required mappings remain placeholders. The
-entry point is `launch.template.sh`; readiness, parse/load evidence,
-launchability, distributed execution and semantic parity are separate facts.
+Compatible OPD exports contain no reward scaffold. They preserve student and
+teacher identities, Parquet bytes and OPD overrides, but remain
+`launchable: false` until exact base snapshots are materialized. Parse status,
+artifact loadability, launchability and distributed execution are separate.
 [Read the bridge contract](docs/verl-bridge.md).
 
-## One measured systems result
+## Measured RTX 4080 runtime
 
-On one RTX 4080 with Qwen3-0.6B and eight fixed SQLite trajectories, physical
-batch 4 increased dual-model update throughput from 2.369 to 3.866
-trajectories/s. Shared-backbone batch 4 used 2.227 GiB peak reserved memory
-versus 3.035 GiB for dual model while running 10.1% slower. All 12
-preregistered equivalence comparisons passed. This is one workload on one
-machine, not a promise for other GPUs.
-
-![Measured throughput and reserved VRAM for dual-model and shared-backbone runtime cells](docs/consumer-runtime-v1-pareto.svg)
-
-[Consumer Runtime v1 methods and caveats](docs/consumer-runtime-v1.md)
+The packaged Qwen3-0.6B/1.7B recipe completed two 16-token rollouts and one OPD
+update with **3.1758 GiB peak reserved VRAM**; the first update completed in
+**12.0224 s** and the standard PEFT adapter reloaded successfully. This proves
+one runtime/artifact path only—no alignment-quality endpoint or method
+comparison ran. [Exact recipe, timings and hashes](docs/opd-quickstart.md).
 
 ## Three paths
 
 | Path | Start with | Concrete artifact | Next |
 | --- | --- | --- | --- |
-| **Align** — use SFT, DPO, KD or OPD only when pilot evidence supports the cost | `miniverl pilot recipes/alignment_policy_conditioned_qwen.yaml` | `alignment-card.json` | [Alignment Lab](docs/alignment-lab/alignment-lab-v1.md) |
-| **Distill locally** — strict OPD, shared backbones and padded updates on one CUDA GPU | `miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run` | resolved config and revision-pinned PEFT adapter | [Bring your own GPU](docs/single-gpu-guide.md) |
-| **Scale out** — convert Parquet, export standard artifacts and inspect the unsupported boundary | `miniverl bridge doctor scaleout-bundle` | `provenance/compatibility-report.json` | [Verified artifact bridge](docs/verl-bridge.md) |
+| **Run OPD locally** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml` | compiled plan, trajectories, targets and PEFT adapter | [Plan and run](docs/opd-quickstart.md) |
+| **Bring a verl config** | `miniverl import-verl --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out local-opd.yaml` | field report plus round-trippable profile | [Compatibility](docs/compatibility.md) |
+| **Move data and artifacts** | `miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout` | Parquet + PEFT + OPD override bundle | [Bridge contract](docs/verl-bridge.md) |
 
 ## Research notes and preserved negative evidence
 

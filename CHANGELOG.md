@@ -6,15 +6,29 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
-### verl v0.8 OPD config compiler
+## [0.8.0] - 2026-08-12
+
+### Single-GPU verl v0.8 OPD runtime
 
 - Added the typed `verl-opd-v0.8-single-gpu-v1` configuration profile and an
-  offline `bridge compile-opd` command. Resolved YAML and repeatable dotted
-  overrides compile into deterministic field-by-field compatibility reports.
+  offline compiler plus weight-free `plan` and executable `run` commands.
+  Resolved YAML and repeatable dotted overrides compile into deterministic
+  field-by-field compatibility reports.
 - Unsupported policy-gradient OPD, task-reward mixtures, KL penalties,
   multi-generation, multi-teacher and distributed dimensions fail closed.
   Engine/resource fields are labelled as local reinterpretations rather than
-  upstream-exact behavior; the config-only command loads no model weights.
+  upstream-exact behavior.
+- Added first-class bounded verl Parquet prompts, padded local-HF rollout,
+  exact response-only selection, current-policy/teacher/cache bindings and the
+  pinned verl `forward_kl_topk` loss with token-mean scalar/metric/gradient
+  conformance.
+- Added a packaged Qwen3-0.6B/1.7B NF4 recipe and standard PEFT export. One RTX
+  4080 runtime-conformance run completed its first update in 12.0224 seconds at
+  3.1758 GiB peak reserved VRAM. No alignment-quality comparison was run.
+- Added OPD v2 import/export. Imports publish a canonical prompt profile without
+  inventing an environment or reward; exports preserve PEFT, teacher identity,
+  Parquet bytes and pure OPD overrides without a reward scaffold. Missing base
+  snapshots and teacher-adapter materialization remain explicit launch blockers.
 
 ## [0.7.1] - 2026-08-11
 
@@ -833,7 +847,9 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.1...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.1...v0.8.0
+[0.7.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.3...v0.7.0
 [0.6.3]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.1...v0.6.2

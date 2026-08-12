@@ -45,3 +45,25 @@ reserved but fails closed in v0.8.0 rather than loading weights unexpectedly.
 Unsupported settings—including policy-gradient OPD, task rewards, reference
 KL, multiple teachers, multiple generations, multimodal inputs and every
 distributed dimension—are rejected rather than reinterpreted.
+
+## Import and export the same bounded profile
+
+```bash
+miniverl import-verl --profile verl-opd-v0.8-single-gpu-v1 \
+  --config verl-opd.yaml --out local-opd.yaml
+miniverl run --profile verl-opd-v0.8-single-gpu-v1 \
+  --config local-opd.yaml --output runs
+miniverl export-verl --run runs/<run-id> --target-verl v0.8.0 --out scaleout
+miniverl bridge doctor scaleout --require-verl
+```
+
+A compatible export contains the standard student PEFT adapter, tokenizer
+metadata, exact student/teacher identities, original Parquet bytes, the source
+config, compiled plan and pure OPD overrides. No reward scaffold is generated.
+Validation data is exported only when the source declared it; an empty
+`data.val_files` remains empty rather than duplicating training rows.
+
+The bundle stays `launchable: false` until the exact student and teacher base
+snapshots are materialized. A local teacher adapter adds an explicit merge
+requirement because the pinned upstream profile does not consume that adapter
+path directly. The bridge never claims a distributed verl job ran.
