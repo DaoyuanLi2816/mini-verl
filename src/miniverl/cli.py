@@ -1039,9 +1039,21 @@ def verl_run_command(
             )
             result = trainer.train()
             paths = trainer.paths
-            cycle_rows = [
-                row for row in read_jsonl(paths.metrics) if row.get("phase") == "opd_cycle"
-            ]
+            if resume is not None:
+                measurements = {
+                    "schema_version": 1,
+                    "status": "measured",
+                    "resume_load_seconds": round(construction_seconds, 4),
+                    "resume_from": str(resume),
+                    "global_optimizer_step": result.global_step,
+                    "distributed_execution": False,
+                }
+                write_json_atomic(paths.root / "verl-resume-measurements.json", measurements)
+                cycle_rows = []
+            else:
+                cycle_rows = [
+                    row for row in read_jsonl(paths.metrics) if row.get("phase") == "opd_cycle"
+                ]
             first_cycle = cycle_rows[0] if cycle_rows else {}
             final_metrics = result.final_metrics
             checkpoint = paths.checkpoints / "final"
@@ -1050,7 +1062,7 @@ def verl_run_command(
             )
             run_bytes = sum(item.stat().st_size for item in paths.root.rglob("*") if item.is_file())
             adapter_file = checkpoint / "adapter.safetensors"
-            measurements = {
+            fresh_measurements = {
                 "schema_version": 1,
                 "status": "measured",
                 "hardware": {
@@ -1096,7 +1108,9 @@ def verl_run_command(
                 "runtime_correctness_only": True,
                 "alignment_quality_claim": False,
             }
-            write_json_atomic(paths.root / "verl-reference-measurements.json", measurements)
+            if resume is None:
+                measurements = fresh_measurements
+                write_json_atomic(paths.root / "verl-reference-measurements.json", measurements)
     except (MiniVerlError, ModuleNotFoundError, ValidationError) as exc:
         _fail(exc)
         return
