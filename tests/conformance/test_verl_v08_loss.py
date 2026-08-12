@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+# ruff: noqa: E402 - skip collection before importing torch-backed miniVERL code
+
 import importlib.metadata
 import importlib.util
 import json
@@ -13,7 +15,8 @@ from types import SimpleNamespace
 from urllib.parse import unquote, urlparse
 
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
 
 from miniverl.bridge.opd_v08 import VERL_COMMIT
 from miniverl.losses.verl_topk import verl_forward_kl_topk

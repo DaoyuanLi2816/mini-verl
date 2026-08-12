@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-import torch
+# ruff: noqa: E402 - skip collection before importing torch-backed miniVERL code
+
+import pytest
+
+torch = pytest.importorskip("torch")
+
+pytestmark = pytest.mark.torch
 
 from miniverl.losses.verl_topk import verl_forward_kl_topk
 
