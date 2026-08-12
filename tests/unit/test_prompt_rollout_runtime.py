@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import pytest
+
+pytest.importorskip("torch")
+pytestmark = pytest.mark.torch
+
 from miniverl.config.models import RolloutConfig, VerlParquetSourceConfig
 from miniverl.data.verl_parquet import PromptRecord, RenderedPrompt
 from miniverl.models.tokenizers import ToyTokenizer
