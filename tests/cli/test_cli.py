@@ -44,6 +44,8 @@ EXPECTED_COMMANDS = {
     "alignment-suite validate",
     "alignment-suite report",
     "doctor",
+    "evidence show",
+    "evidence validate",
     "validate",
     "demo",
     "train",
@@ -195,6 +197,16 @@ def test_root_help_lists_every_command() -> None:
     assert result.exit_code == 0
     for name in _top_level_names():
         assert name in result.stdout, f"{name} missing from --help"
+
+
+def test_root_help_describes_the_current_product_without_promising_v08() -> None:
+    result = _invoke("--help")
+
+    assert result.exit_code == 0
+    collapsed = _collapse(result.stdout)
+    assert "single-GPU alignment and distillation runtime" in collapsed
+    assert "bounded verl artifact bridge" in collapsed
+    assert "documented subset of verl-style OPD" not in collapsed
 
 
 def test_command_set_matches_the_documented_set() -> None:
@@ -394,6 +406,27 @@ def test_pilot_consumes_the_external_early_stop_without_recommending_a_method() 
     assert not any(
         method in json.dumps(payload).lower() for method in ("continued sft", "dpo", "kd", "opd")
     )
+
+
+def test_pilot_consumes_the_packaged_external_study_without_a_checkout() -> None:
+    payload = _payload(_invoke("pilot", "--builtin-study", "alignment-external-v1", "--json"))
+
+    assert payload["study_status"] == "terminated_at_checkpoint_selection"
+    assert payload["method_recommendation"] == "insufficient_evidence"
+    assert payload["evidence"]["builtin_study"] == "alignment-external-v1"
+    assert payload["evidence"]["sha256"]
+
+
+def test_evidence_show_and_validate_use_packaged_bytes() -> None:
+    shown = _payload(_invoke("evidence", "show", "alignment-external-v1", "--json"))
+    validated = _payload(_invoke("evidence", "validate", "alignment-external-v1", "--json"))
+
+    assert shown["study_id"] == "alignment-external-v1"
+    assert shown["result"]["study_status"] == "terminated_at_checkpoint_selection"
+    assert validated["valid"] is True
+    assert validated["study_id"] == "alignment-external-v1"
+    assert validated["task_rows"] == 512
+    assert validated["problems"] == []
 
 
 def test_pilot_rejects_an_inconsistent_external_result(tmp_path: Path) -> None:

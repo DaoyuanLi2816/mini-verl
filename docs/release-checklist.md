@@ -4,10 +4,26 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
-## v0.7.1 (in development)
+## v0.7.1 Product correction
 
-- [ ] Define and review the next maintenance scope before implementation. No
-      new scientific experiment is authorized by the v0.7.0 state sync.
+- [ ] README, Chinese README, PyPI description and docs landing page lead with
+      the installable runtime, hardware boundary, compatibility boundary and
+      measured systems evidence; preserved research results follow under
+      Research Notes.
+- [ ] CLI help, doctor wording, project metadata and CFF describe the current
+      single-GPU alignment/distillation runtime without promising v0.8
+      execution semantics.
+- [ ] The wheel packages the v0.7 external-study result, schema,
+      preregistration and 512 task rows. `evidence show`, `evidence validate`
+      and `pilot --builtin-study` work in a clean core-only installation with
+      no checkout.
+- [ ] Ruff, format, mypy, actionlint, CPU/GPU/network tests, strict docs,
+      Playwright, package/extracted-sdist, clean installs, bridge and
+      frozen-artifact gates pass on the exact release candidate.
+- [ ] `git shortlog` and commit/body scans show Daoyuan Li as the only source
+      author since v0.7.0 and no AI attribution trailers.
+- [ ] The v0.7.0 tag, published adapter revisions and every frozen benchmark
+      remain unchanged.
 
 ## v0.7.0 External Alignment Gate evidence release
 

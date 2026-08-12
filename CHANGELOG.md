@@ -6,6 +6,27 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-11
+
+### Product correction
+
+- Reordered the English, Chinese, PyPI and documentation landing pages around
+  the installable single-GPU runtime, its hardware boundary, the pinned verl
+  artifact bridge and measured systems evidence. Research studies and their
+  negative results remain intact under Research Notes rather than preceding
+  the quickstart.
+- Updated package metadata, CLI help and diagnostics to describe the current
+  single-GPU alignment and distillation runtime without claiming the planned
+  verl-style OPD execution layer already exists.
+- Added `miniverl evidence show/validate alignment-external-v1` and
+  `miniverl pilot --builtin-study alignment-external-v1`. The wheel now carries
+  the typed result, schema, preregistration and all 512 task-evidence rows with
+  byte-bound validation, so the primary pip journey no longer depends on a Git
+  checkout.
+- Carried the corrected post-v0.7.0 evidence digest labels into a new immutable
+  stable release without changing the v0.7.0 tag or any frozen scientific
+  result.
+
 ## [0.7.0] - 2026-08-10
 
 ### External Alignment Gate result
@@ -802,7 +823,7 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.1...HEAD
 [0.7.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.3...v0.7.0
 [0.6.3]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.2...v0.6.3
 [0.6.2]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.1...v0.6.2

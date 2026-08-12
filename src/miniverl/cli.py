@@ -29,9 +29,9 @@ from miniverl.utils.runs import make_run_id
 app = typer.Typer(
     name="miniverl",
     help=(
-        "On-policy distillation for tool-using agents on one GPU.\n\n"
-        "A readable single-CUDA-GPU post-training lab for exact and budgeted "
-        "on-policy distillation."
+        "Auditable single-GPU alignment and distillation runtime.\n\n"
+        "Run native local workflows, inspect every artifact, and exchange standard "
+        "HF/PEFT/Parquet artifacts through a bounded verl artifact bridge."
     ),
     add_completion=False,
     no_args_is_help=True,
@@ -51,6 +51,10 @@ alignment_suite_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(alignment_suite_app, name="alignment-suite")
+evidence_app = typer.Typer(
+    help="Show and validate evidence packaged with the installed wheel.", no_args_is_help=True
+)
+app.add_typer(evidence_app, name="evidence")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -132,7 +136,7 @@ def main(
         envvar="MINIVERL_LOG_LEVEL",
     ),
 ) -> None:
-    """miniVERL: on-policy distillation for tool-using agents on one GPU."""
+    """miniVERL: an auditable single-GPU alignment and distillation runtime."""
     from miniverl.utils.logging import configure_logging
 
     configure_logging(log_level)
@@ -181,7 +185,11 @@ def doctor(
             "cpu_training",
             'pip install "miniverl[train]"',
         ),
-        ("GPU training", "gpu_training", "install a CUDA build of torch"),
+        (
+            "single-GPU CUDA training (native recipes)",
+            "gpu_training",
+            "install a CUDA build of torch",
+        ),
         ("4-bit QLoRA", "qlora_4bit", 'pip install "miniverl[train,cuda]"'),
     ):
         ready = verdict[key]
@@ -614,7 +622,55 @@ def qualify_teacher_command(
     console.print(f"  result {_esc(out / 'result.json')}")
 
 
-# ----------------------------------------------------------------- train
+# ------------------------------------------------------------- evidence
+
+
+@evidence_app.command("show")
+def evidence_show(
+    study_id: str = typer.Argument(..., help="Packaged study identifier."),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Show a packaged, typed study result without a repository checkout."""
+    from miniverl.evidence import show_builtin_study
+
+    try:
+        payload = show_builtin_study(study_id)
+    except (MiniVerlError, OSError, ValidationError) as exc:
+        _fail(exc)
+        return
+    if as_json:
+        _emit_json(payload)
+        return
+    console.print(f"[bold]{_esc(study_id)}[/bold]")
+    console.print_json(json.dumps(payload["result"], allow_nan=False))
+
+
+@evidence_app.command("validate")
+def evidence_validate(
+    study_id: str = typer.Argument(..., help="Packaged study identifier."),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Validate packaged result, schema, preregistration and task evidence."""
+    from miniverl.evidence import validate_builtin_study
+
+    try:
+        payload = validate_builtin_study(study_id)
+    except (MiniVerlError, OSError, ValidationError) as exc:
+        _fail(exc)
+        return
+    if as_json:
+        _emit_json(payload)
+    elif payload["valid"]:
+        console.print(
+            f"[green]valid[/green] {_esc(study_id)} · {_esc(payload['task_rows'])} task rows"
+        )
+    else:
+        for problem in payload["problems"]:
+            err_console.print(f"[red]invalid[/red] {_esc(problem)}")
+        raise typer.Exit(1)
+
+
+# ----------------------------------------------------------------- pilot
 
 
 @app.command()
@@ -627,6 +683,11 @@ def pilot(
         "--study-result",
         help="Schema-validated external-study result; does not load a model.",
     ),
+    builtin_study: Optional[str] = typer.Option(
+        None,
+        "--builtin-study",
+        help="Packaged external-study result; works from an installed wheel.",
+    ),
     out: Optional[Path] = typer.Option(None, "--out", help="Optional JSON output path."),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
@@ -635,8 +696,17 @@ def pilot(
 
     payload: dict[str, Any]
     try:
-        if recipe is not None and study_result is not None:
-            raise ConfigError("miniverl pilot accepts either a recipe or --study-result, not both")
+        selected = sum(value is not None for value in (recipe, study_result, builtin_study))
+        if selected > 1:
+            raise ConfigError(
+                "miniverl pilot accepts exactly one of a recipe, --study-result, or --builtin-study"
+            )
+        builtin = None
+        if builtin_study is not None:
+            from miniverl.evidence import get_builtin_study
+
+            builtin = get_builtin_study(builtin_study)
+            study_result = builtin.result_path
         if study_result is not None:
             from miniverl.alignment_external.result import load_alignment_external_result
 
@@ -660,6 +730,7 @@ def pilot(
                 ],
                 "evidence": {
                     "path": str(study_result),
+                    "builtin_study": builtin.study_id if builtin is not None else None,
                     "sha256": hashlib.sha256(study_result.read_bytes()).hexdigest(),
                     "preregistration": result.preregistration.model_dump(mode="json"),
                     "task_evidence": result.checkpoint_selection.task_evidence.model_dump(
@@ -670,7 +741,9 @@ def pilot(
             }
         else:
             if recipe is None:
-                raise ConfigError("miniverl pilot requires a recipe or --study-result")
+                raise ConfigError(
+                    "miniverl pilot requires a recipe, --study-result or --builtin-study"
+                )
             from miniverl.alignment import PilotEvidence, recommend_alignment_method
             from miniverl.config import RunConfig
 
@@ -685,7 +758,7 @@ def pilot(
     except (ValidationError, MiniVerlError) as exc:
         if isinstance(exc, MiniVerlError):
             _fail(exc)
-        source = recipe if recipe is not None else study_result
+        source = recipe if recipe is not None else study_result or builtin_study
         err_console.print(f"[red]invalid pilot evidence[/red] {_esc(source)}\n{_esc(exc)}")
         raise typer.Exit(1) from None
     if as_json:
