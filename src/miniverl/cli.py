@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -55,6 +56,8 @@ evidence_app = typer.Typer(
     help="Show and validate evidence packaged with the installed wheel.", no_args_is_help=True
 )
 app.add_typer(evidence_app, name="evidence")
+data_app = typer.Typer(help="Create and inspect portable prompt data.", no_args_is_help=True)
+app.add_typer(data_app, name="data")
 
 console = Console()
 err_console = Console(stderr=True)
@@ -140,6 +143,51 @@ def main(
     from miniverl.utils.logging import configure_logging
 
     configure_logging(log_level)
+
+
+@data_app.command("sample")
+def data_sample_command(
+    out: Path = typer.Option(..., "--out", help="Output Parquet path."),
+    format_name: str = typer.Option(
+        "verl-parquet", "--format", help="Portable output format (verl-parquet only)."
+    ),
+    rows: int = typer.Option(4, "--rows", min=1, max=1024, help="Number of sample prompts."),
+) -> None:
+    """Create a small reward-free verl-style Parquet prompt dataset."""
+    if format_name != "verl-parquet":
+        _fail(ConfigError("--format must be verl-parquet"))
+        return
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+    except ModuleNotFoundError as exc:
+        from miniverl.errors import MissingDependencyError
+
+        _fail(MissingDependencyError(exc.name or "pyarrow", "bridge", "Parquet sample data"))
+        return
+    prompts = [
+        "Explain why exact provenance matters in one concise sentence.",
+        "Give one safe way to recover from a CUDA out-of-memory error.",
+        "What does token-mean loss aggregation mean?",
+        "State one limitation of a single-GPU training runtime.",
+    ]
+    records = []
+    for index in range(rows):
+        records.append(
+            {
+                "prompt": [
+                    {"role": "system", "content": "Answer clearly and briefly."},
+                    {"role": "user", "content": prompts[index % len(prompts)]},
+                ],
+                "data_source": "miniverl_quickstart",
+                "ability": "short_answer",
+                "extra_info": {"sample_index": index},
+            }
+        )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.Table.from_pylist(records), out)
+    digest = hashlib.sha256(out.read_bytes()).hexdigest()
+    console.print(f"[green]wrote[/green] {_esc(out)} ({rows} rows, sha256 {digest})")
 
 
 # ---------------------------------------------------------------- doctor
@@ -857,6 +905,261 @@ def align(
     console.print(f"  card {_esc(Path(str(payload['run_dir'])) / 'alignment-card.md')}")
 
 
+# ---------------------------------------------------------- verl-shaped plan/run
+
+
+@app.command("plan")
+def plan_command(
+    config: str = typer.Option(..., "--config", help="Resolved YAML path or builtin profile."),
+    profile: str = typer.Option(
+        "verl-opd-v0.8-single-gpu-v1", "--profile", help="Pinned compatibility profile."
+    ),
+    overrides: list[str] = typer.Option([], "--set", help="Repeatable dotted key=value override."),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+    offline: bool = typer.Option(False, "--offline", help="Do not access the network."),
+    probe: bool = typer.Option(
+        False, "--probe", help="Load models for a bounded probe (not available in v0.8.0)."
+    ),
+) -> None:
+    """Plan pinned single-GPU verl-style OPD without loading model weights."""
+    del offline
+    try:
+        from miniverl.bridge.opd_runtime import build_system_plan
+        from miniverl.bridge.opd_v08 import (
+            VERL_OPD_V08_PROFILE,
+            load_verl_opd_v08_source,
+        )
+
+        if profile != VERL_OPD_V08_PROFILE:
+            raise ConfigError(
+                f"unsupported OPD profile {profile!r}", hint=f"use --profile {VERL_OPD_V08_PROFILE}"
+            )
+        if probe:
+            raise ConfigError(
+                "--probe is not implemented in v0.8.0",
+                hint="run without --probe for the weight-free estimate",
+            )
+        compiled = load_verl_opd_v08_source(config, overrides=overrides)
+        plan = build_system_plan(compiled)
+        payload = plan.model_dump(mode="json")
+    except MiniVerlError as exc:
+        _fail(exc)
+        return
+    if as_json:
+        _emit_json(payload)
+        return
+    console.print(f"[green]executable: {str(plan.executable).lower()}[/green]")
+    console.print(f"  profile {_esc(plan.profile)}")
+    console.print(f"  verl {_esc(plan.upstream['tag'])} @ {_esc(plan.upstream['commit'][:12])}")
+    console.print(f"  student {_esc(plan.student['model_id'])} @ {_esc(plan.student['revision'])}")
+    console.print(f"  teacher {_esc(plan.teacher['model_id'])} @ {_esc(plan.teacher['revision'])}")
+    console.print(
+        f"  loss {_esc(plan.loss['mode'])}, {_esc(plan.loss['aggregation'])}, "
+        f"top-k {_esc(plan.loss['top_k'])}"
+    )
+    console.print(
+        f"  placement {_esc(plan.local_execution['strategy'])}: "
+        f"{_esc(plan.local_execution['reason'])}"
+    )
+    console.print("  memory estimates (not measurements)")
+    for key, value in plan.memory.items():
+        console.print(f"    {_esc(key)}: {_esc(value)}")
+    console.print("  time to first update: unknown (not measured by plan)")
+    console.print(f"  plan sha256 {_esc(plan.compiled_digest)}")
+
+
+@app.command("run")
+def verl_run_command(
+    config: str = typer.Option(..., "--config", help="Resolved YAML path or builtin profile."),
+    profile: str = typer.Option(
+        "verl-opd-v0.8-single-gpu-v1", "--profile", help="Pinned compatibility profile."
+    ),
+    overrides: list[str] = typer.Option([], "--set", help="Repeatable dotted key=value override."),
+    output: Optional[Path] = typer.Option(None, "--output", help="Parent run directory."),
+    run_id: Optional[str] = typer.Option(None, "--run-id", help="Explicit run id."),
+    resume: Optional[Path] = typer.Option(None, "--resume", help="Resume an existing run."),
+    offline: bool = typer.Option(False, "--offline", help="Use cached model files only."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Compile native config only."),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Execute the pinned verl v0.8 pure-OPD subset on one local CUDA GPU."""
+    try:
+        from miniverl.bridge.opd_runtime import build_system_plan, compile_native_run_config
+        from miniverl.bridge.opd_v08 import (
+            VERL_OPD_V08_PROFILE,
+            load_verl_opd_v08_source,
+        )
+
+        if profile != VERL_OPD_V08_PROFILE:
+            raise ConfigError(
+                f"unsupported OPD profile {profile!r}", hint=f"use --profile {VERL_OPD_V08_PROFILE}"
+            )
+        compiled = load_verl_opd_v08_source(config, overrides=overrides)
+        system_plan = build_system_plan(compiled)
+        native = compile_native_run_config(compiled, system_plan=system_plan)
+        from miniverl.config.models import VerlParquetSourceConfig
+
+        if not isinstance(native.source, VerlParquetSourceConfig):  # pragma: no cover
+            raise ConfigError("verl OPD compiler produced a non-Parquet native source")
+        if dry_run:
+            payload = {
+                "dry_run": True,
+                "compatibility": compiled.model_dump(mode="json"),
+                "system_plan": system_plan.model_dump(mode="json"),
+                "resolved_native_config": native.model_dump(mode="json"),
+            }
+            if as_json:
+                _emit_json(payload)
+            else:
+                console.print("[green]run dry run ok[/green]")
+                console.print(f"  plan sha256 {_esc(compiled.compiled_digest)}")
+                console.print("  no model weights loaded")
+            return
+        _require_training_stack("miniverl run")
+        from miniverl.trainer import OPDTrainer
+        from miniverl.utils.runs import read_jsonl, write_json_atomic
+
+        if not as_json:
+            console.print("[bold]verl-style local OPD[/bold]")
+            console.print(f"  data       {_esc(', '.join(native.source.train_files))}")
+            console.print(f"  actor      {_esc(native.models.student.model_id)}")
+            console.print(
+                f"  rollout    local HF, n=1, max response "
+                f"{_esc(native.source.max_response_length)}"
+            )
+            console.print(f"  teacher    {_esc(native.models.teacher.model_id)}")
+            console.print("  distill    forward_kl_topk / token-mean / no reward")
+            console.print(f"  trainer    {_esc(native.train.cycles)} optimizer update(s)")
+            console.print(f"  placement  {_esc(system_plan.local_execution['strategy'])}")
+        construction_started = time.perf_counter()
+        trainer_instance = OPDTrainer.from_config(
+            native,
+            output_dir=output,
+            run_id=run_id,
+            local_files_only=offline,
+            resume=resume,
+        )
+        construction_seconds = time.perf_counter() - construction_started
+        with trainer_instance as trainer:
+            write_json_atomic(
+                trainer.paths.root / "verl-source-config.json",
+                compiled.source.model_dump(mode="json"),
+            )
+            write_json_atomic(
+                trainer.paths.root / "verl-compatibility-report.json",
+                compiled.model_dump(mode="json"),
+            )
+            write_json_atomic(
+                trainer.paths.root / "local-execution-plan.json",
+                system_plan.model_dump(mode="json"),
+            )
+            result = trainer.train()
+            paths = trainer.paths
+            if resume is not None:
+                measurements = {
+                    "schema_version": 1,
+                    "status": "measured",
+                    "resume_load_seconds": round(construction_seconds, 4),
+                    "resume_from": str(resume),
+                    "global_optimizer_step": result.global_step,
+                    "distributed_execution": False,
+                }
+                write_json_atomic(paths.root / "verl-resume-measurements.json", measurements)
+                cycle_rows = []
+            else:
+                cycle_rows = [
+                    row for row in read_jsonl(paths.metrics) if row.get("phase") == "opd_cycle"
+                ]
+            first_cycle = cycle_rows[0] if cycle_rows else {}
+            final_metrics = result.final_metrics
+            checkpoint = paths.checkpoints / "final"
+            checkpoint_bytes = sum(
+                item.stat().st_size for item in checkpoint.rglob("*") if item.is_file()
+            )
+            run_bytes = sum(item.stat().st_size for item in paths.root.rglob("*") if item.is_file())
+            adapter_file = checkpoint / "adapter.safetensors"
+            fresh_measurements = {
+                "schema_version": 1,
+                "status": "measured",
+                "hardware": {
+                    "device": trainer.plan.device,
+                    "gpu_count": 1,
+                    "distributed_execution": False,
+                },
+                "construction_seconds": round(construction_seconds, 4),
+                "time_to_first_rollout_seconds": round(
+                    construction_seconds + float(first_cycle.get("rollout_seconds") or 0.0), 4
+                ),
+                "time_to_first_teacher_target_batch_seconds": round(
+                    construction_seconds
+                    + float(first_cycle.get("rollout_seconds") or 0.0)
+                    + float(first_cycle.get("teacher_scoring_seconds") or 0.0),
+                    4,
+                ),
+                "time_to_first_optimizer_update_seconds": round(
+                    construction_seconds + float(first_cycle.get("seconds") or 0.0), 4
+                ),
+                "rollout_tokens_per_second": (
+                    round(
+                        float((first_cycle.get("rollouts") or {}).get("generated_tokens") or 0)
+                        / float(first_cycle.get("rollout_seconds") or 1.0),
+                        2,
+                    )
+                ),
+                "teacher_scored_positions_per_second": first_cycle.get(
+                    "teacher_scored_positions_per_second"
+                ),
+                "update_selected_positions_per_second": final_metrics.get(
+                    "train_selected_tokens_per_second"
+                ),
+                "peak_allocated_gib": (final_metrics.get("memory") or {}).get("peak_allocated_gib"),
+                "peak_reserved_gib": (final_metrics.get("memory") or {}).get("peak_reserved_gib"),
+                "checkpoint_bytes": checkpoint_bytes,
+                "run_artifacts_bytes_before_measurement_manifest": run_bytes,
+                "adapter_sha256": (
+                    hashlib.sha256(adapter_file.read_bytes()).hexdigest()
+                    if adapter_file.is_file()
+                    else None
+                ),
+                "runtime_correctness_only": True,
+                "alignment_quality_claim": False,
+            }
+            if resume is None:
+                measurements = fresh_measurements
+                write_json_atomic(paths.root / "verl-reference-measurements.json", measurements)
+        if resume is None:
+            from miniverl.models.adapter_io import export_adapter
+
+            export_started = time.perf_counter()
+            adapter_manifest, adapter_manifest_path = export_adapter(
+                paths.root,
+                paths.checkpoints / "final",
+                paths.root / "final-peft-adapter",
+                local_files_only=offline,
+            )
+            measurements["peft_export_seconds"] = round(time.perf_counter() - export_started, 4)
+            measurements["peft_adapter"] = {
+                "directory": "final-peft-adapter",
+                "manifest": adapter_manifest_path.name,
+                "checksums": adapter_manifest["checksums"],
+                "load_verified": True,
+            }
+            measurements["run_disk_bytes"] = sum(
+                item.stat().st_size for item in paths.root.rglob("*") if item.is_file()
+            )
+            write_json_atomic(paths.root / "verl-reference-measurements.json", measurements)
+    except (MiniVerlError, ModuleNotFoundError, ValidationError) as exc:
+        _fail(exc)
+        return
+    payload = {**result.to_dict(), "run_dir": str(paths.root), "measurements": measurements}
+    if as_json:
+        _emit_json(payload)
+    else:
+        console.print(f"[bold green]OPD run complete[/bold green] {_esc(paths.root)}")
+        console.print(f"  optimizer steps {_esc(result.global_step)}")
+        console.print("  distributed execution false")
+
+
 # ----------------------------------------------------------------- train
 
 
@@ -1352,7 +1655,7 @@ def bridge_doctor_command(
 
 @bridge_app.command("compile-opd")
 def bridge_compile_opd_command(
-    config: Path = typer.Option(..., "--config", help="Resolved verl v0.8 OPD YAML."),
+    config: str = typer.Option(..., "--config", help="Resolved YAML path or builtin profile."),
     profile: str = typer.Option(
         "verl-opd-v0.8-single-gpu-v1",
         "--profile",
@@ -1377,14 +1680,14 @@ def bridge_compile_opd_command(
 ) -> None:
     """Compile the pinned single-GPU verl v0.8 OPD config subset offline."""
     try:
-        from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE, load_verl_opd_v08
+        from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE, load_verl_opd_v08_source
 
         if profile != VERL_OPD_V08_PROFILE:
             raise ConfigError(
                 f"unsupported OPD profile {profile!r}",
                 hint=f"use --profile {VERL_OPD_V08_PROFILE}",
             )
-        plan = load_verl_opd_v08(
+        plan = load_verl_opd_v08_source(
             config,
             overrides=overrides,
             require_executable=not inspect_unsupported,

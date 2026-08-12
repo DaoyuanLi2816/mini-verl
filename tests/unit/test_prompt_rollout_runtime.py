@@ -100,6 +100,38 @@ def test_prompt_trajectories_never_select_prompt_or_padding_tokens() -> None:
         assert trajectory.metadata["response_token_count"] == len(output.token_ids)
 
 
+def test_prompt_runtime_enforces_independent_response_bound() -> None:
+    tokenizer = ToyTokenizer()
+    backend = ToyBackend(tokenizer=tokenizer, model_id="toy", seed=7, trainable=False)
+    runtime = PromptDatasetRolloutRuntime(
+        backend=backend,
+        source_config=VerlParquetSourceConfig(
+            train_files=["unused.parquet"],
+            allow_plain_string_prompts=True,
+            max_response_length=3,
+        ),
+        rollout_config=RolloutConfig(
+            max_new_tokens_per_turn=20,
+            max_total_tokens=64,
+            temperature=0.0,
+            max_padded_tokens=64,
+        ),
+    )
+    prompt_ids = tuple(tokenizer.encode("short"))
+    rendered = RenderedPrompt(
+        record=_record(0),
+        text="short",
+        token_ids=prompt_ids,
+        tokenizer_identity=tokenizer.identity,
+        rendered_prompt_digest="f" * 64,
+        prompt_token_count=len(prompt_ids),
+        truncation_decision="not_needed",
+        original_prompt_token_count=len(prompt_ids),
+    )
+    generated = runtime.generate(runtime.prepare_batch([rendered]), policy_version=0, seed=1)
+    assert len(generated.outputs[0].token_ids) == 3
+
+
 def test_physical_batches_respect_padded_token_budget_without_reordering() -> None:
     tokenizer = ToyTokenizer()
     backend = ToyBackend(tokenizer=tokenizer, model_id="toy", seed=7, trainable=False)

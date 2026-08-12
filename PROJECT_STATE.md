@@ -64,6 +64,26 @@ response or implementation fails closed. The prompt-data integration exercises
 rollout, exact-state scoring, cache reload, one token-mean optimizer update and
 the emitted verl diagnostics.
 
+## v0.8.0 single-GPU verl OPD pivot — PR D
+
+`miniverl plan` now compiles a path or the packaged
+`builtin:qwen3-0.6b-1.7b-opd` profile without importing torch or allocating
+weights. Estimated memory, disk and placement stay distinct from measured and
+unknown values. Auto placement uses parsed model-scale metadata and configured
+headroom, never a GPU-name allowlist; unknown sizes conservatively select swap.
+`miniverl run` validates a generated native `RunConfig`, preserves the source,
+field report and local plan in the run, and executes the supported prompt OPD
+path. `miniverl data sample` makes reward-free verl-style message Parquet from
+an installed wheel.
+
+One RTX 4080 runtime-conformance run at `d441c45` used pinned Qwen3-0.6B /
+Qwen3-1.7B NF4 snapshots, two prompts, 16 response tokens each, top-k 32 and
+one optimizer update. Peak reserved memory was 3.1758 GiB; first rollout,
+teacher target batch and update completed at 10.8684 s, 11.0630 s and 12.0224 s
+from construction start. The standard PEFT adapter load passed. This is a
+systems result only; no alignment endpoint or method comparison ran. The
+machine-readable record is `benchmarks/results/rtx4080-verl-opd-runtime-v1.json`.
+
 ## v0.7.1 Product correction — RELEASE CANDIDATE
 
 Branch `v0.7.1-product-correction` starts from synchronized main

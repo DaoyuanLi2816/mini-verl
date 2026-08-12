@@ -39,6 +39,7 @@ plugins:
   - search
 nav:
   - Home: index.md
+  - Run verl-style OPD: opd-quickstart.md
   - Start on one GPU: single-gpu-guide.md
   - Align:
       - "External Alignment Gate v1: early stop": alignment-external/alignment-external-v1.md

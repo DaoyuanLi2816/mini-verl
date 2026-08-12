@@ -542,6 +542,7 @@ class VerlParquetSourceConfig(_Base):
     allow_plain_string_prompts: bool = False
     use_task_rewards: bool = False
     max_prompt_length: int = Field(default=512, ge=1, le=131072)
+    max_response_length: int = Field(default=256, ge=1, le=131072)
     truncation: PromptTruncation = PromptTruncation.ERROR
     shuffle: bool = True
     seed: int = Field(default=0, ge=0)

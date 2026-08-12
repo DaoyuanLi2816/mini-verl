@@ -78,12 +78,17 @@ class PromptDatasetRolloutRuntime:
         self.config = rollout_config
         self._closed = False
 
+    @property
+    def max_new_tokens(self) -> int:
+        """Independent response bound for the verl Parquet profile."""
+        return min(self.config.max_new_tokens_per_turn, self.source_config.max_response_length)
+
     def prepare_batch(self, inputs: list[RenderedPrompt]) -> PreparedPromptBatch:
         if self._closed:
             raise RuntimeError("prompt rollout runtime is closed")
         if not inputs:
             raise ValueError("prompt rollout batch cannot be empty")
-        max_new = self.config.max_new_tokens_per_turn
+        max_new = self.max_new_tokens
         for prompt in inputs:
             if len(prompt.token_ids) + max_new > self.config.max_total_tokens:
                 raise ValueError(
@@ -125,7 +130,7 @@ class PromptDatasetRolloutRuntime:
         try:
             output = self.backend.generate_batch(
                 [batch.prompts[index].token_ids for index in indices],
-                max_new_tokens=self.config.max_new_tokens_per_turn,
+                max_new_tokens=self.max_new_tokens,
                 temperature=self.config.temperature,
                 top_p=self.config.top_p,
                 top_k=self.config.top_k,
