@@ -24,6 +24,16 @@ structurally checked, and `pilot --builtin-study` exposes the early-stop result
 without a checkout. The planned verl-shaped executable OPD profile remains a
 v0.8 development objective and is not claimed by this release.
 
+Local release-candidate validation at implementation commit `5142ed6` passes
+2110 non-GPU/non-network tests with 86.19% branch coverage, 8 RTX 4080 GPU
+tests, 15 network tests, Ruff over 332 files, mypy over 147 source files,
+actionlint 1.7.12, strict MkDocs and 36 rendered SVG instances at four
+viewports. Twenty-four screenshots are under the ignored
+`artifacts/docs-visual-v0.7.1/` directory and the 1440, 820 and 390 px home
+views were manually inspected. Clean core and `[train]` wheel installs pass;
+core keeps torch absent and validates the built-in evidence, while `[train]`
+completes the real fast demo under latest resolved dependencies.
+
 ## v0.7.0 External Alignment Gate — RELEASED
 
 Branch `v0.7.0-evidence-release` starts from the exact post-PR-#52 main commit
