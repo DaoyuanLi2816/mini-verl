@@ -46,6 +46,24 @@ The pure-OPD integration executes two Parquet prompts through rollout, teacher
 scoring, a padded actor update, checkpoint and manifest without an environment
 or reward.
 
+## v0.8.0 single-GPU verl OPD pivot — PR C
+
+The compatibility loss is now a separate `forward_kl_topk` implementation;
+native `bucketed_topk_tail` is unchanged. The supported profile requires
+forward KL, upstream-compatible `token-mean` aggregation, temperature 1.0 and
+no sampled-token NLL mixture. Deterministic tensor tests import the official
+verl v0.8.0 loss implementation at pinned commit
+`7aed6b230776f963fa09509c10d9c3a767d1102c` and compare per-token loss,
+teacher/student top-k mass, overlap diagnostics, the reduced scalar and student
+gradients at `rtol=1e-6`, `atol=1e-7`.
+
+Teacher cache entries now bind the prompt-row digest, exact actor response
+token IDs and policy version; the cache identity additionally binds teacher,
+tokenizer, top-k, temperature and score-implementation version. A mismatched
+response or implementation fails closed. The prompt-data integration exercises
+rollout, exact-state scoring, cache reload, one token-mean optimizer update and
+the emitted verl diagnostics.
+
 ## v0.7.1 Product correction — RELEASE CANDIDATE
 
 Branch `v0.7.1-product-correction` starts from synchronized main

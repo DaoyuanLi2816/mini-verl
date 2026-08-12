@@ -45,6 +45,7 @@ __all__ = [
     "Quantization",
     "TeacherContextMode",
     "LossMode",
+    "LossAggregation",
     "Divergence",
     "SelectorName",
     "MemoryStrategy",
@@ -152,6 +153,14 @@ class LossMode(str, Enum):
 
     EXACT_FULL_VOCAB = "exact_full_vocab"
     BUCKETED_TOPK_TAIL = "bucketed_topk_tail"
+    VERL_FORWARD_KL_TOPK = "forward_kl_topk"
+
+
+class LossAggregation(str, Enum):
+    """How selected token losses form one optimizer-step scalar."""
+
+    NATIVE_PER_TRAJECTORY = "native_per_trajectory"
+    TOKEN_MEAN = "token-mean"
 
 
 class Divergence(str, Enum):
@@ -422,12 +431,15 @@ class LossConfig(_Base):
     """Divergence objective and its vocabulary treatment."""
 
     mode: LossMode = LossMode.BUCKETED_TOPK_TAIL
+    aggregation: LossAggregation = LossAggregation.NATIVE_PER_TRAJECTORY
     divergence: Divergence = Divergence.REVERSE_KL
     temperature: float = Field(default=1.0, gt=0.0, le=20.0)
     scale_by_temperature_squared: bool = True
     top_k: int = Field(default=64, ge=1, le=262144)
     jsd_beta: float = Field(default=0.5, ge=0.0, le=1.0)
     tail_epsilon: float = Field(default=1e-9, gt=0.0, lt=1e-2)
+    log_prob_min_clamp: float | None = Field(default=None, le=0.0)
+    loss_max_clamp: float | None = Field(default=None, gt=0.0)
     #: Number of selected prediction positions projected through the LM head at
     #: once.  Purely a memory/throughput knob -- it does not change the loss.
     chunk_size: int = Field(default=256, ge=1, le=65536)
@@ -845,6 +857,25 @@ class RunConfig(_Base):
             # LossConfig by reference, and rewriting it would be a surprising
             # side effect of merely constructing a RunConfig.
             self.loss = self.loss.model_copy(update={"top_k": 1})
+
+        if self.loss.mode is LossMode.VERL_FORWARD_KL_TOPK:
+            if self.loss.divergence is not Divergence.FORWARD_KL:
+                raise ValueError("loss.mode=forward_kl_topk requires loss.divergence=forward_kl")
+            if self.loss.aggregation is not LossAggregation.TOKEN_MEAN:
+                raise ValueError(
+                    "loss.mode=forward_kl_topk requires loss.aggregation=token-mean "
+                    "for the supported verl v0.8 profile"
+                )
+            if self.loss.temperature != 1.0 or self.loss.scale_by_temperature_squared:
+                raise ValueError(
+                    "loss.mode=forward_kl_topk uses upstream logits directly; set "
+                    "temperature=1.0 and scale_by_temperature_squared=false"
+                )
+            if self.loss.sampled_token_nll_weight != 0.0:
+                raise ValueError(
+                    "loss.mode=forward_kl_topk does not mix sampled-token NLL in the "
+                    "supported verl v0.8 profile"
+                )
 
         if mode is TrainingMode.SFT and self.loss.sampled_token_nll_weight not in (0.0, 1.0):
             raise ValueError(

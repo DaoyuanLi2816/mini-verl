@@ -10,7 +10,11 @@ import torch
 from miniverl.config.models import LossConfig, LossMode
 from miniverl.errors import AlignmentError, ConfigError, TokenizerMismatchError
 from miniverl.losses.bucketed import bucketed_teacher_entropy, teacher_topk_targets
-from miniverl.losses.chunked import BucketedTargetProvider, ExactTargetProvider
+from miniverl.losses.chunked import (
+    BucketedTargetProvider,
+    ExactTargetProvider,
+    VerlTopKTargetProvider,
+)
 from miniverl.losses.exact import exact_teacher_entropy
 from miniverl.models.base import CausalLMBackend
 from miniverl.schemas.alignment import AlignmentMap
@@ -96,15 +100,24 @@ class LocalTeacherScorer(TeacherScorer):
                 trajectory_id=student.trajectory_id,
                 policy_version=student.policy_version,
                 shape="bucketed",
-                provider=BucketedTargetProvider(
-                    topk_indices=torch.zeros(0, 1, dtype=torch.long),
-                    topk_log_probs=torch.zeros(0, 1),
-                    tail_log_prob=empty,
-                    divergence_name=self.loss.divergence.value,
-                    temperature=self.loss.temperature,
-                    scale_by_temperature_squared=self.loss.scale_by_temperature_squared,
-                    jsd_beta=self.loss.jsd_beta,
-                    tail_epsilon=self.loss.tail_epsilon,
+                provider=(
+                    VerlTopKTargetProvider(
+                        topk_indices=torch.zeros(0, 1, dtype=torch.long),
+                        topk_log_probs=torch.zeros(0, 1),
+                        log_prob_min_clamp=self.loss.log_prob_min_clamp,
+                        loss_max_clamp=self.loss.loss_max_clamp,
+                    )
+                    if self.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
+                    else BucketedTargetProvider(
+                        topk_indices=torch.zeros(0, 1, dtype=torch.long),
+                        topk_log_probs=torch.zeros(0, 1),
+                        tail_log_prob=empty,
+                        divergence_name=self.loss.divergence.value,
+                        temperature=self.loss.temperature,
+                        scale_by_temperature_squared=self.loss.scale_by_temperature_squared,
+                        jsd_beta=self.loss.jsd_beta,
+                        tail_epsilon=self.loss.tail_epsilon,
+                    )
                 ),
                 target_token_ids=target_ids,
                 weights=weights,
@@ -198,16 +211,33 @@ class LocalTeacherScorer(TeacherScorer):
             temperature=self.loss.temperature,
             top_k=top_k,
             span_types=list(alignment.span_types),
+            prompt_row_digest=student.metadata.get("row_digest"),
+            actor_response_token_ids=[
+                token_id
+                for token_id, generated in zip(
+                    student.token_ids, student.model_generated_mask, strict=True
+                )
+                if generated
+            ],
         )
-        provider = BucketedTargetProvider(
-            topk_indices=topk_indices,
-            topk_log_probs=topk_log_probs,
-            tail_log_prob=tail_log_prob,
-            divergence_name=self.loss.divergence.value,
-            temperature=self.loss.temperature,
-            scale_by_temperature_squared=self.loss.scale_by_temperature_squared,
-            jsd_beta=self.loss.jsd_beta,
-            tail_epsilon=self.loss.tail_epsilon,
+        provider = (
+            VerlTopKTargetProvider(
+                topk_indices=topk_indices,
+                topk_log_probs=topk_log_probs,
+                log_prob_min_clamp=self.loss.log_prob_min_clamp,
+                loss_max_clamp=self.loss.loss_max_clamp,
+            )
+            if self.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
+            else BucketedTargetProvider(
+                topk_indices=topk_indices,
+                topk_log_probs=topk_log_probs,
+                tail_log_prob=tail_log_prob,
+                divergence_name=self.loss.divergence.value,
+                temperature=self.loss.temperature,
+                scale_by_temperature_squared=self.loss.scale_by_temperature_squared,
+                jsd_beta=self.loss.jsd_beta,
+                tail_epsilon=self.loss.tail_epsilon,
+            )
         )
         covered = torch.logsumexp(topk_log_probs, dim=-1).exp()
         return TeacherScoreResult(
@@ -237,6 +267,11 @@ class LocalTeacherScorer(TeacherScorer):
             "revision": getattr(self.backend, "model_revision", None),
             "capabilities": self.backend.capabilities.to_dict(),
             "loss_mode": self.loss.mode.value,
+            "score_implementation_version": (
+                "verl-v0.8.0-forward-kl-topk-v1"
+                if self.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
+                else "miniverl-native-v1"
+            ),
             "top_k": self._effective_top_k(),
             "temperature": self.loss.temperature,
         }

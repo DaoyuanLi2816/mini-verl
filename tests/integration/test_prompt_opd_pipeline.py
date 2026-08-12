@@ -89,9 +89,13 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
             },
             "selection": {"selector": "all_model_tokens"},
             "loss": {
-                "mode": "bucketed_topk_tail",
+                "mode": "forward_kl_topk",
                 "divergence": "forward_kl",
+                "aggregation": "token-mean",
+                "temperature": 1.0,
+                "scale_by_temperature_squared": False,
                 "top_k": 4,
+                "log_prob_min_clamp": -10.0,
                 "chunk_size": 16,
             },
             "train": {
@@ -128,3 +132,19 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
         for row in rows
     )
     assert all(row["metadata"]["reward_model"] is None for row in rows)
+    metrics = [
+        json.loads(line)
+        for line in (result.run_dir / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    update = next(row for row in metrics if row.get("phase") == "opd")
+    assert update["loss_aggregation"] == "token-mean"
+    assert set(update["verl_forward_kl_topk"]) == {
+        "student_mass_mean",
+        "student_mass_min",
+        "student_mass_max",
+        "teacher_mass_mean",
+        "teacher_mass_min",
+        "teacher_mass_max",
+        "overlap_ratio",
+        "overlap_token_advantage",
+    }

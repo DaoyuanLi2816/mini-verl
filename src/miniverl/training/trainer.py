@@ -37,6 +37,7 @@ from miniverl.agent.loop import RolloutRunner, RolloutStats
 from miniverl.alignment.workflow import build_alignment_stage_plan
 from miniverl.cache.store import TeacherCache
 from miniverl.config.models import (
+    LossAggregation,
     LossMode,
     MemoryStrategy,
     ModelBackend,
@@ -1267,6 +1268,8 @@ class OPDTrainer:
 
     def _open_cache(self) -> TeacherCache:
         if self._cache is None:
+            from miniverl.losses.verl_topk import VERL_TOPK_SCORE_IMPLEMENTATION
+
             assert self.teacher is not None
             top_k = (
                 self.student.vocab_size
@@ -1284,6 +1287,11 @@ class OPDTrainer:
                 "top_k": top_k,
                 "temperature": self.config.loss.temperature,
                 "loss_mode": self.config.loss.mode.value,
+                "score_implementation_version": (
+                    VERL_TOPK_SCORE_IMPLEMENTATION
+                    if self.config.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
+                    else "miniverl-native-v1"
+                ),
                 "dtype": self.config.cache.dtype,
             }
             if (path / "index.json").is_file():
@@ -1459,7 +1467,7 @@ class OPDTrainer:
 
     def _load_offline_dataset(self, *, expected_digest: str) -> None:
         from miniverl.losses.bucketed import bucketed_teacher_entropy
-        from miniverl.losses.chunked import BucketedTargetProvider
+        from miniverl.losses.chunked import BucketedTargetProvider, VerlTopKTargetProvider
         from miniverl.teachers.base import TeacherScoreResult
         from miniverl.training.offline_dataset import load_offline_dataset
 
@@ -1514,15 +1522,24 @@ class OPDTrainer:
                 raise CheckpointError(
                     f"offline span order changed for {trajectory.trajectory_id!r}"
                 )
-            provider = BucketedTargetProvider(
-                topk_indices=batch.topk_indices,
-                topk_log_probs=batch.topk_log_probs,
-                tail_log_prob=batch.tail_log_prob,
-                divergence_name=self.config.loss.divergence.value,
-                temperature=self.config.loss.temperature,
-                scale_by_temperature_squared=(self.config.loss.scale_by_temperature_squared),
-                jsd_beta=self.config.loss.jsd_beta,
-                tail_epsilon=self.config.loss.tail_epsilon,
+            provider = (
+                VerlTopKTargetProvider(
+                    topk_indices=batch.topk_indices,
+                    topk_log_probs=batch.topk_log_probs,
+                    log_prob_min_clamp=self.config.loss.log_prob_min_clamp,
+                    loss_max_clamp=self.config.loss.loss_max_clamp,
+                )
+                if self.config.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
+                else BucketedTargetProvider(
+                    topk_indices=batch.topk_indices,
+                    topk_log_probs=batch.topk_log_probs,
+                    tail_log_prob=batch.tail_log_prob,
+                    divergence_name=self.config.loss.divergence.value,
+                    temperature=self.config.loss.temperature,
+                    scale_by_temperature_squared=(self.config.loss.scale_by_temperature_squared),
+                    jsd_beta=self.config.loss.jsd_beta,
+                    tail_epsilon=self.config.loss.tail_epsilon,
+                )
             )
             teacher_score = TeacherScoreResult(
                 trajectory_id=trajectory.trajectory_id,
@@ -1698,7 +1715,13 @@ class OPDTrainer:
         divergence_available = False
         sampled_nll_available = False
         oracle_ce_available = False
+        verl_student_mass: list[Any] = []
+        verl_teacher_mass: list[Any] = []
+        verl_overlap_count: list[Any] = []
+        verl_overlap_advantage: list[Any] = []
         group_scale = 1.0 / max(len(group), 1)
+        token_mean = config.loss.aggregation is LossAggregation.TOKEN_MEAN
+        group_weight_total = sum(sum(sample.alignment.token_weights) for sample in group)
         requested_batch_size = config.train.trajectory_batch_size
         physical_batch_size = (
             len(group) if requested_batch_size == "auto" else int(requested_batch_size)
@@ -1757,12 +1780,16 @@ class OPDTrainer:
                     "one padded trajectory batch cannot mix SFT and distillation targets"
                 )
             ce_weight = 1.0 if provider is None else config.loss.sampled_token_nll_weight
-            microbatch_scale = len(samples) * group_scale
+            microbatch_scale = 1.0 if token_mean else len(samples) * group_scale
+            effective_weights = (
+                torch.cat(weight_rows) if token_mean else normalize_trajectory_weights(weight_rows)
+            )
+            weight_normalizer = group_weight_total if token_mean else float(len(samples))
             output = chunked_selected_position_loss(
                 hidden_states=hidden,
                 lm_head=self.student.project,
-                weights=normalize_trajectory_weights(weight_rows),
-                weight_normalizer=float(len(samples)),
+                weights=effective_weights,
+                weight_normalizer=weight_normalizer,
                 provider=provider,
                 target_token_ids=targets,
                 ce_weight=ce_weight,
@@ -1770,6 +1797,16 @@ class OPDTrainer:
                 backward=True,
                 loss_scale=microbatch_scale,
             )
+            for target_provider in providers:
+                diagnostics = getattr(target_provider, "diagnostics", None)
+                if not isinstance(diagnostics, list):
+                    continue
+                for values in diagnostics:
+                    verl_student_mass.append(values["student_mass"])
+                    verl_teacher_mass.append(values["teacher_mass"])
+                    verl_overlap_count.append(values["overlap_count"])
+                    verl_overlap_advantage.append(values["overlap_token_advantage"])
+                diagnostics.clear()
             loss_total += float(output.loss) * microbatch_scale
             positions_total += output.num_positions
             for sample_index, (sample, weight_tensor) in enumerate(
@@ -1784,26 +1821,22 @@ class OPDTrainer:
                     entry = span_losses.setdefault(name, [0.0, 0.0])
                     entry[0] += numerator
                     entry[1] += denominator
-                tensor_denominator = weight_tensor.sum().clamp_min(1e-12)
+                tensor_denominator = (
+                    torch.tensor(group_weight_total, device=device).clamp_min(1e-12)
+                    if token_mean
+                    else weight_tensor.sum().clamp_min(1e-12)
+                )
                 if output.per_token_divergence is not None:
                     divergence_available = True
-                    divergence_total += (
-                        float(
-                            (
-                                output.per_token_divergence[start:end].to(device) * weight_tensor
-                            ).sum()
-                            / tensor_denominator
-                        )
-                        * group_scale
-                    )
+                    divergence_total += float(
+                        (output.per_token_divergence[start:end].to(device) * weight_tensor).sum()
+                        / tensor_denominator
+                    ) * (1.0 if token_mean else group_scale)
                 if output.per_token_ce is not None:
-                    component = (
-                        float(
-                            (output.per_token_ce[start:end].to(device) * weight_tensor).sum()
-                            / tensor_denominator
-                        )
-                        * group_scale
-                    )
+                    component = float(
+                        (output.per_token_ce[start:end].to(device) * weight_tensor).sum()
+                        / tensor_denominator
+                    ) * (1.0 if token_mean else group_scale)
                     if provider is None:
                         oracle_ce_available = True
                         oracle_ce_total += component
@@ -1815,12 +1848,13 @@ class OPDTrainer:
                     entropy_count += int(sample.teacher.teacher_entropy.numel())
             del hidden, output
 
-        return {
+        result = {
             "loss": loss_total,
             "selected_positions": positions_total,
             "trajectories_in_step": len(group),
             "physical_trajectory_batches": len(batch_indices),
             "padded_trajectory_batch_size": physical_batch_size,
+            "loss_aggregation": config.loss.aggregation.value,
             "teacher_entropy_mean": (entropy_sum / entropy_count) if entropy_count else None,
             "divergence_loss": divergence_total if divergence_available else None,
             "sampled_token_nll_loss": (sampled_nll_total if sampled_nll_available else None),
@@ -1830,6 +1864,27 @@ class OPDTrainer:
                 for name, (numerator, denominator) in sorted(span_losses.items())
             },
         }
+        if verl_student_mass:
+            student_mass = torch.cat(verl_student_mass).float()
+            teacher_mass = torch.cat(verl_teacher_mass).float()
+            overlap_count = torch.cat(verl_overlap_count).float()
+            overlap_advantage = torch.cat(verl_overlap_advantage).float()
+            overlap_positions = overlap_count > 0
+            result["verl_forward_kl_topk"] = {
+                "student_mass_mean": float(student_mass.mean()),
+                "student_mass_min": float(student_mass.min()),
+                "student_mass_max": float(student_mass.max()),
+                "teacher_mass_mean": float(teacher_mass.mean()),
+                "teacher_mass_min": float(teacher_mass.min()),
+                "teacher_mass_max": float(teacher_mass.max()),
+                "overlap_ratio": float(overlap_count.mean() / config.loss.top_k),
+                "overlap_token_advantage": (
+                    float(overlap_advantage[overlap_positions].mean())
+                    if bool(overlap_positions.any())
+                    else 0.0
+                ),
+            }
+        return result
 
     def _commit_update(self) -> dict[str, float]:
         """Non-retryable optimizer commit; ``step`` is invoked at most once."""
@@ -2493,7 +2548,7 @@ class OPDTrainer:
 
     def _reload_targets_from_cache(self, samples: list[TrainSample]) -> list[TrainSample]:
         """Re-attach providers from the on-disk cache after the teacher is gone."""
-        from miniverl.losses.chunked import BucketedTargetProvider
+        from miniverl.losses.chunked import BucketedTargetProvider, VerlTopKTargetProvider
 
         cache = self._open_cache()
         config = self.config
@@ -2505,17 +2560,36 @@ class OPDTrainer:
                 expect_policy_version=(
                     sample.trajectory.policy_version if config.cache.strict_policy_version else None
                 ),
+                expect_prompt_row_digest=sample.trajectory.metadata.get("row_digest"),
+                expect_actor_response_token_ids=[
+                    token_id
+                    for token_id, generated in zip(
+                        sample.trajectory.token_ids,
+                        sample.trajectory.model_generated_mask,
+                        strict=True,
+                    )
+                    if generated
+                ],
                 device=self.plan.device,
             )
-            sample.teacher.provider = BucketedTargetProvider(
-                topk_indices=batch.topk_indices,
-                topk_log_probs=batch.topk_log_probs,
-                tail_log_prob=batch.tail_log_prob,
-                divergence_name=config.loss.divergence.value,
-                temperature=config.loss.temperature,
-                scale_by_temperature_squared=config.loss.scale_by_temperature_squared,
-                jsd_beta=config.loss.jsd_beta,
-                tail_epsilon=config.loss.tail_epsilon,
+            sample.teacher.provider = (
+                VerlTopKTargetProvider(
+                    topk_indices=batch.topk_indices,
+                    topk_log_probs=batch.topk_log_probs,
+                    log_prob_min_clamp=config.loss.log_prob_min_clamp,
+                    loss_max_clamp=config.loss.loss_max_clamp,
+                )
+                if config.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
+                else BucketedTargetProvider(
+                    topk_indices=batch.topk_indices,
+                    topk_log_probs=batch.topk_log_probs,
+                    tail_log_prob=batch.tail_log_prob,
+                    divergence_name=config.loss.divergence.value,
+                    temperature=config.loss.temperature,
+                    scale_by_temperature_squared=config.loss.scale_by_temperature_squared,
+                    jsd_beta=config.loss.jsd_beta,
+                    tail_epsilon=config.loss.tail_epsilon,
+                )
             )
         return samples
 

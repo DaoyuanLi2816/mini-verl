@@ -86,6 +86,54 @@ def test_float32_round_trip_is_exact(tmp_path: Path):
     assert loaded.span_types == batch.span_types
 
 
+def test_prompt_target_binding_rejects_a_different_actor_response(tmp_path: Path):
+    cache = TeacherCache.create(
+        tmp_path / "tc",
+        miniverl_version="0.8.0.dev0",
+        teacher_model_id="toy-teacher",
+        teacher_model_revision="rev-abc",
+        tokenizer_fingerprint="fp-1234",
+        vocab_size=VOCAB,
+        top_k=TOP_K,
+        temperature=1.0,
+        loss_mode="forward_kl_topk",
+        score_implementation_version="verl-v0.8.0-forward-kl-topk-v1",
+    )
+    batch = _batch("prompt:0", policy_version=7)
+    batch.prompt_row_digest = "a" * 64
+    batch.actor_response_token_ids = [11, 12, 13]
+    cache.write(batch, selector="all_model_tokens")
+    cache.flush()
+
+    loaded = cache.read(
+        "prompt:0",
+        expect_policy_version=7,
+        expect_prompt_row_digest="a" * 64,
+        expect_actor_response_token_ids=[11, 12, 13],
+    )
+    assert loaded.actor_response_token_ids == [11, 12, 13]
+    with pytest.raises(StaleCacheError, match="exact actor response token IDs"):
+        cache.read("prompt:0", expect_actor_response_token_ids=[11, 99, 13])
+
+
+def test_score_implementation_version_is_part_of_cache_identity(tmp_path: Path):
+    cache = _cache(tmp_path / "tc")
+    with pytest.raises(StaleCacheError, match="score_implementation_version"):
+        cache.assert_compatible(
+            teacher_model_id="toy-teacher",
+            teacher_model_revision="rev-abc",
+            tokenizer_fingerprint="fp-1234",
+            tokenizer_identity={},
+            teacher_adapter_provenance=None,
+            vocab_size=VOCAB,
+            top_k=TOP_K,
+            temperature=1.0,
+            loss_mode="bucketed_topk_tail",
+            dtype="float32",
+            score_implementation_version="miniverl-native-v1",
+        )
+
+
 def test_float16_round_trip_stays_within_its_documented_precision(tmp_path: Path):
     cache = _cache(tmp_path / "tc", dtype="float16")
     batch = _batch("t0")
