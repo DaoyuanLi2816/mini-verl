@@ -39,6 +39,7 @@ REQUIRED_SUBPACKAGES = (
     "cache",
     "community",
     "config",
+    "data",
     "environments",
     "evidence",
     "evaluation",

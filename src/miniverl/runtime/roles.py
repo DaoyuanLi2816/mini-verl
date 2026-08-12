@@ -98,7 +98,7 @@ class LocalRoleGraph:
     rollout_runtime: RolloutRuntime
     teacher_policy: TeacherPolicy | None
     reference_policy: ReferencePolicy | None
-    reward_or_verifier: RewardOrVerifier
+    reward_or_verifier: RewardOrVerifier | None
     target_builder: TargetBuilder | None
     update_runtime: UpdateRuntime
     evaluation_runtime: EvaluationRuntime

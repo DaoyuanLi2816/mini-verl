@@ -23,7 +23,7 @@ from torch import nn
 
 from miniverl.errors import BackendError
 from miniverl.models.base import BackendCapabilities, CausalLMBackend, GenerationOutput
-from miniverl.models.sampling import run_generation
+from miniverl.models.sampling import run_generation, run_greedy_padded_generation
 from miniverl.models.tokenizers import ToyTokenizer
 
 __all__ = ["ToyCausalLM", "ToyBackend", "fit_toy_model"]
@@ -328,6 +328,68 @@ class ToyBackend(CausalLMBackend):
                 top_p=top_p,
                 top_k=top_k,
                 generator=generator,
+            )
+        finally:
+            if was_training:
+                self.model.train()
+
+    def generate_batch(
+        self,
+        prefix_token_ids: Sequence[Sequence[int]],
+        *,
+        max_new_tokens: int,
+        stop_sequences: Sequence[str] = (),
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+        top_k: int = 0,
+        seeds: Sequence[int | None] | None = None,
+    ) -> list[GenerationOutput]:
+        """Use one masked padded forward per greedy decoding step."""
+        if temperature != 0.0:
+            return super().generate_batch(
+                prefix_token_ids,
+                max_new_tokens=max_new_tokens,
+                stop_sequences=stop_sequences,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                seeds=seeds,
+            )
+        was_training = self.model.training
+        self.model.eval()
+
+        def step(rows: list[list[int]]) -> torch.Tensor:
+            lengths = [len(row) for row in rows]
+            width = max(lengths)
+            ids = torch.full(
+                (len(rows), width),
+                self.tokenizer.pad_token_id,
+                dtype=torch.long,
+                device=self._device,
+            )
+            mask = torch.zeros((len(rows), width), dtype=torch.bool, device=self._device)
+            for index, row in enumerate(rows):
+                ids[index, : len(row)] = torch.tensor(row, dtype=torch.long, device=self._device)
+                mask[index, : len(row)] = True
+            with torch.no_grad():
+                hidden, _ = self.model(
+                    ids, past_key_values=None, use_cache=False, attention_mask=mask
+                )
+                positions = torch.tensor(
+                    [length - 1 for length in lengths], dtype=torch.long, device=self._device
+                )
+                return self.model.lm_head(
+                    hidden[torch.arange(len(rows), device=self._device), positions]
+                )
+
+        try:
+            return run_greedy_padded_generation(
+                step=step,
+                prefix_token_ids=prefix_token_ids,
+                decode=self.tokenizer.decode,
+                eos_token_id=self.tokenizer.eos_token_id,
+                max_new_tokens=max_new_tokens,
+                stop_sequences=stop_sequences,
             )
         finally:
             if was_training:

@@ -72,25 +72,26 @@ def evaluate_teacher_candidate(
 ) -> dict[str, Any]:
     """Evaluate one configured frozen teacher as a tool policy on eval only."""
     validate_gate_split(split)
-    count = tasks or config.environment.eval_tasks
-    if count < 1 or count > config.environment.eval_tasks:
+    environment_config = config.require_environment("teacher qualification")
+    count = tasks or environment_config.eval_tasks
+    if count < 1 or count > environment_config.eval_tasks:
         raise ConfigError(
-            f"teacher qualification tasks must be within 1..{config.environment.eval_tasks}"
+            f"teacher qualification tasks must be within 1..{environment_config.eval_tasks}"
         )
     destination = Path(out).resolve()
     destination.mkdir(parents=True, exist_ok=False)
     trajectories_path = destination / "trajectories.jsonl"
     task_results_path = destination / "task-results.jsonl"
 
-    environment = make_environment(config.environment.name, **config.environment.params)
+    environment = make_environment(environment_config.name, **environment_config.params)
     teacher = None
     started = time.perf_counter()
     try:
         task_splits = make_splits(
             environment,
             counts={"train": 0, "eval": count, "test": 0},
-            seed=config.environment.split_seed,
-            difficulty=config.environment.difficulty,
+            seed=environment_config.split_seed,
+            difficulty=environment_config.difficulty,
         )
         from miniverl.models.factory import build_teacher, build_tokenizer, resolve_device
 

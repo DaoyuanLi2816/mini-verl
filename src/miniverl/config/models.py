@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator, model_validator
@@ -60,6 +60,10 @@ __all__ = [
     "LossConfig",
     "SelectionConfig",
     "RolloutConfig",
+    "SourceKind",
+    "PromptTruncation",
+    "EnvironmentSourceConfig",
+    "VerlParquetSourceConfig",
     "EnvironmentConfig",
     "TrainConfig",
     "MemoryConfig",
@@ -491,6 +495,45 @@ class RolloutConfig(_Base):
     # first parse error.
     max_parse_errors: int = Field(default=2, ge=0, le=32)
     max_repeated_calls: int = Field(default=2, ge=1, le=32)
+    prompt_batch_size: int = Field(default=1, ge=1, le=1024)
+    max_padded_tokens: int = Field(default=4096, ge=16, le=1048576)
+
+
+class SourceKind(str, Enum):
+    """Where rollout inputs originate."""
+
+    ENVIRONMENT = "environment"
+    VERL_PARQUET = "verl_parquet"
+
+
+class PromptTruncation(str, Enum):
+    """Explicit overlength handling for prompt datasets."""
+
+    ERROR = "error"
+    LEFT = "left"
+    RIGHT = "right"
+
+
+class EnvironmentSourceConfig(_Base):
+    """Discriminator for the backward-compatible registered-environment path."""
+
+    kind: Literal[SourceKind.ENVIRONMENT] = SourceKind.ENVIRONMENT
+
+
+class VerlParquetSourceConfig(_Base):
+    """Bounded, deterministic verl-style Parquet prompt input."""
+
+    kind: Literal[SourceKind.VERL_PARQUET] = SourceKind.VERL_PARQUET
+    train_files: list[str] = Field(min_length=1)
+    val_files: list[str] = Field(default_factory=list)
+    prompt_key: str = Field(default="prompt", min_length=1)
+    allow_plain_string_prompts: bool = False
+    use_task_rewards: bool = False
+    max_prompt_length: int = Field(default=512, ge=1, le=131072)
+    truncation: PromptTruncation = PromptTruncation.ERROR
+    shuffle: bool = True
+    seed: int = Field(default=0, ge=0)
+    row_batch_size: int = Field(default=256, ge=1, le=65536)
 
 
 class EnvironmentConfig(_Base):
@@ -681,7 +724,11 @@ class RunConfig(_Base):
     schema_version: int = CONFIG_SCHEMA_VERSION
     run: RunMeta = Field(default_factory=RunMeta)
     models: ModelsConfig
-    environment: EnvironmentConfig
+    source: Annotated[
+        EnvironmentSourceConfig | VerlParquetSourceConfig,
+        Field(discriminator="kind"),
+    ] = Field(default_factory=EnvironmentSourceConfig)
+    environment: EnvironmentConfig | None = None
     rollout: RolloutConfig = Field(default_factory=RolloutConfig)
     selection: SelectionConfig = Field(default_factory=SelectionConfig)
     loss: LossConfig = Field(default_factory=LossConfig)
@@ -725,6 +772,30 @@ class RunConfig(_Base):
             )
 
         mode = self.run.mode
+        if self.source.kind is SourceKind.ENVIRONMENT and self.environment is None:
+            raise ValueError("source.kind=environment requires an environment configuration")
+        if self.source.kind is SourceKind.VERL_PARQUET and self.environment is not None:
+            raise ValueError("source.kind=verl_parquet must not define environment")
+        if self.source.kind is SourceKind.VERL_PARQUET:
+            if mode is not TrainingMode.OPD:
+                raise ValueError(
+                    "source.kind=verl_parquet supports pure OPD in v0.8; it has no oracle "
+                    "labels for sft or offline_kd"
+                )
+            if self.train.sft_warmup_cycles:
+                raise ValueError(
+                    "source.kind=verl_parquet cannot run sft_warmup_cycles without oracle labels"
+                )
+            if self.models.teacher.mode is not TeacherContextMode.STANDARD:
+                raise ValueError(
+                    "source.kind=verl_parquet requires the actor and teacher to score the "
+                    "same rendered prompt; privileged_context is outside the v0.8 profile"
+                )
+            if self.source.use_task_rewards:
+                raise ValueError(
+                    "source.use_task_rewards=true is not implemented for the pure OPD prompt "
+                    "runtime; refusing to ignore row reward_model metadata"
+                )
         if mode is TrainingMode.OPD and self.cache.reuse_across_policy_versions:
             raise ValueError(
                 "cache.reuse_across_policy_versions=true contradicts run.mode=opd: "
@@ -829,7 +900,7 @@ class RunConfig(_Base):
 
         alignment = self.alignment
 
-        if self.eval.enabled:
+        if self.eval.enabled and self.environment is not None:
             split_sizes = {
                 "train": self.environment.train_tasks,
                 "eval": self.environment.eval_tasks,
@@ -917,7 +988,21 @@ class RunConfig(_Base):
         """Number of evaluation tasks after applying the eval override."""
         if self.eval.tasks is not None:
             return self.eval.tasks
+        if self.environment is None:
+            raise ConfigError(
+                "eval.tasks is required when source.kind=verl_parquet",
+                hint="set eval.tasks to a bounded number no larger than the validation rows",
+            )
         return self.environment.eval_tasks
+
+    def require_environment(self, operation: str = "this operation") -> EnvironmentConfig:
+        """Return the registered environment or fail with a source-aware message."""
+        if self.environment is None:
+            raise ConfigError(
+                f"{operation} requires source.kind=environment",
+                hint="the verl_parquet source uses prompt rollout and has no ToolEnvironment",
+            )
+        return self.environment
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> RunConfig:
@@ -988,6 +1073,20 @@ class RunConfig(_Base):
                 source = private.get("_source_path") if isinstance(private, dict) else None
                 base = source.parent if isinstance(source, Path) else Path.cwd()
                 runtime.offline_kd.dataset_path = str((base / path).resolve())
+        if isinstance(runtime.source, VerlParquetSourceConfig):
+            private = getattr(self, "__pydantic_private__", None)
+            source_path = private.get("_source_path") if isinstance(private, dict) else None
+            base = source_path.parent if isinstance(source_path, Path) else Path.cwd()
+
+            def resolve_files(paths: list[str]) -> list[str]:
+                return [
+                    str(path if path.is_absolute() else (base / path).resolve())
+                    for raw in paths
+                    for path in [Path(raw)]
+                ]
+
+            runtime.source.train_files = resolve_files(runtime.source.train_files)
+            runtime.source.val_files = resolve_files(runtime.source.val_files)
         return runtime
 
     def to_yaml(self) -> str:

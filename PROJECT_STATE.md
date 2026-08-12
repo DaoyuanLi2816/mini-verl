@@ -23,6 +23,29 @@ distributed dimensions fail closed. `bridge compile-opd` is deliberately an
 offline config compiler: it loads no weights and does not claim the prompt
 runtime or verl engine equivalence implemented by later PRs.
 
+## v0.8.0 single-GPU verl OPD pivot — PR B
+
+The trainer now has a discriminated `environment` / `verl_parquet` source
+contract. Parquet rows stream by record batch, reject every invalid row, retain
+the supported verl metadata and record schema, content, row, tokenizer and
+rendered-prompt digests. Pure prompt OPD needs neither a `ToolEnvironment` nor
+a reward model; task rewards, oracle SFT and privileged teacher context fail
+closed instead of being ignored.
+
+`PromptDatasetRolloutRuntime` applies the actor chat template once, performs
+real masked padded greedy generation, restores logical row order and creates
+trajectories whose selected model spans contain response tokens only. A
+bounded padded-token budget is enforced before allocation. CUDA OOM retry may
+split physical batches but never changes logical batch size, seeds or training
+configuration. The existing multi-turn environment runner is retained behind
+`ToolEnvironmentRolloutRuntime` and its prior integration suite remains green.
+
+Focused validation on 2026-08-11: 17 new config/data/runtime/end-to-end tests,
+94 existing trainer/toy-pipeline tests, Ruff, and mypy over 126 source files.
+The pure-OPD integration executes two Parquet prompts through rollout, teacher
+scoring, a padded actor update, checkpoint and manifest without an environment
+or reward.
+
 ## v0.7.1 Product correction — RELEASE CANDIDATE
 
 Branch `v0.7.1-product-correction` starts from synchronized main
