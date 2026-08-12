@@ -10,6 +10,19 @@ Canonical release state: stable `v0.7.1` (`830a4ca5d873bce4cdcc7c43a44d827b096e8
 Every public version claim is generated from `release-state.yaml` and gated by
 `python scripts/release_state.py --check`.
 
+## v0.8.0 single-GPU verl OPD pivot — PR A
+
+Development starts with the config-only profile
+`verl-opd-v0.8-single-gpu-v1`, pinned to verl `v0.8.0` at
+`7aed6b230776f963fa09509c10d9c3a767d1102c`. Typed models compile resolved YAML
+and repeatable dotted overrides into a deterministic, checksummed field report.
+The report distinguishes exact, semantically conformant, locally reinterpreted,
+derived, informational-only and unsupported fields. PG OPD, task-reward
+mixtures, KL penalties, multiple generations, multiple teachers and
+distributed dimensions fail closed. `bridge compile-opd` is deliberately an
+offline config compiler: it loads no weights and does not claim the prompt
+runtime or verl engine equivalence implemented by later PRs.
+
 ## v0.7.1 Product correction — RELEASE CANDIDATE
 
 Branch `v0.7.1-product-correction` starts from synchronized main

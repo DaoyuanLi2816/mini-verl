@@ -63,6 +63,7 @@ EXPECTED_COMMANDS = {
     "export-benchmark",
     "schema",
     "bridge doctor",
+    "bridge compile-opd",
     "cache stats",
     "cache validate",
 }
@@ -88,6 +89,30 @@ _STATUSES = {"ok", "warn", "missing", "fail"}
 def _invoke(*args: str) -> Result:
     """Run the CLI in-process with a fresh runner."""
     return CliRunner().invoke(app, list(args))
+
+
+def test_bridge_compile_opd_is_an_offline_deterministic_smoke(tmp_path: Path) -> None:
+    source = REPO_ROOT / "examples" / "verl-opd-v0.8-single-gpu.yaml"
+    output = tmp_path / "compiled-plan.json"
+
+    result = _invoke(
+        "bridge",
+        "compile-opd",
+        "--config",
+        str(source),
+        "--set",
+        "distillation.distillation_loss.topk=64",
+        "--out",
+        str(output),
+        "--json",
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["profile"] == "verl-opd-v0.8-single-gpu-v1"
+    assert payload["executable"] is True
+    assert payload["source"]["distillation"]["distillation_loss"]["topk"] == 64
+    assert json.loads(output.read_text(encoding="utf-8")) == payload
 
 
 def _probe_run_lock(output_root: str, run_id: str, result_queue) -> None:  # type: ignore[no-untyped-def]
