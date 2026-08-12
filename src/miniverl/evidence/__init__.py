@@ -81,7 +81,7 @@ def get_builtin_study(study_id: str) -> BuiltinStudy:
             f"unknown built-in study {study_id!r}",
             hint="available built-in studies: alignment-external-v1",
         )
-    root = Path(str(files("miniverl.evidence").joinpath("data", study_id)))
+    root = Path(str(files("miniverl.evidence").joinpath("data").joinpath(study_id)))
     if root.is_dir():
         result_path = root / "result.json"
         schema_path = root / "result.schema.json"

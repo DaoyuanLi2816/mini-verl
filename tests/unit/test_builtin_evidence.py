@@ -5,6 +5,29 @@ from __future__ import annotations
 import hashlib
 
 
+def test_builtin_study_uses_python_310_traversable_joinpath_contract(monkeypatch) -> None:
+    import miniverl.evidence as evidence
+
+    class SingleSegmentTraversable:
+        def __init__(self) -> None:
+            self.parts: list[str] = []
+
+        def joinpath(self, child: str) -> SingleSegmentTraversable:
+            self.parts.append(child)
+            return self
+
+        def __str__(self) -> str:
+            return "missing-packaged-evidence"
+
+    traversable = SingleSegmentTraversable()
+    monkeypatch.setattr(evidence, "files", lambda package: traversable)
+
+    study = evidence.get_builtin_study("alignment-external-v1")
+
+    assert traversable.parts == ["data", "alignment-external-v1"]
+    assert study.result_path.is_file()
+
+
 def test_builtin_external_study_resolves_without_a_repository_checkout() -> None:
     from miniverl.evidence import get_builtin_study
 
