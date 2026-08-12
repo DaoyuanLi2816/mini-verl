@@ -6,9 +6,24 @@ after the exact release commit and its remote checks are green.
 
 ## v0.8.0 single-GPU verl OPD pivot
 
-- [ ] Implement and validate the documented verl v0.8 single-GPU OPD subset.
-- [ ] Preserve every frozen benchmark and keep unsupported distributed semantics fail-closed.
-- [ ] Complete the v0.8.0 release gates and public-distribution verification.
+- [x] Implement and validate the documented `verl-opd-v0.8-single-gpu-v1`
+      subset against official verl `v0.8.0` commit `7aed6b23`: typed config,
+      Parquet prompts, current-policy rollout/teacher/update, token-mean
+      `forward_kl_topk`, plan/run, PEFT output and OPD import/export.
+- [x] Preserve every frozen benchmark and keep policy-gradient, task-reward,
+      multi-teacher, multimodal and distributed semantics fail-closed. The
+      calculator benchmark remains SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
+- [x] Complete the v0.8.0 candidate gates; public-distribution verification is
+      a post-tag invariant recorded under **After the tag**.
+
+Candidate `4fe229ebd87d2c6ea2e6007033f4fe0cb7877c98` plus validation-record-only
+changes passed Ruff, format, mypy, actionlint, strict MkDocs, Markdown/text and
+generated-artifact checks; 2,178 CPU tests at 85.30% branch coverage, 8 GPU
+tests, 15 network tests and 3 pinned-verl conformance tests. Four Playwright
+viewports checked 36 rendered SVG instances and the screenshots were manually
+reviewed. The wheel/sdist passed Twine, clean core and `[train]` installs,
+pip-only OPD sample/plan/dry-run, and an extracted-sdist test/rebuild whose 142
+package-file inventory matched the repository wheel.
 
 ## v0.7.1 Product correction
 
@@ -101,6 +116,11 @@ unauthorized after checkpoint-selection failure**.
       generated-artifact, visual, package and attribution gates before merge.
 
 ## After the tag
+
+- [ ] Verify the exact v0.8.0 merge-commit release workflow, OIDC publication,
+      PyPI attestations, public clean install and GitHub Release.
+- [ ] Record identical public wheel/sdist hashes and advance main to
+      `0.8.1.dev0` in a separate state-sync PR.
 
 - [x] v0.7.1 release run
       [`31566663507`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31566663507)
