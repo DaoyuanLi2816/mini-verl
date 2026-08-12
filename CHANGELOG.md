@@ -6,6 +6,16 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### verl v0.8 OPD config compiler
+
+- Added the typed `verl-opd-v0.8-single-gpu-v1` configuration profile and an
+  offline `bridge compile-opd` command. Resolved YAML and repeatable dotted
+  overrides compile into deterministic field-by-field compatibility reports.
+- Unsupported policy-gradient OPD, task-reward mixtures, KL penalties,
+  multi-generation, multi-teacher and distributed dimensions fail closed.
+  Engine/resource fields are labelled as local reinterpretations rather than
+  upstream-exact behavior; the config-only command loads no model weights.
+
 ## [0.7.1] - 2026-08-11
 
 ### Product correction

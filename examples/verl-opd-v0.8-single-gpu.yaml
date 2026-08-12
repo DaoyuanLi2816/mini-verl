@@ -1,0 +1,90 @@
+# Resolved fixture for the pinned verl-opd-v0.8-single-gpu-v1 compiler.
+# This file compiles offline. Runtime execution is added in later v0.8 PRs.
+data:
+  train_files: [data/train.parquet]
+  val_files: [data/val.parquet]
+  prompt_key: prompt
+  train_batch_size: 8
+  max_prompt_length: 256
+  max_response_length: 64
+  filter_overlong_prompts: false
+  truncation: error
+  shuffle: true
+  seed: 17
+actor_rollout_ref:
+  model:
+    path: Qwen/Qwen3-0.6B
+    enable_gradient_checkpointing: true
+    lora_rank: 16
+    lora_alpha: 32
+    target_modules: [q_proj, v_proj]
+    lora_adapter_path: null
+  actor:
+    optim:
+      lr: 1e-5
+      weight_decay: 0.01
+      lr_warmup_steps: 0
+    loss_agg_mode: token-mean
+    use_kl_loss: false
+    ppo_mini_batch_size: 8
+    ppo_max_token_len_per_gpu: 2048
+    use_dynamic_bsz: true
+  rollout:
+    name: vllm
+    n: 1
+    temperature: 1.0
+    top_p: 0.95
+    tensor_model_parallel_size: 1
+    gpu_memory_utilization: 0.5
+    max_model_len: 320
+    max_num_batched_tokens: 2048
+    max_num_seqs: 8
+algorithm:
+  use_kl_in_reward: false
+distillation:
+  enabled: true
+  teacher_key: data_source
+  n_gpus_per_node: 1
+  nnodes: 1
+  teacher_models:
+    teacher_model:
+      model_path: Qwen/Qwen3-1.7B
+      num_replicas: 1
+      inference:
+        name: vllm
+        dtype: bfloat16
+        tensor_model_parallel_size: 1
+        data_parallel_size: 1
+        pipeline_model_parallel_size: 1
+        gpu_memory_utilization: 0.5
+        max_model_len: 321
+  distillation_loss:
+    loss_mode: forward_kl_topk
+    topk: 32
+    use_task_rewards: false
+    distillation_loss_coef: 1.0
+    loss_max_clamp: null
+    log_prob_min_clamp: -10.0
+    use_policy_gradient: false
+trainer:
+  project_name: mini-verl
+  experiment_name: opd-smoke
+  save_freq: 10
+  test_freq: 10
+  total_epochs: 1
+  total_training_steps: 2
+  n_gpus_per_node: 1
+  nnodes: 1
+miniverl:
+  runtime:
+    mode: auto
+  memory:
+    vram_limit_gib: 16
+    headroom_gib: 1.5
+  batching:
+    rollout_batch_size: 2
+    teacher_score_batch_size: 2
+    update_trajectory_batch_size: 2
+  teacher_adapter:
+    path: null
+    revision: null

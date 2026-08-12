@@ -1345,6 +1345,66 @@ def bridge_doctor_command(
         raise typer.Exit(1)
 
 
+@bridge_app.command("compile-opd")
+def bridge_compile_opd_command(
+    config: Path = typer.Option(..., "--config", help="Resolved verl v0.8 OPD YAML."),
+    profile: str = typer.Option(
+        "verl-opd-v0.8-single-gpu-v1",
+        "--profile",
+        help="Pinned miniVERL compatibility profile.",
+    ),
+    overrides: list[str] = typer.Option(
+        [],
+        "--set",
+        help="Repeatable dotted key=value override. No Hydra or shell evaluation.",
+    ),
+    out: Optional[Path] = typer.Option(
+        None,
+        "--out",
+        help="Atomically write the compiled machine-readable plan.",
+    ),
+    inspect_unsupported: bool = typer.Option(
+        False,
+        "--inspect-unsupported",
+        help="Return a non-executable report instead of failing on unsupported values.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Compile the pinned single-GPU verl v0.8 OPD config subset offline."""
+    try:
+        from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE, load_verl_opd_v08
+
+        if profile != VERL_OPD_V08_PROFILE:
+            raise ConfigError(
+                f"unsupported OPD profile {profile!r}",
+                hint=f"use --profile {VERL_OPD_V08_PROFILE}",
+            )
+        plan = load_verl_opd_v08(
+            config,
+            overrides=overrides,
+            require_executable=not inspect_unsupported,
+        )
+        payload = plan.model_dump(mode="json")
+        if out is not None:
+            from miniverl.utils.runs import write_json_atomic
+
+            write_json_atomic(out, payload)
+    except MiniVerlError as exc:
+        _fail(exc)
+        return
+    if as_json:
+        _emit_json(payload)
+        return
+    style = "green" if plan.executable else "red"
+    console.print(f"[{style}]config semantics executable: {str(plan.executable).lower()}[/{style}]")
+    console.print(f"  profile: {_esc(plan.profile)}")
+    console.print(f"  verl: {_esc(plan.upstream['tag'])} @ {_esc(plan.upstream['commit'][:12])}")
+    console.print(f"  plan sha256: {_esc(plan.compiled_digest)}")
+    console.print("  runtime execution: not provided by this config-only command")
+    if out is not None:
+        console.print(f"  written: {_esc(out)}")
+
+
 # -------------------------------------------------------------- benchmark
 
 

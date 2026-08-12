@@ -10,5 +10,12 @@ from miniverl.bridge.contract import (
     VERL_REPOSITORY,
     VERL_TAG,
 )
+from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 
-__all__ = ["BRIDGE_PROFILE", "VERL_COMMIT", "VERL_REPOSITORY", "VERL_TAG"]
+__all__ = [
+    "BRIDGE_PROFILE",
+    "VERL_COMMIT",
+    "VERL_OPD_V08_PROFILE",
+    "VERL_REPOSITORY",
+    "VERL_TAG",
+]
