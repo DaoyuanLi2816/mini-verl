@@ -17,13 +17,13 @@
 # such distinction, which is how its tag shipped a docs selector still
 # advertising "Stable 0.6.1 / Development 0.6.2.dev0".
 schema_version: 1
-phase: development
+phase: release
 
 stable:
-  version: "0.7.0"
-  tag: "v0.7.0"
-  release_commit: "148822964dbb73e97ce06ef740f907364166a724"
+  version: "0.7.1"
+  tag: "v0.7.1"
+  release_commit: "pending"
   released_at: "2026-08-11"
 
 development:
-  version: "0.7.1.dev0"
+  version: "0.7.1"

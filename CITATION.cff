@@ -2,15 +2,15 @@ cff-version: 1.2.0
 title: "miniVERL: Auditable single-GPU alignment and distillation runtime"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
-version: 0.7.0
+version: 0.7.1
 date-released: 2026-08-11
 license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
 url: "https://github.com/DaoyuanLi2816/mini-verl"
 abstract: >-
-  miniVERL is a single-GPU runtime for comparing alignment and distillation
-  methods under conditions strict enough that the comparison means something.
-  Its core is multi-turn, tool-aware on-policy distillation: a student language
+  miniVERL is an auditable single-GPU alignment and distillation runtime with a
+  bounded artifact bridge to one pinned verl profile. Its native core is
+  multi-turn, tool-aware on-policy distillation: a student language
   model samples its own tool-using trajectories against deterministic local
   environments, a teacher scores exactly the states the student visited, and
   the student is updated with token-level distributional supervision on its own
@@ -20,8 +20,8 @@ abstract: >-
   never become a training label, and stores teacher targets in a versioned,
   checksummed, pickle-free cache with policy-version enforcement.
   Around that core it provides supervised fine-tuning, recorded-provenance
-  preference optimization and knowledge distillation as directly comparable
-  arms; shared-backbone execution that switches student, teacher and reference
+  preference optimization and knowledge distillation; shared-backbone
+  execution that switches student, teacher and reference
   roles across adapters on one set of base weights to fit low-memory hardware;
   padded update batching; deterministic replay; transactional checkpoints and
   cross-process run locks; and mechanism studies such as RecoveryBench that are
@@ -32,7 +32,7 @@ abstract: >-
   algorithmic parity with PPO. miniVERL is designed for one personal CUDA GPU,
   automatically selects bf16 or fp16, and requires neither Ray nor a cluster.
   Published performance is measured on one RTX 4080; other GPU models use the
-  same code path but remain unmeasured. The v0.7.0 external-alignment study
+  same code path but remain unmeasured. The v0.7 external-alignment study
   terminated at its preregistered checkpoint-selection gate: two declared
   lineages and eight candidates all scored 0/64 retained JSONNav utility, so
   no teacher qualification, continuation method comparison or reserved final

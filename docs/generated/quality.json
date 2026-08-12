@@ -1,21 +1,21 @@
 {
   "schema_version": 2,
-  "release": "0.7.0",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 85%+ branch coverage at v0.7.0",
+  "release": "0.7.1",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 85%+ branch coverage at v0.7.1",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
-    "commit": "013993a8cd5002a9ed166ba1e6948305f92c1bfb",
-    "commit_relationship": "implementation commit plus the following quality-record-only update; the final pull-request head is validated by CI",
-    "measured_at": "2026-08-10T23:56:04-07:00",
+    "commit": "5142ed681a9c538b3175faf64561968a43cab547",
+    "commit_relationship": "implementation commit plus following validation-record-only updates; the final pull-request head is validated by CI",
+    "measured_at": "2026-08-11T03:05:00-07:00",
     "platform": "Windows 11 Pro 10.0.22631",
     "python": "CPython 3.12",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2098,
+      "passed": 2110,
       "skipped": 6,
       "deselected": 21,
-      "branch_coverage_percent": 86.35,
+      "branch_coverage_percent": 86.19,
       "skip_reason": "symlink creation requires privileges on Windows; hard-link and case aliases cover the same guard"
     },
     "gpu": {
@@ -28,14 +28,9 @@
   },
   "release_validation": {
     "scope": "the exact published commit, validated by CI rather than locally",
-    "commit": "148822964dbb73e97ce06ef740f907364166a724",
-    "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31468298531",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31468298548",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31468298534",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31468663273"
-    },
-    "conclusion": "success",
+    "commit": "pending",
+    "workflows": {},
+    "conclusion": "pending",
     "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement"
   }
 }

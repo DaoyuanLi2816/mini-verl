@@ -6,11 +6,35 @@ and what it printed.
 
 Last updated: 2026-08-11.
 
-Canonical release state: stable `v0.7.0` (`148822964dbb73e97ce06ef740f907364166a724`), development `0.7.1.dev0`.
+Canonical release state: releasing `v0.7.1`.
 Every public version claim is generated from `release-state.yaml` and gated by
 `python scripts/release_state.py --check`.
 
-## v0.7.0 External Alignment Gate — EVIDENCE RELEASE IN PROGRESS
+## v0.7.1 Product correction — RELEASE CANDIDATE
+
+Branch `v0.7.1-product-correction` starts from synchronized main
+`3ec042e829b4193aab363ab97e3786a1cd2621c0`. It changes product hierarchy,
+installed evidence UX and metadata only; no scientific experiment, frozen
+result, model revision or existing tag changes.
+
+The wheel carries the typed v0.7 result, schema, preregistration and 512
+privacy-safe JSONNav rows. Each file is checked against its recorded SHA-256,
+the result is parsed through the impossible-state validator, task rows are
+structurally checked, and `pilot --builtin-study` exposes the early-stop result
+without a checkout. The planned verl-shaped executable OPD profile remains a
+v0.8 development objective and is not claimed by this release.
+
+Local release-candidate validation at implementation commit `5142ed6` passes
+2110 non-GPU/non-network tests with 86.19% branch coverage, 8 RTX 4080 GPU
+tests, 15 network tests, Ruff over 332 files, mypy over 147 source files,
+actionlint 1.7.12, strict MkDocs and 36 rendered SVG instances at four
+viewports. Twenty-four screenshots are under the ignored
+`artifacts/docs-visual-v0.7.1/` directory and the 1440, 820 and 390 px home
+views were manually inspected. Clean core and `[train]` wheel installs pass;
+core keeps torch absent and validates the built-in evidence, while `[train]`
+completes the real fast demo under latest resolved dependencies.
+
+## v0.7.0 External Alignment Gate — RELEASED
 
 Branch `v0.7.0-evidence-release` starts from the exact post-PR-#52 main commit
 `a8272e2b5674e12107461a81d285f1a3d56588a5`. PR #51 merged the public

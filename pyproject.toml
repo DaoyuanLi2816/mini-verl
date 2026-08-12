@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "miniverl"
 dynamic = ["version"]
-description = "Auditable one-GPU post-training with a verified pinned verl bridge."
+description = "Auditable single-GPU alignment and distillation with a bounded verl artifact bridge."
 readme = "PYPI.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -122,6 +122,10 @@ core-metadata-version = "2.4"
 [tool.hatch.build.targets.wheel.force-include]
 "benchmarks/external-alignment/registry.yaml" = "miniverl/alignment_external/registry.yaml"
 "benchmarks/external-alignment/profile-v1.yaml" = "miniverl/alignment_external/profile-v1.yaml"
+"benchmarks/results/alignment-external-v1.json" = "miniverl/evidence/data/alignment-external-v1/result.json"
+"benchmarks/schema/alignment-external-result.schema.json" = "miniverl/evidence/data/alignment-external-v1/result.schema.json"
+"benchmarks/preregistration/alignment-external-v1.yaml" = "miniverl/evidence/data/alignment-external-v1/preregistration.yaml"
+"benchmarks/evidence/alignment-external-v1/jsonnav-selection-records.jsonl" = "miniverl/evidence/data/alignment-external-v1/task-evidence.jsonl"
 
 [tool.hatch.build.targets.sdist]
 core-metadata-version = "2.4"

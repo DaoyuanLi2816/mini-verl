@@ -40,6 +40,7 @@ REQUIRED_SUBPACKAGES = (
     "community",
     "config",
     "environments",
+    "evidence",
     "evaluation",
     "losses",
     "models",
@@ -84,6 +85,7 @@ TORCH_FREE_MODULES = (
     "miniverl.environments.jsonnav",
     "miniverl.environments.sqlite_env",
     "miniverl.environments.registry",
+    "miniverl.evidence",
     "miniverl.cache",
     "miniverl.cache.store",
     "miniverl.cache.stats",
@@ -159,6 +161,21 @@ def test_the_registry_travels_inside_the_wheel() -> None:
 
     assert "miniverl/alignment_external/registry.yaml" in names
     assert "miniverl/alignment_external/profile-v1.yaml" in names
+
+
+def test_builtin_evidence_travels_inside_the_wheel() -> None:
+    wheels = sorted((REPO_ROOT / "dist").glob("*.whl"))
+    if not wheels:
+        pytest.skip("no built wheel to inspect; run python -m build first")
+
+    with zipfile.ZipFile(wheels[-1]) as archive:
+        names = set(archive.namelist())
+
+    root = "miniverl/evidence/data/alignment-external-v1/"
+    assert root + "result.json" in names
+    assert root + "result.schema.json" in names
+    assert root + "preregistration.yaml" in names
+    assert root + "task-evidence.jsonl" in names
 
 
 @pytest.mark.parametrize("name", TORCH_FREE_MODULES)

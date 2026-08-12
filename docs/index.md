@@ -1,42 +1,47 @@
 # miniVERL
 
-Auditable single-GPU LLM post-training for choosing, running and inspecting
-SFT, DPO, knowledge distillation and strict OPD—plus a bounded artifact bridge
-to one pinned verl profile. miniVERL is independent; no upstream endorsement is
-implied, and distributed execution is not tested.
+Auditable single-GPU alignment and distillation runtime with native SFT, DPO,
+KD and strict OPD recipes, inspectable artifacts and a bounded bridge to one
+pinned verl profile. miniVERL is independent; distributed execution and full
+algorithm compatibility are not claimed.
 
 [Install and run locally](single-gpu-guide.md){ .md-button .md-button--primary }
 [Read the compatibility boundary](verl-bridge.md){ .md-button }
 
 ## Install and verify in about a minute
 
-Install the PyTorch build that matches your CPU or CUDA system first, then the
-training extra. This CPU example is deterministic and downloads no model:
-
 ```bash
-python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 python -m pip install "miniverl[train]"
 miniverl demo --fast --output runs/quickstart
 miniverl inspect runs/quickstart/trajectories.jsonl
+miniverl evidence validate alignment-external-v1
 ```
 
-The result is a typed trajectory log, checksummed teacher cache, manifest and
-self-contained report. For CUDA wheels and memory-aware recipes, use the
-[single-GPU guide](single-gpu-guide.md).
+The deterministic demo downloads no model and produces typed trajectories, a
+checksummed teacher cache, manifest and report. Packaged evidence commands need
+no repository checkout. For CUDA, install the matching CUDA-enabled PyTorch
+wheel first; the `[cuda]` extra does not select one.
 
-## v0.7.0 evidence release: the external study stopped at its first gate
+## Runtime and compatibility boundary
 
-**0 selected checkpoints · 0 qualified teachers · 0 continuation arms · 0
-final-test tasks accessed.** Every candidate in both declared lineages scored
-0/64 retained JSONNav utility against an unchanged 20% floor. The result is a
-preregistered checkpoint-selection failure, not a method comparison.
+miniVERL runs one local CPU process or one NVIDIA CUDA GPU. Fit depends on the
+model pair, context, kernels and VRAM; there is no GPU-name allowlist. Ray,
+FSDP, Megatron, PPO, GRPO and distributed launch are outside the runtime.
 
-```bash
-miniverl pilot --study-result benchmarks/results/alignment-external-v1.json --json
-```
+The artifact bridge pins verl `v0.8.0` at `7aed6b23`. It verifies standard
+artifact interchange and pinned config/model/data parse-load smoke. Current
+exports are not launchable and do not establish algorithmic parity.
 
-[Read the early-stop study](alignment-external/alignment-external-v1.md){ .md-button .md-button--primary }
-[Inspect the evidence contract](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.7.0/benchmarks/results/alignment-external-v1.json){ .md-button }
+## Measured systems evidence
+
+On one RTX 4080 with Qwen3-0.6B and eight fixed SQLite trajectories, padded
+updates increased dual-model update throughput from 2.369 to 3.866
+trajectories/s. Shared-backbone batch 4 used 2.227 GiB peak reserved memory
+versus 3.035 GiB for dual model while running 10.1% slower. All 12
+preregistered equivalence comparisons passed. This is one measured workload,
+not a hardware-wide promise.
+
+[Consumer Runtime methods and caveats](consumer-runtime/index.md){ .md-button }
 
 ## Choose a path
 
@@ -80,8 +85,7 @@ miniverl train recipes/qwen_consumer_gpu_shared.yaml --dry-run --json
 
 ## Scale out
 
-Import only the documented profile, convert Parquet, export standard artifacts
-and inspect the unsupported boundary.
+Convert Parquet, export standard artifacts and inspect the unsupported boundary.
 
 ```bash
 miniverl bridge doctor exports/my-bundle --json
@@ -96,20 +100,25 @@ flags; current bundles are not launchable.
 
 </div>
 
-## Measured evidence, kept scoped
+## Research Notes
 
-The Alignment Lab case study starts from an SFT checkpoint already at 100%
-alignment and 100% retained tool utility on its deterministic sandbox suite.
-No continuation method improves it; completed regressions remain visible.
-External IFEval, XSTest, HarmBench and RewardBench endpoints were not executed.
+The v0.7 external study stopped at its first preregistered gate: **0 selected
+checkpoints, 0 qualified teachers, 0 continuation arms and 0 final-test tasks
+accessed**. All eight candidates scored 0/64 retained JSONNav utility against
+the unchanged 20% floor.
 
-<picture class="alignment-figure">
-  <source media="(max-width: 900px)" srcset="alignment-lab/delta-from-sft-mobile.svg">
-  <img src="alignment-lab/delta-from-sft.svg" alt="Forest chart of continuation-method alignment and retained-tool-utility percentage-point deltas from the saturated SFT checkpoint, with every seed and mean printed as text.">
-</picture>
+```bash
+miniverl pilot --builtin-study alignment-external-v1 --json
+```
 
-The consumer runtime result is a systems result, not a new quality claim:
-shared-backbone role switching and padded trajectory updates reduce measured
-memory/runtime overhead while preserving the tested local objective. See the
-[Consumer Runtime report](consumer-runtime/index.md) and
-[RecoveryBench](recoverybench/recoverybench-v1.md) for full evidence and limits.
+[Read the early-stop study](alignment-external/alignment-external-v1.md){ .md-button .md-button--primary }
+
+Alignment Lab starts from a saturated SFT checkpoint. No continuation method
+improves it; measured regressions and unexecuted external safety endpoints stay
+visible. RecoveryBench and the calculator study likewise preserve their
+negative and mixed results rather than turning them into product claims.
+
+- [Alignment Lab](alignment-lab/alignment-lab-v1.md)
+- [RecoveryBench](recoverybench/recoverybench-v1.md)
+- [Calculator protocol study](benchmarking.md)
+- [External Alignment Gate](alignment-external/alignment-external-v1.md)
