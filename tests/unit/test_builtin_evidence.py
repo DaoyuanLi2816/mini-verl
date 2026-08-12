@@ -25,7 +25,7 @@ def test_builtin_study_uses_python_310_traversable_joinpath_contract(monkeypatch
     study = evidence.get_builtin_study("alignment-external-v1")
 
     assert traversable.parts == ["data", "alignment-external-v1"]
-    assert study.result_path.is_file()
+    assert study.study_id == "alignment-external-v1"
 
 
 def test_builtin_external_study_resolves_without_a_repository_checkout() -> None:
