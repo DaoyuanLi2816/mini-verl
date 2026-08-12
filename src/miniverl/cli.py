@@ -241,18 +241,20 @@ def validate(
         return
 
     warnings: list[str] = []
-    try:
-        environment = make_environment(config.environment.name, **config.environment.params)
-        if config.models.teacher.mode.value == "privileged_context" and not hasattr(
-            environment, "privileged_context"
-        ):
-            warnings.append("environment provides no privileged context")
-    except MiniVerlError as exc:
-        if as_json:
-            _emit_json({"valid": False, "path": str(recipe), "errors": [exc.message]})
-            raise typer.Exit(1) from None
-        _fail(exc)
-        return
+    environment_config = config.environment
+    if environment_config is not None:
+        try:
+            environment = make_environment(environment_config.name, **environment_config.params)
+            if config.models.teacher.mode.value == "privileged_context" and not hasattr(
+                environment, "privileged_context"
+            ):
+                warnings.append("environment provides no privileged context")
+        except MiniVerlError as exc:
+            if as_json:
+                _emit_json({"valid": False, "path": str(recipe), "errors": [exc.message]})
+                raise typer.Exit(1) from None
+            _fail(exc)
+            return
 
     steps_per_cycle = max(
         1,
@@ -281,8 +283,9 @@ def validate(
         "backend": config.models.backend.value,
         "student": config.models.student.model_id,
         "teacher": config.models.teacher.model_id,
-        "environment": config.environment.name,
-        "difficulty": config.environment.difficulty,
+        "source_kind": config.source.kind.value,
+        "environment": environment_config.name if environment_config is not None else None,
+        "difficulty": environment_config.difficulty if environment_config is not None else None,
         "objective": (
             "sft_cross_entropy"
             if config.run.mode.value == "sft"
@@ -302,7 +305,9 @@ def validate(
         "optimizer_steps_per_cycle": steps_per_cycle,
         "planned_optimizer_steps": steps_per_cycle
         * (config.train.cycles + config.train.sft_warmup_cycles),
-        "eval_tasks": config.effective_eval_tasks,
+        "eval_tasks": (
+            config.effective_eval_tasks if environment_config is not None else config.eval.tasks
+        ),
         "seed": config.run.seed,
         "warnings": warnings,
     }
@@ -594,7 +599,7 @@ def qualify_teacher_command(
 
     try:
         config = RunConfig.from_yaml(recipe)
-        if config.environment.name != "sqlite_recovery":
+        if config.require_environment("qualify-teacher").name != "sqlite_recovery":
             raise ConfigError("qualify-teacher requires environment.name=sqlite_recovery")
         _require_training_stack("miniverl qualify-teacher")
         from miniverl.evaluation.teacher_gate import evaluate_teacher_candidate

@@ -474,7 +474,12 @@ def export_adapter(
     }
     env = collect_environment()
     policy_evaluation = None
-    protocol_version = str(config.environment.params.get("protocol_version", "v1"))
+    environment_config = config.environment
+    protocol_version = str(
+        (environment_config.params if environment_config is not None else {}).get(
+            "protocol_version", "v1"
+        )
+    )
     if paths.eval_json.is_file():
         summary = read_json(paths.eval_json)
         final_eval = summary.get("eval") if isinstance(summary, dict) else None
@@ -493,13 +498,25 @@ def export_adapter(
         "source_checkpoint_digest": digest_tree(checkpoint_path),
         "lora": config.models.student.lora.model_dump(mode="json"),
         "training_environment": env,
-        "training_task": {
-            "environment": config.environment.name,
-            "difficulty": config.environment.difficulty,
-            "protocol": f"miniverl_tool_protocol_{protocol_version}",
-            "protocol_version": protocol_version,
-            "mode": config.run.mode.value,
-        },
+        "training_task": (
+            {
+                "source_kind": "environment",
+                "environment": environment_config.name,
+                "difficulty": environment_config.difficulty,
+                "protocol": f"miniverl_tool_protocol_{protocol_version}",
+                "protocol_version": protocol_version,
+                "mode": config.run.mode.value,
+            }
+            if environment_config is not None
+            else {
+                "source_kind": "verl_parquet",
+                "environment": None,
+                "difficulty": None,
+                "protocol": None,
+                "protocol_version": None,
+                "mode": config.run.mode.value,
+            }
+        ),
         "policy_evaluation": policy_evaluation,
         "checksums": checksums,
     }

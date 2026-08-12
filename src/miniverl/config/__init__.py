@@ -9,6 +9,7 @@ from miniverl.config.models import (
     CacheConfig,
     Divergence,
     EnvironmentConfig,
+    EnvironmentSourceConfig,
     EvalConfig,
     GateConfig,
     GateSignal,
@@ -25,6 +26,7 @@ from miniverl.config.models import (
     OPDFreshness,
     OptimizerName,
     Precision,
+    PromptTruncation,
     Quantization,
     ReferenceModelConfig,
     ReportConfig,
@@ -33,6 +35,7 @@ from miniverl.config.models import (
     RunMeta,
     SelectionConfig,
     SelectorName,
+    SourceKind,
     StudentModelConfig,
     TeacherAdapterConfig,
     TeacherContextMode,
@@ -41,6 +44,7 @@ from miniverl.config.models import (
     ToyModelConfig,
     TrainConfig,
     TrainingMode,
+    VerlParquetSourceConfig,
 )
 
 __all__ = [
@@ -50,6 +54,7 @@ __all__ = [
     "CacheConfig",
     "Divergence",
     "EnvironmentConfig",
+    "EnvironmentSourceConfig",
     "EvalConfig",
     "GateConfig",
     "GateSignal",
@@ -66,6 +71,7 @@ __all__ = [
     "OPDFreshness",
     "OptimizerName",
     "Precision",
+    "PromptTruncation",
     "Quantization",
     "ReferenceModelConfig",
     "ReportConfig",
@@ -75,6 +81,7 @@ __all__ = [
     "SelectionConfig",
     "SelectorName",
     "StudentModelConfig",
+    "SourceKind",
     "TeacherContextMode",
     "TeacherMode",
     "TeacherAdapterConfig",
@@ -82,4 +89,5 @@ __all__ = [
     "ToyModelConfig",
     "TrainConfig",
     "TrainingMode",
+    "VerlParquetSourceConfig",
 ]

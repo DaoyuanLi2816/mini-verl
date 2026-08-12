@@ -182,7 +182,11 @@ def build_teacher(
         tokenizer=tokenizer,
         trainable=False,
         local_files_only=local_files_only,
-        protocol_version=str(config.environment.params.get("protocol_version", "v1")),
+        protocol_version=str(
+            (config.environment.params if config.environment is not None else {}).get(
+                "protocol_version", "v1"
+            )
+        ),
     )
 
 

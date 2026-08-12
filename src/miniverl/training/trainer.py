@@ -45,8 +45,10 @@ from miniverl.config.models import (
     OPDFreshness,
     Quantization,
     RunConfig,
+    SourceKind,
     TeacherContextMode,
     TrainingMode,
+    VerlParquetSourceConfig,
 )
 from miniverl.environments.base import Task, ToolEnvironment, make_splits
 from miniverl.environments.registry import make_environment
@@ -181,8 +183,11 @@ class OPDTrainer:
         validated_config: RunConfig,
         paths: RunPaths,
         run_id: str,
-        environment: ToolEnvironment,
+        environment: ToolEnvironment | None,
         splits: dict[str, list[Task]],
+        rollout_runtime: Any,
+        prompt_dataset: Any | None,
+        prompt_dataset_manifest: Any | None,
         tokenizer: Any,
         student: Any,
         teacher: Any | None,
@@ -203,6 +208,11 @@ class OPDTrainer:
         self.run_id = run_id
         self.environment = environment
         self.splits = splits
+        self.rollout_runtime = rollout_runtime
+        self.prompt_dataset = prompt_dataset
+        self.prompt_dataset_manifest = prompt_dataset_manifest
+        self._prompt_train_iterator: Any | None = None
+        self._prompt_train_epoch = 0
         self.tokenizer = tokenizer
         self.student = student
         self.teacher = teacher
@@ -220,7 +230,7 @@ class OPDTrainer:
 
         self.metrics_log = JsonlWriter(paths.metrics)
         self.events = EventLog(JsonlWriter(paths.events))
-        self.runner = RolloutRunner(backend=student, environment=environment, config=config.rollout)
+        self.runner = getattr(rollout_runtime, "runner", None)
         # Imported here rather than at module scope: the scorer pulls in torch, and
         # `import miniverl.trainer` must stay readable on a bare install so the CLI
         # can raise MissingDependencyError instead of ModuleNotFoundError.
@@ -244,7 +254,7 @@ class OPDTrainer:
         self.artifact_bridge = LocalArtifactBridge(paths.root)
         self.role_graph = LocalRoleGraph(
             actor_policy=self.student,
-            rollout_runtime=self.runner,
+            rollout_runtime=self.rollout_runtime,
             teacher_policy=self.teacher,
             reference_policy=self.reference,
             reward_or_verifier=self.environment,
@@ -463,6 +473,9 @@ class OPDTrainer:
             raise
 
         environment: ToolEnvironment | None = None
+        rollout_runtime: Any | None = None
+        prompt_dataset: Any | None = None
+        prompt_dataset_manifest: Any | None = None
         student: Any | None = None
         teacher: Any | None = None
         reference: Any | None = None
@@ -474,18 +487,44 @@ class OPDTrainer:
                     write_bytes(paths.config_submitted, validated_config.submitted_bytes)
                 write_text(paths.config_validated, validated_config.to_yaml())
                 write_text(paths.config_original, config.to_yaml())
-            environment = make_environment(config.environment.name, **config.environment.params)
-            splits = make_splits(
-                environment,
-                counts={
-                    "train": config.environment.train_tasks,
-                    "eval": config.environment.eval_tasks,
-                    "test": config.environment.test_tasks,
-                },
-                seed=config.environment.split_seed,
-                difficulty=config.environment.difficulty,
-            )
+            splits: dict[str, list[Task]] = {"train": [], "eval": [], "test": []}
+            if config.source.kind is SourceKind.ENVIRONMENT:
+                assert config.environment is not None
+                environment = make_environment(config.environment.name, **config.environment.params)
+                splits = make_splits(
+                    environment,
+                    counts={
+                        "train": config.environment.train_tasks,
+                        "eval": config.environment.eval_tasks,
+                        "test": config.environment.test_tasks,
+                    },
+                    seed=config.environment.split_seed,
+                    difficulty=config.environment.difficulty,
+                )
+            else:
+                from miniverl.data.verl_parquet import VerlParquetDataset
+
+                assert isinstance(config.source, VerlParquetSourceConfig)
+                prompt_dataset = VerlParquetDataset(config.source)
+                prompt_dataset_manifest = prompt_dataset.inspect()
+                if prompt_dataset_manifest.rows["train"] == 0:
+                    raise ConfigError("the Parquet training source contains zero prompt rows")
+                if config.eval.enabled and prompt_dataset_manifest.rows["val"] == 0:
+                    raise ConfigError(
+                        "evaluation is enabled but source.val_files contains zero prompt rows",
+                        hint="provide validation prompts or set eval.enabled=false",
+                    )
+                if (
+                    config.eval.enabled
+                    and config.eval.tasks is not None
+                    and config.eval.task_offset + config.eval.tasks
+                    > prompt_dataset_manifest.rows["val"]
+                ):
+                    raise ConfigError(
+                        "eval task range exceeds the number of Parquet validation rows"
+                    )
             if config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT:
+                assert environment is not None
                 probe = environment.privileged_context(splits["train"][0])
                 if not probe:
                     raise ConfigError(
@@ -564,6 +603,27 @@ class OPDTrainer:
                         hint="miniVERL requires a shared output vocabulary for distillation",
                     )
 
+            if config.source.kind is SourceKind.ENVIRONMENT:
+                assert environment is not None
+                from miniverl.runtime.rollout import ToolEnvironmentRolloutRuntime
+
+                rollout_runtime = ToolEnvironmentRolloutRuntime(
+                    RolloutRunner(
+                        backend=student,
+                        environment=environment,
+                        config=config.rollout,
+                    )
+                )
+            else:
+                from miniverl.runtime.rollout import PromptDatasetRolloutRuntime
+
+                assert isinstance(config.source, VerlParquetSourceConfig)
+                rollout_runtime = PromptDatasetRolloutRuntime(
+                    backend=student,
+                    source_config=config.source,
+                    rollout_config=config.rollout,
+                )
+
             trainer = cls(
                 config=config,
                 validated_config=validated_config,
@@ -571,6 +631,9 @@ class OPDTrainer:
                 run_id=resolved_id,
                 environment=environment,
                 splits=splits,
+                rollout_runtime=rollout_runtime,
+                prompt_dataset=prompt_dataset,
+                prompt_dataset_manifest=prompt_dataset_manifest,
                 tokenizer=tokenizer,
                 student=student,
                 teacher=teacher,
@@ -810,6 +873,32 @@ class OPDTrainer:
                     else None
                 ),
             }
+        if self.environment is not None and config.environment is not None:
+            environment_info: dict[str, Any] | None = {
+                **self.environment.describe(),
+                "difficulty": config.environment.difficulty,
+                "split_seed": config.environment.split_seed,
+                "split_sizes": {k: len(v) for k, v in self.splits.items()},
+            }
+            source_info: dict[str, Any] = {
+                "kind": "environment",
+                "environment": environment_info,
+            }
+        else:
+            assert isinstance(config.source, VerlParquetSourceConfig)
+            assert self.prompt_dataset_manifest is not None
+            environment_info = None
+            source_info = {
+                "kind": "verl_parquet",
+                "prompt_key": config.source.prompt_key,
+                "use_task_rewards": config.source.use_task_rewards,
+                "rows": self.prompt_dataset_manifest.rows,
+                "schema_digest": self.prompt_dataset_manifest.schema_digest,
+                "content_digest": self.prompt_dataset_manifest.content_digest,
+                "files": list(self.prompt_dataset_manifest.files),
+                "shuffle": config.source.shuffle,
+                "seed": config.source.seed,
+            }
         return {
             "miniverl_version": __version__,
             "run_id": self.run_id,
@@ -829,12 +918,8 @@ class OPDTrainer:
             ),
             "seed": config.run.seed,
             "deterministic": config.run.deterministic,
-            "environment": {
-                **self.environment.describe(),
-                "difficulty": config.environment.difficulty,
-                "split_seed": config.environment.split_seed,
-                "split_sizes": {k: len(v) for k, v in self.splits.items()},
-            },
+            "source": source_info,
+            "environment": environment_info,
             "models": {
                 "backend": config.models.backend.value,
                 "runtime": config.models.runtime.value,
@@ -1031,11 +1116,32 @@ class OPDTrainer:
     # -- task sampling --------------------------------------------------------
 
     def _build_task_order(self) -> list[int]:
+        if self.prompt_dataset is not None:
+            return []
         order = list(range(len(self.splits["train"])))
         random.Random(self.config.run.seed ^ 0x5EED).shuffle(order)
         return order
 
-    def _next_tasks(self, count: int) -> list[Task]:
+    def _next_tasks(self, count: int) -> list[Any]:
+        if self.prompt_dataset is not None:
+            from miniverl.data.verl_parquet import render_prompt
+
+            assert isinstance(self.config.source, VerlParquetSourceConfig)
+            output: list[Any] = []
+            while len(output) < count:
+                if self._prompt_train_iterator is None:
+                    self._prompt_train_iterator = iter(
+                        self.prompt_dataset.iter_split("train", epoch=self._prompt_train_epoch)
+                    )
+                try:
+                    record = next(self._prompt_train_iterator)
+                except StopIteration:
+                    self._prompt_train_epoch += 1
+                    self._prompt_train_iterator = None
+                    continue
+                output.append(render_prompt(record, self.tokenizer, self.config.source))
+                self.task_cursor += 1
+            return output
         train = self.splits["train"]
         out: list[Task] = []
         for _ in range(count):
@@ -1053,6 +1159,7 @@ class OPDTrainer:
             config.models.backend is not ModelBackend.TOY
             or self.teacher is None
             or config.models.teacher.toy_pretrain_steps <= 0
+            or self.environment is None
         ):
             return
         from miniverl.models.toy import ToyBackend, fit_toy_model
@@ -1102,13 +1209,38 @@ class OPDTrainer:
 
     def _collect(
         self,
-        tasks: list[Task],
+        tasks: list[Any],
         *,
         oracle: bool,
         rollout_seed_base: int | None = None,
     ) -> tuple[list[Trajectory], RolloutStats]:
         stats = RolloutStats()
         trajectories: list[Trajectory] = []
+        if self.prompt_dataset is not None:
+            if oracle:
+                raise ConfigError("Parquet prompt rollouts have no oracle trajectory source")
+            seed = (
+                rollout_seed_base
+                if rollout_seed_base is not None
+                else self.config.run.seed + self.global_step * 1013
+            )
+            prepared = self.rollout_runtime.prepare_batch(tasks)
+            generated = self.rollout_runtime.generate(
+                prepared,
+                policy_version=self.policy_version,
+                seed=seed,
+            )
+            trajectories = self.rollout_runtime.to_trajectories(
+                prepared,
+                generated,
+                policy_version=self.policy_version,
+            )
+            for offset, trajectory in enumerate(trajectories):
+                trajectory.metadata["generation_seed"] = seed * 1_000_003 + offset
+                stats.observe(trajectory)
+            append_trajectories(self.paths.trajectories, trajectories)
+            return trajectories, stats
+        assert self.runner is not None
         for offset, task in enumerate(tasks):
             if oracle:
                 traj = self.runner.oracle_rollout(
@@ -1356,6 +1488,7 @@ class OPDTrainer:
             )
             teacher_view = None
             if privileged:
+                assert self.runner is not None
                 task = task_by_id.get(trajectory.task_id)
                 if task is None:
                     raise CheckpointError(
@@ -1474,6 +1607,7 @@ class OPDTrainer:
                 continue
             teacher_view: Trajectory | None = None
             if privileged and self.scorer is not None:
+                assert self.runner is not None
                 task = task_by_id.get(traj.task_id)
                 if task is not None:
                     teacher_view = self.runner.privileged_render(traj, task)
@@ -1491,6 +1625,7 @@ class OPDTrainer:
         for sample in samples:
             teacher_view = None
             if privileged:
+                assert self.runner is not None
                 task = task_by_id.get(sample.trajectory.task_id)
                 if task is not None:
                     teacher_view = self.runner.privileged_render(sample.trajectory, task)
@@ -2189,7 +2324,14 @@ class OPDTrainer:
                 parameter_version=self.parameter_version,
                 rollout_policy_version=rollout_policy_version,
                 trajectories=stats.rollouts,
-                success_rate=round(stats.to_dict()["success_rate"], 4),
+                success_rate=(
+                    None
+                    if self.prompt_dataset is not None
+                    else round(stats.to_dict()["success_rate"], 4)
+                ),
+                reward_status=(
+                    "not_applicable_pure_opd" if self.prompt_dataset is not None else "measured"
+                ),
                 generated_tokens=stats.generated_tokens,
                 rollout_tokens_per_second=round(stats.generated_tokens / rollout_seconds, 2),
             )
@@ -2381,7 +2523,7 @@ class OPDTrainer:
         self,
         *,
         split: str | None = None,
-        tasks: list[Task] | None = None,
+        tasks: list[Any] | None = None,
         tag: str = "eval",
         write: bool = True,
     ) -> dict[str, Any]:
@@ -2412,13 +2554,20 @@ class OPDTrainer:
         self,
         *,
         split: str | None = None,
-        tasks: list[Task] | None = None,
+        tasks: list[Any] | None = None,
         tag: str = "eval",
         write: bool = True,
     ) -> dict[str, Any]:
         """Deterministic greedy evaluation owned by the current operation."""
         config = self.config
         chosen_split = split or config.eval.split
+        if self.prompt_dataset is not None:
+            return self._evaluate_prompt_impl(
+                chosen_split=chosen_split,
+                prompts=tasks,
+                tag=tag,
+                write=write,
+            )
         pool = tasks if tasks is not None else self.splits.get(chosen_split, [])
         limit = config.effective_eval_tasks if tasks is None else len(pool)
         task_offset = config.eval.task_offset if tasks is None else 0
@@ -2451,6 +2600,7 @@ class OPDTrainer:
             stats = RolloutStats()
             trajectories: list[Trajectory] = []
             by_difficulty: dict[str, list[int]] = {}
+            assert self.runner is not None
             for offset, task in enumerate(pool):
                 traj = self.runner.rollout(
                     task,
@@ -2526,6 +2676,116 @@ class OPDTrainer:
             )
             return payload
         finally:
+            self.student.set_train(was_training)
+
+    def _evaluate_prompt_impl(
+        self,
+        *,
+        chosen_split: str,
+        prompts: list[Any] | None,
+        tag: str,
+        write: bool,
+    ) -> dict[str, Any]:
+        """Generate validation responses without inventing a reward or success metric."""
+        from itertools import islice
+
+        from miniverl.data.verl_parquet import render_prompt
+        from miniverl.runtime.rollout import PromptDatasetRolloutRuntime
+
+        config = self.config
+        assert isinstance(config.source, VerlParquetSourceConfig)
+        assert self.prompt_dataset is not None
+        assert self.prompt_dataset_manifest is not None
+        if chosen_split not in {"eval", "val"}:
+            raise ConfigError(
+                "Parquet prompt evaluation uses the validation files",
+                hint="set eval.split=eval (the compatibility name for source.val_files)",
+            )
+        if prompts is None:
+            available = self.prompt_dataset_manifest.rows["val"]
+            limit = config.eval.tasks if config.eval.tasks is not None else available
+            records = islice(
+                self.prompt_dataset.iter_split("val", epoch=0),
+                config.eval.task_offset,
+                config.eval.task_offset + limit,
+            )
+            prompts = [render_prompt(record, self.tokenizer, config.source) for record in records]
+        if not prompts:
+            return {
+                "tag": tag,
+                "split": "val",
+                "tasks": 0,
+                "success_rate": None,
+                "reward_status": "not_applicable_pure_opd",
+                "note": "no validation prompts",
+            }
+        model = getattr(self.student, "model", None)
+        was_training = getattr(model, "training", None)
+        if not isinstance(was_training, bool):
+            raise BackendError("the student backend does not expose train/eval mode")
+        self.student.set_train(False)
+        runtime = PromptDatasetRolloutRuntime(
+            backend=self.student,
+            source_config=config.source,
+            rollout_config=config.rollout.model_copy(
+                update={"temperature": config.eval.temperature}
+            ),
+        )
+        try:
+            gpu.reset_peak_stats()
+            started = time.perf_counter()
+            prepared = runtime.prepare_batch(prompts)
+            generated = runtime.generate(
+                prepared,
+                policy_version=self.policy_version,
+                seed=config.eval.seed + config.eval.task_offset,
+            )
+            trajectories = runtime.to_trajectories(
+                prepared,
+                generated,
+                policy_version=self.policy_version,
+            )
+            elapsed = max(time.perf_counter() - started, 1e-9)
+            append_trajectories(self.paths.eval_trajectories, trajectories)
+            generated_tokens = sum(item.generated_token_count for item in trajectories)
+            payload = {
+                "tag": tag,
+                "split": "val",
+                "tasks": len(trajectories),
+                "policy_version": self.policy_version,
+                "parameter_version": self.parameter_version,
+                "global_step": self.global_step,
+                "global_optimizer_step": self.global_step,
+                "rollout_iteration": self._cycles_completed,
+                "rollout_policy_version": self._last_rollout_policy_version,
+                "temperature": config.eval.temperature,
+                "task_offset": config.eval.task_offset,
+                "seconds": round(elapsed, 3),
+                "generated_tokens": generated_tokens,
+                "rollout_tokens_per_second": round(generated_tokens / elapsed, 2),
+                "physical_batch_sizes": list(generated.physical_batch_sizes),
+                "oom_downshifts": generated.oom_downshifts,
+                "success_rate": None,
+                "reward_status": "not_applicable_pure_opd",
+                "measurement_status": {
+                    "response_generation": "measured",
+                    "task_reward": "not_configured",
+                    "task_success": "not_measured",
+                },
+                "memory": gpu.snapshot().to_dict(),
+            }
+            if write:
+                self.metrics_log.write({"phase": "eval", **payload, "ts": utc_now()})
+            self.events.emit(
+                "eval",
+                tag=tag,
+                tasks=len(trajectories),
+                success_rate=None,
+                reward_status="not_applicable_pure_opd",
+            )
+            return payload
+        finally:
+            runtime.close()
             self.student.set_train(was_training)
 
     # -- checkpointing -----------------------------------------------------------
@@ -2784,6 +3044,12 @@ class OPDTrainer:
         if student is not None:
             cleanup("student release", student.release)
         student = None
+
+        rollout_runtime = self.rollout_runtime
+        self.rollout_runtime = None  # type: ignore[assignment]  # destructive close
+        if rollout_runtime is not None:
+            cleanup("rollout runtime close", rollout_runtime.close)
+        del rollout_runtime
 
         environment = self.environment
         self.environment = None  # type: ignore[assignment]  # destructive close

@@ -14,7 +14,7 @@ import torch
 
 from miniverl.models.base import GenerationOutput
 
-__all__ = ["sample_from_logits", "run_generation", "StepFn"]
+__all__ = ["sample_from_logits", "run_generation", "run_greedy_padded_generation", "StepFn"]
 
 #: ``step(new_token_ids, state) -> (next_token_logits [V], new_state)``
 StepFn = Callable[[list[int], Any], "tuple[torch.Tensor, Any]"]
@@ -125,3 +125,64 @@ def run_generation(
         matched_stop=matched_stop,
         logprobs=logprobs,
     )
+
+
+def run_greedy_padded_generation(
+    *,
+    step: Callable[[list[list[int]]], torch.Tensor],
+    prefix_token_ids: Sequence[Sequence[int]],
+    decode: Callable[[Sequence[int]], str],
+    eos_token_id: int,
+    max_new_tokens: int,
+    stop_sequences: Sequence[str] = (),
+) -> list[GenerationOutput]:
+    """Greedy decode a real padded batch while retaining per-row stop state.
+
+    ``step`` receives compact unpadded rows and performs the one padded model
+    forward.  Re-padding on every step keeps each row's next-token state at its
+    true sequence end; padding can never become context or a selected token.
+    """
+    if not prefix_token_ids:
+        return []
+    if any(not row for row in prefix_token_ids):
+        raise ValueError("padded generation cannot contain an empty prompt")
+    if max_new_tokens < 1:
+        raise ValueError(f"max_new_tokens must be >= 1, got {max_new_tokens}")
+    sequences = [list(row) for row in prefix_token_ids]
+    generated: list[list[int]] = [[] for _ in sequences]
+    reasons = ["max_new_tokens"] * len(sequences)
+    matched: list[str | None] = [None] * len(sequences)
+    active = [True] * len(sequences)
+    for _ in range(max_new_tokens):
+        logits = step(sequences)
+        if tuple(logits.shape[:1]) != (len(sequences),):
+            raise ValueError(
+                f"padded generation step returned {tuple(logits.shape)}, expected [batch, vocab]"
+            )
+        for index in range(len(sequences)):
+            if not active[index]:
+                continue
+            token = int(torch.argmax(logits[index].detach().to(torch.float32)).item())
+            generated[index].append(token)
+            sequences[index].append(token)
+            if token == eos_token_id:
+                reasons[index] = "eos"
+                active[index] = False
+                continue
+            text = decode(generated[index])
+            hit = next((value for value in stop_sequences if value and value in text), None)
+            if hit is not None:
+                reasons[index] = "stop_sequence"
+                matched[index] = hit
+                active[index] = False
+        if not any(active):
+            break
+    return [
+        GenerationOutput(
+            token_ids=row,
+            text=decode(row),
+            stop_reason=reasons[index],
+            matched_stop=matched[index],
+        )
+        for index, row in enumerate(generated)
+    ]

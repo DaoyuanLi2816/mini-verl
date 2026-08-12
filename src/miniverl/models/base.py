@@ -102,6 +102,38 @@ class CausalLMBackend(ABC):
         """Sample a continuation, stopping on EOS, a stop string, or the budget."""
         ...
 
+    def generate_batch(
+        self,
+        prefix_token_ids: Sequence[Sequence[int]],
+        *,
+        max_new_tokens: int,
+        stop_sequences: Sequence[str] = (),
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+        top_k: int = 0,
+        seeds: Sequence[int | None] | None = None,
+    ) -> list[GenerationOutput]:
+        """Compatibility batch API; concrete local backends use one padded forward.
+
+        Stochastic sampling deliberately falls back to the established per-example
+        generator so seed semantics remain unchanged.
+        """
+        chosen_seeds = list(seeds or [None] * len(prefix_token_ids))
+        if len(chosen_seeds) != len(prefix_token_ids):
+            raise ValueError("generate_batch needs exactly one seed per prompt")
+        return [
+            self.generate(
+                prefix,
+                max_new_tokens=max_new_tokens,
+                stop_sequences=stop_sequences,
+                temperature=temperature,
+                top_p=top_p,
+                top_k=top_k,
+                seed=seed,
+            )
+            for prefix, seed in zip(prefix_token_ids, chosen_seeds, strict=True)
+        ]
+
     # -- scoring --------------------------------------------------------
 
     @abstractmethod
