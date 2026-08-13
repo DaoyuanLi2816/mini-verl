@@ -2,8 +2,8 @@ cff-version: 1.2.0
 title: "miniVERL: A bounded single-GPU runtime for verl-style OPD"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
-version: 0.8.1
-date-released: 2026-08-12
+version: 0.9.0
+date-released: 2026-08-13
 license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
 url: "https://github.com/DaoyuanLi2816/mini-verl"

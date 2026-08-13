@@ -27,9 +27,9 @@ verl check before squash merge `8d3ebb2`.
 - [x] Bind execution to an immutable plan artifact and fail closed when its
       config, data, model, tokenizer or compatibility acceptance has drifted.
 - [x] Add a bounded hardware probe with strict cache identity and no updates.
-- [ ] Add transactional model materialization and a
+- [x] Add transactional model materialization and a
       realistic one-GPU quickstart without widening the documented algorithm.
-- [ ] Preserve every frozen scientific artifact and keep distributed verl,
+- [x] Preserve every frozen scientific artifact and keep distributed verl,
       policy-gradient OPD and unsupported objective semantics fail-closed.
 
 The config-UX candidate accepts ordered override files, repeatable `--set`
@@ -55,6 +55,25 @@ The bounded-probe candidate passed 2,203 local non-GPU/non-network tests at
 environment-dependent skips. A real offline RTX 4080 probe of the pinned Qwen3
 pair completed in 13.63 seconds with zero parameter updates and no checkpoint;
 fresh and exact-cache reuse produced byte-identical plans.
+
+The materialization candidate passed its local path, download/cache, explicit
+teacher-merge, rollback, hostile-tree, pinned-verl and launch-state checks; PR
+#71 merged as `7e85824`. The final Qwen3 workload consumed 32 distinct prompts
+over eight current-policy updates at 3.1914 GiB peak reserved VRAM. An
+interruption after update four resumed to byte-identical trajectories, adapter
+and optimizer tensors. The pinned SmolLM2-360M/1.7B compatibility smoke also
+completed one rollout/scoring/update cycle and PEFT reload; it is not a second
+full recipe or quality result.
+
+Final product head `7a36f59d822d9d1393882c19ad4ef56b7364d43e` passed 2,222 local
+non-GPU/non-network tests at 83.95% coverage, 8 GPU tests, 15 network tests,
+three pinned-verl conformance tests, strict MkDocs and 44 rendered SVG
+instances across four Playwright viewports. Clean core and training installs,
+extracted-sdist tests/rebuild, package/Twine, text/link/privacy and owner-only
+authorship checks passed. PR #72 passed the complete Python 3.10–3.13,
+dependency-boundary, wheel, docs and bridge matrix before merge as `fb78f64`.
+The historical calculator artifact remains byte-identical at SHA-256
+`53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
 
 ## v0.8.0 single-GPU verl OPD pivot
 

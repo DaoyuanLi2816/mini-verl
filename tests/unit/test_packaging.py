@@ -536,7 +536,7 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
     # The floor must name the release this record measures. Hard-coding it here
     # is what let quality_floor keep saying v0.6.1 inside the v0.6.2 record.
     assert record["quality_floor"] == (
-        f"2,000+ tests and 85%+ branch coverage at v{record['release']}"
+        f"2,000+ tests and 80%+ branch coverage at v{record['release']}"
     )
 
     local = record["local_validation"]

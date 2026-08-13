@@ -23,7 +23,7 @@ verl 风格 YAML 与 Parquet prompt，在本地依次执行 actor rollout → te
 actor update，记录每个本地语义重解释，并导出标准 PEFT、Parquet 与配置产物供固定版本
 的 verl 接手扩展。
 
-PyPI `v0.8.1` 是稳定版；`main` 是开发版。miniVERL 是独立项目，不代表上游背书；它
+PyPI `v0.9.0` 是稳定版；`main` 是开发版。miniVERL 是独立项目，不代表上游背书；它
 不执行任意 verl YAML、不启动分布式任务，也不声称完整的算法兼容性。
 
 ## 仅用 pip 的快速开始
