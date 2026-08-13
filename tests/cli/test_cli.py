@@ -95,6 +95,18 @@ def _invoke(*args: str) -> Result:
     return CliRunner().invoke(app, list(args))
 
 
+def test_sample_parquet_rows_are_distinct_when_requested(tmp_path: Path) -> None:
+    pyarrow = pytest.importorskip("pyarrow.parquet")
+    target = tmp_path / "sample.parquet"
+
+    result = _invoke("data", "sample", "--out", str(target), "--rows", "64")
+
+    assert result.exit_code == 0, result.output
+    prompts = [str(row["prompt"]) for row in pyarrow.read_table(target).to_pylist()]
+    assert len(prompts) == 64
+    assert len(set(prompts)) == 64
+
+
 def test_bridge_compile_opd_is_an_offline_deterministic_smoke(tmp_path: Path) -> None:
     source = REPO_ROOT / "examples" / "verl-opd-v0.8-single-gpu.yaml"
     output = tmp_path / "compiled-plan.json"

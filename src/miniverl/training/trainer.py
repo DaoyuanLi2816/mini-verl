@@ -299,6 +299,7 @@ class OPDTrainer:
         self._cycles_completed = 0
         self._last_cycle_metrics: dict[str, Any] = {}
         self._last_selection_stats: list[SelectionStats] = []
+        self._last_rollout_execution: dict[str, Any] | None = None
 
     # -- construction --------------------------------------------------------
 
@@ -1129,16 +1130,21 @@ class OPDTrainer:
             from miniverl.data.verl_parquet import render_prompt
 
             assert isinstance(self.config.source, VerlParquetSourceConfig)
+            assert self.prompt_dataset_manifest is not None
             output: list[Any] = []
             while len(output) < count:
                 if self._prompt_train_iterator is None:
+                    rows_per_epoch = int(self.prompt_dataset_manifest.rows["train"])
+                    self._prompt_train_epoch = self.task_cursor // rows_per_epoch
+                    row_offset = self.task_cursor % rows_per_epoch
                     self._prompt_train_iterator = iter(
                         self.prompt_dataset.iter_split("train", epoch=self._prompt_train_epoch)
                     )
+                    for _ in range(row_offset):
+                        next(self._prompt_train_iterator)
                 try:
                     record = next(self._prompt_train_iterator)
                 except StopIteration:
-                    self._prompt_train_epoch += 1
                     self._prompt_train_iterator = None
                     continue
                 output.append(render_prompt(record, self.tokenizer, self.config.source))
@@ -1232,6 +1238,10 @@ class OPDTrainer:
                 policy_version=self.policy_version,
                 seed=seed,
             )
+            self._last_rollout_execution = {
+                "physical_batch_sizes": list(generated.physical_batch_sizes),
+                "oom_downshifts": generated.oom_downshifts,
+            }
             trajectories = self.rollout_runtime.to_trajectories(
                 prepared,
                 generated,
@@ -2317,6 +2327,7 @@ class OPDTrainer:
         cycle_started = time.perf_counter()
         rollout_policy_version = self.parameter_version
         self._last_selection_stats = []
+        self._last_rollout_execution = None
         rollout_seconds = 0.0
         teacher_scoring_seconds = 0.0
 
@@ -2470,6 +2481,7 @@ class OPDTrainer:
                         if teacher_scoring_seconds > 0
                         else None
                     ),
+                    "rollout_execution": self._last_rollout_execution,
                 }
             )
         if self._cache is not None:

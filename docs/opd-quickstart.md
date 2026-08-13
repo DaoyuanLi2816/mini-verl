@@ -23,6 +23,10 @@ for run artifacts. The plan command itself is CPU-only and weight-free; use
 
 ## Measured reference
 
+The v0.9 developer workload extends this install smoke to 32 distinct consumed
+prompts, 64 response tokens and eight optimizer updates. See its
+[phase-time, throughput, VRAM and resume evidence](verl-opd-reference-workload.md).
+
 | GPU | student / teacher | strategy | limits / top-k | peak reserved | first update | status |
 | --- | --- | --- | --- | ---: | ---: | --- |
 | RTX 4080 16 GiB | Qwen3-0.6B / Qwen3-1.7B, both NF4 | dual resident | 128 + 16 tokens / 32 | 3.176 GiB | 12.02 s | measured |

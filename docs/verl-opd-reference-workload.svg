@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 690" role="img" aria-labelledby="title desc">
+<title id="title">RTX 4080 verl-style OPD developer workload</title>
+<desc id="desc">Measured median phase time and throughput plus peak reserved VRAM for eight QLoRA optimizer updates over 32 distinct prompts. Resume matched uninterrupted adapter, optimizer, trajectories and training state. No task quality was evaluated.</desc>
+<style>
+        text { font-family: Inter, Segoe UI, Arial, sans-serif; }
+        .title { fill:#f8fafc; font-size:30px; font-weight:750; }
+        .subtitle { fill:#a9b8d4; font-size:17px; }
+        .panel-title { fill:#f8fafc; font-size:19px; font-weight:700; }
+        .label { fill:#dbe7fa; font-size:16px; }
+        .value { fill:#ffffff; font-size:16px; font-weight:700; }
+        .note { fill:#a9b8d4; font-size:15px; }
+        .small { fill:#a9b8d4; font-size:14px; }
+        </style>
+<rect width="1120" height="690" rx="22" fill="#08111f"/>
+<rect x="28" y="28" width="1064" height="634" rx="18" fill="#0f1b2d" stroke="#283b58"/>
+<text x="58" y="76" class="small" text-anchor="start">ONE RTX 4080 · QWEN3 0.6B → 1.7B · FORWARD-KL TOP-K 32</text>
+<text x="58" y="116" class="title" text-anchor="start">A practical single-GPU OPD workload, measured end to end</text>
+<text x="58" y="148" class="subtitle" text-anchor="start">32 distinct prompts consumed · 64 response tokens · logical batch 4 · 8 optimizer updates</text>
+<rect x="50" y="180" width="500" height="314" rx="14" fill="#111f34" stroke="#2b4263"/>
+<text x="74" y="216" class="panel-title" text-anchor="start">Median steady-state phase time</text>
+<text x="526" y="216" class="small" text-anchor="end">seconds</text>
+<text x="74" y="260" class="label" text-anchor="start">Actor rollout</text>
+<rect x="210" y="240" width="300" height="24" rx="6" fill="#1b2b44"/>
+<rect x="210" y="240" width="300.00" height="24" rx="6" fill="#56B4E9"/>
+<circle cx="510.00" cy="252" r="6" fill="#f8fafc" stroke="#56B4E9" stroke-width="3"/>
+<text x="526" y="260" class="value" text-anchor="end">9.7200</text>
+<text x="74" y="336" class="label" text-anchor="start">Teacher scoring</text>
+<rect x="210" y="316" width="300" height="24" rx="6" fill="#1b2b44"/>
+<rect x="210" y="316" width="15.01" height="24" rx="6" fill="#E69F00"/>
+<circle cx="225.01" cy="328" r="6" fill="#f8fafc" stroke="#E69F00" stroke-width="3"/>
+<text x="526" y="336" class="value" text-anchor="end">0.4864</text>
+<text x="74" y="412" class="label" text-anchor="start">Actor update</text>
+<rect x="210" y="392" width="300" height="24" rx="6" fill="#1b2b44"/>
+<rect x="210" y="392" width="71.79" height="24" rx="6" fill="#009E73"/>
+<circle cx="281.79" cy="404" r="6" fill="#f8fafc" stroke="#009E73" stroke-width="3"/>
+<text x="526" y="412" class="value" text-anchor="end">2.3260</text>
+<text x="74" y="472" class="note" text-anchor="start">Direct labels; bars share a zero baseline.</text>
+<rect x="570" y="180" width="500" height="314" rx="14" fill="#111f34" stroke="#2b4263"/>
+<text x="594" y="216" class="panel-title" text-anchor="start">Median steady-state throughput</text>
+<text x="1046" y="216" class="small" text-anchor="end">items / second</text>
+<text x="594" y="260" class="label" text-anchor="start">Rollout tokens/s</text>
+<rect x="750" y="240" width="278" height="24" rx="6" fill="#1b2b44"/>
+<rect x="750" y="240" width="13.91" height="24" rx="6" fill="#56B4E9"/>
+<path d="M 763.91 241 l 7 11 l -7 11 l -7 -11 z" fill="#f8fafc" stroke="#56B4E9" stroke-width="2"/>
+<text x="1046" y="260" class="value" text-anchor="end">26.34</text>
+<text x="594" y="336" class="label" text-anchor="start">Teacher positions/s</text>
+<rect x="750" y="316" width="278" height="24" rx="6" fill="#1b2b44"/>
+<rect x="750" y="316" width="278.00" height="24" rx="6" fill="#E69F00"/>
+<path d="M 1028.00 317 l 7 11 l -7 11 l -7 -11 z" fill="#f8fafc" stroke="#E69F00" stroke-width="2"/>
+<text x="1046" y="336" class="value" text-anchor="end">526.32</text>
+<text x="594" y="412" class="label" text-anchor="start">Update positions/s</text>
+<rect x="750" y="392" width="278" height="24" rx="6" fill="#1b2b44"/>
+<rect x="750" y="392" width="58.13" height="24" rx="6" fill="#009E73"/>
+<path d="M 808.13 393 l 7 11 l -7 11 l -7 -11 z" fill="#f8fafc" stroke="#009E73" stroke-width="2"/>
+<text x="1046" y="412" class="value" text-anchor="end">110.06</text>
+<text x="594" y="472" class="note" text-anchor="start">Token and selected-position rates are labelled separately.</text>
+<rect x="50" y="516" width="1020" height="118" rx="14" fill="#111f34" stroke="#2b4263"/>
+<text x="74" y="550" class="panel-title" text-anchor="start">Peak reserved VRAM</text>
+<text x="1046" y="550" class="value" text-anchor="end">3.1914 GiB / 14.5 GiB release gate</text>
+<rect x="74" y="570" width="760" height="24" rx="7" fill="#1b2b44"/>
+<rect x="74" y="570" width="167.27" height="24" rx="7" fill="#CC79A7"/>
+<path d="M 241.27 566 l 8 16 l -8 16 l -8 -16 z" fill="#f8fafc" stroke="#CC79A7" stroke-width="2"/>
+<text x="852" y="590" class="value" text-anchor="start">0 OOM downshifts</text>
+<text x="74" y="620" class="note" text-anchor="start">Resume: adapter + optimizer + trajectories + training state matched exactly · systems evidence only · no quality endpoint</text>
+</svg>

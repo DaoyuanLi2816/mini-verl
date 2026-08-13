@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "kind": "single_gpu_opd_model_family_compatibility_smoke",
+  "status": "measured",
+  "measured_at": "2026-08-13T07:48:14Z",
+  "source_commit": "2819f7290ffb0c14a0ff5d13509a0fec29c8100d",
+  "miniverl_version": "0.9.0.dev0",
+  "profile": "verl-opd-v0.8-single-gpu-v1",
+  "models": {
+    "student": {
+      "id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+      "revision": "a10cc1512eabd3dde888204e902eca88bddb4951",
+      "license": "apache-2.0",
+      "quantization": "nf4",
+      "adapter": "lora-r8-alpha16"
+    },
+    "teacher": {
+      "id": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+      "revision": "31b70e2e869a7173562077fd711b654946d38674",
+      "license": "apache-2.0",
+      "quantization": "nf4"
+    }
+  },
+  "tokenizer_identity": {
+    "tokenizer_class": "GPT2Tokenizer",
+    "length": 49152,
+    "structural_digest_v2": "4bf67fa8fdbf333c2f79c00bdc43909ed2ffb4bd7ed1f44a11d65f171ea9d1c5",
+    "behavioral_fingerprint_v1": "5772ce854a388a7613d1284a34fa0360f9c603256796cb1f72e25713ab82f7b5",
+    "student_teacher_match": true
+  },
+  "workload": {
+    "distinct_prompts": 1,
+    "response_limit": 16,
+    "logical_batch": 1,
+    "optimizer_updates": 1,
+    "top_k": 32,
+    "loss": "forward_kl_topk",
+    "runtime_strategy": "dual_model_resident"
+  },
+  "measurements": {
+    "construction_seconds": 8.5539,
+    "time_to_first_rollout_seconds": 10.084,
+    "time_to_first_teacher_targets_seconds": 10.1989,
+    "time_to_first_update_seconds": 10.7449,
+    "rollout_tokens_per_second": 10.46,
+    "teacher_scored_positions_per_second": 139.24,
+    "update_positions_per_second": 35.5365,
+    "selected_positions": 16,
+    "peak_allocated_gib": 1.384,
+    "peak_reserved_gib": 1.416,
+    "oom_retries": 0,
+    "checkpoint_bytes": 19798324,
+    "run_disk_bytes": 26507663
+  },
+  "artifacts": {
+    "adapter_sha256": "1eda290c7e19b55d9d497ec014711fa451c67595525ad5aa304167fd1be189a6",
+    "peft_adapter_model_sha256": "90bf81a33c6c23acb87c93a1df53caeb5e9b91aa72e5678edfe9832b60716aec",
+    "peft_load_verified": true
+  },
+  "runtime": {
+    "gpu": "NVIDIA GeForce RTX 4080",
+    "gpu_count": 1,
+    "vram_gib": 15.992,
+    "torch": "2.13.0+cu130",
+    "cuda_runtime": "13.0",
+    "transformers": "5.14.1",
+    "peft": "0.18.0",
+    "bitsandbytes": "0.50.0",
+    "distributed_execution_tested": false
+  },
+  "scope": {
+    "config_compiled": true,
+    "tokenizer_identity_verified": true,
+    "student_loaded": true,
+    "teacher_loaded": true,
+    "rollout_completed": true,
+    "teacher_scoring_completed": true,
+    "optimizer_update_completed": true,
+    "task_quality_evaluated": false,
+    "alignment_quality_evaluated": false,
+    "full_recipe_supported": false
+  }
+}
