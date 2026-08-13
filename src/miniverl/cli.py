@@ -1708,6 +1708,61 @@ def export_verl_command(
     console.print("  distributed execution: not tested")
 
 
+@bridge_app.command("materialize")
+def bridge_materialize_command(
+    bundle: Path = typer.Argument(..., help="Exported pure-OPD scale-out bundle."),
+    student_snapshot: Optional[Path] = typer.Option(
+        None,
+        "--student-snapshot",
+        help="Exact local student snapshots/<40-character-commit> directory.",
+    ),
+    teacher_snapshot: Optional[Path] = typer.Option(
+        None,
+        "--teacher-snapshot",
+        help="Exact local teacher snapshots/<40-character-commit> directory.",
+    ),
+    download: bool = typer.Option(
+        False,
+        "--download",
+        help="Download both exact revisions recorded by the bundle.",
+    ),
+    offline: bool = typer.Option(
+        False,
+        "--offline",
+        help="Forbid network access; --download may only reuse the local Hub cache.",
+    ),
+    merge_teacher_adapter: bool = typer.Option(
+        False,
+        "--merge-teacher-adapter",
+        help="Explicitly consent to merging the bundled teacher adapter into a new snapshot.",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+) -> None:
+    """Bind exact snapshots and publish launch.sh after pinned upstream validation."""
+    try:
+        from miniverl.bridge.materialize import materialize_verl_bundle
+
+        report = materialize_verl_bundle(
+            bundle,
+            student_snapshot=student_snapshot,
+            teacher_snapshot=teacher_snapshot,
+            download=download,
+            offline=offline,
+            merge_teacher_adapter=merge_teacher_adapter,
+        )
+    except (MiniVerlError, OSError) as exc:
+        _fail(exc)
+        return
+    payload = {"bundle": str(bundle), **report}
+    if as_json:
+        _emit_json(payload)
+        return
+    console.print(f"[green]scale-out bundle materialized[/green] {_esc(bundle)}")
+    console.print("  launchable: true")
+    console.print("  launch script: recipe/launch.sh")
+    console.print("  distributed execution: not tested")
+
+
 @bridge_app.command("doctor")
 def bridge_doctor_command(
     bundle: Path = typer.Argument(..., help="Exported verl bundle directory."),

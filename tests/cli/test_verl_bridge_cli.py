@@ -11,6 +11,20 @@ from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.cli import app
 
 
+def test_bridge_materialize_cli_exposes_explicit_snapshot_and_network_controls() -> None:
+    result = CliRunner().invoke(app, ["bridge", "materialize", "--help"])
+    assert result.exit_code == 0, result.output
+    for option in (
+        "--student-snapshot",
+        "--teacher-snapshot",
+        "--download",
+        "--offline",
+        "--merge-teacher-adapter",
+        "--json",
+    ):
+        assert option in result.output
+
+
 def test_import_verl_cli_defaults_to_a_needs_input_template(tmp_path: Path) -> None:
     source = tmp_path / "verl.yaml"
     source.write_text(

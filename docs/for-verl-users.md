@@ -99,11 +99,13 @@ identities never collapse in provenance.
 
 ```bash
 miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
+miniverl bridge materialize scaleout --download --offline
 miniverl bridge doctor scaleout --json
 ```
 
 The v0.8.1 bundle carries PEFT, Parquet, config and provenance artifacts, but is
-reported as `launchable: false` until exact base snapshots are materialized.
+reported as `launchable: false` until exact base snapshots are materialized and
+the pinned upstream checks pass. Read the [materialization workflow](scaleout-materialization.md).
 Upstream parse/load smoke, artifact completeness, launchability and distributed
 execution are separate statuses. miniVERL never reports a distributed job as
 tested.
@@ -126,8 +128,8 @@ tested.
   for the shared token space; a legacy behavioral fingerprint is not proof.
 - **CUDA out of memory:** reduce context, response length or physical batches;
   keep logical update semantics unchanged. See [single-GPU planning](single-gpu-guide.md).
-- **Bundle not launchable:** this is expected before exact model snapshots are
-  present. Read the [bridge boundary](verl-bridge.md).
+- **Bundle not launchable:** materialize exact snapshots and install the pinned
+  verl commit; inspect the reported blocker. Read [scale-out materialization](scaleout-materialization.md).
 
 Next: follow the [OPD quickstart](opd-quickstart.md), inspect the
 [compatibility policy](compatibility.md), or review [all limitations](limitations.md).

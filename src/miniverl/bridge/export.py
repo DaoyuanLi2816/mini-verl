@@ -85,6 +85,9 @@ def _copy_model(source: Path, destination: Path) -> None:
     destination.mkdir(parents=True)
     for name in _MODEL_REQUIRED:
         shutil.copy2(source / name, destination / name)
+    for path in sorted(source.iterdir()):
+        if path.is_file() and path.name.upper().startswith(("LICENSE", "NOTICE", "COPYING")):
+            shutil.copy2(path, destination / path.name)
     copied_tokenizer = False
     for name in _TOKENIZER_FILES:
         path = source / name
@@ -96,6 +99,15 @@ def _copy_model(source: Path, destination: Path) -> None:
             f"standard adapter directory {source} has no tokenizer metadata",
             hint="copy tokenizer_config.json and the tokenizer vocabulary/snapshot metadata",
         )
+
+
+def _copy_adapter_payload(source: Path, destination: Path) -> None:
+    """Copy only the standard adapter payload needed for an explicit merge."""
+    if not source.is_dir() or not all((source / name).is_file() for name in _MODEL_REQUIRED):
+        raise ConfigError(f"teacher adapter directory is incomplete: {source}")
+    destination.mkdir(parents=True)
+    for name in _MODEL_REQUIRED:
+        shutil.copy2(source / name, destination / name)
 
 
 def _adapter_contract(source: Path) -> dict[str, Any]:
@@ -455,6 +467,14 @@ def _resolve_source_file(run: Path, raw: str) -> Path:
     raise ConfigError(f"source-run Parquet file is unavailable: {raw}")
 
 
+def _resolve_source_directory(run: Path, raw: str) -> Path | None:
+    candidate = Path(raw)
+    for path in (candidate, run / candidate, run.parent / candidate):
+        if path.is_dir():
+            return path
+    return None
+
+
 def _copy_opd_data(
     run: Path, source: dict[str, Any], destination: Path
 ) -> tuple[dict[str, list[str]], dict[str, Any]]:
@@ -575,12 +595,21 @@ def _export_opd_bundle(
         raise ConfigError("compiled OPD source has no pinned teacher identity")
     teacher_adapter_path = _get(source, "miniverl.teacher_adapter.path")
     teacher_adapter_revision = _get(source, "miniverl.teacher_adapter.revision")
+    teacher_adapter_source = (
+        _resolve_source_directory(run, teacher_adapter_path)
+        if isinstance(teacher_adapter_path, str)
+        else None
+    )
     teacher = {
         "model_id": teacher_id,
         "revision": teacher_revision,
         "materialized_path": "teacher/base",
         "status": "identity only; exact snapshot is not bundled",
-        "adapter": {"path": teacher_adapter_path, "revision": teacher_adapter_revision},
+        "adapter": {
+            "path": teacher_adapter_path,
+            "revision": teacher_adapter_revision,
+            "bundled_path": "teacher/adapter" if teacher_adapter_source is not None else None,
+        },
         "upstream_materialization_required": teacher_adapter_path is not None,
     }
     blockers = [
@@ -608,6 +637,8 @@ def _export_opd_bundle(
         teacher_dir = temporary / "teacher"
         teacher_dir.mkdir()
         write_json(teacher_dir / "teacher-model.json", teacher)
+        if teacher_adapter_path is not None and teacher_adapter_source is not None:
+            _copy_adapter_payload(teacher_adapter_source, teacher_dir / "adapter")
         data_paths, data_evidence = _copy_opd_data(run, source, temporary / "data")
         overrides = _opd_overrides(source, adapter, data_paths)
         recipe = temporary / "recipe"
@@ -639,10 +670,10 @@ def _export_opd_bundle(
             },
             "miniverl_version": __version__,
             "target_semantics": "pure GKD forward_kl_topk OPD",
-            "artifact_complete": True,
+            "artifact_complete": False,
             "artifact_bundle_complete": True,
             "config_semantics_supported": True,
-            "student_artifact_loadable": True,
+            "student_artifact_loadable": False,
             "teacher_artifact_loadable": False,
             "dataset_loadable": True,
             "upstream_parse_passed": False,

@@ -154,6 +154,39 @@ def _check_model(root: Path, *, require_payload: bool = False) -> dict[str, Any]
     }
 
 
+def _check_materialized_snapshot(root: Path, *, role: str) -> dict[str, Any]:
+    """Structurally recheck one materialized model snapshot without loading weights."""
+    relative = "model/base" if role == "student" else "teacher/base"
+    snapshot = root / relative
+    if not snapshot.is_dir():
+        return {
+            "status": "not_present",
+            "role": role,
+            "path": relative,
+            "scope": "no materialized snapshot was present",
+        }
+    try:
+        # Kept local to avoid making model-materialization dependencies part of
+        # the ordinary bridge-doctor import path.
+        from miniverl.bridge.materialize import _validate_snapshot_payload
+
+        validation = _validate_snapshot_payload(snapshot, role=role)
+    except Exception as exc:
+        return {
+            "status": "fail",
+            "role": role,
+            "path": relative,
+            "detail": f"{type(exc).__name__}: {exc}",
+        }
+    return {
+        "status": "ok",
+        "role": role,
+        "path": relative,
+        "validation": validation,
+        "scope": "config, tokenizer files, model shard closure and safetensors structure",
+    }
+
+
 def _reference_tokenizer_identity(root: Path) -> dict[str, Any]:
     """Tokenizer identity recorded by the source run, if the bundle carries one."""
     try:
@@ -1169,6 +1202,8 @@ def inspect_bridge_bundle(
         return _preflight_refusal(tree)
     target = _check_requirements(bundle)
     model = _check_model(bundle, require_payload=require_adapter_payload)
+    student_snapshot = _check_materialized_snapshot(bundle, role="student")
+    teacher_snapshot = _check_materialized_snapshot(bundle, role="teacher")
     tokenizer = _check_tokenizer(bundle, require_load=require_tokenizer_load)
     parquet = _check_parquet(bundle)
     config = _check_config(bundle)
@@ -1188,8 +1223,16 @@ def inspect_bridge_bundle(
         compatibility = json.loads(compatibility_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         compatibility = {}
-    checks = (target, model, tokenizer, parquet, config, reward, hashes, privacy)
+    snapshot_required = (
+        bool(compatibility.get("launchable")) or (bundle / "recipe/launch.sh").is_file()
+    )
+    snapshot_checks = (student_snapshot, teacher_snapshot) if snapshot_required else ()
+    checks = (target, model, tokenizer, parquet, config, reward, hashes, privacy, *snapshot_checks)
     artifact_failed = any(check.get("status") != "ok" for check in checks)
+    opd_profile = config.get("profile") == "verl-opd-v0.8-single-gpu-v1"
+    materialized_complete = not opd_profile or (
+        student_snapshot.get("status") == "ok" and teacher_snapshot.get("status") == "ok"
+    )
     upstream = _recompute_upstream_smoke(bundle, installed, enabled=require_verl)
     pinned_verl_failed = require_verl and (
         installed.get("status") != "ok" or upstream["status"] != "passed"
@@ -1213,6 +1256,8 @@ def inspect_bridge_bundle(
         "target_verl": target,
         "installed_verl": installed,
         "model_adapter_loadability": model,
+        "student_snapshot_loadability": student_snapshot,
+        "teacher_snapshot_loadability": teacher_snapshot,
         "safetensors_verification_level": model.get(
             "safetensors_verification_level", "not_present"
         ),
@@ -1232,7 +1277,7 @@ def inspect_bridge_bundle(
         "artifact_hashes": hashes,
         "privacy": privacy,
         "local_smoke_status": local_smoke,
-        "artifact_complete": not artifact_failed,
+        "artifact_complete": not artifact_failed and materialized_complete,
         "artifact_bundle_complete": not artifact_failed,
         "bundle_declared_claims": declared,
         "locally_recomputed_checks": recomputed,
@@ -1243,17 +1288,25 @@ def inspect_bridge_bundle(
         "upstream_config_parse_passed": upstream["status"] == "passed",
         "upstream_parse_passed": upstream["status"] == "passed",
         "upstream_tiny_smoke_passed": False,
-        "model_data_load_smoke_passed": config.get("profile") != "verl-opd-v0.8-single-gpu-v1"
-        and upstream["status"] == "passed"
+        "model_data_load_smoke_passed": upstream["status"] == "passed"
         and not artifact_failed
+        and materialized_complete
         and require_verl,
         "config_semantics_supported": config.get("status") == "ok",
-        "student_artifact_loadable": model.get("status") == "ok",
-        "teacher_artifact_loadable": False,
+        "student_artifact_loadable": model.get("status") == "ok"
+        and student_snapshot.get("status") == "ok",
+        "teacher_artifact_loadable": teacher_snapshot.get("status") == "ok",
         "dataset_loadable": parquet.get("status") == "ok",
         "reward_implementation_complete": bool(reward.get("implementation_complete", False)),
         "reward_required": config.get("profile") != "verl-opd-v0.8-single-gpu-v1",
-        "launchable": False,
+        "launchable": bool(
+            require_verl
+            and upstream["status"] == "passed"
+            and not artifact_failed
+            and student_snapshot.get("status") == "ok"
+            and teacher_snapshot.get("status") == "ok"
+            and (bundle / "recipe/launch.sh").is_file()
+        ),
         "distributed_execution_tested": False,
         "algorithm_semantic_parity": False,
         "distributed_execution_status": "not tested",

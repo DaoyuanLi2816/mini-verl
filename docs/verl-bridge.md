@@ -21,13 +21,13 @@ claimed.
 
 | State | Current value | Meaning |
 | --- | --- | --- |
-| `artifact_complete` | `true` | Required PEFT, Parquet, config, identity and provenance files are present and hashed. |
+| `artifact_complete` | `false` in a new bundle | Exact student and teacher base snapshots are still required. |
 | `config_semantics_supported` | `true` for a compatible OPD run | The source is the bounded pure-GKD profile, not a PPO reinterpretation. |
-| `student_artifact_loadable` | separate check | Standard PEFT structure and payload are checked independently. |
+| `student_artifact_loadable` | `false` in a new bundle | PEFT is present, but the exact base snapshot is not yet bundled. |
 | `teacher_artifact_loadable` | `false` in a new bundle | Teacher identity is preserved; the exact snapshot is not bundled. |
 | `dataset_loadable` | separate check | Every exported Parquet footer and required column is checked. |
 | `upstream_parse_passed` | `false` in a new bundle | Set only when doctor recomputes a merge under the exact installed pin. |
-| `upstream_tiny_smoke_passed` | `false` | No model execution occurs during export or doctor. |
+| `upstream_tiny_smoke_passed` | `false` in a new bundle | Materialization performs the bounded local model/tokenizer smoke. |
 | `launchable` | `false` | Exact student/teacher snapshots are not materialized in the bundle. |
 | `distributed_execution_tested` | `false` | No distributed job ran. |
 | `algorithm_semantic_parity` | `false` | Conformance is scoped to documented config/loss behavior, not an end-to-end distributed algorithm. |
@@ -184,6 +184,7 @@ miniverl export-verl --run runs/<run-id> \
   --target-verl v0.8.0 \
   --out exports/<bundle>
 
+miniverl bridge materialize exports/<bundle> --download --offline
 miniverl bridge doctor exports/<bundle> --require-verl
 ```
 
@@ -206,11 +207,18 @@ OPD has no reward scaffold. A same-base teacher adapter is recorded but blocks
 launch until it is explicitly merged/materialized as a teacher snapshot that
 the pinned upstream can consume.
 
+`bridge materialize` resolves the two immutable model commits, copies only a
+preflighted regular-file tree, validates model/tokenizer/PEFT/data inputs under
+the exact installed verl pin and transactionally publishes a checksummed
+`launch.sh`. See [materialization](scaleout-materialization.md).
+
 `bridge doctor` verifies pins, adapter structure, tokenizer state, Parquet
 schema, pure-OPD override structure, privacy scopes and hashes. An `ok` verdict
 means those local artifact checks passed; it does not mean launchable or
 distributed-tested. `launch.template.sh` refuses to proceed without both exact
-base snapshots and never emits an unverified distributed launch command.
+base snapshots and never emits an unverified distributed launch command. On a
+materialized bundle, `doctor --require-verl` recomputes launchability in the
+current process; it does not merely trust the bundle's compatibility report.
 
 Historical `single-gpu-online-distillation-v1` runs continue to export the
 legacy PPO/reward scaffold for compatibility. That output remains explicitly

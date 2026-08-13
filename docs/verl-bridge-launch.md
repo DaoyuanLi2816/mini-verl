@@ -1,5 +1,12 @@
 # From one GPU to a verified scale-out handoff
 
+!!! note "Historical v0.6 article"
+
+    This page preserves the original bridge launch announcement. The current
+    pure-OPD profile can now publish `launch.sh` after the exact checks in
+    [scale-out materialization](scaleout-materialization.md); the legacy
+    PPO/reward scaffold described below remains non-launchable.
+
 miniVERL v0.6 adds a narrow, tested bridge to official verl `v0.8.0`. The goal
 is not to imitate a distributed runtime on a laptop. It is to make the boundary
 between local scientific diagnosis and later scale-out explicit, standard and
