@@ -147,6 +147,11 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
         for line in (result.run_dir / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
     ]
     update = next(row for row in metrics if row.get("phase") == "opd")
+    cycle = next(row for row in metrics if row.get("phase") == "opd_cycle")
+    assert cycle["rollout_execution"] == {
+        "physical_batch_sizes": [2],
+        "oom_downshifts": 0,
+    }
     assert update["loss_aggregation"] == "token-mean"
     assert set(update["verl_forward_kl_topk"]) == {
         "student_mass_mean",

@@ -173,11 +173,14 @@ def data_sample_command(
     ]
     records = []
     for index in range(rows):
+        prompt = prompts[index % len(prompts)]
+        if index >= len(prompts):
+            prompt = f"Sample {index + 1}: {prompt}"
         records.append(
             {
                 "prompt": [
                     {"role": "system", "content": "Answer clearly and briefly."},
-                    {"role": "user", "content": prompts[index % len(prompts)]},
+                    {"role": "user", "content": prompt},
                 ],
                 "data_source": "miniverl_quickstart",
                 "ability": "short_answer",

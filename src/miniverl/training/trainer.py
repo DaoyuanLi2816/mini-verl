@@ -299,6 +299,7 @@ class OPDTrainer:
         self._cycles_completed = 0
         self._last_cycle_metrics: dict[str, Any] = {}
         self._last_selection_stats: list[SelectionStats] = []
+        self._last_rollout_execution: dict[str, Any] | None = None
 
     # -- construction --------------------------------------------------------
 
@@ -1232,6 +1233,10 @@ class OPDTrainer:
                 policy_version=self.policy_version,
                 seed=seed,
             )
+            self._last_rollout_execution = {
+                "physical_batch_sizes": list(generated.physical_batch_sizes),
+                "oom_downshifts": generated.oom_downshifts,
+            }
             trajectories = self.rollout_runtime.to_trajectories(
                 prepared,
                 generated,
@@ -2317,6 +2322,7 @@ class OPDTrainer:
         cycle_started = time.perf_counter()
         rollout_policy_version = self.parameter_version
         self._last_selection_stats = []
+        self._last_rollout_execution = None
         rollout_seconds = 0.0
         teacher_scoring_seconds = 0.0
 
@@ -2470,6 +2476,7 @@ class OPDTrainer:
                         if teacher_scoring_seconds > 0
                         else None
                     ),
+                    "rollout_execution": self._last_rollout_execution,
                 }
             )
         if self._cache is not None:
