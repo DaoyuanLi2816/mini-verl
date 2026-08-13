@@ -726,6 +726,7 @@ class RunMeta(_Base):
     deterministic: bool = True
     notes: str = ""
     tags: list[str] = Field(default_factory=list)
+    execution_plan_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class RunConfig(_Base):
@@ -1124,6 +1125,12 @@ class RunConfig(_Base):
     def to_yaml(self) -> str:
         """Serialize to canonical YAML (enums as their string values)."""
         payload = self.model_dump(mode="json")
+        return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, width=100)
+
+    def training_identity_yaml(self) -> str:
+        """Serialize training semantics without the orthogonal plan binding."""
+        payload = self.model_dump(mode="json")
+        payload["run"].pop("execution_plan_digest", None)
         return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, width=100)
 
     def write_yaml(self, path: str | Path) -> Path:

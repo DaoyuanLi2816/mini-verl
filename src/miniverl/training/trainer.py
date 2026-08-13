@@ -902,6 +902,7 @@ class OPDTrainer:
             }
         return {
             "miniverl_version": __version__,
+            "execution_plan_digest": config.run.execution_plan_digest,
             "run_id": self.run_id,
             "run_name": config.run.name,
             "created_at": self._started_at,
@@ -1292,6 +1293,7 @@ class OPDTrainer:
                     if self.config.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
                     else "miniverl-native-v1"
                 ),
+                "execution_plan_digest": self.config.run.execution_plan_digest,
                 "dtype": self.config.cache.dtype,
             }
             if (path / "index.json").is_file():
@@ -2890,7 +2892,7 @@ class OPDTrainer:
     # -- checkpointing -----------------------------------------------------------
 
     def _config_digest(self) -> str:
-        return hashlib.sha256(self.config.to_yaml().encode("utf-8")).hexdigest()
+        return hashlib.sha256(self.config.training_identity_yaml().encode("utf-8")).hexdigest()
 
     def _resolved_config_digest(self) -> str:
         if self.paths.config_resolved.is_file():
@@ -2906,6 +2908,7 @@ class OPDTrainer:
             "tokenizer_identity": student.tokenizer_id or student.model_id,
             "tokenizer_revision": student.tokenizer_revision or student.revision,
             "lora": student.lora.model_dump(mode="json"),
+            "execution_plan_digest": self.config.run.execution_plan_digest,
         }
 
     def save_checkpoint(self, *, name: str | None = None) -> Path:
@@ -2948,6 +2951,7 @@ class OPDTrainer:
             scheduler=self.schedule.state_dict(),
             config_digest=self._config_digest(),
             resolved_config_digest=self._resolved_config_digest(),
+            execution_plan_digest=self.config.run.execution_plan_digest or "",
             offline_dataset_digest=self.offline_dataset_digest,
         )
         save_checkpoint(
@@ -2983,6 +2987,12 @@ class OPDTrainer:
 
         validated = validate_checkpoint(directory)
         digest = self._config_digest()
+        expected_plan_digest = self.config.run.execution_plan_digest or ""
+        if validated.state.execution_plan_digest != expected_plan_digest:
+            raise ConfigError(
+                "the checkpoint was written by a different immutable execution plan",
+                hint="resume using the exact plan.json recorded by the original run",
+            )
         if validated.state.config_digest and validated.state.config_digest != digest:
             raise ConfigError(
                 "the checkpoint was written by a different configuration",

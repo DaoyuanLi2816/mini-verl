@@ -924,6 +924,16 @@ def plan_command(
         "--overrides-file",
         help="Repeatable plain key=value file or JSON argv array.",
     ),
+    accept_local_reinterpretations: bool = typer.Option(
+        False,
+        "--accept-local-reinterpretations",
+        help="Accept the reported acknowledgement-required one-GPU reinterpretations.",
+    ),
+    out: Optional[Path] = typer.Option(
+        None,
+        "--out",
+        help="Atomically write a data-bound immutable execution plan.",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
     offline: bool = typer.Option(False, "--offline", help="Do not access the network."),
     probe: bool = typer.Option(
@@ -953,9 +963,20 @@ def plan_command(
             override_files=override_files,
             overrides=overrides,
             trailing_overrides=ctx.args,
+            accept_local_reinterpretations=accept_local_reinterpretations,
         )
         plan = build_system_plan(compiled)
         payload = plan.model_dump(mode="json")
+        artifact = None
+        if out is not None:
+            from miniverl.bridge.opd_plan import (
+                build_immutable_opd_plan,
+                write_immutable_opd_plan,
+            )
+
+            artifact = build_immutable_opd_plan(compiled, source=config, system_plan=plan)
+            write_immutable_opd_plan(out, artifact)
+            payload = artifact.model_dump(mode="json")
     except MiniVerlError as exc:
         _fail(exc)
         return
@@ -979,7 +1000,8 @@ def plan_command(
     for key, value in plan.memory.items():
         console.print(f"    {_esc(key)}: {_esc(value)}")
     console.print("  time to first update: unknown (not measured by plan)")
-    console.print(f"  plan sha256 {_esc(plan.compiled_digest)}")
+    plan_digest = artifact.plan_digest if artifact is not None else plan.compiled_digest
+    console.print(f"  plan sha256 {_esc(plan_digest)}")
     required = plan.reinterpretation_acceptance["required_fields"]
     if required:
         console.print("  high-risk local reinterpretations")
@@ -990,6 +1012,8 @@ def plan_command(
             )
             console.print(f"      {_esc(mapping['reason'])}")
         console.print(f"  acceptance: {_esc(plan.reinterpretation_acceptance['source'])}")
+    if out is not None:
+        console.print(f"  immutable plan: {_esc(out)}")
 
 
 @app.command(
@@ -998,7 +1022,12 @@ def plan_command(
 )
 def verl_run_command(
     ctx: typer.Context,
-    config: str = typer.Option(..., "--config", help="Resolved YAML path or builtin profile."),
+    config: Optional[str] = typer.Option(
+        None, "--config", help="Resolved YAML path or builtin profile."
+    ),
+    plan_path: Optional[Path] = typer.Option(
+        None, "--plan", help="Validated immutable plan.json from `miniverl plan --out`."
+    ),
     profile: str = typer.Option(
         "verl-opd-v0.8-single-gpu-v1", "--profile", help="Pinned compatibility profile."
     ),
@@ -1032,23 +1061,48 @@ def verl_run_command(
             raise ConfigError(
                 f"unsupported OPD profile {profile!r}", hint=f"use --profile {VERL_OPD_V08_PROFILE}"
             )
-        compiled = load_verl_opd_v08_source(
-            config,
-            override_files=override_files,
-            overrides=overrides,
-            trailing_overrides=ctx.args,
-            accept_local_reinterpretations=accept_local_reinterpretations,
-        )
-        acceptance = compiled.reinterpretation_acceptance
-        if acceptance["required_fields"] and not acceptance["accepted"]:
+        if plan_path is not None and config is not None:
+            raise ConfigError("--plan and --config are mutually exclusive")
+        if plan_path is not None and (
+            overrides or override_files or ctx.args or accept_local_reinterpretations
+        ):
             raise ConfigError(
-                "external config has high-risk local reinterpretations that were not accepted",
-                hint=(
-                    "inspect them with miniverl plan, then pass --accept-local-reinterpretations"
-                ),
+                "--plan cannot be combined with config overrides or reinterpretation flags",
+                hint="rebuild the immutable plan with the desired inputs",
             )
-        system_plan = build_system_plan(compiled)
-        native = compile_native_run_config(compiled, system_plan=system_plan)
+        execution_plan_digest: str | None = None
+        if plan_path is not None:
+            from miniverl.bridge.opd_plan import load_and_verify_immutable_opd_plan
+            from miniverl.bridge.opd_v08 import CompiledLocalExecutionPlan
+
+            artifact, native = load_and_verify_immutable_opd_plan(plan_path)
+            compiled = CompiledLocalExecutionPlan.model_validate(artifact.compiled_plan)
+            system_plan = build_system_plan(compiled)
+            if system_plan.model_dump(mode="json") != artifact.system_plan:
+                raise ConfigError(
+                    "immutable plan's system recommendations do not match its compiler input"
+                )
+            execution_plan_digest = artifact.plan_digest
+        else:
+            if config is None:
+                raise ConfigError("one of --config or --plan is required")
+            compiled = load_verl_opd_v08_source(
+                config,
+                override_files=override_files,
+                overrides=overrides,
+                trailing_overrides=ctx.args,
+                accept_local_reinterpretations=accept_local_reinterpretations,
+            )
+            acceptance = compiled.reinterpretation_acceptance
+            if acceptance["required_fields"] and not acceptance["accepted"]:
+                raise ConfigError(
+                    "external config has high-risk local reinterpretations that were not accepted",
+                    hint=(
+                        "inspect them with miniverl plan, then pass --accept-local-reinterpretations"
+                    ),
+                )
+            system_plan = build_system_plan(compiled)
+            native = compile_native_run_config(compiled, system_plan=system_plan)
         from miniverl.config.models import VerlParquetSourceConfig
 
         if not isinstance(native.source, VerlParquetSourceConfig):  # pragma: no cover
@@ -1056,6 +1110,7 @@ def verl_run_command(
         if dry_run:
             payload = {
                 "dry_run": True,
+                "execution_plan_digest": execution_plan_digest,
                 "compatibility": compiled.model_dump(mode="json"),
                 "system_plan": system_plan.model_dump(mode="json"),
                 "resolved_native_config": native.model_dump(mode="json"),
@@ -1103,7 +1158,11 @@ def verl_run_command(
             )
             write_json_atomic(
                 trainer.paths.root / "local-execution-plan.json",
-                system_plan.model_dump(mode="json"),
+                (
+                    artifact.model_dump(mode="json")
+                    if plan_path is not None
+                    else system_plan.model_dump(mode="json")
+                ),
             )
             result = trainer.train()
             paths = trainer.paths
@@ -1175,6 +1234,7 @@ def verl_run_command(
                 ),
                 "runtime_correctness_only": True,
                 "alignment_quality_claim": False,
+                "execution_plan_digest": execution_plan_digest,
             }
             if resume is None:
                 measurements = fresh_measurements
@@ -1203,7 +1263,12 @@ def verl_run_command(
     except (MiniVerlError, ModuleNotFoundError, ValidationError) as exc:
         _fail(exc)
         return
-    payload = {**result.to_dict(), "run_dir": str(paths.root), "measurements": measurements}
+    payload = {
+        **result.to_dict(),
+        "run_dir": str(paths.root),
+        "execution_plan_digest": execution_plan_digest,
+        "measurements": measurements,
+    }
     if as_json:
         _emit_json(payload)
     else:

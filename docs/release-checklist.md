@@ -24,7 +24,7 @@ verl check before squash merge `8d3ebb2`.
 
 - [x] Add upstream-shaped override UX with complete source and precedence
       provenance while preserving the repeatable `--set` interface.
-- [ ] Bind execution to an immutable plan artifact and fail closed when its
+- [x] Bind execution to an immutable plan artifact and fail closed when its
       config, data, model, tokenizer or compatibility acceptance has drifted.
 - [ ] Add a bounded hardware probe, transactional model materialization and a
       realistic one-GPU quickstart without widening the documented algorithm.
@@ -41,6 +41,13 @@ non-GPU/non-network tests at 85.03% branch coverage, 8 RTX 4080 GPU tests,
 13 network tests with 2 environment-dependent skips, strict MkDocs, all 40
 rendered SVG instances across four Playwright viewports, package/Twine checks
 and the pinned-verl compatibility tests available in the training environment.
+
+The immutable-plan candidate passed 2,196 local non-GPU/non-network tests at
+85.01% branch coverage, 8 RTX 4080 GPU tests, and 13 network tests with 2
+environment-dependent skips. Determinism and tamper tests cover plan bytes,
+source YAML, Parquet files, acceptance, native config, cache identity and
+checkpoint identity. Ruff, mypy, actionlint, strict MkDocs, package/Twine,
+generated-description, link/text and all four Playwright viewports also pass.
 
 ## v0.8.0 single-GPU verl OPD pivot
 

@@ -67,6 +67,37 @@ def _cache(path: Path, *, dtype: str = "float32", entries_per_shard: int = 2) ->
     )
 
 
+def test_execution_plan_digest_is_persisted_and_required_for_reuse(tmp_path: Path) -> None:
+    cache = TeacherCache.create(
+        tmp_path / "tc-plan",
+        miniverl_version="0.9.0.dev0",
+        teacher_model_id="toy-teacher",
+        teacher_model_revision="rev-abc",
+        tokenizer_fingerprint="fp-1234",
+        vocab_size=VOCAB,
+        top_k=TOP_K,
+        temperature=1.0,
+        loss_mode="bucketed_topk_tail",
+        execution_plan_digest="a" * 64,
+    )
+    reopened = TeacherCache.open(cache.path)
+    common = {
+        "teacher_model_id": "toy-teacher",
+        "teacher_model_revision": "rev-abc",
+        "tokenizer_fingerprint": "fp-1234",
+        "tokenizer_identity": {},
+        "teacher_adapter_provenance": None,
+        "vocab_size": VOCAB,
+        "top_k": TOP_K,
+        "temperature": 1.0,
+        "loss_mode": "bucketed_topk_tail",
+        "dtype": "float32",
+    }
+    reopened.assert_compatible(**common, execution_plan_digest="a" * 64)
+    with pytest.raises(StaleCacheError, match="execution_plan_digest"):
+        reopened.assert_compatible(**common, execution_plan_digest=None)
+
+
 # ----------------------------------------------------------- round trip
 
 

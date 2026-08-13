@@ -45,6 +45,7 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
                 "mode": "opd",
                 "seed": 9,
                 "output_dir": str(tmp_path / "runs"),
+                "execution_plan_digest": "a" * 64,
             },
             "models": {
                 "backend": "toy",
@@ -121,7 +122,16 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
     assert result.policy_version == 1
     manifest = json.loads((result.run_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["source"]["kind"] == "verl_parquet"
+    assert manifest["execution_plan_digest"] == "a" * 64
     assert manifest["source"]["rows"] == {"train": 2, "val": 0}
+    cache_index = json.loads(
+        (result.run_dir / "teacher-cache" / "index.json").read_text(encoding="utf-8")
+    )
+    assert cache_index["execution_plan_digest"] == "a" * 64
+    checkpoint_state = json.loads(
+        (result.run_dir / "checkpoints" / "final" / "state.json").read_text(encoding="utf-8")
+    )
+    assert checkpoint_state["execution_plan_digest"] == "a" * 64
     rows = [
         json.loads(line)
         for line in (result.run_dir / "trajectories.jsonl").read_text(encoding="utf-8").splitlines()

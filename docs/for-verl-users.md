@@ -50,6 +50,11 @@ matrix. The development CLI records repeated `--set`, override files and
 trailing tokens with deterministic precedence; it does not execute `${...}`
 interpolations or shell text. See [Config overrides](config-overrides.md).
 
+For a serious run, add `--accept-local-reinterpretations --out plan.json`,
+inspect the immutable artifact, then execute `miniverl run --plan plan.json`.
+This binds the source YAML, overrides and scanned Parquet bytes to the exact
+native config; see [Immutable execution plans](immutable-plans.md).
+
 ## Same fields, different placement
 
 An upstream-shaped fragment can stay recognizable:

@@ -871,6 +871,14 @@ def test_to_yaml_serializes_enums_as_their_string_values() -> None:
     assert raw["models"]["backend"] == "toy"
 
 
+def test_plan_binding_is_orthogonal_to_the_training_config_identity() -> None:
+    config = RunConfig.from_yaml(RECIPES_DIR / "toy_cpu.yaml")
+    baseline = config.training_identity_yaml()
+    config.run.execution_plan_digest = "a" * 64
+    assert config.training_identity_yaml() == baseline
+    assert "execution_plan_digest" in config.to_yaml()
+
+
 def test_write_yaml_creates_missing_parents_and_can_be_read_back(tmp_path: Path) -> None:
     original = RunConfig.from_yaml(RECIPES_DIR / "toy_cpu.yaml")
     target = tmp_path / "nested" / "deeper" / "config.resolved.yaml"

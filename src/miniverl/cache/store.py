@@ -179,6 +179,7 @@ class TeacherCache:
         temperature: float,
         loss_mode: str,
         score_implementation_version: str | None = None,
+        execution_plan_digest: str | None = None,
         dtype: str = "float32",
         entries_per_shard: int = 32,
         overwrite: bool = False,
@@ -219,6 +220,7 @@ class TeacherCache:
             temperature=temperature,
             loss_mode=loss_mode,
             score_implementation_version=score_implementation_version,
+            execution_plan_digest=execution_plan_digest,
             dtype=dtype,
             entries_per_shard=entries_per_shard,
         )
@@ -271,6 +273,7 @@ class TeacherCache:
         temperature: float,
         loss_mode: str,
         score_implementation_version: str | None = None,
+        execution_plan_digest: str | None = None,
         dtype: str,
     ) -> None:
         """Reject reuse when any objective or teacher identity component changed."""
@@ -280,6 +283,8 @@ class TeacherCache:
                 unverified.append("structural tokenizer identity")
             if teacher_adapter_provenance is not None:
                 unverified.append("teacher adapter provenance")
+            if execution_plan_digest is not None:
+                unverified.append("immutable execution plan identity")
             if unverified:
                 raise StaleCacheError(
                     "schema-v1 teacher cache cannot verify " + " or ".join(unverified),
@@ -303,6 +308,7 @@ class TeacherCache:
             expected["teacher_adapter_provenance"] = (
                 dict(teacher_adapter_provenance) if teacher_adapter_provenance is not None else None
             )
+            expected["execution_plan_digest"] = execution_plan_digest
         mismatches = {
             key: (getattr(self.index, key), value)
             for key, value in expected.items()

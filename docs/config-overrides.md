@@ -67,6 +67,10 @@ This flag accepts only the high-risk mappings printed in that compiled report.
 It never enables an unsupported algorithm, multi-GPU field, FSDP behavior or
 policy-gradient objective.
 
+For a reviewed run, bind the acceptance and exact inputs once with
+`miniverl plan --out plan.json`, then use `miniverl run --plan plan.json`; see
+[Immutable execution plans](immutable-plans.md).
+
 ## Official-example field coverage
 
 The generated [coverage report](generated/verl-opd-v08-official-fields.json)
