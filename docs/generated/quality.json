@@ -1,22 +1,22 @@
 {
   "schema_version": 2,
-  "release": "0.8.1",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 85%+ branch coverage at v0.8.1",
+  "release": "0.9.0",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.9.0",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
-    "commit": "ec0ffe9d8b75880487dde0d8ee022d82090c685f",
-    "commit_relationship": "exact product branch head; squash merge 8d3ebb2 carries the same tree and passed the full required CI matrix",
-    "measured_at": "2026-08-12T20:55:24-07:00",
+    "commit": "7a36f59d822d9d1393882c19ad4ef56b7364d43e",
+    "commit_relationship": "exact product branch head; merge fb78f64 carries the same tree and passed the full required CI matrix",
+    "measured_at": "2026-08-13T00:55:00-07:00",
     "platform": "Windows 11",
     "python": "CPython 3.10 for coverage; CPython 3.12 for CUDA",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2178,
-      "skipped": 9,
-      "deselected": 21,
-      "branch_coverage_percent": 85.06,
-      "skip_reason": "six platform/privilege skips plus three pinned-verl conformance skips while the official package was intentionally absent from the general environment; the pinned profile ran separately in CI"
+      "passed": 2222,
+      "skipped": 10,
+      "deselected": 22,
+      "branch_coverage_percent": 83.95,
+      "skip_reason": "eight platform or privilege skips plus two pinned-verl conformance skips while the official package was intentionally absent from the general environment; all three pinned checks ran separately"
     },
     "gpu": {
       "passed": 8,
@@ -27,23 +27,16 @@
     }
   },
   "release_validation": {
-    "scope": "the exact immutable v0.8.1 release commit",
-    "commit": "77a570721ec587e50f9b927b4c72a6fab8a73ca6",
+    "scope": "the exact product merge, validated by CI before release metadata",
+    "commit": "fb78f64be411890f44a075ebac3cba2c5e1bec04",
     "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31665123940",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31665123949",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31665123951",
-      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31665123941",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31666095069"
+      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31680333897",
+      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31680333905",
+      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31680333907",
+      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31680333928",
+      "release": "pending tag workflow"
     },
     "conclusion": "success",
-    "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement",
-    "publication": {
-      "pypi": "https://pypi.org/project/miniverl/0.8.1/",
-      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.8.1",
-      "wheel_sha256": "7c2a58f900cbab71689f7b229a46b5710b4aa2cbabc42af7526e2da04d9ba93e",
-      "sdist_sha256": "f4bf486b2427d1f37edc7b0afe0c4a4f17ad9da7fbd221b010d4c7d792698789",
-      "recovery_note": "OIDC publication succeeded; the tag workflow's final verifier retained two links intentionally removed from the product README, so the identical verified distributions were attached to the GitHub Release manually."
-    }
+    "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement"
   }
 }

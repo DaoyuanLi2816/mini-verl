@@ -6,6 +6,8 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-13
+
 ### Measured developer workload
 
 - Published a checksummed RTX 4080 systems workload over 32 distinct consumed
@@ -930,7 +932,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.0...v0.7.1
