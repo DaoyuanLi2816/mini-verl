@@ -34,6 +34,10 @@ def test_builtin_plan_is_weight_free_truthful_and_executable() -> None:
     assert plan.time_to_first_update == {"status": "unknown", "seconds": None}
     assert plan.local_execution["distributed_execution"] is False
     assert plan.unsupported_fields == []
+    assert plan.acknowledgement_required_mappings
+    assert all(
+        item["reason"] and item["local_target"] for item in plan.acknowledgement_required_mappings
+    )
 
 
 def test_native_compilation_preserves_pure_opd_semantics() -> None:

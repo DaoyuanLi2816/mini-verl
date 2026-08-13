@@ -154,6 +154,119 @@ def test_override_precedence_and_scientific_notation_are_safe() -> None:
     ]
 
 
+def test_override_sources_preserve_precedence_duplicates_and_effective_values(
+    tmp_path: Path,
+) -> None:
+    from miniverl.bridge.opd_v08 import load_verl_opd_v08
+
+    source = tmp_path / "profile.yaml"
+    source.write_text(
+        Path(__file__)
+        .resolve()
+        .parents[2]
+        .joinpath("examples/verl-opd-v0.8-single-gpu.yaml")
+        .read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    first = tmp_path / "first.overrides"
+    first.write_text(
+        "# comments and blank lines are ignored\n\ndistillation.distillation_loss.topk=16\n",
+        encoding="utf-8",
+    )
+    second = tmp_path / "second.json"
+    second.write_text(
+        json.dumps(
+            [
+                "distillation.distillation_loss.topk=32",
+                "actor_rollout_ref.actor.optim.lr=2e-5",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    plan = load_verl_opd_v08(
+        source,
+        override_files=(first, second),
+        overrides=(
+            "distillation.distillation_loss.topk=64",
+            "distillation.distillation_loss.topk=48",
+        ),
+        trailing_overrides=("distillation.distillation_loss.topk=40",),
+    )
+
+    topk = [item for item in plan.overrides if item.field.endswith(".topk")]
+    assert [item.source_kind for item in topk] == [
+        "overrides_file",
+        "overrides_file",
+        "set",
+        "set",
+        "trailing",
+    ]
+    assert [item.previous_value for item in topk] == [32, 16, 32, 64, 48]
+    assert [item.previous_source for item in topk] == [
+        "base_config",
+        str(first),
+        str(second),
+        "--set",
+        "--set",
+    ]
+    assert all(item.final_value == 40 for item in topk)
+    assert [item.effective for item in topk] == [False, False, False, False, True]
+    assert plan.source.distillation.distillation_loss.topk == 40
+    assert plan.source.actor_rollout_ref.actor.optim.lr == pytest.approx(2e-5)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "actor_rollout_ref.model.path=${oc.env:MODEL}",
+        "actor_rollout_ref.actor.optim.lr=.nan",
+        "actor_rollout_ref.model.path=2026-08-12",
+        "actor_rollout_ref.model.path=!!python/object/apply:os.system ['never']",
+    ],
+)
+def test_override_files_reject_interpolation_non_finite_and_yaml_objects(
+    tmp_path: Path, line: str
+) -> None:
+    from miniverl.bridge.opd_v08 import load_verl_opd_v08
+
+    overrides = tmp_path / "unsafe.overrides"
+    overrides.write_text(line + "\n", encoding="utf-8")
+    source = Path(__file__).resolve().parents[2] / "examples/verl-opd-v0.8-single-gpu.yaml"
+    with pytest.raises(ConfigError):
+        load_verl_opd_v08(source, override_files=(overrides,))
+
+
+def test_official_example_field_fixture_is_fully_classified() -> None:
+    from miniverl.bridge.opd_v08 import load_verl_opd_v08
+
+    root = Path(__file__).resolve().parents[2]
+    plan = load_verl_opd_v08(
+        root / "tests/fixtures/verl/opd-v0.8-official-example-fields.yaml",
+        require_executable=False,
+    )
+    fields = {item.upstream_field: item for item in plan.compatibility}
+    expected = {
+        "algorithm.adv_estimator",
+        "actor_rollout_ref.model.use_remove_padding",
+        "actor_rollout_ref.actor.use_torch_compile",
+        "actor_rollout_ref.actor.fsdp_config.param_offload",
+        "actor_rollout_ref.actor.fsdp_config.optimizer_offload",
+        "actor_rollout_ref.rollout.log_prob_use_dynamic_bsz",
+        "actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu",
+        "trainer.balance_batch",
+        "trainer.logger",
+        "trainer.val_before_train",
+    }
+    assert expected <= fields.keys()
+    assert set(plan.source_leaf_fields) == fields.keys()
+    assert fields["trainer.logger"].classification == "informational_only"
+    assert fields["actor_rollout_ref.actor.fsdp_config.param_offload"].classification == (
+        "unsupported"
+    )
+    assert plan.executable is False
+
+
 @pytest.mark.parametrize(
     ("path", "value"),
     [

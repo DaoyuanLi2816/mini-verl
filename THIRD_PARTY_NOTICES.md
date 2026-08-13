@@ -10,11 +10,13 @@ No source code from another repository has been copied, vendored or adapted.
 This matters for two projects in particular, because miniVERL is positioned next
 to them:
 
-* **verl** (`https://github.com/verl-project/verl`, Apache-2.0). No verl code,
-  configuration schema, documentation wording, logo or visual identity is used
-  here. miniVERL is an independent implementation of a much narrower scope and
-  is not compatible with, derived from, or endorsed by verl. The name is a nod to
-  the problem space only.
+* **verl** (`https://github.com/volcengine/verl`, Apache-2.0). No verl runtime
+  code, documentation wording, logo or visual identity is used here. The
+  reduced test fixture
+  `tests/fixtures/verl/opd-v0.8-official-example-fields.yaml` is derived from
+  the field surface of the pinned v0.8.0 Qwen3 OPD example and retains source,
+  commit and license provenance. miniVERL is an independent implementation of
+  a much narrower scope and is not endorsed by verl.
 * **OPSD** (`https://github.com/HJSang/OPSD_OnPolicyDistillation`). This
   repository has no LICENSE file and is therefore all-rights-reserved; nothing
   from it has been copied. It is cited in `docs/comparisons.md` and

@@ -17,6 +17,16 @@ path easier to configure, inspect, reproduce and materialize. The v0.8.1
 release remains the stable product surface; no frozen research result is being
 reinterpreted as v0.9 evidence.
 
+The first v0.9 slice accepts safe trailing dotted overrides, repeatable plain
+files and JSON argv arrays with base → files → `--set` → trailing precedence.
+Every duplicate retains its source, prior value and final effective value.
+External configs require explicit acceptance of the displayed high-risk local
+reinterpretations; the packaged Qwen profile's approval is value-bound and
+fails closed if one of those values drifts. A generated report classifies all
+82 leaves in the pinned official-example field fixture: 23 exact, 16
+semantically conformant, 22 locally reinterpreted, 18 informational and 3
+unsupported. No algorithm or distributed boundary widened.
+
 ## v0.8.1 product surface
 
 The landing pages now lead with the documented one-GPU verl-style OPD journey,

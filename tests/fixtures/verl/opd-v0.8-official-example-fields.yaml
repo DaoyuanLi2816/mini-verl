@@ -1,0 +1,101 @@
+# Field-surface fixture derived from volcengine/verl's Apache-2.0 example:
+# examples/on_policy_distillation_trainer/run_qwen3_8b_fsdp.sh
+# tag v0.8.0, commit 7aed6b230776f963fa09509c10d9c3a767d1102c.
+# Values are reduced for offline classification; this fixture is intentionally
+# non-executable because it retains the official PG/FSDP field surface.
+data:
+  train_files: [data/train.parquet]
+  val_files: [data/val.parquet]
+  prompt_key: prompt
+  train_batch_size: 8
+  max_prompt_length: 256
+  max_response_length: 64
+  filter_overlong_prompts: true
+  truncation: error
+  shuffle: false
+  seed: 17
+actor_rollout_ref:
+  model:
+    path: Qwen/Qwen3-0.6B
+    use_remove_padding: true
+    enable_gradient_checkpointing: true
+    lora_rank: 16
+    lora_alpha: 32
+    target_modules: [q_proj, v_proj]
+    lora_adapter_path: null
+  actor:
+    use_torch_compile: true
+    optim:
+      lr: 1e-5
+      weight_decay: 0.01
+      lr_warmup_steps: 0
+    loss_agg_mode: token-mean
+    use_kl_loss: false
+    ppo_mini_batch_size: 8
+    ppo_max_token_len_per_gpu: 2048
+    use_dynamic_bsz: true
+    fsdp_config:
+      param_offload: true
+      optimizer_offload: true
+  rollout:
+    name: vllm
+    n: 1
+    temperature: 1.0
+    top_p: 0.95
+    tensor_model_parallel_size: 1
+    gpu_memory_utilization: 0.5
+    max_model_len: 320
+    max_num_batched_tokens: 2048
+    max_num_seqs: 8
+    log_prob_use_dynamic_bsz: true
+    log_prob_max_token_len_per_gpu: 2048
+algorithm:
+  adv_estimator: grpo
+  use_kl_in_reward: false
+distillation:
+  enabled: true
+  teacher_key: data_source
+  n_gpus_per_node: 1
+  nnodes: 1
+  teacher_models:
+    teacher_model:
+      model_path: Qwen/Qwen3-1.7B
+      num_replicas: 1
+      inference:
+        name: vllm
+        dtype: bfloat16
+        tensor_model_parallel_size: 1
+        data_parallel_size: 1
+        pipeline_model_parallel_size: 1
+        gpu_memory_utilization: 0.5
+        max_model_len: 321
+  distillation_loss:
+    loss_mode: forward_kl_topk
+    topk: 32
+    use_task_rewards: false
+    distillation_loss_coef: 1.0
+    loss_max_clamp: 10.0
+    log_prob_min_clamp: -10.0
+    use_policy_gradient: false
+trainer:
+  balance_batch: true
+  logger: [console, wandb]
+  val_before_train: false
+  project_name: mini-verl
+  experiment_name: official-field-surface
+  save_freq: 10
+  test_freq: 10
+  total_epochs: 1
+  total_training_steps: 2
+  n_gpus_per_node: 1
+  nnodes: 1
+miniverl:
+  student_revision: c1899de289a04d12100db370d81485cdf75e47ca
+  teacher_revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+  runtime: {mode: auto}
+  memory: {vram_limit_gib: 16, headroom_gib: 1.5}
+  batching:
+    rollout_batch_size: 2
+    teacher_score_batch_size: 2
+    update_trajectory_batch_size: 2
+  teacher_adapter: {path: null, revision: null}

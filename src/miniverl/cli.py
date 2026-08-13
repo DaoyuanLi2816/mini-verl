@@ -908,13 +908,22 @@ def align(
 # ---------------------------------------------------------- verl-shaped plan/run
 
 
-@app.command("plan")
+@app.command(
+    "plan",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def plan_command(
+    ctx: typer.Context,
     config: str = typer.Option(..., "--config", help="Resolved YAML path or builtin profile."),
     profile: str = typer.Option(
         "verl-opd-v0.8-single-gpu-v1", "--profile", help="Pinned compatibility profile."
     ),
     overrides: list[str] = typer.Option([], "--set", help="Repeatable dotted key=value override."),
+    override_files: list[Path] = typer.Option(
+        [],
+        "--overrides-file",
+        help="Repeatable plain key=value file or JSON argv array.",
+    ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
     offline: bool = typer.Option(False, "--offline", help="Do not access the network."),
     probe: bool = typer.Option(
@@ -939,7 +948,12 @@ def plan_command(
                 "--probe is not implemented in v0.8.0",
                 hint="run without --probe for the weight-free estimate",
             )
-        compiled = load_verl_opd_v08_source(config, overrides=overrides)
+        compiled = load_verl_opd_v08_source(
+            config,
+            override_files=override_files,
+            overrides=overrides,
+            trailing_overrides=ctx.args,
+        )
         plan = build_system_plan(compiled)
         payload = plan.model_dump(mode="json")
     except MiniVerlError as exc:
@@ -966,15 +980,39 @@ def plan_command(
         console.print(f"    {_esc(key)}: {_esc(value)}")
     console.print("  time to first update: unknown (not measured by plan)")
     console.print(f"  plan sha256 {_esc(plan.compiled_digest)}")
+    required = plan.reinterpretation_acceptance["required_fields"]
+    if required:
+        console.print("  high-risk local reinterpretations")
+        for mapping in plan.acknowledgement_required_mappings:
+            console.print(
+                f"    - {_esc(mapping['upstream_field'])}: "
+                f"{_esc(mapping['source_value'])} -> {_esc(mapping['local_target'])}"
+            )
+            console.print(f"      {_esc(mapping['reason'])}")
+        console.print(f"  acceptance: {_esc(plan.reinterpretation_acceptance['source'])}")
 
 
-@app.command("run")
+@app.command(
+    "run",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def verl_run_command(
+    ctx: typer.Context,
     config: str = typer.Option(..., "--config", help="Resolved YAML path or builtin profile."),
     profile: str = typer.Option(
         "verl-opd-v0.8-single-gpu-v1", "--profile", help="Pinned compatibility profile."
     ),
     overrides: list[str] = typer.Option([], "--set", help="Repeatable dotted key=value override."),
+    override_files: list[Path] = typer.Option(
+        [],
+        "--overrides-file",
+        help="Repeatable plain key=value file or JSON argv array.",
+    ),
+    accept_local_reinterpretations: bool = typer.Option(
+        False,
+        "--accept-local-reinterpretations",
+        help="Accept the reported high-risk one-GPU semantic reinterpretations.",
+    ),
     output: Optional[Path] = typer.Option(None, "--output", help="Parent run directory."),
     run_id: Optional[str] = typer.Option(None, "--run-id", help="Explicit run id."),
     resume: Optional[Path] = typer.Option(None, "--resume", help="Resume an existing run."),
@@ -994,7 +1032,21 @@ def verl_run_command(
             raise ConfigError(
                 f"unsupported OPD profile {profile!r}", hint=f"use --profile {VERL_OPD_V08_PROFILE}"
             )
-        compiled = load_verl_opd_v08_source(config, overrides=overrides)
+        compiled = load_verl_opd_v08_source(
+            config,
+            override_files=override_files,
+            overrides=overrides,
+            trailing_overrides=ctx.args,
+            accept_local_reinterpretations=accept_local_reinterpretations,
+        )
+        acceptance = compiled.reinterpretation_acceptance
+        if acceptance["required_fields"] and not acceptance["accepted"]:
+            raise ConfigError(
+                "external config has high-risk local reinterpretations that were not accepted",
+                hint=(
+                    "inspect them with miniverl plan, then pass --accept-local-reinterpretations"
+                ),
+            )
         system_plan = build_system_plan(compiled)
         native = compile_native_run_config(compiled, system_plan=system_plan)
         from miniverl.config.models import VerlParquetSourceConfig
@@ -1682,8 +1734,12 @@ def bridge_doctor_command(
         raise typer.Exit(1)
 
 
-@bridge_app.command("compile-opd")
+@bridge_app.command(
+    "compile-opd",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
 def bridge_compile_opd_command(
+    ctx: typer.Context,
     config: str = typer.Option(..., "--config", help="Resolved YAML path or builtin profile."),
     profile: str = typer.Option(
         "verl-opd-v0.8-single-gpu-v1",
@@ -1694,6 +1750,11 @@ def bridge_compile_opd_command(
         [],
         "--set",
         help="Repeatable dotted key=value override. No Hydra or shell evaluation.",
+    ),
+    override_files: list[Path] = typer.Option(
+        [],
+        "--overrides-file",
+        help="Repeatable plain key=value file or JSON argv array.",
     ),
     out: Optional[Path] = typer.Option(
         None,
@@ -1718,7 +1779,9 @@ def bridge_compile_opd_command(
             )
         plan = load_verl_opd_v08_source(
             config,
+            override_files=override_files,
             overrides=overrides,
+            trailing_overrides=ctx.args,
             require_executable=not inspect_unsupported,
         )
         payload = plan.model_dump(mode="json")

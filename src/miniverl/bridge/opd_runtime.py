@@ -25,6 +25,9 @@ class OPDSystemPlan(BaseModel):
     upstream: dict[str, str]
     compiled_digest: str
     executable: bool
+    overrides: list[dict[str, Any]]
+    reinterpretation_acceptance: dict[str, Any]
+    acknowledgement_required_mappings: list[dict[str, Any]]
     field_classification_counts: dict[str, int]
     unsupported_fields: list[str]
     student: dict[str, Any]
@@ -111,6 +114,13 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
         upstream=compiled.upstream,
         compiled_digest=compiled.compiled_digest,
         executable=compiled.executable,
+        overrides=[item.model_dump(mode="json") for item in compiled.overrides],
+        reinterpretation_acceptance=compiled.reinterpretation_acceptance,
+        acknowledgement_required_mappings=[
+            item.model_dump(mode="json")
+            for item in compiled.compatibility
+            if item.user_confirmation_required
+        ],
         field_classification_counts=classifications,
         unsupported_fields=[
             item.upstream_field

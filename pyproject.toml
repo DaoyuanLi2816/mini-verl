@@ -131,6 +131,7 @@ core-metadata-version = "2.4"
 "benchmarks/preregistration/alignment-external-v1.yaml" = "miniverl/evidence/data/alignment-external-v1/preregistration.yaml"
 "benchmarks/evidence/alignment-external-v1/jsonnav-selection-records.jsonl" = "miniverl/evidence/data/alignment-external-v1/task-evidence.jsonl"
 "src/miniverl/resources/qwen3_0_6b_1_7b_opd.yaml" = "miniverl/resources/qwen3_0_6b_1_7b_opd.yaml"
+"src/miniverl/resources/qwen3_0_6b_1_7b_opd_approval.json" = "miniverl/resources/qwen3_0_6b_1_7b_opd_approval.json"
 
 [tool.hatch.build.targets.sdist]
 core-metadata-version = "2.4"

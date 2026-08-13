@@ -85,6 +85,7 @@ class VerlOPDDataConfig(_StrictModel):
 
 class VerlOPDModelConfig(_StrictModel):
     path: str = Field(min_length=1)
+    use_remove_padding: bool = False
     enable_gradient_checkpointing: bool = False
     lora_rank: int = Field(default=16, ge=1)
     lora_alpha: int = Field(default=32, ge=1)
@@ -104,8 +105,15 @@ class VerlOPDOptimConfig(_StrictModel):
         return self
 
 
+class VerlOPDFSDPConfig(_StrictModel):
+    param_offload: bool = False
+    optimizer_offload: bool = False
+
+
 class VerlOPDActorConfig(_StrictModel):
     optim: VerlOPDOptimConfig
+    use_torch_compile: bool = False
+    fsdp_config: VerlOPDFSDPConfig = Field(default_factory=VerlOPDFSDPConfig)
     loss_agg_mode: str = "token-mean"
     use_kl_loss: bool = False
     ppo_mini_batch_size: int = Field(default=1, ge=1)
@@ -123,6 +131,8 @@ class VerlOPDRolloutConfig(_StrictModel):
     max_model_len: int | None = Field(default=None, ge=1)
     max_num_batched_tokens: int | None = Field(default=None, ge=1)
     max_num_seqs: int | None = Field(default=None, ge=1)
+    log_prob_use_dynamic_bsz: bool = False
+    log_prob_max_token_len_per_gpu: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def _numbers_are_finite(self) -> VerlOPDRolloutConfig:
@@ -142,6 +152,7 @@ class VerlOPDActorRolloutRefConfig(_StrictModel):
 
 
 class VerlOPDAlgorithmConfig(_StrictModel):
+    adv_estimator: str | None = None
     use_kl_in_reward: bool = False
 
 
@@ -210,6 +221,9 @@ class VerlOPDTrainerConfig(_StrictModel):
     total_training_steps: int | None = Field(default=None, ge=1)
     n_gpus_per_node: int = Field(default=1, ge=1)
     nnodes: int = Field(default=1, ge=1)
+    balance_batch: bool = False
+    logger: str | list[str] = "console"
+    val_before_train: bool = False
 
 
 class MiniVerlRuntimeExtensions(_StrictModel):
@@ -266,6 +280,13 @@ class OverrideRecord(_StrictModel):
     expression: str
     field: str
     value: Any
+    source_kind: Literal["overrides_file", "set", "trailing"] = "set"
+    source: str = "--set"
+    order: int = 0
+    previous_value: Any = None
+    previous_source: str = "base_config"
+    final_value: Any = None
+    effective: bool = False
 
 
 class CompatibilityEntry(_StrictModel):
@@ -280,7 +301,7 @@ class CompatibilityEntry(_StrictModel):
 
 
 class CompiledLocalExecutionPlan(_StrictModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     profile: Literal["verl-opd-v0.8-single-gpu-v1"] = "verl-opd-v0.8-single-gpu-v1"
     upstream: dict[str, str]
     source_digest: str
@@ -289,6 +310,7 @@ class CompiledLocalExecutionPlan(_StrictModel):
     source: VerlOPDV08Profile
     overrides: list[OverrideRecord]
     compatibility: list[CompatibilityEntry]
+    reinterpretation_acceptance: dict[str, Any]
     local_execution: dict[str, Any]
     executable: bool
 
@@ -333,6 +355,11 @@ _FIELD_RULES: dict[str, _Rule] = {
     ),
     "data.seed": _rule("source.seed", "exact", "same integer seed"),
     "actor_rollout_ref.model.path": _rule("student.model_id", "exact", "same model identity"),
+    "actor_rollout_ref.model.use_remove_padding": _rule(
+        "student.padding",
+        "semantically_conformant",
+        "the local padded runtime removes padding logically",
+    ),
     "actor_rollout_ref.model.enable_gradient_checkpointing": _rule(
         "student.gradient_checkpointing", "semantically_conformant", "same memory technique"
     ),
@@ -354,6 +381,21 @@ _FIELD_RULES: dict[str, _Rule] = {
     ),
     "actor_rollout_ref.actor.optim.lr_warmup_steps": _rule(
         "optimizer.lr_warmup_steps", "exact", "same optimizer-step count"
+    ),
+    "actor_rollout_ref.actor.use_torch_compile": _rule(
+        None,
+        "informational_only",
+        "recorded for provenance; the local runtime selects its own compilation path",
+    ),
+    "actor_rollout_ref.actor.fsdp_config.param_offload": _rule(
+        None,
+        "informational_only",
+        "false is a harmless distributed-training no-op; true is unsupported",
+    ),
+    "actor_rollout_ref.actor.fsdp_config.optimizer_offload": _rule(
+        None,
+        "informational_only",
+        "false is a harmless distributed-training no-op; true is unsupported",
     ),
     "actor_rollout_ref.actor.loss_agg_mode": _rule(
         "loss.reduction", "semantically_conformant", "token-mean is the only executable v0.8 mode"
@@ -410,6 +452,22 @@ _FIELD_RULES: dict[str, _Rule] = {
     ),
     "actor_rollout_ref.rollout.max_num_seqs": _rule(
         "batching.rollout_batch_limit", "locally_reinterpreted", "local sequence cap", "medium"
+    ),
+    "actor_rollout_ref.rollout.log_prob_use_dynamic_bsz": _rule(
+        None,
+        "informational_only",
+        "no separate rollout log-prob worker exists in direct GKD OPD",
+    ),
+    "actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu": _rule(
+        None,
+        "informational_only",
+        "no separate rollout log-prob worker exists in direct GKD OPD",
+    ),
+    "algorithm.adv_estimator": _rule(
+        None,
+        "unsupported",
+        "policy-gradient advantage estimation is outside direct GKD OPD",
+        "high",
     ),
     "algorithm.use_kl_in_reward": _rule(
         "loss.kl_in_reward", "exact", "must remain disabled; pure OPD has no reward"
@@ -517,6 +575,15 @@ _FIELD_RULES: dict[str, _Rule] = {
         "placement.device_count", "locally_reinterpreted", "always one local CUDA device", "high"
     ),
     "trainer.nnodes": _rule("placement.node_count", "locally_reinterpreted", "must be one", "high"),
+    "trainer.balance_batch": _rule(
+        None, "informational_only", "logical batches are already deterministic and locally ordered"
+    ),
+    "trainer.logger": _rule(
+        None, "informational_only", "external logger selection is not executed by miniVERL"
+    ),
+    "trainer.val_before_train": _rule(
+        None, "informational_only", "recorded; validation scheduling follows the local run contract"
+    ),
     "miniverl.runtime.mode": _rule(None, "informational_only", "miniVERL-only local extension"),
     "miniverl.student_revision": _rule(
         "student.revision", "informational_only", "miniVERL-only immutable Hub revision"
@@ -649,10 +716,61 @@ def _set_path(payload: dict[str, Any], path: str, value: Any) -> None:
     current[parts[-1]] = value
 
 
-def parse_overrides(expressions: Sequence[str]) -> list[OverrideRecord]:
+def _validate_override_value(value: Any, *, field: str) -> None:
+    if value is None or isinstance(value, (str, bool, int)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ConfigError(f"override {field} must be finite")
+        return
+    if isinstance(value, list):
+        for item in value:
+            _validate_override_value(item, field=field)
+        return
+    if isinstance(value, dict):
+        if any(not isinstance(key, str) for key in value):
+            raise ConfigError(f"override {field} mapping keys must be strings")
+        for item in value.values():
+            _validate_override_value(item, field=field)
+        return
+    raise ConfigError(
+        f"override {field} uses unsupported YAML value type {type(value).__name__}",
+        hint="use finite JSON/YAML strings, numbers, booleans, null, lists, or mappings",
+    )
+
+
+def _read_override_file(path: Path) -> list[str]:
+    if path.suffix.lower() in {".sh", ".bash", ".ps1", ".cmd", ".bat"}:
+        raise ConfigError(f"override file must contain data, not a shell script: {path}")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ConfigError(f"cannot read override file {path}: {exc}") from exc
+    if path.suffix.lower() == ".json":
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ConfigError(f"override argv JSON {path} is invalid: {exc}") from exc
+        if not isinstance(payload, list) or any(not isinstance(item, str) for item in payload):
+            raise ConfigError(f"override argv JSON {path} must be an array of strings")
+        return payload
+    return [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
+def parse_overrides(
+    expressions: Sequence[str],
+    *,
+    source_kind: Literal["overrides_file", "set", "trailing"] = "set",
+    source: str = "--set",
+    start_order: int = 0,
+) -> list[OverrideRecord]:
     """Parse repeatable ``key=value`` overrides without Hydra or shell evaluation."""
     records: list[OverrideRecord] = []
-    for expression in expressions:
+    for offset, expression in enumerate(expressions):
         if "=" not in expression:
             raise ConfigError(f"override {expression!r} must use key=value syntax")
         field, raw = expression.split("=", 1)
@@ -667,7 +785,62 @@ def parse_overrides(expressions: Sequence[str]) -> list[OverrideRecord]:
         except yaml.YAMLError as exc:
             raise ConfigError(f"override {expression!r} has invalid YAML value: {exc}") from exc
         reject_interpolation(value, label=f"override {field}")
-        records.append(OverrideRecord(expression=expression, field=field, value=value))
+        _validate_override_value(value, field=field)
+        records.append(
+            OverrideRecord(
+                expression=expression,
+                field=field,
+                value=value,
+                source_kind=source_kind,
+                source=source,
+                order=start_order + offset,
+            )
+        )
+    return records
+
+
+def _resolve_overrides(
+    payload: dict[str, Any],
+    *,
+    override_files: Sequence[Path],
+    overrides: Sequence[str],
+    trailing_overrides: Sequence[str],
+) -> list[OverrideRecord]:
+    records: list[OverrideRecord] = []
+    order = 0
+    for path in override_files:
+        parsed = parse_overrides(
+            _read_override_file(path),
+            source_kind="overrides_file",
+            source=str(path),
+            start_order=order,
+        )
+        records.extend(parsed)
+        order += len(parsed)
+    parsed_set = parse_overrides(overrides, source_kind="set", source="--set", start_order=order)
+    records.extend(parsed_set)
+    order += len(parsed_set)
+    records.extend(
+        parse_overrides(
+            trailing_overrides,
+            source_kind="trailing",
+            source="--",
+            start_order=order,
+        )
+    )
+
+    current_sources = dict.fromkeys(_flatten(payload), "base_config")
+    for record in records:
+        before = _flatten(payload)
+        record.previous_value = before.get(record.field)
+        record.previous_source = current_sources.get(record.field, "not_present")
+        _set_path(payload, record.field, record.value)
+        current_sources[record.field] = record.source
+    final = _flatten(payload)
+    last_order = {record.field: record.order for record in records}
+    for record in records:
+        record.final_value = final.get(record.field)
+        record.effective = last_order[record.field] == record.order
     return records
 
 
@@ -721,21 +894,39 @@ def _semantic_blocker(path: str, value: Any) -> str | None:
         return "more than one local training GPU is unsupported"
     if path == "distillation.nnodes" and value not in {0, 1}:
         return "multi-node teacher execution is unsupported"
+    if path == "algorithm.adv_estimator" and value is not None:
+        return "policy-gradient advantage estimation is outside direct GKD OPD"
+    if (
+        path
+        in {
+            "actor_rollout_ref.actor.fsdp_config.param_offload",
+            "actor_rollout_ref.actor.fsdp_config.optimizer_offload",
+        }
+        and value
+    ):
+        return "FSDP offload semantics are unsupported by the one-GPU local runtime"
     return None
 
 
 def compile_verl_opd_v08(
     payload: Mapping[str, Any],
     *,
+    override_files: Sequence[Path] = (),
     overrides: Sequence[str] = (),
+    trailing_overrides: Sequence[str] = (),
+    reinterpretations_accepted: bool = True,
+    acceptance_source: str = "library_call",
     require_executable: bool = True,
 ) -> CompiledLocalExecutionPlan:
     """Compile one resolved documented profile into a deterministic local plan."""
     merged = copy.deepcopy(dict(payload))
     reject_interpolation(merged, label="verl OPD config")
-    records = parse_overrides(overrides)
-    for record in records:
-        _set_path(merged, record.field, record.value)
+    records = _resolve_overrides(
+        merged,
+        override_files=override_files,
+        overrides=overrides,
+        trailing_overrides=trailing_overrides,
+    )
     reject_interpolation(merged, label="resolved verl OPD config")
 
     teachers = (
@@ -778,6 +969,9 @@ def compile_verl_opd_v08(
             classification = rule.classification
             reason = rule.reason
             risk = rule.risk
+        confirmation_required = rule.confirmation or (
+            classification == "locally_reinterpreted" and risk == "high"
+        )
         compatibility.append(
             CompatibilityEntry(
                 upstream_field=path,
@@ -786,7 +980,7 @@ def compile_verl_opd_v08(
                 classification=classification,
                 reason=reason,
                 semantic_risk=risk,
-                user_confirmation_required=rule.confirmation,
+                user_confirmation_required=confirmation_required,
                 executable=blocker is None,
             )
         )
@@ -806,6 +1000,7 @@ def compile_verl_opd_v08(
         "task_rewards": False,
         "policy_gradient": False,
     }
+    high_risk = [item.upstream_field for item in compatibility if item.user_confirmation_required]
     common = {
         "upstream": {"repository": VERL_REPOSITORY, "tag": VERL_TAG, "commit": VERL_COMMIT},
         "source_digest": _canonical_digest(merged),
@@ -813,6 +1008,11 @@ def compile_verl_opd_v08(
         "source": source,
         "overrides": records,
         "compatibility": compatibility,
+        "reinterpretation_acceptance": {
+            "required_fields": high_risk,
+            "accepted": reinterpretations_accepted or not high_risk,
+            "source": acceptance_source if high_risk else "not_required",
+        },
         "local_execution": local_execution,
         "executable": executable,
     }
@@ -836,7 +1036,10 @@ def compile_verl_opd_v08(
 def load_verl_opd_v08(
     path: Path,
     *,
+    override_files: Sequence[Path] = (),
     overrides: Sequence[str] = (),
+    trailing_overrides: Sequence[str] = (),
+    accept_local_reinterpretations: bool = False,
     require_executable: bool = True,
 ) -> CompiledLocalExecutionPlan:
     """Load a resolved YAML mapping; scripts and interpolations are never evaluated."""
@@ -850,7 +1053,11 @@ def load_verl_opd_v08(
         raise ConfigError("verl OPD YAML must contain one mapping")
     return compile_verl_opd_v08(
         payload,
+        override_files=override_files,
         overrides=overrides,
+        trailing_overrides=trailing_overrides,
+        reinterpretations_accepted=accept_local_reinterpretations,
+        acceptance_source="cli_flag" if accept_local_reinterpretations else "not_accepted",
         require_executable=require_executable,
     )
 
@@ -858,27 +1065,68 @@ def load_verl_opd_v08(
 def load_verl_opd_v08_source(
     source: str | Path,
     *,
+    override_files: Sequence[Path] = (),
     overrides: Sequence[str] = (),
+    trailing_overrides: Sequence[str] = (),
+    accept_local_reinterpretations: bool = False,
     require_executable: bool = True,
 ) -> CompiledLocalExecutionPlan:
     """Load a path or the packaged Qwen3 quickstart profile."""
     source_text = str(source)
     if source_text != "builtin:qwen3-0.6b-1.7b-opd":
         return load_verl_opd_v08(
-            Path(source), overrides=overrides, require_executable=require_executable
+            Path(source),
+            override_files=override_files,
+            overrides=overrides,
+            trailing_overrides=trailing_overrides,
+            accept_local_reinterpretations=accept_local_reinterpretations,
+            require_executable=require_executable,
         )
     from importlib.resources import files
 
     resource = files("miniverl").joinpath("resources/qwen3_0_6b_1_7b_opd.yaml")
+    approval_resource = files("miniverl").joinpath("resources/qwen3_0_6b_1_7b_opd_approval.json")
     try:
         payload = yaml.safe_load(resource.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, yaml.YAMLError) as exc:
         raise ConfigError(f"cannot read packaged OPD profile: {exc}") from exc
     if not isinstance(payload, Mapping):
         raise ConfigError("packaged OPD profile must contain one mapping")
+    unaccepted = compile_verl_opd_v08(
+        payload,
+        override_files=override_files,
+        overrides=overrides,
+        trailing_overrides=trailing_overrides,
+        reinterpretations_accepted=False,
+        acceptance_source="packaged_approval_mismatch",
+        require_executable=require_executable,
+    )
+    try:
+        approval = json.loads(approval_resource.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ConfigError(f"cannot read packaged OPD approval manifest: {exc}") from exc
+    approved_values = approval.get("approved_high_risk_values")
+    observed_values = {
+        item.upstream_field: item.source_value
+        for item in unaccepted.compatibility
+        if item.user_confirmation_required
+    }
+    manifest_matches = (
+        approval.get("schema_version") == 1
+        and approval.get("profile") == VERL_OPD_V08_PROFILE
+        and approved_values == observed_values
+    )
+    if not manifest_matches and not accept_local_reinterpretations:
+        return unaccepted
     return compile_verl_opd_v08(
         payload,
+        override_files=override_files,
         overrides=overrides,
+        trailing_overrides=trailing_overrides,
+        reinterpretations_accepted=True,
+        acceptance_source=(
+            "cli_flag" if accept_local_reinterpretations else "packaged_approval_manifest"
+        ),
         require_executable=require_executable,
     )
 
@@ -910,7 +1158,11 @@ def publish_imported_verl_opd_v08(
     # Prove the exact bytes about to be published remain executable without
     # relying on the first in-memory model instance.
     reparsed = yaml.safe_load(rendered)
-    validated = compile_verl_opd_v08(reparsed)
+    validated = compile_verl_opd_v08(
+        reparsed,
+        reinterpretations_accepted=bool(compiled.reinterpretation_acceptance["accepted"]),
+        acceptance_source=str(compiled.reinterpretation_acceptance["source"]),
+    )
     report = {
         "schema_version": 1,
         "status": "accepted",
