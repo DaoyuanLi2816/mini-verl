@@ -22,7 +22,7 @@ verl check before squash merge `8d3ebb2`.
 
 ## v0.9.0 productization
 
-- [ ] Add upstream-shaped override UX with complete source and precedence
+- [x] Add upstream-shaped override UX with complete source and precedence
       provenance while preserving the repeatable `--set` interface.
 - [ ] Bind execution to an immutable plan artifact and fail closed when its
       config, data, model, tokenizer or compatibility acceptance has drifted.
@@ -30,6 +30,17 @@ verl check before squash merge `8d3ebb2`.
       realistic one-GPU quickstart without widening the documented algorithm.
 - [ ] Preserve every frozen scientific artifact and keep distributed verl,
       policy-gradient OPD and unsupported objective semantics fail-closed.
+
+The config-UX candidate accepts ordered override files, repeatable `--set`
+values and trailing verl-style assignments while retaining every duplicate in
+the machine-readable provenance. The reduced official-field fixture classifies
+82 fields (23 exact, 16 semantically conformant, 22 locally reinterpreted,
+18 informational-only and 3 unsupported); unsupported objective and FSDP
+offload semantics still fail closed. The candidate passed 2,188 local
+non-GPU/non-network tests at 85.03% branch coverage, 8 RTX 4080 GPU tests,
+13 network tests with 2 environment-dependent skips, strict MkDocs, all 40
+rendered SVG instances across four Playwright viewports, package/Twine checks
+and the pinned-verl compatibility tests available in the training environment.
 
 ## v0.8.0 single-GPU verl OPD pivot
 

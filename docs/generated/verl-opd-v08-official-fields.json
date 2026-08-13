@@ -1,0 +1,28 @@
+{
+  "claim": "Every fixture leaf is classified; coverage does not imply that policy-gradient, FSDP, or distributed execution is supported.",
+  "classifications": {
+    "derived": 0,
+    "exact": 23,
+    "informational_only": 18,
+    "locally_reinterpreted": 22,
+    "semantically_conformant": 16,
+    "unsupported": 3
+  },
+  "executable": false,
+  "official_example_fields_total": 82,
+  "profile": "verl-opd-v0.8-single-gpu-v1",
+  "provenance": {
+    "commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+    "fixture": "tests/fixtures/verl/opd-v0.8-official-example-fields.yaml",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/verl-project/verl",
+    "source_path": "examples/on_policy_distillation_trainer/run_qwen3_8b_fsdp.sh",
+    "tag": "v0.8.0"
+  },
+  "schema_version": 1,
+  "unsupported_fields": [
+    "actor_rollout_ref.actor.fsdp_config.optimizer_offload",
+    "actor_rollout_ref.actor.fsdp_config.param_offload",
+    "algorithm.adv_estimator"
+  ]
+}

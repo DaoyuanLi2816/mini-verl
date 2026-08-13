@@ -92,7 +92,7 @@ without reconstructing intent from console text.
 
 | What you do in verl | miniVERL equivalent |
 | --- | --- |
-| pass Hydra overrides | repeat `--set key=value` in v0.8.1 |
+| pass Hydra-style overrides | repeat `--set`; v0.9 development also accepts `--overrides-file` and tokens after `--` |
 | inspect the resolved config | `miniverl plan --json` |
 | execute pure OPD | `miniverl run` |
 | reuse prompt Parquet | point `data.train_files` at it directly |
@@ -111,6 +111,11 @@ distillation.teacher_models.teacher_model.model_path=Qwen/Qwen3-1.7B
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml \
   --set actor_rollout_ref.actor.optim.lr=1e-5
 ```
+
+External YAML must explicitly accept the high-risk local mappings printed by
+`plan` before `run`; the packaged profile carries a value-bound reviewed
+manifest. [Override precedence and safe input forms](docs/config-overrides.md)
+are documented without executing Hydra interpolation or shell text.
 
 The public built-in profile deliberately uses upstream-shaped `name: vllm`
 values. miniVERL classifies both rollout and teacher engine names as local

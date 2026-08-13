@@ -5,7 +5,7 @@
     "locally_reinterpreted": 22,
     "semantically_conformant": 15
   },
-  "compiled_digest": "44d9392a43fd1c166217d2ff992a4b4202070df08d32f03a767a59c15793a7ce",
+  "compiled_digest": "d9458fba483548bedbff9b112d8e192e48055baec24a389f151323417d3072ea",
   "executable": true,
   "field_count": 72,
   "fields": [
@@ -67,7 +67,7 @@
       "semantic_risk": "high",
       "source_value": 8,
       "upstream_field": "actor_rollout_ref.actor.ppo_mini_batch_size",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "locally_reinterpreted",
@@ -160,7 +160,7 @@
       "semantic_risk": "high",
       "source_value": 0.5,
       "upstream_field": "actor_rollout_ref.rollout.gpu_memory_utilization",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "semantically_conformant",
@@ -210,7 +210,7 @@
       "semantic_risk": "high",
       "source_value": "vllm",
       "upstream_field": "actor_rollout_ref.rollout.name",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "exact",
@@ -230,7 +230,7 @@
       "semantic_risk": "high",
       "source_value": 1,
       "upstream_field": "actor_rollout_ref.rollout.tensor_model_parallel_size",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "exact",
@@ -444,7 +444,7 @@
       "semantic_risk": "high",
       "source_value": 1,
       "upstream_field": "distillation.n_gpus_per_node",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "locally_reinterpreted",
@@ -454,7 +454,7 @@
       "semantic_risk": "high",
       "source_value": 1,
       "upstream_field": "distillation.nnodes",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "informational_only",
@@ -474,7 +474,7 @@
       "semantic_risk": "high",
       "source_value": 1,
       "upstream_field": "distillation.teacher_models.teacher_model.inference.data_parallel_size",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "semantically_conformant",
@@ -494,7 +494,7 @@
       "semantic_risk": "high",
       "source_value": 0.5,
       "upstream_field": "distillation.teacher_models.teacher_model.inference.gpu_memory_utilization",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "semantically_conformant",
@@ -514,7 +514,7 @@
       "semantic_risk": "high",
       "source_value": "vllm",
       "upstream_field": "distillation.teacher_models.teacher_model.inference.name",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "locally_reinterpreted",
@@ -524,7 +524,7 @@
       "semantic_risk": "high",
       "source_value": 1,
       "upstream_field": "distillation.teacher_models.teacher_model.inference.pipeline_model_parallel_size",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "locally_reinterpreted",
@@ -534,7 +534,7 @@
       "semantic_risk": "high",
       "source_value": 1,
       "upstream_field": "distillation.teacher_models.teacher_model.inference.tensor_model_parallel_size",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "exact",
@@ -554,7 +554,7 @@
       "semantic_risk": "high",
       "source_value": 1,
       "upstream_field": "distillation.teacher_models.teacher_model.num_replicas",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "informational_only",
@@ -674,7 +674,7 @@
       "semantic_risk": "high",
       "source_value": 1,
       "upstream_field": "trainer.n_gpus_per_node",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "locally_reinterpreted",
@@ -684,7 +684,7 @@
       "semantic_risk": "high",
       "source_value": 1,
       "upstream_field": "trainer.nnodes",
-      "user_confirmation_required": false
+      "user_confirmation_required": true
     },
     {
       "classification": "exact",
@@ -738,7 +738,30 @@
     }
   ],
   "profile": "verl-opd-v0.8-single-gpu-v1",
-  "schema_version": 1,
+  "reinterpretation_acceptance": {
+    "accepted": false,
+    "required_fields": [
+      "actor_rollout_ref.actor.ppo_mini_batch_size",
+      "actor_rollout_ref.rollout.gpu_memory_utilization",
+      "actor_rollout_ref.rollout.name",
+      "actor_rollout_ref.rollout.tensor_model_parallel_size",
+      "distillation.n_gpus_per_node",
+      "distillation.nnodes",
+      "distillation.teacher_models.teacher_model.inference.data_parallel_size",
+      "distillation.teacher_models.teacher_model.inference.gpu_memory_utilization",
+      "distillation.teacher_models.teacher_model.inference.name",
+      "distillation.teacher_models.teacher_model.inference.pipeline_model_parallel_size",
+      "distillation.teacher_models.teacher_model.inference.tensor_model_parallel_size",
+      "distillation.teacher_models.teacher_model.num_replicas",
+      "trainer.n_gpus_per_node",
+      "trainer.nnodes",
+      "trainer.save_freq",
+      "trainer.test_freq",
+      "trainer.total_epochs"
+    ],
+    "source": "not_accepted"
+  },
+  "schema_version": 2,
   "scope": "config conformance for one documented local pure-OPD profile; not full verl compatibility or distributed execution",
   "source_fixture": "examples/verl-opd-v0.8-single-gpu.yaml",
   "source_sha256": "085805d904136ae271db7629b4810340f54d6aba7c2ed08e7a88d8ac01511b4f",

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "profile": "verl-opd-v0.8-single-gpu-v1",
+  "approved_high_risk_values": {
+    "actor_rollout_ref.actor.ppo_mini_batch_size": 2,
+    "actor_rollout_ref.rollout.gpu_memory_utilization": 0.5,
+    "actor_rollout_ref.rollout.name": "vllm",
+    "actor_rollout_ref.rollout.tensor_model_parallel_size": 1,
+    "distillation.n_gpus_per_node": 1,
+    "distillation.nnodes": 1,
+    "distillation.teacher_models.teacher_model.inference.data_parallel_size": 1,
+    "distillation.teacher_models.teacher_model.inference.gpu_memory_utilization": 0.5,
+    "distillation.teacher_models.teacher_model.inference.name": "vllm",
+    "distillation.teacher_models.teacher_model.inference.pipeline_model_parallel_size": 1,
+    "distillation.teacher_models.teacher_model.inference.tensor_model_parallel_size": 1,
+    "distillation.teacher_models.teacher_model.num_replicas": 1,
+    "trainer.n_gpus_per_node": 1,
+    "trainer.nnodes": 1,
+    "trainer.save_freq": 1,
+    "trainer.test_freq": -1,
+    "trainer.total_epochs": 1
+  }
+}

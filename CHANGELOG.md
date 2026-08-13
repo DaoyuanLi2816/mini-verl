@@ -6,6 +6,22 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Verl config UX
+
+- Added safe trailing Hydra-style overrides and repeatable plain/JSON
+  `--overrides-file` inputs with deterministic base → files → `--set` →
+  trailing precedence. The compiled report preserves every duplicate, source,
+  prior value and final effective value without evaluating shell text or
+  interpolation.
+- Added value-bound approval metadata for the packaged profile. External
+  configs, or packaged profiles whose high-risk values drift, require explicit
+  `--accept-local-reinterpretations` before `run`; unsupported algorithm and
+  distributed fields still fail closed.
+- Classified all 82 leaves in an Apache-2.0-provenanced fixture derived from
+  the pinned official verl v0.8.0 Qwen3 OPD example. Harmless logging and
+  compile hints are informational, while policy-gradient and enabled FSDP
+  offload semantics remain unsupported.
+
 ### Fixed
 
 - Made the PyPI release verifier require the durable product, project and

@@ -20,7 +20,7 @@ the mapping is explicit and does not imply endorsement or full compatibility.
   `distillation.teacher_models.teacher_model.model_path`, response bounds,
   learning rate and LoRA configuration.
 
-What is not reusable: arbitrary Hydra composition, shell launch scripts,
+What is not reusable: arbitrary Hydra composition inside miniVERL, shell launch scripts,
 resource pools, Ray actors, FSDP/Megatron checkpoints, PPO/GRPO, critics,
 policy-gradient OPD, task-reward mixtures, multiple teachers and multimodal
 workers. Unsupported semantics fail closed instead of falling back silently.
@@ -30,7 +30,7 @@ workers. Unsupported semantics fail closed instead of falling back silently.
 | verl action | miniVERL action |
 | --- | --- |
 | compose or capture a resolved config | provide resolved YAML to `--config` |
-| add a Hydra override | repeat `--set key=value` |
+| add a Hydra-style override | repeat `--set`, use `--overrides-file`, or place tokens after `--` |
 | inspect resolved intent | `miniverl plan --json` |
 | launch OPD | `miniverl run` |
 | read prompt Parquet | use the file directly |
@@ -46,8 +46,9 @@ miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
 ```
 
 Planning is weight-free and offline. Use `--json` to retain the complete field
-matrix. v0.8.1 accepts only repeated `--set`; it does not execute `${...}`
-interpolations or shell text.
+matrix. The development CLI records repeated `--set`, override files and
+trailing tokens with deterministic precedence; it does not execute `${...}`
+interpolations or shell text. See [Config overrides](config-overrides.md).
 
 ## Same fields, different placement
 
@@ -111,6 +112,9 @@ tested.
   teachers and distributed counts are intentionally unsupported.
 - **Interpolation rejected:** resolve Hydra/OmegaConf in your trusted verl
   environment first. miniVERL will not execute `${...}`.
+- **High-risk reinterpretation not accepted:** inspect `miniverl plan`, then
+  pass `--accept-local-reinterpretations` for an external config. Packaged
+  profiles carry reviewed acceptance metadata.
 - **Prompt schema mismatch:** validate the Parquet `prompt` column as structured
   role/content messages, or convert it explicitly.
 - **Tokenizer mismatch:** actor and teacher scoring require structural identity

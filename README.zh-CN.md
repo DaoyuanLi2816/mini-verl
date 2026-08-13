@@ -79,7 +79,7 @@ target 以无 pickle 格式校验，checkpoint 事务化发布，最终 adapter 
 
 | verl 中的动作 | miniVERL 对应方式 |
 | --- | --- |
-| 传入 Hydra override | v0.8.1 中重复使用 `--set key=value` |
+| 传入 Hydra 风格 override | 重复使用 `--set`；v0.9 开发版也接受 `--overrides-file` 与 `--` 后的参数 |
 | 检查 resolved config | `miniverl plan --json` |
 | 执行纯 OPD | `miniverl run` |
 | 复用 prompt Parquet | 直接设置 `data.train_files` |
@@ -94,6 +94,10 @@ distillation.teacher_models.teacher_model.model_path=Qwen/Qwen3-1.7B
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml \
   --set actor_rollout_ref.actor.optim.lr=1e-5
 ```
+
+外部 YAML 在 `run` 前必须显式接受 `plan` 列出的高风险本地重解释；内置
+profile 使用与具体值绑定的审核清单。详见[覆盖优先级与安全输入格式](docs/config-overrides.md)，
+miniVERL 不执行 Hydra interpolation 或 shell 文本。
 
 公开内置 profile 刻意使用上游形状的 `name: vllm`。miniVERL 会把 rollout 与 teacher
 engine 名分类为本地重解释，再通过顺序本地 HF 阶段执行；这不等于 vLLM 语义。完整
