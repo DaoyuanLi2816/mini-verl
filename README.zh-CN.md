@@ -158,13 +158,15 @@ prompt 的 role/content 保持结构化，data source、ability 与 extra metada
 miniverl inspect runs/my-opd/trajectories.jsonl
 miniverl cache stats runs/my-opd/teacher-cache
 miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
+miniverl bridge materialize scaleout --download --offline
 miniverl bridge doctor scaleout --json
 ```
 
-v0.8.1 export 保留 student/teacher 身份、Parquet 原始字节与纯 OPD override；精确 base
-snapshot materialize 之前仍报告 `launchable: false`。产物完整性、上游 parse/load smoke、
-launchability、算法语义与 distributed execution 分开报告。bridge doctor 通过并不表示运行过
-分布式 verl。详见[桥接契约](docs/verl-bridge.md)与[兼容性政策](docs/compatibility.md)。
+v0.8.1 export 保留 student/teacher 身份、Parquet 原始字节与纯 OPD override；在精确 base
+snapshot 被物化并通过已安装的固定 verl commit 验证前，仍报告 `launchable: false`。只有此后
+`bridge materialize` 才会发布带校验和的 `launch.sh`；分布式执行仍是未测试。详见
+[物化契约](docs/scaleout-materialization.md)、[桥接契约](docs/verl-bridge.md)与
+[兼容性政策](docs/compatibility.md)。
 
 建议操作闭环是 **plan → inspect → run → inspect → export**。`plan --out` 把 YAML、按顺序
 应用的 override、扫描后的 Parquet 与精确 native config 绑定；`run --plan` 在加载权重前拒绝

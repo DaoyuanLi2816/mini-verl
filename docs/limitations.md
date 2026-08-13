@@ -452,9 +452,11 @@ job. It does not convert optimizer state, distributed RNG, native sharded
 checkpoints, Ray runtime state or teacher caches into PPO reference caches.
 Unknown and distributed-only config fields fail by default. The
 miniVERL-defined label therefore means a validated scale-out bundle, not
-runtime parity or generic verl YAML support. Current bundles are not
-launchable: the base snapshot is absent, reward logic fails closed and user
-mappings remain placeholders. See the [exact contract and evidence](verl-bridge.md).
+runtime parity or generic verl YAML support. Legacy PPO/reward-scaffold bundles
+remain non-launchable. A pure-OPD bundle can become `launchable: true` only
+after exact snapshots, the fixed upstream config merge and bounded local model
+loads pass; that status still does not say a distributed invocation succeeded.
+See the [exact contract](verl-bridge.md) and [materialization workflow](scaleout-materialization.md).
 
 `models.teacher.mode: privileged_context` works only with environments that
 implement `privileged_context()`. All three built-in environments do;

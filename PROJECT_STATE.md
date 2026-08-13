@@ -43,6 +43,17 @@ Probe caches bind hardware/software, model, tokenizer, quantization, token and
 plan identities; cached and fresh publication of the same measurement produces
 byte-identical immutable plans.
 
+The scale-out slice adds transactional `bridge materialize`. A fresh export
+continues to carry identity-only bases and remains non-launchable. Materialize
+accepts exact regular-file snapshots or resolves the recorded 40-character
+commits through download/cache mode, validates shard closure, tokenizer and
+model loads, student PEFT, Parquet, top-k and the exact installed verl config,
+then publishes `launch.sh` and full file hashes through a staged directory
+swap. Teacher-adapter merging is an explicit, non-mutating operation with base,
+adapter, software and output provenance. `launchable: true` means only that the
+pinned upstream entry point has complete local inputs; distributed execution
+remains `false` and algorithm parity remains unclaimed.
+
 ## v0.8.1 product surface
 
 The landing pages now lead with the documented one-GPU verl-style OPD journey,

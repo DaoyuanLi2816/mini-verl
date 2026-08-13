@@ -189,15 +189,16 @@ checkpoints, measurements and a PEFT adapter. Inspect before moving it:
 miniverl inspect runs/my-opd/trajectories.jsonl
 miniverl cache stats runs/my-opd/teacher-cache
 miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
+miniverl bridge materialize scaleout --download --offline
 miniverl bridge doctor scaleout --json
 ```
 
 The v0.8.1 export preserves student/teacher identities, Parquet bytes and pure
 OPD overrides, but reports `launchable: false` until exact base snapshots are
-materialized. Artifact completeness, upstream parse/load smoke, launchability,
-algorithm semantics and distributed execution are separate statuses. A
-successful bridge check never means that a distributed verl job ran. Review
-the [bridge contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-bridge.md) and [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md).
+materialized and validated against the installed pinned verl commit. Only then
+does `bridge materialize` publish a checksummed `launch.sh`; distributed
+execution remains untested. Review the [materialization contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/scaleout-materialization.md),
+[bridge contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-bridge.md) and [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md).
 
 The intended operating loop is **plan → inspect → run → inspect → export**.
 `plan --out` byte-binds the YAML, ordered overrides and scanned Parquet inputs

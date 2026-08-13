@@ -43,6 +43,23 @@ def _opd_run(tmp_path: Path, *, teacher_adapter: bool = False) -> tuple[Path, Pa
     (model / "tokenizer_config.json").write_text(
         json.dumps({"tokenizer_class": "Qwen2Tokenizer"}), encoding="utf-8"
     )
+    if teacher_adapter:
+        teacher_model = run / "teacher-adapter"
+        teacher_model.mkdir()
+        (teacher_model / "adapter_config.json").write_text(
+            json.dumps(
+                {
+                    "peft_type": "LORA",
+                    "base_model_name_or_path": "Qwen/Qwen3-1.7B",
+                    "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+                    "target_modules": ["q_proj", "v_proj"],
+                    "r": 8,
+                    "lora_alpha": 16,
+                }
+            ),
+            encoding="utf-8",
+        )
+        (teacher_model / "adapter_model.safetensors").write_bytes(_safetensors_bytes())
     rows = [
         {
             "data_source": "unit",
@@ -188,9 +205,9 @@ def test_pure_opd_export_is_reward_free_and_preserves_data_bytes(tmp_path: Path)
     }
     assert overrides["actor_rollout_ref"]["actor"]["use_kl_loss"] is False
     assert overrides["algorithm"]["use_kl_in_reward"] is False
-    assert report["artifact_complete"] is True
+    assert report["artifact_complete"] is False
     assert report["config_semantics_supported"] is True
-    assert report["student_artifact_loadable"] is True
+    assert report["student_artifact_loadable"] is False
     assert report["teacher_artifact_loadable"] is False
     assert report["dataset_loadable"] is True
     assert report["upstream_parse_passed"] is False
@@ -224,6 +241,8 @@ def test_teacher_adapter_requires_upstream_materialization(tmp_path: Path) -> No
         (tmp_path / "bundle/teacher/teacher-model.json").read_text(encoding="utf-8")
     )
     assert identity["adapter"]["path"] == "teacher-adapter"
+    assert identity["adapter"]["bundled_path"] == "teacher/adapter"
+    assert (tmp_path / "bundle/teacher/adapter/adapter_model.safetensors").is_file()
     assert identity["upstream_materialization_required"] is True
 
 

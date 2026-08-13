@@ -56,6 +56,7 @@ nav:
       - RecoveryBench: recoverybench/recoverybench-v1.md
   - Scale out:
       - verl bridge boundary: verl-bridge.md
+      - Materialize a handoff: scaleout-materialization.md
       - Launch requirements: verl-bridge-launch.md
       - Demo recording script: verl-bridge-demo.md
   - Community benchmarks: community-benchmarks.md

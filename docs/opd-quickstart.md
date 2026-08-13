@@ -54,6 +54,7 @@ miniverl import-verl --profile verl-opd-v0.8-single-gpu-v1 \
 miniverl run --profile verl-opd-v0.8-single-gpu-v1 \
   --config local-opd.yaml --output runs
 miniverl export-verl --run runs/<run-id> --target-verl v0.8.0 --out scaleout
+miniverl bridge materialize scaleout --download --offline
 miniverl bridge doctor scaleout --require-verl
 ```
 
@@ -66,4 +67,6 @@ Validation data is exported only when the source declared it; an empty
 The bundle stays `launchable: false` until the exact student and teacher base
 snapshots are materialized. A local teacher adapter adds an explicit merge
 requirement because the pinned upstream profile does not consume that adapter
-path directly. The bridge never claims a distributed verl job ran.
+path directly. Materialization requires the exact installed verl pin and emits
+`launch.sh` only after model/tokenizer/data/config checks pass. The bridge never
+claims a distributed verl job ran. See the [materialization contract](scaleout-materialization.md).

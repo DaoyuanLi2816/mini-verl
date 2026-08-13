@@ -34,7 +34,8 @@ FSDP, Megatron, PPO, GRPO and distributed launch are outside the runtime.
 The executable profile pins verl `v0.8.0` at `7aed6b23`: one actor, one teacher,
 `n=1`, GKD `forward_kl_topk`, token-mean and no reward/KL penalty. Unsupported
 algorithm or distributed semantics fail closed. Exports remain unlaunchable
-until exact base snapshots are materialized.
+until exact base snapshots are materialized and checked under the pinned verl
+commit. See [scale-out materialization](scaleout-materialization.md).
 
 ## Measured runtime evidence
 

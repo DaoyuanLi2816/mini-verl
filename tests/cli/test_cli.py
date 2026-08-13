@@ -67,6 +67,7 @@ EXPECTED_COMMANDS = {
     "schema",
     "bridge doctor",
     "bridge compile-opd",
+    "bridge materialize",
     "cache stats",
     "cache validate",
 }

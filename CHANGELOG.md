@@ -22,6 +22,20 @@ All notable changes to miniVERL are recorded here. The format follows
   tiny rollout/teacher-score/selected-position-backward phases, exact cache
   identity, zero optimizer updates and post-release CUDA-memory verification.
 
+### Transactional scale-out materialization
+
+- Added `miniverl bridge materialize` for exact local or downloaded student and
+  teacher snapshots. It rejects moving revisions and unsafe trees, validates
+  model/tokenizer/PEFT/Parquet/top-k inputs under the pinned verl commit, hashes
+  every copied or merged file, and publishes through a rollback-safe staged
+  directory replacement.
+- New pure-OPD exports correctly keep both base-model loadability flags false.
+  `launch.sh` replaces the fail-closed template only after the pinned upstream
+  config merge and bounded sequential model-load smoke pass; distributed
+  execution remains explicitly untested.
+- Teacher-adapter merging requires an explicit flag, never mutates the source
+  base, and records base, adapter, software, output and licensing provenance.
+
 ### Verl config UX
 
 - Added safe trailing Hydra-style overrides and repeatable plain/JSON
