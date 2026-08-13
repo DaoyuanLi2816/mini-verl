@@ -36,7 +36,8 @@
 
     <rect x="342" y="306" width="730" height="84" rx="16" fill="#18213c" stroke="#a78bfa"/>
     <text x="364" y="338" fill="#c4b5fd" font-size="14" font-weight="700">INSPECTABLE OUTPUTS</text>
-    <text x="364" y="369" fill="#f8fafc" font-size="17" font-weight="650">checkpoint · PEFT adapter · teacher targets · trajectories · metrics · provenance</text>
+    <text x="364" y="362" fill="#f8fafc" font-size="16" font-weight="650">checkpoint · PEFT adapter · teacher targets · trajectories</text>
+    <text x="364" y="382" fill="#cbd5e1" font-size="15">metrics · provenance · source and compatibility records</text>
     <path d="M707 390v42" stroke="#67e8f9" stroke-width="3" marker-end="url(#arrow)"/>
 
     <rect x="342" y="440" width="468" height="38" rx="12" fill="#12313a" stroke="#2dd4bf"/>
