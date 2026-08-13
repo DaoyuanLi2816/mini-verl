@@ -139,7 +139,9 @@ OPD update，**peak reserved VRAM 为 3.1758 GiB**，首次 update 在 **12.0224
 | 显存更充足 | 增大各阶段 physical batch | 数据与 optimizer 意图 |
 
 BF16/FP16 自动选择取决于设备能力，而不是 3070、4080、5090 或 Titan 等市场名称。
-`miniverl doctor` 报告实际 CUDA/PyTorch 路径，planner 会把 estimate 与 measurement 分开。
+`miniverl doctor` 报告实际 CUDA/PyTorch 路径；普通 plan 不加载权重，显式
+`plan --probe` 才执行零 optimizer update 的有界 CUDA 测量。详见
+[硬件规划](docs/hardware-planning.md)。
 显存紧张时不会静默更换模型、teacher、context、top-k 或 loss。
 
 ## 数据与产物互操作

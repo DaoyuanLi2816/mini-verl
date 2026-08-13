@@ -16,6 +16,12 @@ All notable changes to miniVERL are recorded here. The format follows
   validation. The plan digest is carried by run manifests, teacher caches and
   checkpoints; direct `run --config` remains supported.
 
+### Bounded hardware probe
+
+- Implemented explicit `plan --probe` calibration with sequential role loading,
+  tiny rollout/teacher-score/selected-position-backward phases, exact cache
+  identity, zero optimizer updates and post-release CUDA-memory verification.
+
 ### Verl config UX
 
 - Added safe trailing Hydra-style overrides and repeatable plain/JSON

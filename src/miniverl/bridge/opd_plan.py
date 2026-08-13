@@ -51,6 +51,7 @@ class ImmutableOPDPlan(BaseModel):
     tokenizers: dict[str, Any]
     loss: dict[str, Any]
     execution_recommendations: dict[str, Any]
+    hardware_probe: dict[str, Any] | None = None
     plan_digest: str
 
 
@@ -213,6 +214,7 @@ def build_immutable_opd_plan(
             "time_to_first_update": system.time_to_first_update,
             "evidence_status": "estimated_or_unknown_not_measured",
         },
+        "hardware_probe": None,
         "plan_digest": "0" * 64,
     }
     digest = _digest_payload(payload)
@@ -287,3 +289,22 @@ def load_and_verify_immutable_opd_plan(path: str | Path) -> tuple[ImmutableOPDPl
 def write_immutable_opd_plan(path: str | Path, plan: ImmutableOPDPlan) -> None:
     """Atomically publish a canonical plan artifact."""
     write_json_atomic(Path(path), plan.model_dump(mode="json"))
+
+
+def attach_hardware_probe(
+    plan: ImmutableOPDPlan, hardware_probe: dict[str, Any]
+) -> ImmutableOPDPlan:
+    """Bind one measured probe to a new immutable plan digest."""
+    payload = plan.model_dump(mode="json")
+    bound_probe = json.loads(json.dumps(hardware_probe))
+    # Cache path/reuse is invocation-local transport metadata. The measured
+    # payload is identical whether freshly measured or loaded from its exact-
+    # identity cache, so the immutable plan must also remain identical.
+    bound_probe.pop("cache", None)
+    payload["hardware_probe"] = bound_probe
+    payload["plan_digest"] = "0" * 64
+    payload["resolved_native_config"]["run"]["execution_plan_digest"] = None
+    digest = _digest_payload(payload)
+    payload["plan_digest"] = digest
+    payload["resolved_native_config"]["run"]["execution_plan_digest"] = digest
+    return ImmutableOPDPlan.model_validate(payload)

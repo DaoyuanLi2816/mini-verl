@@ -35,6 +35,14 @@ bytes without recompiling; the canonical plan digest propagates into the run
 manifest, teacher cache and every checkpoint. Tokenizer structural identity is
 truthfully deferred until tokenizers are loaded by the later bounded probe.
 
+The bounded probe is now implemented and was exercised on the local RTX 4080.
+It loads the exact pinned Qwen pair sequentially, measures tiny actor rollout,
+teacher score and selected-position backward phases, performs zero optimizer
+updates and refuses results that do not release role allocation near baseline.
+Probe caches bind hardware/software, model, tokenizer, quantization, token and
+plan identities; cached and fresh publication of the same measurement produces
+byte-identical immutable plans.
+
 ## v0.8.1 product surface
 
 The landing pages now lead with the documented one-GPU verl-style OPD journey,

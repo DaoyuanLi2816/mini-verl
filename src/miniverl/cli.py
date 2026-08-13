@@ -936,12 +936,17 @@ def plan_command(
     ),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
     offline: bool = typer.Option(False, "--offline", help="Do not access the network."),
-    probe: bool = typer.Option(
-        False, "--probe", help="Load models for a bounded probe (not available in v0.8.0)."
+    probe: bool = typer.Option(False, "--probe", help="Run a bounded no-update CUDA calibration."),
+    probe_cache: Path = typer.Option(
+        Path.home() / ".cache" / "miniverl" / "probes",
+        "--probe-cache",
+        help="Exact-identity hardware probe cache directory.",
+    ),
+    force_probe: bool = typer.Option(
+        False, "--force-probe", help="Ignore a compatible cached probe and measure again."
     ),
 ) -> None:
     """Plan pinned single-GPU verl-style OPD without loading model weights."""
-    del offline
     try:
         from miniverl.bridge.opd_runtime import build_system_plan
         from miniverl.bridge.opd_v08 import (
@@ -953,11 +958,6 @@ def plan_command(
             raise ConfigError(
                 f"unsupported OPD profile {profile!r}", hint=f"use --profile {VERL_OPD_V08_PROFILE}"
             )
-        if probe:
-            raise ConfigError(
-                "--probe is not implemented in v0.8.0",
-                hint="run without --probe for the weight-free estimate",
-            )
         compiled = load_verl_opd_v08_source(
             config,
             override_files=override_files,
@@ -968,14 +968,30 @@ def plan_command(
         plan = build_system_plan(compiled)
         payload = plan.model_dump(mode="json")
         artifact = None
-        if out is not None:
+        if out is not None or probe:
             from miniverl.bridge.opd_plan import (
+                attach_hardware_probe,
                 build_immutable_opd_plan,
                 write_immutable_opd_plan,
             )
 
             artifact = build_immutable_opd_plan(compiled, source=config, system_plan=plan)
-            write_immutable_opd_plan(out, artifact)
+            if probe:
+                _require_training_stack("miniverl plan --probe")
+                from miniverl.bridge.opd_probe import run_hardware_probe
+                from miniverl.config import RunConfig
+
+                native = RunConfig.model_validate(artifact.resolved_native_config)
+                measured = run_hardware_probe(
+                    native,
+                    plan_digest=artifact.plan_digest,
+                    cache_dir=probe_cache,
+                    offline=offline,
+                    force=force_probe,
+                )
+                artifact = attach_hardware_probe(artifact, measured)
+            if out is not None:
+                write_immutable_opd_plan(out, artifact)
             payload = artifact.model_dump(mode="json")
     except MiniVerlError as exc:
         _fail(exc)
