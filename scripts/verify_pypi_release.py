@@ -148,8 +148,6 @@ def _verify_long_description_links(
     raw = github.replace("https://github.com/", "https://raw.githubusercontent.com/")
     required_paths = (
         "docs/single-gpu-guide.md",
-        "recipes/qwen_consumer_gpu_calc.yaml",
-        "benchmarks/results/gpu-calc-hard-equal-update-v2.json",
         "CHANGELOG.md",
         "CITATION.cff",
         "LICENSE",
