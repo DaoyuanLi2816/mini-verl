@@ -4,6 +4,12 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.9.1 development
+
+Development reopened from the exact published v0.9.0 commit. No v0.9.1
+release scope, scientific result or publication is claimed by this state-sync
+change.
+
 ## v0.8.1 development
 
 - [x] Keep the release to product positioning, migration documentation and an
@@ -187,6 +193,24 @@ unauthorized after checkpoint-selection failure**.
       generated-artifact, visual, package and attribution gates before merge.
 
 ## After the tag
+
+- [x] v0.9.0 release run
+      [`31681888075`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31681888075)
+      completed the full release gate, OIDC Trusted Publishing, one public
+      integrity attestation per file, exact public install and GitHub Release
+      creation for commit `bc03d0e6aa5b7646423c460b253ea53070db31de`.
+- [x] PyPI and the
+      [v0.9.0 GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.9.0)
+      expose identical files: wheel SHA-256
+      `cffc46b433170aecad11539f9f512a37d936827e3dc1e123bb359cbde6557bcc`,
+      sdist SHA-256
+      `a08b94b63888e0a9038610c60b94493379fdc265034706d56b016572e11a4bed`.
+- [x] Advance development to `0.9.1.dev0` in this separate state-sync PR.
+- [x] Main dispatch
+      [`31682785478`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31682785478)
+      published v0.9.0 at the stable documentation root after the Pages
+      environment correctly refused direct deployment from the release tag;
+      future tag runs build and inspect docs without requesting deployment.
 
 - [x] v0.8.1 OIDC publication run
       [`31666095069`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31666095069)

@@ -88,7 +88,12 @@ jobs:
 
   deploy:
     name: deploy versioned documentation
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # The Pages environment accepts the default branch, not release tags. Tag
+    # pushes still build and visually inspect the immutable docs above; a main
+    # push or an explicit main dispatch publishes the newest immutable tag.
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      github.event_name == 'workflow_dispatch'
     # The workflow-level group keys on `github.ref`, so a release tag push and the `main` push that accompanies it
     # land in different groups and run at the same time. Both then claim the single `github-pages` environment and
     # one of them fails. Serialize just the deploy job across every ref so the builds still run in parallel.
