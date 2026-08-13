@@ -331,6 +331,7 @@ def summarize_run(run: Path, *, construction_seconds: float) -> dict[str, Any]:
             name: _sha256(checkpoint / name)
             for name in ("adapter.safetensors", "optimizer.safetensors", "state.json")
         },
+        "checkpoint_state": json.loads((checkpoint / "state.json").read_text(encoding="utf-8")),
         "trajectory_sha256": _sha256(run / "trajectories.jsonl"),
     }
 
@@ -338,13 +339,28 @@ def summarize_run(run: Path, *, construction_seconds: float) -> dict[str, Any]:
 def _equivalence(reference: dict[str, Any], resumed: dict[str, Any]) -> dict[str, Any]:
     reference_hashes = reference["checkpoint_hashes"]
     resumed_hashes = resumed["checkpoint_hashes"]
-    checkpoint_match = reference_hashes == resumed_hashes
+    tensor_match = all(
+        reference_hashes[name] == resumed_hashes[name]
+        for name in ("adapter.safetensors", "optimizer.safetensors")
+    )
+    reference_state = reference["checkpoint_state"]
+    resumed_state = resumed["checkpoint_state"]
+    # The resolved config includes the run id, so that identity digest must
+    # differ between separately named reference and resumed runs. Every actual
+    # training-state field still has to match exactly.
+    state_fields_match = all(
+        reference_state[key] == resumed_state[key]
+        for key in reference_state
+        if key != "resolved_config_digest"
+    )
     trajectory_match = reference["trajectory_sha256"] == resumed["trajectory_sha256"]
-    if not checkpoint_match or not trajectory_match:
+    if not tensor_match or not state_fields_match or not trajectory_match:
         raise RuntimeError("uninterrupted and resumed executions did not match exactly")
     return {
         "status": "exact_match",
-        "checkpoint_files_byte_identical": checkpoint_match,
+        "adapter_and_optimizer_byte_identical": tensor_match,
+        "training_state_fields_identical": state_fields_match,
+        "excluded_run_identity_field": "resolved_config_digest",
         "trajectories_byte_identical": trajectory_match,
         "global_optimizer_steps": UPDATES,
         "task_cursor": UPDATES * LOGICAL_BATCH,
@@ -432,7 +448,7 @@ def run_workload(out: Path, result_path: Path, *, offline: bool) -> dict[str, An
         "measurements": {
             key: value
             for key, value in reference.items()
-            if key not in {"checkpoint_hashes", "trajectory_sha256"}
+            if key not in {"checkpoint_hashes", "checkpoint_state", "trajectory_sha256"}
         },
         "resume": {
             "interrupt_after_optimizer_updates": INTERRUPT_AFTER,
