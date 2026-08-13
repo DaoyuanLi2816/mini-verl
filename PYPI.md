@@ -167,8 +167,10 @@ the [exact smoke record and limitations](https://github.com/DaoyuanLi2816/mini-v
 
 Automatic BF16/FP16 selection follows device support; it is not inferred from
 marketing names such as 3070, 4080, 5090 or Titan. `miniverl doctor` reports the
-installed CUDA/PyTorch path, and the planner keeps estimates visibly separate
-from measurements. There is no automatic downgrade to a different model,
+installed CUDA/PyTorch path. Normal planning is weight-free; explicit
+`plan --probe` adds bounded, cached CUDA measurements with zero optimizer
+updates. See [hardware planning](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/hardware-planning.md). There is no
+automatic downgrade to a different model,
 teacher, context, top-k or loss when memory is tight.
 
 ## Data and artifact interoperability

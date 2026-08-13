@@ -26,7 +26,8 @@ verl check before squash merge `8d3ebb2`.
       provenance while preserving the repeatable `--set` interface.
 - [x] Bind execution to an immutable plan artifact and fail closed when its
       config, data, model, tokenizer or compatibility acceptance has drifted.
-- [ ] Add a bounded hardware probe, transactional model materialization and a
+- [x] Add a bounded hardware probe with strict cache identity and no updates.
+- [ ] Add transactional model materialization and a
       realistic one-GPU quickstart without widening the documented algorithm.
 - [ ] Preserve every frozen scientific artifact and keep distributed verl,
       policy-gradient OPD and unsupported objective semantics fail-closed.
@@ -48,6 +49,12 @@ environment-dependent skips. Determinism and tamper tests cover plan bytes,
 source YAML, Parquet files, acceptance, native config, cache identity and
 checkpoint identity. Ruff, mypy, actionlint, strict MkDocs, package/Twine,
 generated-description, link/text and all four Playwright viewports also pass.
+
+The bounded-probe candidate passed 2,203 local non-GPU/non-network tests at
+84.54% branch coverage, 8 RTX 4080 GPU tests and 13 network tests with 2
+environment-dependent skips. A real offline RTX 4080 probe of the pinned Qwen3
+pair completed in 13.63 seconds with zero parameter updates and no checkpoint;
+fresh and exact-cache reuse produced byte-identical plans.
 
 ## v0.8.0 single-GPU verl OPD pivot
 

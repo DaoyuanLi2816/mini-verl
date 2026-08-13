@@ -152,3 +152,24 @@ def test_external_plan_requires_acceptance_before_publication(tmp_path: Path) ->
     assert refused.exit_code == 1
     assert "--accept-local-reinterpretations" in refused.output
     assert not target.exists()
+
+
+def test_probe_cache_transport_metadata_does_not_change_plan_digest(tmp_path: Path) -> None:
+    from miniverl.bridge.opd_plan import attach_hardware_probe, build_immutable_opd_plan
+    from miniverl.bridge.opd_v08 import load_verl_opd_v08_source
+
+    profile, _ = _external_profile(tmp_path)
+    compiled = load_verl_opd_v08_source(profile, accept_local_reinterpretations=True)
+    base = build_immutable_opd_plan(compiled, source=profile)
+    measured = {
+        "status": "measured",
+        "identity": {"plan_digest": base.plan_digest},
+        "identity_digest": "a" * 64,
+        "probe_digest": "b" * 64,
+        "measurements": {"parameter_updates": 0},
+        "recommendations": {},
+        "failed_candidates": [],
+    }
+    fresh = attach_hardware_probe(base, {**measured, "cache": {"reused": False, "path": "one"}})
+    reused = attach_hardware_probe(base, {**measured, "cache": {"reused": True, "path": "two"}})
+    assert fresh == reused
