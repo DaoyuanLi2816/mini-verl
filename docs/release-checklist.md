@@ -6,7 +6,8 @@ after the exact release commit and its remote checks are green.
 
 ## v0.8.1 development
 
-- [ ] Define the focused v0.8.1 scope before changing runtime semantics.
+- [x] Keep the release to product positioning, migration documentation and an
+      explicit vocabulary correction; no algorithm or long GPU workload changed.
 - [ ] Preserve v0.8.0 tags, public artifacts and frozen benchmark bytes.
 - [ ] Complete the full release, compatibility and public-distribution gates.
 

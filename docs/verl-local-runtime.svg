@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 500" role="img" aria-labelledby="title desc">
+  <title id="title">miniVERL local OPD product flow</title>
+  <desc id="desc">verl-shaped configuration and Parquet prompts enter a typed compiler, then one GPU runs actor rollout, teacher scoring, and actor update. Inspectable artifacts can be exported to pinned verl; distributed execution remains outside miniVERL.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#050816"/><stop offset="1" stop-color="#111b38"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#22d3ee"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0l10 5-10 5z" fill="#67e8f9"/></marker>
+  </defs>
+  <rect width="1120" height="500" rx="24" fill="url(#bg)"/>
+  <rect x="1" y="1" width="1118" height="498" rx="23" fill="none" stroke="#475569"/>
+  <g font-family="Inter,DejaVu Sans,Segoe UI,sans-serif">
+    <text x="48" y="54" fill="#f8fafc" font-size="25" font-weight="750">One-GPU OPD, from familiar inputs to portable artifacts</text>
+    <text x="48" y="82" fill="#94a3b8" font-size="16">Every boundary is typed, recorded, and fail-closed.</text>
+
+    <g fill="#0f2740" stroke="#38bdf8">
+      <rect x="48" y="124" width="244" height="124" rx="16"/>
+      <rect x="342" y="124" width="244" height="124" rx="16"/>
+      <rect x="636" y="124" width="436" height="124" rx="16"/>
+    </g>
+    <text x="70" y="158" fill="#67e8f9" font-size="14" font-weight="700">INPUTS</text>
+    <text x="70" y="190" fill="#f8fafc" font-size="18" font-weight="700">verl-shaped YAML</text>
+    <text x="70" y="216" fill="#cbd5e1" font-size="16">overrides · Parquet prompts</text>
+    <text x="364" y="158" fill="#67e8f9" font-size="14" font-weight="700">COMPILER</text>
+    <text x="364" y="190" fill="#f8fafc" font-size="18" font-weight="700">Typed compatibility</text>
+    <text x="364" y="216" fill="#cbd5e1" font-size="16">exact · reinterpreted · rejected</text>
+    <text x="658" y="158" fill="#67e8f9" font-size="14" font-weight="700">LOCAL ROLE SCHEDULER · 1× CUDA GPU</text>
+    <g fill="#172554" stroke="#818cf8">
+      <rect x="658" y="177" width="116" height="48" rx="12"/><rect x="795" y="177" width="116" height="48" rx="12"/><rect x="932" y="177" width="116" height="48" rx="12"/>
+    </g>
+    <text x="716" y="207" text-anchor="middle" fill="#e0e7ff" font-size="15" font-weight="650">actor rollout</text>
+    <text x="853" y="196" text-anchor="middle" fill="#e0e7ff" font-size="15" font-weight="650">teacher</text><text x="853" y="220" text-anchor="middle" fill="#e0e7ff" font-size="15">scoring</text>
+    <text x="990" y="196" text-anchor="middle" fill="#e0e7ff" font-size="15" font-weight="650">actor</text><text x="990" y="220" text-anchor="middle" fill="#e0e7ff" font-size="15">update</text>
+
+    <path d="M292 186h42M586 186h42" stroke="#67e8f9" stroke-width="3" marker-end="url(#arrow)"/>
+    <path d="M716 248v48" stroke="#67e8f9" stroke-width="3" marker-end="url(#arrow)"/>
+
+    <rect x="342" y="306" width="730" height="84" rx="16" fill="#18213c" stroke="#a78bfa"/>
+    <text x="364" y="338" fill="#c4b5fd" font-size="14" font-weight="700">INSPECTABLE OUTPUTS</text>
+    <text x="364" y="362" fill="#f8fafc" font-size="16" font-weight="650">checkpoint · PEFT adapter · teacher targets · trajectories</text>
+    <text x="364" y="382" fill="#cbd5e1" font-size="15">metrics · provenance · source and compatibility records</text>
+    <path d="M707 390v42" stroke="#67e8f9" stroke-width="3" marker-end="url(#arrow)"/>
+
+    <rect x="342" y="440" width="468" height="38" rx="12" fill="#12313a" stroke="#2dd4bf"/>
+    <text x="576" y="465" text-anchor="middle" fill="#ccfbf1" font-size="16" font-weight="700">materialized export bundle → pinned verl v0.8.0</text>
+    <rect x="830" y="432" width="242" height="54" rx="12" fill="#34151b" stroke="#fb7185" stroke-dasharray="7 5"/>
+    <text x="951" y="454" text-anchor="middle" fill="#fecdd3" font-size="14" font-weight="750">OUTSIDE miniVERL</text>
+    <text x="951" y="475" text-anchor="middle" fill="#fff1f2" font-size="15">distributed execution</text>
+  </g>
+</svg>

@@ -401,7 +401,9 @@ def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
     assert "1× CUDA GPU" in banner
     assert "BF16 / FP16 auto" in banner
     assert "typed provenance" in banner
-    assert "Alignment · utility · queries · GPU time" in banner
+    assert "Run verl-style OPD on one consumer GPU" in banner
+    assert "actor rollout · teacher score · actor update" in banner
+    assert "PEFT · Parquet · targets · metrics · provenance" in banner
     assert 'pip install "miniverl[train,cuda]"' not in banner
     assert "the GPU you have" not in banner
     assert "16 GB first" not in banner
@@ -446,15 +448,14 @@ def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_link
     assert "C:\\Users\\" not in committed
     assert "/home/" not in committed
     assert not re.search(r"!?\[[^]]*]\((?!https?://|#|mailto:)[^)]+\)", committed)
-    assert not re.search(r'(?:src|href)="(?!https?://|#|mailto:)[^"]+"', committed)
+    assert not re.search(r'(?:src|srcset|href)="(?!https?://|#|mailto:)[^"]+"', committed)
     assert relative_project_targets(committed) == []
     assert f"https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/{ref}/docs/banner.svg" in (
         committed
     )
     for path in (
         "docs/single-gpu-guide.md",
-        "recipes/qwen_consumer_gpu_calc.yaml",
-        "benchmarks/results/gpu-calc-hard-equal-update-v2.json",
+        "docs/for-verl-users.md",
         "CHANGELOG.md",
         "CITATION.cff",
         "LICENSE",
@@ -462,6 +463,10 @@ def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_link
         "SECURITY.md",
     ):
         assert f"https://github.com/DaoyuanLi2816/mini-verl/blob/{ref}/{path}" in committed
+    for path in ("docs/verl-local-runtime.svg", "docs/verl-local-runtime-mobile.svg"):
+        assert (
+            f"https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/{ref}/{path}" in committed
+        )
 
 
 @pytest.mark.parametrize(

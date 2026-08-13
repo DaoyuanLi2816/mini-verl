@@ -6,6 +6,17 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Product surface
+
+- Reframed the English, Chinese and PyPI landing pages around the bounded
+  single-GPU verl-style OPD workflow, with a responsive architecture diagram,
+  a concise research index and a dedicated migration guide for verl users.
+- Made the packaged Qwen3 profile use familiar upstream-shaped `vllm` engine
+  values while retaining explicit `locally_reinterpreted` classifications for
+  the sequential local-HF runtime.
+- Aligned the banner, package metadata, CLI and citation summary without
+  expanding the supported algorithm or implying distributed execution.
+
 ## [0.8.0] - 2026-08-12
 
 ### Single-GPU verl v0.8 OPD runtime

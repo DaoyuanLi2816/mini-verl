@@ -14,6 +14,18 @@ def test_builtin_plan_is_weight_free_truthful_and_executable() -> None:
     plan = build_system_plan(compiled)
 
     assert plan.executable is True
+    assert compiled.source.actor_rollout_ref.rollout.name == "vllm"
+    assert compiled.source.distillation.teacher_models.teacher_model.inference.name == "vllm"
+    engine_rules = {
+        item.upstream_field: item
+        for item in compiled.compatibility
+        if item.upstream_field.endswith("name")
+    }
+    assert engine_rules["actor_rollout_ref.rollout.name"].classification == "locally_reinterpreted"
+    assert (
+        engine_rules["distillation.teacher_models.teacher_model.inference.name"].classification
+        == "locally_reinterpreted"
+    )
     assert plan.upstream["commit"] == "7aed6b230776f963fa09509c10d9c3a767d1102c"
     assert plan.student["revision"] == "c1899de289a04d12100db370d81485cdf75e47ca"
     assert plan.teacher["revision"] == "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"

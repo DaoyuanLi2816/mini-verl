@@ -31,6 +31,7 @@ from typing import Any
 VIEWPORTS = ((1440, 900), (1024, 768), (820, 1000), (390, 844))
 PAGES = (
     "/",
+    "/for-verl-users/",
     "/alignment-lab/alignment-lab-v1/",
     "/alignment-external/alignment-external-v1/",
     "/consumer-runtime/",
