@@ -232,9 +232,10 @@ def test_root_help_describes_the_current_product_without_promising_v08() -> None
 
     assert result.exit_code == 0
     collapsed = _collapse(result.stdout)
-    assert "single-GPU alignment and distillation runtime" in collapsed
-    assert "bounded verl artifact bridge" in collapsed
-    assert "documented subset of verl-style OPD" not in collapsed
+    assert "documented subset of verl-style OPD on one consumer GPU" in collapsed
+    assert "teacher scoring and actor update locally" in collapsed
+    assert "inspectable PEFT artifacts" in collapsed
+    assert "distributed verl execution" not in collapsed
 
 
 def test_command_set_matches_the_documented_set() -> None:

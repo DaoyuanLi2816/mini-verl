@@ -10,6 +10,16 @@ Canonical release state: stable `v0.8.0` (`657f774ce15ad85052b8a88919f774d700264
 Every public version claim is generated from `release-state.yaml` and gated by
 `python scripts/release_state.py --check`.
 
+## v0.8.1 product surface
+
+The landing pages now lead with the documented one-GPU verl-style OPD journey,
+a responsive compiler/runtime/artifact diagram and a direct migration mapping.
+`docs/for-verl-users.md` explains reusable config/data, local role semantics and
+the scale-out boundary. The packaged Qwen3 profile now carries familiar
+`name: vllm` source values while the generated compatibility matrix continues
+to classify both engines as local-HF reinterpretations. No scientific result,
+algorithm, model revision or distributed claim changed.
+
 ## v0.8.0 single-GPU verl OPD pivot — PR A
 
 Development starts with the config-only profile

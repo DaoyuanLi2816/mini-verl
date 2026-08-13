@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "miniVERL: Auditable single-GPU alignment and distillation runtime"
+title: "miniVERL: A bounded single-GPU runtime for verl-style OPD"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
 version: 0.8.0
@@ -8,7 +8,8 @@ license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
 url: "https://github.com/DaoyuanLi2816/mini-verl"
 abstract: >-
-  miniVERL is a local single-GPU runtime for a documented subset of verl v0.8
+  miniVERL runs a documented subset of verl-style on-policy distillation on one
+  consumer GPU. It is a local single-GPU runtime for a documented subset of verl v0.8
   on-policy distillation. It consumes typed verl-shaped configuration and
   Parquet prompts, executes actor rollout, teacher scoring and actor update in
   one inspectable process, and exports standard PEFT, Parquet and configuration

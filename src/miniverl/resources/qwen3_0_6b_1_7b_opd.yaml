@@ -25,7 +25,9 @@ actor_rollout_ref:
     ppo_max_token_len_per_gpu: 512
     use_dynamic_bsz: true
   rollout:
-    name: local_hf
+    # Upstream-shaped vocabulary. The compatibility report records that
+    # miniVERL executes this with its local HF rollout runtime, not vLLM.
+    name: vllm
     n: 1
     temperature: 0.0
     top_p: 1.0
@@ -45,7 +47,8 @@ distillation:
       model_path: Qwen/Qwen3-1.7B
       num_replicas: 1
       inference:
-        name: local_hf
+        # Likewise compiled into the sequential local teacher-scoring phase.
+        name: vllm
         dtype: bfloat16
         tensor_model_parallel_size: 1
         data_parallel_size: 1

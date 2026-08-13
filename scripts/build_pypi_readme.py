@@ -18,7 +18,7 @@ _LINKED_IMAGE = re.compile(
 )
 _MARKDOWN_LINK = re.compile(r"(!?\[[^\]]*])\(([^)\s]+)([^)]*)\)")
 _ANY_MARKDOWN_TARGET = re.compile(r"]\((?P<target>[^)\s]+)[^)]*\)")
-_HTML_TARGET = re.compile(r'(?P<prefix>\b(?:src|href)=")(?P<target>[^"]+)(?P<suffix>")')
+_HTML_TARGET = re.compile(r'(?P<prefix>\b(?:src|srcset|href)=")(?P<target>[^"]+)(?P<suffix>")')
 _VERSION = re.compile(r'^__version__\s*=\s*"(?P<version>[^"]+)"\s*$', re.MULTILINE)
 
 
@@ -102,7 +102,7 @@ def build_pypi_readme(root: Path, *, version: str | None = None) -> str:
 
     def replace_html(match: re.Match[str]) -> str:
         target = match.group("target")
-        image = match.group("prefix").startswith('src="')
+        image = match.group("prefix").startswith(("src=", "srcset="))
         converted = _project_target(target, ref=ref, image=image)
         return f"{match.group('prefix')}{converted}{match.group('suffix')}"
 

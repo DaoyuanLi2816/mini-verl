@@ -30,9 +30,9 @@ from miniverl.utils.runs import make_run_id
 app = typer.Typer(
     name="miniverl",
     help=(
-        "Auditable single-GPU alignment and distillation runtime.\n\n"
-        "Run native local workflows, inspect every artifact, and exchange standard "
-        "HF/PEFT/Parquet artifacts through a bounded verl artifact bridge."
+        "Run a documented subset of verl-style OPD on one consumer GPU.\n\n"
+        "Compile typed verl-shaped config, reuse Parquet prompts, execute actor rollout, "
+        "teacher scoring and actor update locally, then export inspectable PEFT artifacts."
     ),
     add_completion=False,
     no_args_is_help=True,
@@ -139,7 +139,7 @@ def main(
         envvar="MINIVERL_LOG_LEVEL",
     ),
 ) -> None:
-    """miniVERL: an auditable single-GPU alignment and distillation runtime."""
+    """miniVERL: the bounded local runtime for verl-style OPD on one GPU."""
     from miniverl.utils.logging import configure_logging
 
     configure_logging(log_level)
