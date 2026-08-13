@@ -6,6 +6,18 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Measured developer workload
+
+- Published a checksummed RTX 4080 systems workload over 32 distinct consumed
+  prompts, 64-token responses and eight QLoRA updates. The data-bound figure
+  reports steady-state phase time, labelled throughput and 3.1914 GiB peak
+  reserved VRAM without a task-quality or method-comparison claim.
+- Fixed Parquet resume to reconstruct the saved row/epoch cursor. A real
+  Qwen3 interruption after update four now reproduces uninterrupted
+  trajectories, adapter and optimizer tensors byte for byte; all training
+  state fields match apart from the intentionally run-specific resolved-config
+  digest.
+
 ### Immutable plan/run workflow
 
 - Added deterministic `plan --out plan.json` artifacts that bind the source

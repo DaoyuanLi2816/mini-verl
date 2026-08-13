@@ -1,0 +1,122 @@
+{
+  "artifacts": {
+    "checkpoint_hashes": {
+      "adapter.safetensors": "60e2eced54a3a13d5d66c765b1a9f45d26b2f16bf982fa0011f9316b0cc0433f",
+      "optimizer.safetensors": "0bb7dde497204151b952d1e5866059822334f71150bfe4a5ce46e253cc84f494",
+      "state.json": "180fbfe86f8a76c1bb672a1ccd8d7363089101ee9f3d6576cfc7a09e8c2db49b"
+    },
+    "standard_peft_adapter_sha256": "085b9c1241acaf0a2ab2c6c9081484b77eafbd329d92c7a6181ddfa3709bfe0c",
+    "standard_peft_load_verified": true,
+    "trajectory_sha256": "56f20a5c0addcbd3e9b76a4165d885a86193a84fb43b887199babe2d0008e230",
+    "workload_output_bytes": 130233544
+  },
+  "hardware": {
+    "bitsandbytes": "0.50.0",
+    "cuda_runtime": "13.0",
+    "driver": "596.49",
+    "gpu": "NVIDIA GeForce RTX 4080",
+    "gpu_count": 1,
+    "peft": "0.18.0",
+    "torch": "2.13.0+cu130",
+    "transformers": "5.14.1",
+    "vram_gib": 15.992
+  },
+  "kind": "single_gpu_opd_developer_workload",
+  "measured_at": "2026-08-13T07:15:45Z",
+  "measurements": {
+    "adapter_bytes": 9213148,
+    "batch_downshifts": {
+      "rollout_oom": 0,
+      "update_chunk_oom": 0
+    },
+    "cache_bytes": 90727,
+    "checkpoint_bytes": 27649609,
+    "cold_startup_seconds": 9.3293,
+    "distinct_prompts_consumed": 32,
+    "observed_rollout_physical_batch_sizes": [
+      4
+    ],
+    "peak_allocated_gib": 2.3033,
+    "peak_reserved_gib": 3.1914,
+    "prompts_consumed": 32,
+    "steady_state_median_seconds": {
+      "actor_update": 2.3391,
+      "rollout": 9.8682,
+      "teacher_scoring": 0.4864
+    },
+    "steady_state_median_throughput": {
+      "rollout_tokens_per_second": 25.9419,
+      "teacher_scored_positions_per_second": 526.31,
+      "update_positions_per_second": 109.4438
+    },
+    "time_to_first_rollout_seconds": 19.1611,
+    "time_to_first_teacher_targets_seconds": 19.7555,
+    "time_to_first_update_seconds": 22.2473,
+    "total_run_bytes": 65065202
+  },
+  "miniverl_version": "0.9.0.dev0",
+  "models": {
+    "student": {
+      "adapter": "lora-r8-alpha16",
+      "id": "Qwen/Qwen3-0.6B",
+      "quantization": "nf4",
+      "revision": "c1899de289a04d12100db370d81485cdf75e47ca"
+    },
+    "teacher": {
+      "id": "Qwen/Qwen3-1.7B",
+      "quantization": "nf4",
+      "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    }
+  },
+  "profile": "verl-opd-v0.8-single-gpu-v1",
+  "recipe": {
+    "compiled_plan_sha256": "03b956be9ea9ebde5116ce64bc4ba9dc54e9f55f61a84372fa2ae24abd257d34",
+    "dataset_rows": 64,
+    "distinct_dataset_prompts": 64,
+    "distinct_prompts_consumed": 32,
+    "input_parquet_sha256": "baa99ba8c59d4c30b2e3081346860e7e8b2665dd70fdbcd7952935545a0cd770",
+    "logical_batch": 4,
+    "optimizer_updates": 8,
+    "prompt_limit": 128,
+    "prompts_consumed": 32,
+    "response_limit": 64,
+    "rollout_physical_batch": 4,
+    "runtime_strategy": "dual_model_resident",
+    "teacher_score_batch": 4,
+    "top_k": 32,
+    "update_physical_batch": 1
+  },
+  "resource_contract": {
+    "gpu_hour_limit": 4.0,
+    "peak_reserved_limit_gib": 14.5,
+    "peak_reserved_within_limit": true,
+    "total_gpu_workload_seconds": 243.85
+  },
+  "resume": {
+    "adapter_and_optimizer_byte_identical": true,
+    "excluded_run_identity_field": "resolved_config_digest",
+    "global_optimizer_steps": 8,
+    "interrupt_after_optimizer_updates": 4,
+    "interrupt_checkpoint_bytes": 27649609,
+    "resume_load_seconds": 8.347,
+    "status": "exact_match",
+    "task_cursor": 32,
+    "training_state_fields_identical": true,
+    "trajectories_byte_identical": true
+  },
+  "schema_version": 1,
+  "scientific_scope": {
+    "alignment_quality_evaluated": false,
+    "opd_beats_sft_dpo_or_kd_claimed": false,
+    "runtime_correctness_only": true,
+    "task_quality_evaluated": false
+  },
+  "source_commit": "f61f760af2dd3d88aea52b27176e7cca23ffef2e",
+  "status": "measured",
+  "verl": {
+    "commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+    "distributed_execution_tested": false,
+    "tag": "v0.8.0"
+  },
+  "workload_driver_sha256": "47bdc6e5c08e2791d734909d040488080cdac56efb69f2b0d9b91fd21d47f7e1"
+}

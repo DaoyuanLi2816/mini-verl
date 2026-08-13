@@ -144,17 +144,18 @@ arbitrary launch script.
 
 ## Measured RTX 4080 path
 
-The packaged Qwen3-0.6B/1.7B smoke completed two 16-token rollouts and one OPD
-update on one RTX 4080 with **3.1758 GiB peak reserved VRAM**. The first update
-completed in **12.0224 seconds**, the final adapter was exported as standard
-PEFT/safetensors, and a clean reload passed. The recipe records immutable model
-revisions, phase timings, cache identity, checkpoint bytes and adapter hashes.
+The Qwen3-0.6B/1.7B developer workload consumed **32 distinct prompts**, each
+with a 64-token response bound, and completed **8 current-policy updates** at
+**3.1914 GiB peak reserved VRAM**. Median steady-state rollout, teacher-scoring
+and update times were 9.8682, 0.4864 and 2.3391 seconds. A matched 4-update
+interruption resumed to the same byte-identical trajectories, adapter and
+optimizer tensors. See the [data-bound figure and full record](docs/verl-opd-reference-workload.md);
+the original one-update [pip smoke](docs/opd-quickstart.md) remains preserved.
 
 This is deliberately a runtime and artifact proof. It is not a throughput
 benchmark, an alignment-quality endpoint, or evidence that OPD beats SFT, DPO
 or KD. Other NVIDIA GPUs use the same device-name-agnostic CUDA path, but model
-fit depends on VRAM, context length, quantization and installed kernels. Read
-the [exact smoke record and limitations](docs/opd-quickstart.md).
+fit depends on VRAM, context length, quantization and installed kernels.
 
 ### Choose a path by hardware, not GPU branding
 

@@ -293,6 +293,7 @@ def test_every_published_benchmark_result_validates_against_the_schema():
             "alignment-lab-v1-state-supervision.json",
             "alignment-external-v1.json",
             "rtx4080-verl-opd-runtime-v1.json",
+            "rtx4080-verl-opd-developer-v1.json",
         }
     )
     assert results, "benchmarks/results/ has no published result to validate"

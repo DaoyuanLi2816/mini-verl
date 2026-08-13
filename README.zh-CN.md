@@ -120,14 +120,16 @@ Megatron、多 GPU 与多节点均不支持。已知不支持值会得到机器�
 
 ## RTX 4080 实测路径
 
-打包的 Qwen3-0.6B/1.7B smoke 在一张 RTX 4080 上完成两条 16-token rollout 与一次
-OPD update，**peak reserved VRAM 为 3.1758 GiB**，首次 update 在 **12.0224 秒**完成；
-标准 PEFT/safetensors adapter 导出与干净重载均通过。recipe 同时记录不可变模型 revision、
-阶段计时、cache 身份、checkpoint 字节数与 adapter 哈希。
+Qwen3-0.6B/1.7B developer workload 实际消费 **32 个不同 prompt**，response 上限为
+64 token，完成 **8 次 current-policy update**，**peak reserved VRAM 为 3.1914 GiB**。
+稳态 rollout、teacher scoring 与 update 的中位耗时分别为 9.8682、0.4864 与 2.3391 秒。
+匹配的运行在第 4 次 update 后中断并恢复；最终 trajectory、adapter 与 optimizer tensor
+均字节一致。详见[数据绑定图与完整记录](docs/verl-opd-reference-workload.md)；原始一次更新的
+[pip smoke](docs/opd-quickstart.md)仍完整保留。
 
 这只证明一个运行时与产物路径，不是吞吐 benchmark、对齐质量 endpoint，也不证明 OPD
 优于 SFT、DPO 或 KD。其他 NVIDIA GPU 使用相同的 device-name-agnostic CUDA 路径，但
-能否装下仍取决于显存、上下文、量化与 kernel。见[精确实测记录](docs/opd-quickstart.md)。
+能否装下仍取决于显存、上下文、量化与 kernel。
 
 ### 按硬件条件选择路径，而不是按显卡名称
 

@@ -35,6 +35,7 @@ PAGES = (
     "/config-overrides/",
     "/immutable-plans/",
     "/hardware-planning/",
+    "/verl-opd-reference-workload/",
     "/scaleout-materialization/",
     "/alignment-lab/alignment-lab-v1/",
     "/alignment-external/alignment-external-v1/",

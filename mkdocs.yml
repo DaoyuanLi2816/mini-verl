@@ -44,6 +44,7 @@ nav:
   - Immutable plans: immutable-plans.md
   - Hardware planning: hardware-planning.md
   - Run verl-style OPD: opd-quickstart.md
+  - RTX 4080 developer workload: verl-opd-reference-workload.md
   - Start on one GPU: single-gpu-guide.md
   - Align:
       - "External Alignment Gate v1: early stop": alignment-external/alignment-external-v1.md

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 920" role="img" aria-labelledby="title desc">
+<title id="title">RTX 4080 verl-style OPD developer workload</title>
+<desc id="desc">Mobile layout of measured median phase time and throughput plus peak reserved VRAM for eight QLoRA updates over 32 distinct prompts. Resume matched uninterrupted training artifacts. No task quality was evaluated.</desc>
+<style>
+        text { font-family: Inter, Segoe UI, Arial, sans-serif; }
+        .title { fill:#f8fafc; font-size:20px; font-weight:750; }
+        .subtitle { fill:#a9b8d4; font-size:13px; }
+        .panel-title { fill:#f8fafc; font-size:16px; font-weight:700; }
+        .label { fill:#dbe7fa; font-size:14px; }
+        .value { fill:#ffffff; font-size:14px; font-weight:700; }
+        .note { fill:#a9b8d4; font-size:13px; }
+        .small { fill:#a9b8d4; font-size:12px; }
+        </style>
+<rect width="390" height="920" rx="18" fill="#08111f"/>
+<rect x="14" y="14" width="362" height="892" rx="14" fill="#0f1b2d" stroke="#283b58"/>
+<text x="30" y="48" class="small" text-anchor="start">ONE RTX 4080 · QWEN3 0.6B → 1.7B</text>
+<text x="30" y="78" class="title" text-anchor="start">Single-GPU OPD workload</text>
+<text x="30" y="102" class="subtitle" text-anchor="start">32 prompts · 64 response tokens · 8 updates</text>
+<rect x="26" y="126" width="338" height="260" rx="12" fill="#111f34" stroke="#2b4263"/>
+<text x="42" y="158" class="panel-title" text-anchor="start">Median phase time</text>
+<text x="348" y="158" class="small" text-anchor="end">seconds</text>
+<text x="42" y="204" class="label" text-anchor="start">Actor rollout</text>
+<rect x="154" y="187" width="174" height="20" rx="5" fill="#1b2b44"/>
+<rect x="154" y="187" width="174.00" height="20" rx="5" fill="#56B4E9"/>
+<text x="348" y="204" class="value" text-anchor="end">9.8682</text>
+<text x="42" y="262" class="label" text-anchor="start">Teacher scoring</text>
+<rect x="154" y="245" width="174" height="20" rx="5" fill="#1b2b44"/>
+<rect x="154" y="245" width="8.58" height="20" rx="5" fill="#E69F00"/>
+<text x="348" y="262" class="value" text-anchor="end">0.4864</text>
+<text x="42" y="320" class="label" text-anchor="start">Actor update</text>
+<rect x="154" y="303" width="174" height="20" rx="5" fill="#1b2b44"/>
+<rect x="154" y="303" width="41.24" height="20" rx="5" fill="#009E73"/>
+<text x="348" y="320" class="value" text-anchor="end">2.3391</text>
+<text x="42" y="364" class="note" text-anchor="start">Shared zero baseline</text>
+<rect x="26" y="404" width="338" height="260" rx="12" fill="#111f34" stroke="#2b4263"/>
+<text x="42" y="436" class="panel-title" text-anchor="start">Median throughput</text>
+<text x="348" y="436" class="small" text-anchor="end">items / second</text>
+<text x="42" y="482" class="label" text-anchor="start">Rollout tokens/s</text>
+<rect x="154" y="465" width="174" height="20" rx="5" fill="#1b2b44"/>
+<rect x="154" y="465" width="8.58" height="20" rx="5" fill="#56B4E9"/>
+<text x="348" y="482" class="value" text-anchor="end">25.94</text>
+<text x="42" y="540" class="label" text-anchor="start">Teacher positions/s</text>
+<rect x="154" y="523" width="174" height="20" rx="5" fill="#1b2b44"/>
+<rect x="154" y="523" width="174.00" height="20" rx="5" fill="#E69F00"/>
+<text x="348" y="540" class="value" text-anchor="end">526.31</text>
+<text x="42" y="598" class="label" text-anchor="start">Update positions/s</text>
+<rect x="154" y="581" width="174" height="20" rx="5" fill="#1b2b44"/>
+<rect x="154" y="581" width="36.18" height="20" rx="5" fill="#009E73"/>
+<text x="348" y="598" class="value" text-anchor="end">109.44</text>
+<text x="42" y="642" class="note" text-anchor="start">Tokens and positions labelled separately</text>
+<rect x="26" y="682" width="338" height="194" rx="12" fill="#111f34" stroke="#2b4263"/>
+<text x="42" y="716" class="panel-title" text-anchor="start">Peak reserved VRAM</text>
+<text x="348" y="744" class="value" text-anchor="end">3.1914 / 14.5 GiB gate</text>
+<rect x="42" y="764" width="290" height="22" rx="6" fill="#1b2b44"/>
+<rect x="42" y="764" width="63.83" height="22" rx="6" fill="#CC79A7"/>
+<text x="42" y="818" class="value" text-anchor="start">0 OOM downshifts · exact resume</text>
+<text x="42" y="848" class="note" text-anchor="start">Systems evidence only · no quality endpoint</text>
+</svg>
