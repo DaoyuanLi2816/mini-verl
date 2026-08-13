@@ -8,8 +8,17 @@ after the exact release commit and its remote checks are green.
 
 - [x] Keep the release to product positioning, migration documentation and an
       explicit vocabulary correction; no algorithm or long GPU workload changed.
-- [ ] Preserve v0.8.0 tags, public artifacts and frozen benchmark bytes.
-- [ ] Complete the full release, compatibility and public-distribution gates.
+- [x] Preserve v0.8.0 tags, public artifacts and frozen benchmark bytes; the
+      calculator artifact remains SHA-256 `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
+- [x] Complete the candidate quality, compatibility, package and documentation
+      gates; public-distribution checks run after the immutable v0.8.1 tag.
+
+Product head `ec0ffe9d8b75880487dde0d8ee022d82090c685f` passed 2,178 local
+non-GPU/non-network tests at 85.06% branch coverage, 8 GPU tests on one RTX
+4080, 15 network tests, strict MkDocs and 40 rendered SVG instances across four
+Playwright viewports. PR #65 then passed every required Python 3.10-3.13,
+training dependency, Transformers boundary, wheel-install, browser and pinned
+verl check before squash merge `8d3ebb2`.
 
 ## v0.8.0 single-GPU verl OPD pivot
 
