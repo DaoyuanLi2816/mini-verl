@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "release": "0.8.1",
-  "status": "candidate",
+  "status": "released",
   "quality_floor": "2,000+ tests and 85%+ branch coverage at v0.8.1",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
@@ -27,16 +27,23 @@
     }
   },
   "release_validation": {
-    "scope": "the exact product merge, validated by CI before release metadata",
-    "commit": "8d3ebb269c4d2cea8f51b4e2ce86c81630eb4b8e",
+    "scope": "the exact immutable v0.8.1 release commit",
+    "commit": "77a570721ec587e50f9b927b4c72a6fab8a73ca6",
     "workflows": {
       "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31665123940",
       "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31665123949",
       "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31665123951",
       "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31665123941",
-      "release": "pending tag workflow"
+      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31666095069"
     },
     "conclusion": "success",
-    "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement"
+    "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement",
+    "publication": {
+      "pypi": "https://pypi.org/project/miniverl/0.8.1/",
+      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.8.1",
+      "wheel_sha256": "7c2a58f900cbab71689f7b229a46b5710b4aa2cbabc42af7526e2da04d9ba93e",
+      "sdist_sha256": "f4bf486b2427d1f37edc7b0afe0c4a4f17ad9da7fbd221b010d4c7d792698789",
+      "recovery_note": "OIDC publication succeeded; the tag workflow's final verifier retained two links intentionally removed from the product README, so the identical verified distributions were attached to the GitHub Release manually."
+    }
   }
 }

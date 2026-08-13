@@ -20,6 +20,17 @@ Playwright viewports. PR #65 then passed every required Python 3.10-3.13,
 training dependency, Transformers boundary, wheel-install, browser and pinned
 verl check before squash merge `8d3ebb2`.
 
+## v0.9.0 productization
+
+- [ ] Add upstream-shaped override UX with complete source and precedence
+      provenance while preserving the repeatable `--set` interface.
+- [ ] Bind execution to an immutable plan artifact and fail closed when its
+      config, data, model, tokenizer or compatibility acceptance has drifted.
+- [ ] Add a bounded hardware probe, transactional model materialization and a
+      realistic one-GPU quickstart without widening the documented algorithm.
+- [ ] Preserve every frozen scientific artifact and keep distributed verl,
+      policy-gradient OPD and unsupported objective semantics fail-closed.
+
 ## v0.8.0 single-GPU verl OPD pivot
 
 - [x] Implement and validate the documented `verl-opd-v0.8-single-gpu-v1`
@@ -132,6 +143,23 @@ unauthorized after checkpoint-selection failure**.
       generated-artifact, visual, package and attribution gates before merge.
 
 ## After the tag
+
+- [x] v0.8.1 OIDC publication run
+      [`31666095069`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31666095069)
+      uploaded both exact distributions and exposed one PyPI integrity
+      attestation per file. Its final verifier correctly checked hashes and
+      attestations but then failed on two historical README links that the
+      product-surface change had intentionally removed.
+- [x] Independently download and byte-compare the workflow artifacts and both
+      public PyPI files, verify a clean public core install and attach those
+      same files to the
+      [v0.8.1 GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.8.1).
+      Wheel SHA-256 is
+      `7c2a58f900cbab71689f7b229a46b5710b4aa2cbabc42af7526e2da04d9ba93e`;
+      sdist SHA-256 is
+      `f4bf486b2427d1f37edc7b0afe0c4a4f17ad9da7fbd221b010d4c7d792698789`.
+- [x] Advance development to `0.9.0.dev0` in this separate state-sync PR and
+      remove the verifier's stale dependency on historical research links.
 
 - [x] Verify the exact v0.8.0 merge-commit release workflow, OIDC publication,
       PyPI attestations, public clean install and GitHub Release.

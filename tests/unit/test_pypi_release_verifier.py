@@ -131,8 +131,6 @@ def test_long_description_requires_tag_pinned_links_on_the_rendered_page(monkeyp
     tag = "v0.2.4"
     paths = (
         "docs/single-gpu-guide.md",
-        "recipes/qwen_consumer_gpu_calc.yaml",
-        "benchmarks/results/gpu-calc-hard-equal-update-v2.json",
         "CHANGELOG.md",
         "CITATION.cff",
         "LICENSE",
@@ -174,8 +172,6 @@ def test_long_description_retries_a_pypi_client_challenge(monkeypatch) -> None:
     tag = "v0.2.4"
     paths = (
         "docs/single-gpu-guide.md",
-        "recipes/qwen_consumer_gpu_calc.yaml",
-        "benchmarks/results/gpu-calc-hard-equal-update-v2.json",
         "CHANGELOG.md",
         "CITATION.cff",
         "LICENSE",
@@ -217,8 +213,6 @@ def test_long_description_can_defer_a_client_challenge_to_browser_inspection(
     tag = "v0.2.4"
     paths = (
         "docs/single-gpu-guide.md",
-        "recipes/qwen_consumer_gpu_calc.yaml",
-        "benchmarks/results/gpu-calc-hard-equal-update-v2.json",
         "CHANGELOG.md",
         "CITATION.cff",
         "LICENSE",

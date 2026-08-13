@@ -6,6 +6,14 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Made the PyPI release verifier require the durable product, project and
+  policy links that the long description actually promises, instead of two
+  historical research links intentionally removed from the v0.8.1 landing
+  page. Every remaining repository link must still be release-pinned and
+  reachable.
+
 ## [0.8.1] - 2026-08-12
 
 ### Product surface

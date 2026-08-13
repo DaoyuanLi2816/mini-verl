@@ -6,9 +6,16 @@ and what it printed.
 
 Last updated: 2026-08-12.
 
-Canonical release state: releasing `v0.8.1`.
+Canonical release state: stable `v0.8.1` (`77a570721ec587e50f9b927b4c72a6fab8a73ca6`), development `0.9.0.dev0`.
 Every public version claim is generated from `release-state.yaml` and gated by
 `python scripts/release_state.py --check`.
+
+## v0.9.0 productization
+
+Development is now focused on making the bounded single-GPU verl-style OPD
+path easier to configure, inspect, reproduce and materialize. The v0.8.1
+release remains the stable product surface; no frozen research result is being
+reinterpreted as v0.9 evidence.
 
 ## v0.8.1 product surface
 
