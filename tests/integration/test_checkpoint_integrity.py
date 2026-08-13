@@ -63,6 +63,17 @@ def test_latest_checkpoint_prefers_final_when_it_is_the_highest_step(tmp_path: P
     assert latest_checkpoint(root) == root / "final"
 
 
+def test_empty_execution_plan_identity_preserves_legacy_checkpoint_shape(tmp_path: Path) -> None:
+    from miniverl.training.checkpoint import validate_checkpoint
+
+    checkpoint = _write_checkpoint(tmp_path / "legacy-compatible", step=2)
+    state = (checkpoint / "state.json").read_text(encoding="utf-8")
+    manifest = (checkpoint / "checkpoint.json").read_text(encoding="utf-8")
+    assert "execution_plan_digest" not in state
+    assert "execution_plan_digest" not in manifest
+    assert validate_checkpoint(checkpoint).state.execution_plan_digest == ""
+
+
 def test_latest_checkpoint_uses_state_step_instead_of_lexicographic_name(
     tmp_path: Path,
 ) -> None:

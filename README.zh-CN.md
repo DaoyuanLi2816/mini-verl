@@ -35,10 +35,9 @@ python -m pip install "miniverl[train]"
 miniverl data sample --format verl-parquet --out prompts.parquet
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
   --config builtin:qwen3-0.6b-1.7b-opd \
-  --set 'data.train_files=["prompts.parquet"]'
+  --set 'data.train_files=["prompts.parquet"]' --out plan.json
 miniverl run --profile verl-opd-v0.8-single-gpu-v1 \
-  --config builtin:qwen3-0.6b-1.7b-opd \
-  --set 'data.train_files=["prompts.parquet"]' --dry-run
+  --plan plan.json --dry-run
 ```
 
 这些命令不需要 Git checkout。`data sample` 生成真实的结构化 Parquet；`plan` 在不加载
@@ -165,9 +164,10 @@ snapshot materialize 之前仍报告 `launchable: false`。产物完整性、上
 launchability、算法语义与 distributed execution 分开报告。bridge doctor 通过并不表示运行过
 分布式 verl。详见[桥接契约](docs/verl-bridge.md)与[兼容性政策](docs/compatibility.md)。
 
-建议操作闭环是 **plan → inspect → run → inspect → export**。JSON plan 与兼容报告在分配
-权重前明确模型 pin、数据路径、loss、physical batch、不支持字段、显存 estimate 与所有本地
-重解释；run artifact 只在其上补充 measurement 与 hash，不会改写源意图。
+建议操作闭环是 **plan → inspect → run → inspect → export**。`plan --out` 把 YAML、按顺序
+应用的 override、扫描后的 Parquet 与精确 native config 绑定；`run --plan` 在加载权重前拒绝
+任何漂移。plan digest 同时进入 run manifest、teacher cache 和 checkpoint；直接
+`run --config` 仍适合快速实验。详见[不可变执行计划](docs/immutable-plans.md)。
 
 ## 研究与验证
 

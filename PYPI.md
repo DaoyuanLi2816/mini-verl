@@ -38,10 +38,9 @@ python -m pip install "miniverl[train]"
 miniverl data sample --format verl-parquet --out prompts.parquet
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
   --config builtin:qwen3-0.6b-1.7b-opd \
-  --set 'data.train_files=["prompts.parquet"]'
+  --set 'data.train_files=["prompts.parquet"]' --out plan.json
 miniverl run --profile verl-opd-v0.8-single-gpu-v1 \
-  --config builtin:qwen3-0.6b-1.7b-opd \
-  --set 'data.train_files=["prompts.parquet"]' --dry-run
+  --plan plan.json --dry-run
 ```
 
 These commands need no Git checkout. `data sample` creates a real structured
@@ -199,12 +198,11 @@ successful bridge check never means that a distributed verl job ran. Review
 the [bridge contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-bridge.md) and [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md).
 
 The intended operating loop is **plan → inspect → run → inspect → export**.
-Direct execution remains convenient for experiments, but the JSON plan and
-compatibility report are the durable review surfaces: they expose model pins,
-data paths, loss details, physical batches, unsupported fields, estimated
-memory and every local reinterpretation before weights are allocated. Run
-artifacts then add measurements and hashes without rewriting the original
-source intent.
+`plan --out` byte-binds the YAML, ordered overrides and scanned Parquet inputs
+to the exact native config; `run --plan` rejects drift before loading weights.
+Its digest follows the run manifest, teacher cache and checkpoints. Direct
+`run --config` remains available for experiments. See [immutable execution
+plans](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/immutable-plans.md).
 
 ## Research and validation
 

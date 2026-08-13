@@ -33,6 +33,7 @@ PAGES = (
     "/",
     "/for-verl-users/",
     "/config-overrides/",
+    "/immutable-plans/",
     "/alignment-lab/alignment-lab-v1/",
     "/alignment-external/alignment-external-v1/",
     "/consumer-runtime/",

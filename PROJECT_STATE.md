@@ -27,6 +27,14 @@ fails closed if one of those values drifts. A generated report classifies all
 semantically conformant, 22 locally reinterpreted, 18 informational and 3
 unsupported. No algorithm or distributed boundary widened.
 
+The second slice adds deterministic immutable OPD plans. `plan --out` hashes
+the source config and every Parquet file, scans schema/content/row identity,
+requires immutable model commits and seals the accepted compatibility result,
+native config and weight-free recommendations. `run --plan` revalidates those
+bytes without recompiling; the canonical plan digest propagates into the run
+manifest, teacher cache and every checkpoint. Tokenizer structural identity is
+truthfully deferred until tokenizers are loaded by the later bounded probe.
+
 ## v0.8.1 product surface
 
 The landing pages now lead with the documented one-GPU verl-style OPD journey,

@@ -6,6 +6,16 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Immutable plan/run workflow
+
+- Added deterministic `plan --out plan.json` artifacts that bind the source
+  YAML, ordered overrides, accepted compatibility matrix, immutable model
+  revisions, scanned Parquet hashes/schema/rows, exact native config and
+  weight-free physical recommendations.
+- Added `run --plan` with fail-closed plan, source, data and minor-version
+  validation. The plan digest is carried by run manifests, teacher caches and
+  checkpoints; direct `run --config` remains supported.
+
 ### Verl config UX
 
 - Added safe trailing Hydra-style overrides and repeatable plain/JSON

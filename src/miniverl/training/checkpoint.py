@@ -63,12 +63,13 @@ class CheckpointState:
     rng: dict[str, Any] = field(default_factory=dict)
     config_digest: str = ""
     resolved_config_digest: str = ""
+    execution_plan_digest: str = ""
     offline_dataset_digest: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-friendly view."""
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "miniverl_version": self.miniverl_version,
             "global_step": self.global_step,
@@ -97,6 +98,9 @@ class CheckpointState:
             "offline_dataset_digest": self.offline_dataset_digest,
             "metrics": self.metrics,
         }
+        if self.execution_plan_digest:
+            payload["execution_plan_digest"] = self.execution_plan_digest
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> CheckpointState:
@@ -316,6 +320,8 @@ def save_checkpoint(
                 identity=checkpoint_identity,
             ),
         }
+        if state.execution_plan_digest:
+            manifest["execution_plan_digest"] = state.execution_plan_digest
         try:
             manifest_json = json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False) + "\n"
         except (OverflowError, RecursionError, TypeError, ValueError) as exc:
