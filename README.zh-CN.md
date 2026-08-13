@@ -122,10 +122,12 @@ Megatron、多 GPU 与多节点均不支持。已知不支持值会得到机器�
 
 Qwen3-0.6B/1.7B developer workload 实际消费 **32 个不同 prompt**，response 上限为
 64 token，完成 **8 次 current-policy update**，**peak reserved VRAM 为 3.1914 GiB**。
-稳态 rollout、teacher scoring 与 update 的中位耗时分别为 9.8682、0.4864 与 2.3391 秒。
+稳态 rollout、teacher scoring 与 update 的中位耗时分别为 9.7200、0.4864 与 2.3260 秒。
 匹配的运行在第 4 次 update 后中断并恢复；最终 trajectory、adapter 与 optimizer tensor
 均字节一致。详见[数据绑定图与完整记录](docs/verl-opd-reference-workload.md)；原始一次更新的
 [pip smoke](docs/opd-quickstart.md)仍完整保留。
+另一个固定版本的 SmolLM2-360M/1.7B 兼容性 smoke 完成了一次完整的
+rollout/scoring/update 循环；它不是第二套完整实测 recipe。
 
 这只证明一个运行时与产物路径，不是吞吐 benchmark、对齐质量 endpoint，也不证明 OPD
 优于 SFT、DPO 或 KD。其他 NVIDIA GPU 使用相同的 device-name-agnostic CUDA 路径，但

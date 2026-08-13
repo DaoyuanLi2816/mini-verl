@@ -54,6 +54,12 @@ adapter, software and output provenance. `launchable: true` means only that the
 pinned upstream entry point has complete local inputs; distributed execution
 remains `false` and algorithm parity remains unclaimed.
 
+A second-family compatibility smoke used pinned Apache-2.0 SmolLM2-360M and
+SmolLM2-1.7B snapshots. Structural tokenizer identity matched; one strict
+forward-top-k rollout, teacher-score, update and PEFT reload completed on the
+RTX 4080 at 1.416 GiB peak reserved VRAM. This is a tiny compatibility check,
+not a second supported recipe or task-quality result.
+
 ## v0.8.1 product surface
 
 The landing pages now lead with the documented one-GPU verl-style OPD journey,

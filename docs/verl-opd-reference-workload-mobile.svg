@@ -22,31 +22,31 @@
 <text x="42" y="204" class="label" text-anchor="start">Actor rollout</text>
 <rect x="154" y="187" width="174" height="20" rx="5" fill="#1b2b44"/>
 <rect x="154" y="187" width="174.00" height="20" rx="5" fill="#56B4E9"/>
-<text x="348" y="204" class="value" text-anchor="end">9.8682</text>
+<text x="348" y="204" class="value" text-anchor="end">9.7200</text>
 <text x="42" y="262" class="label" text-anchor="start">Teacher scoring</text>
 <rect x="154" y="245" width="174" height="20" rx="5" fill="#1b2b44"/>
-<rect x="154" y="245" width="8.58" height="20" rx="5" fill="#E69F00"/>
+<rect x="154" y="245" width="8.71" height="20" rx="5" fill="#E69F00"/>
 <text x="348" y="262" class="value" text-anchor="end">0.4864</text>
 <text x="42" y="320" class="label" text-anchor="start">Actor update</text>
 <rect x="154" y="303" width="174" height="20" rx="5" fill="#1b2b44"/>
-<rect x="154" y="303" width="41.24" height="20" rx="5" fill="#009E73"/>
-<text x="348" y="320" class="value" text-anchor="end">2.3391</text>
+<rect x="154" y="303" width="41.64" height="20" rx="5" fill="#009E73"/>
+<text x="348" y="320" class="value" text-anchor="end">2.3260</text>
 <text x="42" y="364" class="note" text-anchor="start">Shared zero baseline</text>
 <rect x="26" y="404" width="338" height="260" rx="12" fill="#111f34" stroke="#2b4263"/>
 <text x="42" y="436" class="panel-title" text-anchor="start">Median throughput</text>
 <text x="348" y="436" class="small" text-anchor="end">items / second</text>
 <text x="42" y="482" class="label" text-anchor="start">Rollout tokens/s</text>
 <rect x="154" y="465" width="174" height="20" rx="5" fill="#1b2b44"/>
-<rect x="154" y="465" width="8.58" height="20" rx="5" fill="#56B4E9"/>
-<text x="348" y="482" class="value" text-anchor="end">25.94</text>
+<rect x="154" y="465" width="8.71" height="20" rx="5" fill="#56B4E9"/>
+<text x="348" y="482" class="value" text-anchor="end">26.34</text>
 <text x="42" y="540" class="label" text-anchor="start">Teacher positions/s</text>
 <rect x="154" y="523" width="174" height="20" rx="5" fill="#1b2b44"/>
 <rect x="154" y="523" width="174.00" height="20" rx="5" fill="#E69F00"/>
-<text x="348" y="540" class="value" text-anchor="end">526.31</text>
+<text x="348" y="540" class="value" text-anchor="end">526.32</text>
 <text x="42" y="598" class="label" text-anchor="start">Update positions/s</text>
 <rect x="154" y="581" width="174" height="20" rx="5" fill="#1b2b44"/>
-<rect x="154" y="581" width="36.18" height="20" rx="5" fill="#009E73"/>
-<text x="348" y="598" class="value" text-anchor="end">109.44</text>
+<rect x="154" y="581" width="36.39" height="20" rx="5" fill="#009E73"/>
+<text x="348" y="598" class="value" text-anchor="end">110.06</text>
 <text x="42" y="642" class="note" text-anchor="start">Tokens and positions labelled separately</text>
 <rect x="26" y="682" width="338" height="194" rx="12" fill="#111f34" stroke="#2b4263"/>
 <text x="42" y="716" class="panel-title" text-anchor="start">Peak reserved VRAM</text>

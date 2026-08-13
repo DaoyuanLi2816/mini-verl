@@ -3,12 +3,12 @@
     "checkpoint_hashes": {
       "adapter.safetensors": "60e2eced54a3a13d5d66c765b1a9f45d26b2f16bf982fa0011f9316b0cc0433f",
       "optimizer.safetensors": "0bb7dde497204151b952d1e5866059822334f71150bfe4a5ce46e253cc84f494",
-      "state.json": "180fbfe86f8a76c1bb672a1ccd8d7363089101ee9f3d6576cfc7a09e8c2db49b"
+      "state.json": "e92abdf28f18f07c2ebb7c49a712b806c9462ad422bfeb99fb4cce037a248962"
     },
     "standard_peft_adapter_sha256": "085b9c1241acaf0a2ab2c6c9081484b77eafbd329d92c7a6181ddfa3709bfe0c",
     "standard_peft_load_verified": true,
-    "trajectory_sha256": "56f20a5c0addcbd3e9b76a4165d885a86193a84fb43b887199babe2d0008e230",
-    "workload_output_bytes": 130233544
+    "trajectory_sha256": "f0d7e256e977508d698c4db506f1c37f42188b91b27c372bce1dad8bcf6d54d0",
+    "workload_output_bytes": 130233537
   },
   "hardware": {
     "bitsandbytes": "0.50.0",
@@ -22,7 +22,7 @@
     "vram_gib": 15.992
   },
   "kind": "single_gpu_opd_developer_workload",
-  "measured_at": "2026-08-13T07:15:45Z",
+  "measured_at": "2026-08-13T07:31:03Z",
   "measurements": {
     "adapter_bytes": 9213148,
     "batch_downshifts": {
@@ -31,7 +31,7 @@
     },
     "cache_bytes": 90727,
     "checkpoint_bytes": 27649609,
-    "cold_startup_seconds": 9.3293,
+    "cold_startup_seconds": 9.0802,
     "distinct_prompts_consumed": 32,
     "observed_rollout_physical_batch_sizes": [
       4
@@ -40,19 +40,19 @@
     "peak_reserved_gib": 3.1914,
     "prompts_consumed": 32,
     "steady_state_median_seconds": {
-      "actor_update": 2.3391,
-      "rollout": 9.8682,
+      "actor_update": 2.326,
+      "rollout": 9.72,
       "teacher_scoring": 0.4864
     },
     "steady_state_median_throughput": {
-      "rollout_tokens_per_second": 25.9419,
-      "teacher_scored_positions_per_second": 526.31,
-      "update_positions_per_second": 109.4438
+      "rollout_tokens_per_second": 26.3374,
+      "teacher_scored_positions_per_second": 526.32,
+      "update_positions_per_second": 110.0602
     },
-    "time_to_first_rollout_seconds": 19.1611,
-    "time_to_first_teacher_targets_seconds": 19.7555,
-    "time_to_first_update_seconds": 22.2473,
-    "total_run_bytes": 65065202
+    "time_to_first_rollout_seconds": 19.0015,
+    "time_to_first_teacher_targets_seconds": 19.5584,
+    "time_to_first_update_seconds": 22.0412,
+    "total_run_bytes": 65065194
   },
   "miniverl_version": "0.9.0.dev0",
   "models": {
@@ -70,7 +70,7 @@
   },
   "profile": "verl-opd-v0.8-single-gpu-v1",
   "recipe": {
-    "compiled_plan_sha256": "03b956be9ea9ebde5116ce64bc4ba9dc54e9f55f61a84372fa2ae24abd257d34",
+    "compiled_plan_sha256": "9b2b0b522585e5a88603f83f3ce714080a1560d92940d9d5dd661fe586dc1a5b",
     "dataset_rows": 64,
     "distinct_dataset_prompts": 64,
     "distinct_prompts_consumed": 32,
@@ -90,7 +90,7 @@
     "gpu_hour_limit": 4.0,
     "peak_reserved_limit_gib": 14.5,
     "peak_reserved_within_limit": true,
-    "total_gpu_workload_seconds": 243.85
+    "total_gpu_workload_seconds": 235.49
   },
   "resume": {
     "adapter_and_optimizer_byte_identical": true,
@@ -98,7 +98,7 @@
     "global_optimizer_steps": 8,
     "interrupt_after_optimizer_updates": 4,
     "interrupt_checkpoint_bytes": 27649609,
-    "resume_load_seconds": 8.347,
+    "resume_load_seconds": 8.2339,
     "status": "exact_match",
     "task_cursor": 32,
     "training_state_fields_identical": true,
@@ -111,12 +111,12 @@
     "runtime_correctness_only": true,
     "task_quality_evaluated": false
   },
-  "source_commit": "f61f760af2dd3d88aea52b27176e7cca23ffef2e",
+  "source_commit": "2819f7290ffb0c14a0ff5d13509a0fec29c8100d",
   "status": "measured",
   "verl": {
     "commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
     "distributed_execution_tested": false,
     "tag": "v0.8.0"
   },
-  "workload_driver_sha256": "47bdc6e5c08e2791d734909d040488080cdac56efb69f2b0d9b91fd21d47f7e1"
+  "workload_driver_sha256": "00356532e8d1ea6a488340bffc42acf59300e9c130d483866645233e5cc823af"
 }

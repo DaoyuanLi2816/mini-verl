@@ -147,10 +147,12 @@ arbitrary launch script.
 The Qwen3-0.6B/1.7B developer workload consumed **32 distinct prompts**, each
 with a 64-token response bound, and completed **8 current-policy updates** at
 **3.1914 GiB peak reserved VRAM**. Median steady-state rollout, teacher-scoring
-and update times were 9.8682, 0.4864 and 2.3391 seconds. A matched 4-update
+and update times were 9.7200, 0.4864 and 2.3260 seconds. A matched 4-update
 interruption resumed to the same byte-identical trajectories, adapter and
 optimizer tensors. See the [data-bound figure and full record](docs/verl-opd-reference-workload.md);
 the original one-update [pip smoke](docs/opd-quickstart.md) remains preserved.
+A separate pinned SmolLM2-360M/1.7B compatibility smoke completed one full
+rollout/scoring/update cycle; it is not a second measured recipe.
 
 This is deliberately a runtime and artifact proof. It is not a throughput
 benchmark, an alignment-quality endpoint, or evidence that OPD beats SFT, DPO

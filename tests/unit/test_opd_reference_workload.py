@@ -50,7 +50,7 @@ def test_resume_equivalence_excludes_only_the_run_specific_resolved_digest() -> 
 def test_measured_reference_workload_is_scoped_complete_and_frozen() -> None:
     path = Path("benchmarks/results/rtx4080-verl-opd-developer-v1.json")
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
-        "0684485de9050214029fa978d5cd6fbb1b15659803f1964648dd8ebc3dbbeb3c"
+        "d13153734c20a084171763820a961a2c08511ded99854a28f1f5f169a843acf2"
     )
     payload = json.loads(path.read_text(encoding="utf-8"))
 
@@ -92,3 +92,22 @@ def test_reference_workload_figure_is_exactly_generated() -> None:
     assert "No task quality was evaluated" in actual_mobile
     assert "0 OOM downshifts" in actual
     assert "<title" in actual and "<desc" in actual
+
+
+def test_second_family_smoke_is_compatibility_only_and_frozen() -> None:
+    path = Path("benchmarks/results/rtx4080-smollm2-opd-family-smoke-v1.json")
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "a6b7421de81af1afa0dd2a8350a0a66e649358cfc6c19da5a0993e625280685e"
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["tokenizer_identity"]["student_teacher_match"] is True
+    assert payload["workload"]["optimizer_updates"] == 1
+    assert payload["artifacts"]["peft_load_verified"] is True
+    assert payload["scope"]["rollout_completed"] is True
+    assert payload["scope"]["teacher_scoring_completed"] is True
+    assert payload["scope"]["optimizer_update_completed"] is True
+    assert payload["scope"]["task_quality_evaluated"] is False
+    assert payload["scope"]["alignment_quality_evaluated"] is False
+    assert payload["scope"]["full_recipe_supported"] is False
+    assert payload["runtime"]["distributed_execution_tested"] is False
