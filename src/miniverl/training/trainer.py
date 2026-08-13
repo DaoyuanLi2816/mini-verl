@@ -1133,13 +1133,17 @@ class OPDTrainer:
             output: list[Any] = []
             while len(output) < count:
                 if self._prompt_train_iterator is None:
+                    rows_per_epoch = int(self.prompt_dataset_manifest.rows["train"])
+                    self._prompt_train_epoch = self.task_cursor // rows_per_epoch
+                    row_offset = self.task_cursor % rows_per_epoch
                     self._prompt_train_iterator = iter(
                         self.prompt_dataset.iter_split("train", epoch=self._prompt_train_epoch)
                     )
+                    for _ in range(row_offset):
+                        next(self._prompt_train_iterator)
                 try:
                     record = next(self._prompt_train_iterator)
                 except StopIteration:
-                    self._prompt_train_epoch += 1
                     self._prompt_train_iterator = None
                     continue
                 output.append(render_prompt(record, self.tokenizer, self.config.source))
