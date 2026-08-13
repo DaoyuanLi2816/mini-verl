@@ -6,6 +6,8 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-12
+
 ### Product surface
 
 - Reframed the English, Chinese and PyPI landing pages around the bounded
@@ -858,7 +860,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.1...v0.8.0
 [0.7.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.6.3...v0.7.0
