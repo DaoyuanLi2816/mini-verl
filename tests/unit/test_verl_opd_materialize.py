@@ -311,6 +311,14 @@ def test_snapshot_symlink_is_rejected_before_publication(tmp_path: Path) -> None
         link.symlink_to(target)
     except OSError:
         pytest.skip("this Windows account cannot create symlinks")
+    manifest_path = student / "miniverl-snapshot.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["files"] = {
+        path.relative_to(student).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in student.iterdir()
+        if path.is_file() and path != manifest_path
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ConfigError, match=r"symlink|reparse"):
         materialize_verl_bundle(
