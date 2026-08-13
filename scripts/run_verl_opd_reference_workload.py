@@ -388,7 +388,7 @@ def run_workload(out: Path, result_path: Path, *, offline: bool) -> dict[str, An
     import torch
 
     properties = torch.cuda.get_device_properties(torch.cuda.current_device())
-    artifact = {
+    artifact: dict[str, Any] = {
         "schema_version": 1,
         "kind": "single_gpu_opd_developer_workload",
         "status": "measured",

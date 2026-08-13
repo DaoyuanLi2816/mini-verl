@@ -1130,6 +1130,7 @@ class OPDTrainer:
             from miniverl.data.verl_parquet import render_prompt
 
             assert isinstance(self.config.source, VerlParquetSourceConfig)
+            assert self.prompt_dataset_manifest is not None
             output: list[Any] = []
             while len(output) < count:
                 if self._prompt_train_iterator is None:
