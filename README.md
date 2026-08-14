@@ -190,6 +190,16 @@ updates. See [hardware planning](docs/hardware-planning.md). There is no
 automatic downgrade to a different model,
 teacher, context, top-k or loss when memory is tight.
 
+Share a sanitized result without uploading it automatically:
+
+```bash
+miniverl hardware record --run runs/my-opd --out hardware-record.json
+miniverl hardware validate hardware-record.json
+```
+
+Community records remain unreviewed until their hashes and provenance pass the
+[documented maintainer gate](docs/community-benchmarks.md).
+
 ## Data and artifact interoperability
 
 The profile consumes structured verl-style Parquet without substituting a toy

@@ -8,18 +8,18 @@ body:
         Thank you. Measured numbers from hardware we do not own are the most
         useful contribution this project can receive.
 
-        Produce a submission file first:
+        Produce and validate a private-by-default hardware record first:
 
         ```bash
-        miniverl train <recipe>
-        miniverl export-benchmark runs/<run-id> --out my-result.json
+        miniverl hardware record --run runs/<run-id> --out hardware-record.json
+        miniverl hardware validate hardware-record.json
         ```
 
-        `export-benchmark` strips absolute paths and keeps only the GPU model,
-        VRAM, OS family and library versions. Validate it against
-        `benchmarks/schema/benchmark-result.schema.json`, compute its SHA-256,
-        and read it before posting. Never include tokens, private paths or
-        proprietary data.
+        The record binds profile, plan, models, quantization, token bounds,
+        batches, updates, memory, timing and retained artifact hashes. The
+        command never uploads. Read the JSON before posting and never include
+        tokens, private paths or proprietary data. Schema-valid community
+        records remain unreviewed until a maintainer validates their evidence.
 
   - type: input
     id: hardware
@@ -40,7 +40,7 @@ body:
   - type: textarea
     id: result
     attributes:
-      label: Contents of the exported result JSON
+      label: Contents of the validated hardware-record JSON
       render: json
     validations:
       required: true
@@ -58,7 +58,7 @@ body:
   - type: input
     id: artifact_hash
     attributes:
-      label: Exported JSON SHA-256
+      label: Hardware-record JSON SHA-256
       description: Hash the exact JSON attached to this submission.
       placeholder: "64 lowercase hexadecimal characters"
     validations:
@@ -81,9 +81,11 @@ body:
           required: true
         - label: I ran the recipe to completion and did not select the best of several runs without saying so.
           required: true
-        - label: I validated the JSON against the committed schema and recorded the exact artifact SHA-256.
+        - label: I ran `miniverl hardware validate` and recorded the exact JSON SHA-256.
           required: true
         - label: I reviewed the export and attachments for tokens, private paths and proprietary data.
+          required: true
+        - label: I consent to publishing this sanitized record and its reported hardware/software metadata.
           required: true
         - label: I am willing to open a pull request adding this file under `benchmarks/results/`.
           required: false
