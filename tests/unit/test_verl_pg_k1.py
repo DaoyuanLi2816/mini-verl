@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import pytest
-import torch
 
-from miniverl.losses.verl_pg import (
+torch = pytest.importorskip("torch")
+
+pytestmark = pytest.mark.torch
+
+from miniverl.losses.verl_pg import (  # noqa: E402
     VERL_PG_K1_IMPLEMENTATION_VERSION,
     verl_k1_estimator,
     verl_pg_k1_loss,
