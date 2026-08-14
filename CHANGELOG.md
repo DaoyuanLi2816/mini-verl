@@ -6,6 +6,37 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-08-13
+
+### Semantic contract repair
+
+- Made actor and teacher dtype, quantization and attention settings explicit in
+  the verl-shaped profile, system plan, probe identity and native `RunConfig`.
+- Added pinned existing-student-adapter validation and trainable PEFT loading,
+  including base/tokenizer identity, safetensors payload checks and exported
+  lineage.
+- Separated logical strict-OPD batches from physical rollout and actor-update
+  trajectory/token ceilings. `ppo_mini_batch_size` is now truthfully
+  informational for direct GKD.
+- Added a shared placement capability model. Unknown-size quantized roles now
+  require proof instead of selecting impossible swap; executable plans cannot
+  violate a known static runtime placement constraint.
+- Published mutation-based field-effect evidence for all 68 executable,
+  non-informational compatibility claims.
+
+### Documentation
+
+- Corrected CUDA onboarding to install the matching PyTorch wheel before
+  `miniverl[train,cuda]` and removed the invalid QLoRA-plus-swap recommendation.
+- Distinguished verl `forward_kl_topk` top-k IDs/log-probabilities and
+  diagnostics from miniVERL's explicit `bucketed_topk_tail` K+1 objective.
+- Split the current pure-OPD runtime and scale-out path from the legacy
+  environment/PPO reward scaffold, centered the landing page on the measured
+  v0.9 developer workload and archived the historical project log.
+
+No frozen benchmark, task-level result, model revision, algorithm or
+distributed-execution claim changed.
+
 ## [0.9.0] - 2026-08-13
 
 ### Measured developer workload
@@ -932,7 +963,7 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.1...HEAD
 [0.9.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.1...v0.8.0
