@@ -35,6 +35,8 @@ Development `0.10.0.dev0` has a closed typed profile registry and torch-free
 compatibility introspection. Profile-scoped plans, caches, checkpoints and
 exports bind an independent identity. The direct-GKD and sampled-k1 vanilla
 policy-loss profiles both have pinned conformance and measured RTX 4080 paths.
+Portable hardware records preserve measured, estimated and unknown states;
+schema-valid community submissions remain unreviewed until maintainer validation.
 
 Arbitrary verl YAML, other policy-gradient modes, rewards, PPO/GRPO, Ray, FSDP,
 Megatron, multi-GPU and distributed execution remain unsupported. The legacy

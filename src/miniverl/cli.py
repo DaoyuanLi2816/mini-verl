@@ -25,6 +25,7 @@ from rich.table import Table
 
 from miniverl import __version__
 from miniverl.commands.compat import compat_app, profiles_app
+from miniverl.commands.evidence import hardware_app
 from miniverl.errors import ConfigError, MiniVerlError
 from miniverl.utils.runs import make_run_id
 
@@ -61,6 +62,7 @@ data_app = typer.Typer(help="Create and inspect portable prompt data.", no_args_
 app.add_typer(data_app, name="data")
 app.add_typer(profiles_app, name="profiles")
 app.add_typer(compat_app, name="compat")
+app.add_typer(hardware_app, name="hardware")
 
 console = Console()
 err_console = Console(stderr=True)

@@ -44,6 +44,8 @@ EXPECTED_COMMANDS = {
     "profiles schema",
     "compat explain",
     "compat check",
+    "hardware record",
+    "hardware validate",
     "data sample",
     "align",
     "alignment-suite prepare",

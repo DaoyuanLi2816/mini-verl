@@ -1,0 +1,555 @@
+{
+  "$defs": {
+    "ArtifactEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "minimum": 0,
+          "title": "Bytes",
+          "type": "integer"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "sha256",
+        "bytes"
+      ],
+      "title": "ArtifactEvidence",
+      "type": "object"
+    },
+    "BatchingEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "logical": {
+          "minimum": 1,
+          "title": "Logical",
+          "type": "integer"
+        },
+        "rollout_physical": {
+          "minimum": 1,
+          "title": "Rollout Physical",
+          "type": "integer"
+        },
+        "teacher_score_physical": {
+          "minimum": 1,
+          "title": "Teacher Score Physical",
+          "type": "integer"
+        },
+        "update_trajectory_physical": {
+          "minimum": 1,
+          "title": "Update Trajectory Physical",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "logical",
+        "rollout_physical",
+        "teacher_score_physical",
+        "update_trajectory_physical"
+      ],
+      "title": "BatchingEvidence",
+      "type": "object"
+    },
+    "BoundsEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "prompt_tokens": {
+          "minimum": 1,
+          "title": "Prompt Tokens",
+          "type": "integer"
+        },
+        "response_tokens": {
+          "minimum": 1,
+          "title": "Response Tokens",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "prompt_tokens",
+        "response_tokens"
+      ],
+      "title": "BoundsEvidence",
+      "type": "object"
+    },
+    "EvidenceValue": {
+      "additionalProperties": false,
+      "description": "One value with an explicit evidence state and source.",
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "measured",
+            "estimated",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        }
+      },
+      "required": [
+        "status",
+        "source"
+      ],
+      "title": "EvidenceValue",
+      "type": "object"
+    },
+    "HardwareEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "cuda_runtime": {
+          "title": "Cuda Runtime",
+          "type": "string"
+        },
+        "driver": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "gpu_count": {
+          "minimum": 1,
+          "title": "Gpu Count",
+          "type": "integer"
+        },
+        "gpu_name": {
+          "title": "Gpu Name",
+          "type": "string"
+        },
+        "measurement_status": {
+          "enum": [
+            "measured",
+            "estimated",
+            "unknown"
+          ],
+          "title": "Measurement Status",
+          "type": "string"
+        },
+        "os": {
+          "title": "Os",
+          "type": "string"
+        },
+        "python": {
+          "title": "Python",
+          "type": "string"
+        },
+        "torch": {
+          "title": "Torch",
+          "type": "string"
+        },
+        "vram_gib": {
+          "exclusiveMinimum": 0,
+          "title": "Vram Gib",
+          "type": "number"
+        }
+      },
+      "required": [
+        "measurement_status",
+        "gpu_name",
+        "gpu_count",
+        "vram_gib",
+        "driver",
+        "cuda_runtime",
+        "torch",
+        "os",
+        "python"
+      ],
+      "title": "HardwareEvidence",
+      "type": "object"
+    },
+    "MeasurementsEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "peak_allocated_gib": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "peak_reserved_gib": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "phase_medians": {
+          "$ref": "#/$defs/TimingEvidence"
+        }
+      },
+      "required": [
+        "peak_allocated_gib",
+        "peak_reserved_gib",
+        "phase_medians"
+      ],
+      "title": "MeasurementsEvidence",
+      "type": "object"
+    },
+    "ModelEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "dtype": {
+          "title": "Dtype",
+          "type": "string"
+        },
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "quantization": {
+          "enum": [
+            "none",
+            "nf4",
+            "int8"
+          ],
+          "title": "Quantization",
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Revision",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "student",
+            "teacher"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "model_id",
+        "revision",
+        "quantization",
+        "dtype"
+      ],
+      "title": "ModelEvidence",
+      "type": "object"
+    },
+    "ProfileEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "identity_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Identity Digest",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "upstream_commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Upstream Commit",
+          "type": "string"
+        },
+        "upstream_tag": {
+          "title": "Upstream Tag",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "identity_digest",
+        "upstream_tag",
+        "upstream_commit"
+      ],
+      "title": "ProfileEvidence",
+      "type": "object"
+    },
+    "ResumeEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "checkpoint_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checkpoint Digest"
+        },
+        "outcome": {
+          "enum": [
+            "resumed",
+            "not_exercised",
+            "unknown"
+          ],
+          "title": "Outcome",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "measured",
+            "estimated",
+            "unknown"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "outcome"
+      ],
+      "title": "ResumeEvidence",
+      "type": "object"
+    },
+    "RunEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "plan_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Plan Digest",
+          "type": "string"
+        },
+        "resolved_config_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Resolved Config Digest",
+          "type": "string"
+        },
+        "run_id": {
+          "title": "Run Id",
+          "type": "string"
+        },
+        "status": {
+          "const": "completed",
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "manifest_sha256",
+        "plan_digest",
+        "resolved_config_digest"
+      ],
+      "title": "RunEvidence",
+      "type": "object"
+    },
+    "TargetEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "estimator": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimator"
+        },
+        "mode": {
+          "title": "Mode",
+          "type": "string"
+        },
+        "top_k": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Top K"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "title": "TargetEvidence",
+      "type": "object"
+    },
+    "TimingEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "actor_update_seconds": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "rollout_seconds": {
+          "$ref": "#/$defs/EvidenceValue"
+        },
+        "teacher_scoring_seconds": {
+          "$ref": "#/$defs/EvidenceValue"
+        }
+      },
+      "required": [
+        "rollout_seconds",
+        "teacher_scoring_seconds",
+        "actor_update_seconds"
+      ],
+      "title": "TimingEvidence",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Version-1 portable record; validation does not confer publication trust.",
+  "properties": {
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ArtifactEvidence"
+      },
+      "minItems": 1,
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "batching": {
+      "$ref": "#/$defs/BatchingEvidence"
+    },
+    "bounds": {
+      "$ref": "#/$defs/BoundsEvidence"
+    },
+    "consent_to_publish": {
+      "default": false,
+      "title": "Consent To Publish",
+      "type": "boolean"
+    },
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "hardware": {
+      "$ref": "#/$defs/HardwareEvidence"
+    },
+    "kind": {
+      "const": "miniverl_hardware_record",
+      "default": "miniverl_hardware_record",
+      "title": "Kind",
+      "type": "string"
+    },
+    "measurements": {
+      "$ref": "#/$defs/MeasurementsEvidence"
+    },
+    "miniverl_version": {
+      "title": "Miniverl Version",
+      "type": "string"
+    },
+    "models": {
+      "items": {
+        "$ref": "#/$defs/ModelEvidence"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Models",
+      "type": "array"
+    },
+    "optimizer_updates": {
+      "$ref": "#/$defs/EvidenceValue"
+    },
+    "profile": {
+      "$ref": "#/$defs/ProfileEvidence"
+    },
+    "record_classification": {
+      "enum": [
+        "maintainer_measured",
+        "community_submitted",
+        "not_measured"
+      ],
+      "title": "Record Classification",
+      "type": "string"
+    },
+    "resume": {
+      "$ref": "#/$defs/ResumeEvidence"
+    },
+    "review_status": {
+      "default": "unreviewed",
+      "enum": [
+        "unreviewed",
+        "maintainer_validated"
+      ],
+      "title": "Review Status",
+      "type": "string"
+    },
+    "run": {
+      "$ref": "#/$defs/RunEvidence"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scientific_scope": {
+      "additionalProperties": {
+        "type": "boolean"
+      },
+      "title": "Scientific Scope",
+      "type": "object"
+    },
+    "target": {
+      "$ref": "#/$defs/TargetEvidence"
+    }
+  },
+  "required": [
+    "created_at",
+    "record_classification",
+    "miniverl_version",
+    "profile",
+    "run",
+    "hardware",
+    "models",
+    "bounds",
+    "target",
+    "batching",
+    "optimizer_updates",
+    "measurements",
+    "resume",
+    "artifacts",
+    "scientific_scope"
+  ],
+  "title": "HardwareRecord",
+  "type": "object"
+}

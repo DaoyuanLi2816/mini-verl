@@ -161,6 +161,16 @@ BF16/FP16 自动选择取决于设备能力，而不是 3070、4080、5090 或 T
 [硬件规划](docs/hardware-planning.md)。
 显存紧张时不会静默更换模型、teacher、context、top-k 或 loss。
 
+已完成的 run 可以生成经过清理、且不会自动上传的硬件记录：
+
+```bash
+miniverl hardware record --run artifacts/runs/<run-id> --out hardware-record.json
+miniverl hardware validate hardware-record.json
+```
+
+社区提交即使通过 schema 校验也仍标记为 `unreviewed`；只有维护者复核并确认发布许可后，
+才会进入公开的“maintainer-validated measured”矩阵。
+
 ## 数据与产物互操作
 
 profile 直接读取结构化 verl 风格 Parquet，不会在缺失数据时静默换成 calculator 环境。
