@@ -6,6 +6,8 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-14
+
 ### Versioned compatibility profiles
 
 - Added a closed, typed compatibility-profile registry with independent
@@ -18,6 +20,41 @@ All notable changes to miniVERL are recorded here. The format follows
   third-party entry points.
 - Began the CLI domain split by moving profile and compatibility commands out
   of the root module without changing existing command names.
+
+### Sampled-k1 policy-gradient OPD
+
+- Added the closed `verl-opd-v0.8-single-gpu-pg-k1-v1` profile for the pinned
+  verl v0.8 `k1` estimator and vanilla policy loss, with task rewards,
+  reference KL, critics, multi-teacher and distributed execution rejected.
+- Bound sampled token IDs, old/current actor log-probabilities, teacher
+  sampled-token log-probabilities, policy version, tokenizer and estimator
+  identity to fresh trajectories and caches.
+- Matched the pinned upstream estimator, loss, metrics, gradient and tiny
+  optimizer step; added profile-specific resume, export, materialization and
+  doctor validation.
+
+### Measured runtime evidence
+
+- Published a Qwen3 PG systems record over 32 prompts and eight strict updates
+  on one RTX 4080, including exact interruption/resume and a launchable
+  materialized artifact bundle. This is not a task-quality comparison.
+- Promoted SmolLM2-360M/1.7B to a full direct-GKD recipe over 32 prompts and
+  eight updates, with 1.4961 GiB peak reserved VRAM, exact resume, PEFT reload
+  and materialized export checks.
+- Added a measured Ubuntu 26.04 WSL2 path on the same RTX 4080 covering plan,
+  bounded probe, rollout, teacher scoring, one update and PEFT reload.
+
+### Portable hardware records
+
+- Added torch-free `hardware record` and `hardware validate` commands plus a
+  generated strict schema that preserves measured, estimated and unknown
+  states across profile, model, batching, memory, timing, resume and artifact
+  evidence.
+- Community records remain unreviewed and are never uploaded automatically;
+  maintainer-measured publication requires explicit review and consent.
+
+No frozen benchmark or task-level result changed, and this release does not
+claim distributed execution, full verl compatibility or quality superiority.
 
 ## [0.9.1] - 2026-08-13
 
@@ -976,7 +1013,9 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.1...v0.10.0
+[0.9.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.7.1...v0.8.0

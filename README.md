@@ -25,7 +25,7 @@ rollout → teacher scoring → actor update, records every local reinterpretati
 and exports standard PEFT, Parquet and config artifacts for a pinned scale-out
 handoff.
 
-PyPI `v0.9.1` is stable; `main` is development. miniVERL is an independent
+PyPI `v0.10.0` is stable; `main` is development. miniVERL is an independent
 project with no upstream endorsement. It does not execute arbitrary verl YAML,
 launch distributed jobs, or claim full algorithmic compatibility.
 

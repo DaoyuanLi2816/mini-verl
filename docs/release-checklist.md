@@ -13,8 +13,12 @@ after the exact release commit and its remote checks are green.
       freshness, resume and export conformance.
 - [x] Publish bounded RTX 4080 systems evidence for PG k1 and a full SmolLM2
       direct-GKD developer recipe; do not add a task-quality benchmark.
-- [x] Add validated community hardware records and document the measured or
-      explicitly unmeasured Linux/WSL state.
+- [x] Add a validation schema and CLI for community hardware records and
+      document the measured or explicitly unmeasured Linux/WSL state.
+- [x] Pass the local CPU, GPU, network, packaging, docs, generated-artifact,
+      privacy, link and owner-only authorship gates on the release candidate.
+- [x] Preserve the frozen calculator artifact at SHA-256
+      `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
 
 ## v0.9.1 development
 
