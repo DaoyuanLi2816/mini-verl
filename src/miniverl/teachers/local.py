@@ -197,7 +197,7 @@ class LocalTeacherScorer(TeacherScorer):
                     clip_ratio_c=self.loss.clip_ratio_c,
                     loss_max_clamp=self.loss.loss_max_clamp,
                 )
-                from miniverl.losses.verl_pg import VERL_PG_K1_IMPLEMENTATION_VERSION
+                from miniverl.bridge.opd_pg_contract import VERL_PG_K1_IMPLEMENTATION_VERSION
 
                 batch = TeacherTargetBatch(
                     trajectory_id=student.trajectory_id,

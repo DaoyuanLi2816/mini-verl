@@ -918,7 +918,7 @@ class RunConfig(_Base):
                 )
 
         if self.loss.mode is LossMode.VERL_PG_K1:
-            from miniverl.losses.verl_pg import VERL_PG_K1_IMPLEMENTATION_VERSION
+            from miniverl.bridge.opd_pg_contract import VERL_PG_K1_IMPLEMENTATION_VERSION
 
             if mode is not TrainingMode.OPD:
                 raise ValueError("loss.mode=verl_pg_k1 requires run.mode=opd")

@@ -1288,7 +1288,7 @@ class OPDTrainer:
 
     def _open_cache(self) -> TeacherCache:
         if self._cache is None:
-            from miniverl.losses.verl_pg import VERL_PG_K1_IMPLEMENTATION_VERSION
+            from miniverl.bridge.opd_pg_contract import VERL_PG_K1_IMPLEMENTATION_VERSION
             from miniverl.losses.verl_topk import VERL_TOPK_SCORE_IMPLEMENTATION
 
             assert self.teacher is not None

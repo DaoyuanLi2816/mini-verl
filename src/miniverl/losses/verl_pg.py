@@ -13,14 +13,14 @@ from dataclasses import dataclass
 
 import torch
 
+from miniverl.bridge.opd_pg_contract import VERL_PG_K1_IMPLEMENTATION_VERSION
+
 __all__ = [
     "VERL_PG_K1_IMPLEMENTATION_VERSION",
     "VerlPGK1Output",
     "verl_k1_estimator",
     "verl_pg_k1_loss",
 ]
-
-VERL_PG_K1_IMPLEMENTATION_VERSION = "verl-v0.8-pg-k1-v1"
 
 
 @dataclass(frozen=True)
