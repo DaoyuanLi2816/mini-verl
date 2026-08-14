@@ -1,15 +1,15 @@
 {
   "schema_version": 2,
   "release": "0.9.1",
-  "status": "candidate",
+  "status": "released",
   "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.9.1",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
-    "commit": "b3223f2e5f038ce9cb72cb4376f0a01d86050e32",
-    "commit_relationship": "semantic-contract and documentation product head before release-only metadata",
+    "commit": "7dd7bdbf65207e15fdebed7e9ceb0eb82883046a",
+    "commit_relationship": "final release PR head; the squash merge carries the same product tree",
     "measured_at": "2026-08-13T22:10:22-07:00",
     "platform": "Windows 11",
-    "python": "CPython 3.10 for coverage; CPython 3.12 for CUDA",
+    "python": "CPython 3.10 for coverage, local CUDA tests and the clean public CUDA install",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
       "passed": 2234,
@@ -28,10 +28,23 @@
   },
   "release_validation": {
     "scope": "the exact immutable v0.9.1 release commit",
-    "commit": "pending",
-    "workflows": {},
-    "conclusion": "pending",
+    "commit": "6c0f3d818c10419e0bfba81f3ad1c5adf24eaf09",
+    "workflows": {
+      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772652832",
+      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772652856",
+      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772945978",
+      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772652801",
+      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772945981"
+    },
+    "conclusion": "success",
     "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement",
-    "publication": null
+    "publication": {
+      "pypi": "https://pypi.org/project/miniverl/0.9.1/",
+      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.9.1",
+      "documentation": "https://daoyuanli2816.github.io/mini-verl/",
+      "immutable_documentation_build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772945978",
+      "wheel_sha256": "3cf1bd61b915e8ae57e0cccdc6ca9c017bbe5bcf1b81ac7ed20c7c9ed9808825",
+      "sdist_sha256": "9fc4e63d6efb70a0b635af4f61c4b01a99d3496634841d7a8e8e6d8d06784e9e"
+    }
   }
 }

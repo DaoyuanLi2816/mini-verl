@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.9.1/docs/banner.svg" alt="miniVERL — run verl-style OPD on one consumer GPU" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — run verl-style OPD on one consumer GPU" width="880">
 </p>
 
 <div align="center">
@@ -8,7 +8,7 @@
 [![Build](https://github.com/DaoyuanLi2816/mini-verl/actions/workflows/build.yml/badge.svg)](https://github.com/DaoyuanLi2816/mini-verl/actions/workflows/build.yml)
 [![PyPI](https://img.shields.io/pypi/v/miniverl.svg)](https://pypi.org/project/miniverl/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE)
 
 </div>
 
@@ -16,7 +16,7 @@
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI</strong></a> ·
   <a href="https://daoyuanli2816.github.io/mini-verl/"><strong>Stable docs</strong></a> ·
   <a href="https://daoyuanli2816.github.io/mini-verl/dev/">Development docs</a> ·
-  <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/README.zh-CN.md">中文</a>
+  <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/main/README.zh-CN.md">中文</a>
 </p>
 
 **Run a documented subset of verl-style on-policy distillation on one consumer
@@ -51,14 +51,14 @@ recipe and produce an inspectable PEFT adapter.
 
 The `train` extra installs the ML runtime, but does not choose the correct CUDA
 PyTorch wheel. The optional `cuda` extra adds bitsandbytes only. Follow the
-[one-GPU installation and memory guide](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/single-gpu-guide.md) before a real
+[one-GPU installation and memory guide](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/single-gpu-guide.md) before a real
 run.
 
 ## Architecture
 
 <picture>
-  <source media="(max-width: 640px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.9.1/docs/verl-local-runtime-mobile.svg">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.9.1/docs/verl-local-runtime.svg" alt="verl-shaped YAML, overrides and Parquet prompts pass through a typed compiler; one CUDA GPU runs actor rollout, teacher scoring and actor update; inspectable artifacts can be handed to pinned verl while distributed execution remains outside miniVERL.">
+  <source media="(max-width: 640px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime-mobile.svg">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime.svg" alt="verl-shaped YAML, overrides and Parquet prompts pass through a typed compiler; one CUDA GPU runs actor rollout, teacher scoring and actor update; inspectable artifacts can be handed to pinned verl while distributed execution remains outside miniVERL.">
 </picture>
 
 miniVERL uses one ordinary process and schedules model roles in phases. It does
@@ -114,13 +114,13 @@ miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml \
 
 External YAML must explicitly accept the high-risk local mappings printed by
 `plan` before `run`; the packaged profile carries a value-bound reviewed
-manifest. [Override precedence and safe input forms](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/config-overrides.md)
+manifest. [Override precedence and safe input forms](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/config-overrides.md)
 are documented without executing Hydra interpolation or shell text.
 
 The public built-in profile deliberately uses upstream-shaped `name: vllm`
 values. miniVERL classifies both rollout and teacher engine names as local
 reinterpretations and executes them with sequential local HF phases; this is
-not vLLM equivalence. See [For verl users](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/for-verl-users.md) for config,
+not vLLM equivalence. See [For verl users](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/for-verl-users.md) for config,
 data, role and error mappings.
 
 ## Tested profile boundary
@@ -151,8 +151,8 @@ with a 64-token response bound, and completed **8 current-policy updates** at
 **3.1914 GiB peak reserved VRAM**. Median steady-state rollout, teacher-scoring
 and update times were 9.7200, 0.4864 and 2.3260 seconds. A matched 4-update
 interruption resumed to the same byte-identical trajectories, adapter and
-optimizer tensors. See the [data-bound figure and full record](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/verl-opd-reference-workload.md);
-the original one-update [pip smoke](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/opd-quickstart.md) remains preserved.
+optimizer tensors. See the [data-bound figure and full record](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-opd-reference-workload.md);
+the original one-update [pip smoke](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/opd-quickstart.md) remains preserved.
 A separate pinned SmolLM2-360M/1.7B compatibility smoke completed one full
 rollout/scoring/update cycle; it is not a second measured recipe.
 
@@ -174,7 +174,7 @@ Automatic BF16/FP16 selection follows device support; it is not inferred from
 marketing names such as 3070, 4080, 5090 or Titan. `miniverl doctor` reports the
 installed CUDA/PyTorch path. Normal planning is weight-free; explicit
 `plan --probe` adds bounded, cached CUDA measurements with zero optimizer
-updates. See [hardware planning](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/hardware-planning.md). There is no
+updates. See [hardware planning](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/hardware-planning.md). There is no
 automatic downgrade to a different model,
 teacher, context, top-k or loss when memory is tight.
 
@@ -202,30 +202,30 @@ The v0.9 export preserves student/teacher identities, Parquet bytes and pure
 OPD overrides, but reports `launchable: false` until exact base snapshots are
 materialized and validated against the installed pinned verl commit. Only then
 does `bridge materialize` publish a checksummed `launch.sh`; distributed
-execution remains untested. Review the [current scale-out contract](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/verl-opd-scaleout.md),
-[legacy bridge](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/legacy-verl-bridge.md) and [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/compatibility.md).
+execution remains untested. Review the [current scale-out contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-opd-scaleout.md),
+[legacy bridge](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/legacy-verl-bridge.md) and [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md).
 
 The intended operating loop is **plan → inspect → run → inspect → export**.
 `plan --out` byte-binds the YAML, ordered overrides and scanned Parquet inputs
 to the exact native config; `run --plan` rejects drift before loading weights.
 Its digest follows the run manifest, teacher cache and checkpoints. Direct
 `run --config` remains available for experiments. See [immutable execution
-plans](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/immutable-plans.md).
+plans](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/immutable-plans.md).
 
 ## Research and validation
 
 miniVERL keeps every measured study—including negative results, superseded
 runs and preregistered early stops—public under the documentation. None is used
 as a claim that OPD universally beats SFT, DPO or KD: see the
-[v0.7 External Alignment Gate](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/alignment-external/alignment-external-v1.md),
-[Alignment Lab](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/alignment-lab/alignment-lab-v1.md),
-[RecoveryBench](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/recoverybench/recoverybench-v1.md), and the
-[calculator study](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/benchmarking.md).
+[v0.7 External Alignment Gate](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-external/alignment-external-v1.md),
+[Alignment Lab](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/alignment-lab-v1.md),
+[RecoveryBench](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/recoverybench/recoverybench-v1.md), and the
+[calculator study](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/benchmarking.md).
 
 New runs establish tokenizer compatibility through structural identity. The
 legacy behavioral fingerprint is retained only for migration and is not an
 identity proof. Scientific caveats and immutable source hashes remain in the
-detailed reports and [limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/limitations.md).
+detailed reports and [limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/limitations.md).
 
 ## Development, security and license
 
@@ -238,6 +238,6 @@ pytest -q -m "not gpu and not network"
 
 Contributions should keep the one-GPU boundary explicit and include tests for
 new failure modes. Report vulnerabilities privately through
-[SECURITY.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/SECURITY.md). See [CONTRIBUTING.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/CONTRIBUTING.md), the
-[changelog](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/CHANGELOG.md), [citation metadata](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/CITATION.cff),
-[reproducibility guide](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/docs/reproducibility.md), and [Apache-2.0 license](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.9.1/LICENSE).
+[SECURITY.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/SECURITY.md). See [CONTRIBUTING.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CONTRIBUTING.md), the
+[changelog](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md), [citation metadata](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CITATION.cff),
+[reproducibility guide](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/reproducibility.md), and [Apache-2.0 license](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE).
