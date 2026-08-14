@@ -44,10 +44,11 @@ class OPDSystemPlan(BaseModel):
 
 
 def _parameter_estimate(model_id: str) -> tuple[int | None, str]:
-    match = re.search(r"(?<!\d)(\d+(?:\.\d+)?)\s*[bB](?![A-Za-z])", model_id)
+    match = re.search(r"(?<!\d)(\d+(?:\.\d+)?)\s*([mMbB])(?![A-Za-z])", model_id)
     if match is None:
         return None, "unknown"
-    return int(float(match.group(1)) * 1_000_000_000), "estimated_from_model_identity"
+    scale = 1_000_000 if match.group(2).lower() == "m" else 1_000_000_000
+    return int(float(match.group(1)) * scale), "estimated_from_model_identity"
 
 
 def _gib(value: float) -> float:

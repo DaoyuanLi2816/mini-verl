@@ -111,3 +111,52 @@ def test_second_family_smoke_is_compatibility_only_and_frozen() -> None:
     assert payload["scope"]["alignment_quality_evaluated"] is False
     assert payload["scope"]["full_recipe_supported"] is False
     assert payload["runtime"]["distributed_execution_tested"] is False
+
+
+def test_smollm2_full_recipe_is_pinned_and_compiles_without_network() -> None:
+    from miniverl.bridge.opd_runtime import build_system_plan, compile_native_run_config
+    from miniverl.bridge.opd_v08 import load_verl_opd_v08_source
+
+    source = Path("examples/verl-opd-v0.8-single-gpu-smollm2.yaml")
+    compiled = load_verl_opd_v08_source(
+        source,
+        accept_local_reinterpretations=True,
+    )
+    native = compile_native_run_config(compiled, system_plan=build_system_plan(compiled))
+
+    assert compiled.executable is True
+    assert native.models.student.model_id == "HuggingFaceTB/SmolLM2-360M-Instruct"
+    assert native.models.student.revision == "a10cc1512eabd3dde888204e902eca88bddb4951"
+    assert native.models.teacher.model_id == "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+    assert native.models.teacher.revision == "31b70e2e869a7173562077fd711b654946d38674"
+    assert native.train.rollouts_per_cycle == 4
+    assert native.train.cycles == 8
+    assert native.rollout.max_new_tokens_per_turn == 64
+    assert native.loss.mode.value == "forward_kl_topk"
+    assert native.loss.top_k == 32
+
+
+def test_planner_understands_million_parameter_model_identities() -> None:
+    from miniverl.bridge.opd_runtime import _parameter_estimate
+
+    assert _parameter_estimate("HuggingFaceTB/SmolLM2-360M-Instruct") == (
+        360_000_000,
+        "estimated_from_model_identity",
+    )
+    assert _parameter_estimate("Qwen/Qwen3-0.6B") == (
+        600_000_000,
+        "estimated_from_model_identity",
+    )
+
+
+def test_smollm2_workload_driver_has_full_recipe_and_fail_closed_scope() -> None:
+    path = Path("scripts/run_smollm2_opd_reference_workload.py")
+    text = path.read_text(encoding="utf-8")
+
+    assert "write_dataset(dataset)" in text
+    assert "_train_uninterrupted" in text
+    assert "_train_resumed" in text
+    assert "_equivalence(reference, resumed)" in text
+    assert "materialize_verl_bundle" in text
+    assert '"distributed_execution_tested": False' in text
+    assert '"task_quality_evaluated": False' in text
