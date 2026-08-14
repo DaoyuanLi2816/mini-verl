@@ -1,0 +1,180 @@
+{
+  "artifacts": {
+    "checkpoint_hashes": {
+      "adapter.safetensors": "7d00e5e99ac19ae8c35055e6dee527b737c3af3504b846feef60a0e60d21856d",
+      "optimizer.safetensors": "1b3473085336cca8b41458c300df368979cb625520462a9152a4d49031b6dd12",
+      "state.json": "a8f459ce233bd59c011ed31f9b9b308d10572865a2227e0f6e77c04d2de56307"
+    },
+    "standard_peft_adapter_sha256": "6132c9aa94b828deed70d03108805beece3392e50409395423a8ae092aac3e4f",
+    "standard_peft_load_verified": true,
+    "total_workload_bytes": 4214630242,
+    "trajectory_sha256": "f8137936991a17d1531352534eb6e5dd4428e2495a0f5de0b9c68fc21d63bb43"
+  },
+  "hardware": {
+    "bitsandbytes": "0.50.0",
+    "cuda_runtime": "13.0",
+    "driver": "596.49",
+    "gpu": "NVIDIA GeForce RTX 4080",
+    "gpu_count": 1,
+    "peft": "0.18.0",
+    "torch": "2.13.0+cu130",
+    "transformers": "5.14.1",
+    "vram_gib": 15.992
+  },
+  "kind": "single_gpu_smollm2_direct_gkd_developer_workload",
+  "measured_at": "2026-08-14T07:46:06Z",
+  "measurements": {
+    "adapter_bytes": 6825692,
+    "batch_downshifts": {
+      "rollout_oom": 0,
+      "update_chunk_oom": 0
+    },
+    "cache_bytes": 81819,
+    "checkpoint_bytes": 9912101,
+    "cold_startup_seconds": 8.4132,
+    "distinct_prompts_consumed": 32,
+    "observed_rollout_physical_batch_sizes": [
+      4
+    ],
+    "peak_allocated_gib": 1.4254,
+    "peak_reserved_gib": 1.4961,
+    "prompts_consumed": 32,
+    "steady_state_median_seconds": {
+      "actor_update": 1.127,
+      "rollout": 16.3067,
+      "teacher_scoring": 0.1941
+    },
+    "steady_state_median_throughput": {
+      "rollout_tokens_per_second": 13.7173,
+      "teacher_scored_positions_per_second": 1190.38,
+      "update_positions_per_second": 186.9733
+    },
+    "time_to_first_rollout_seconds": 21.6392,
+    "time_to_first_teacher_targets_seconds": 21.8723,
+    "time_to_first_update_seconds": 23.1082,
+    "total_run_bytes": 27178611
+  },
+  "miniverl_version": "0.10.0.dev0",
+  "models": {
+    "student": {
+      "adapter": null,
+      "attn_implementation": "sdpa",
+      "dtype": "auto",
+      "gradient_checkpointing": true,
+      "lora": {
+        "alpha": 16,
+        "bias": "none",
+        "dropout": 0.0,
+        "enabled": true,
+        "r": 8,
+        "target_modules": [
+          "q_proj",
+          "v_proj"
+        ]
+      },
+      "model_id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+      "prepare_kbit_training": true,
+      "quantization": "nf4",
+      "revision": "a10cc1512eabd3dde888204e902eca88bddb4951",
+      "tokenizer_id": null,
+      "tokenizer_revision": null,
+      "toy": {
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "max_position_embeddings": 1024,
+        "num_heads": 4,
+        "num_layers": 2
+      },
+      "trust_remote_code": false
+    },
+    "teacher": {
+      "adapter": null,
+      "attn_implementation": "sdpa",
+      "dtype": "bfloat16",
+      "mode": "standard",
+      "model_id": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+      "quantization": "nf4",
+      "revision": "31b70e2e869a7173562077fd711b654946d38674",
+      "tokenizer_id": null,
+      "tokenizer_revision": null,
+      "toy": {
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "max_position_embeddings": 1024,
+        "num_heads": 4,
+        "num_layers": 2
+      },
+      "toy_pretrain_lr": 0.003,
+      "toy_pretrain_steps": 0,
+      "toy_teacher_seed": 99,
+      "trust_remote_code": false
+    }
+  },
+  "profile": "verl-opd-v0.8-single-gpu-v1",
+  "profile_identity": {
+    "digest": "cc30bae03b65fe1bb915990fbd0359bbff436332b1b44c4887bd77ae8e0e4c35",
+    "export_version": "verl-opd-export-v1",
+    "field_rule_digest": "8479344d1d033974b2bbc3a8212c0a01bcc54afbe697ded1987794b7a458ee97",
+    "loss_conformance_version": "forward-kl-topk-verl-v0.8-v1",
+    "native_compiler_version": "direct-gkd-native-v1",
+    "profile_name": "verl-opd-v0.8-single-gpu-v1",
+    "profile_schema_version": 1,
+    "upstream_commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+    "upstream_repository": "https://github.com/verl-project/verl",
+    "upstream_tag": "v0.8.0"
+  },
+  "recipe": {
+    "compiled_plan_sha256": "d3ff5ab77f2c57d89a2fb52a04a842cbc06b1c2ca5350a82313aadb6131d6067",
+    "input_parquet_sha256": "baa99ba8c59d4c30b2e3081346860e7e8b2665dd70fdbcd7952935545a0cd770",
+    "interrupt_after_updates": 4,
+    "logical_batch": 4,
+    "optimizer_updates": 8,
+    "prompt_limit": 128,
+    "prompts_available": 64,
+    "prompts_consumed": 32,
+    "response_limit": 64,
+    "teacher_target": "top_k_ids_log_probs_and_mass",
+    "top_k": 32
+  },
+  "resource_contract": {
+    "gpu_hour_limit": 3.0,
+    "peak_reserved_limit_gib": 14.5,
+    "peak_reserved_within_limit": true,
+    "total_gpu_workload_seconds": 301.27
+  },
+  "resume": {
+    "adapter_and_optimizer_byte_identical": true,
+    "excluded_run_identity_field": "resolved_config_digest",
+    "global_optimizer_steps": 8,
+    "interrupt_checkpoint_bytes": 9912101,
+    "resume_load_seconds": 3.1039,
+    "status": "exact_match",
+    "task_cursor": 32,
+    "training_state_fields_identical": true,
+    "trajectories_byte_identical": true
+  },
+  "scaleout": {
+    "artifact_bundle_complete": true,
+    "bundle_bytes": 4160177169,
+    "distributed_execution_tested": false,
+    "launchable": true,
+    "model_data_load_smoke_passed": true,
+    "upstream_config_parse_passed": true
+  },
+  "schema_version": 1,
+  "scientific_scope": {
+    "algorithm_comparison": false,
+    "alignment_quality_evaluated": false,
+    "runtime_correctness_only": true,
+    "task_quality_evaluated": false
+  },
+  "source_commit": "6cf11cfacb455c872559dc1ca48d928594556b15",
+  "status": "maintainer_measured",
+  "verl": {
+    "commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+    "distributed_execution_tested": false,
+    "repository": "https://github.com/verl-project/verl",
+    "tag": "v0.8.0"
+  },
+  "workload_driver_sha256": "f249766c774e1b44e09ff323d22f548aa5ca9bfa782f54bfbf9ca8782ce59fcd"
+}

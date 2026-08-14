@@ -1,6 +1,6 @@
 # For verl users
 
-miniVERL is a local runtime for one documented subset of verl v0.8 OPD. It
+miniVERL is a local runtime for two documented subsets of verl v0.8 OPD. It
 keeps familiar field names and Parquet data, then compiles distributed resource
 intent into sequential phases on one CUDA GPU. It is an independent project;
 the mapping is explicit and does not imply endorsement or full compatibility.
@@ -19,7 +19,8 @@ by plans, caches, checkpoints and exports.
 
 - A resolved YAML using the `verl-opd-v0.8-single-gpu-v1` field subset.
 - Reward-free verl-style Parquet prompts with structured chat messages.
-- One actor, one teacher, `n=1`, forward top-k GKD and token-mean aggregation.
+- One actor, one teacher, `n=1`, token-mean aggregation, and either direct
+  forward-top-k GKD or the sampled-k1 vanilla policy-loss profile.
 - Immutable Hugging Face revisions, PEFT adapters and tokenizer snapshots.
 - Familiar fields such as `actor_rollout_ref.model.path`,
   `distillation.teacher_models.teacher_model.model_path`, response bounds,
@@ -27,8 +28,9 @@ by plans, caches, checkpoints and exports.
 
 What is not reusable: arbitrary Hydra composition inside miniVERL, shell launch scripts,
 resource pools, Ray actors, FSDP/Megatron checkpoints, PPO/GRPO, critics,
-policy-gradient OPD, task-reward mixtures, multiple teachers and multimodal
-workers. Unsupported semantics fail closed instead of falling back silently.
+policy-gradient modes beyond the closed sampled-k1 profile, task-reward
+mixtures, multiple teachers and multimodal workers. Unsupported semantics fail
+closed instead of falling back silently.
 
 ## Command mapping
 

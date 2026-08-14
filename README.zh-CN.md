@@ -138,8 +138,9 @@ Qwen3-0.6B/1.7B developer workload 实际消费 **32 个不同 prompt**，respon
 匹配的运行在第 4 次 update 后中断并恢复；最终 trajectory、adapter 与 optimizer tensor
 均字节一致。详见[数据绑定图与完整记录](docs/verl-opd-reference-workload.md)；原始一次更新的
 [pip smoke](docs/opd-quickstart.md)仍完整保留。
-另一个固定版本的 SmolLM2-360M/1.7B 兼容性 smoke 完成了一次完整的
-rollout/scoring/update 循环；它不是第二套完整实测 recipe。
+另一套固定版本的 SmolLM2-360M/1.7B recipe 消费 32 个不同 prompt 并完成 8 次
+update，peak reserved VRAM 为 1.4961 GiB；中断恢复保持字节一致，PEFT 重载与精确
+snapshot 的 scale-out 物化均通过。详见[完整 SmolLM2 系统记录](docs/smollm2-opd-workload.md)。
 
 这只证明一个运行时与产物路径，不是吞吐 benchmark、对齐质量 endpoint，也不证明 OPD
 优于 SFT、DPO 或 KD。其他 NVIDIA GPU 使用相同的 device-name-agnostic CUDA 路径，但

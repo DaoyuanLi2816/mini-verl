@@ -163,8 +163,10 @@ and update times were 9.7200, 0.4864 and 2.3260 seconds. A matched 4-update
 interruption resumed to the same byte-identical trajectories, adapter and
 optimizer tensors. See the [data-bound figure and full record](docs/verl-opd-reference-workload.md);
 the original one-update [pip smoke](docs/opd-quickstart.md) remains preserved.
-A separate pinned SmolLM2-360M/1.7B compatibility smoke completed one full
-rollout/scoring/update cycle; it is not a second measured recipe.
+A separate pinned SmolLM2-360M/1.7B recipe consumed 32 distinct prompts across
+8 updates at 1.4961 GiB peak reserved VRAM. Interruption/resume was
+byte-identical, PEFT reload passed, and the exact-snapshot scale-out bundle
+materialized successfully. See the [full SmolLM2 systems record](docs/smollm2-opd-workload.md).
 
 This is deliberately a runtime and artifact proof. It is not a throughput
 benchmark, an alignment-quality endpoint, or evidence that OPD beats SFT, DPO

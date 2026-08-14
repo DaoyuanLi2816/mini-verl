@@ -160,3 +160,40 @@ def test_smollm2_workload_driver_has_full_recipe_and_fail_closed_scope() -> None
     assert "materialize_verl_bundle" in text
     assert '"distributed_execution_tested": False' in text
     assert '"task_quality_evaluated": False' in text
+
+
+def test_measured_smollm2_workload_is_full_scoped_and_frozen() -> None:
+    path = Path("benchmarks/results/rtx4080-smollm2-opd-developer-v1.json")
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "6961c272db01048ab899821a682d030de3f17cdc673e30bc8fe36005f7dce3ef"
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["status"] == "maintainer_measured"
+    assert payload["recipe"]["prompts_consumed"] == 32
+    assert payload["recipe"]["response_limit"] == 64
+    assert payload["recipe"]["optimizer_updates"] == 8
+    assert payload["resume"]["status"] == "exact_match"
+    assert payload["artifacts"]["standard_peft_load_verified"] is True
+    assert payload["scaleout"]["launchable"] is True
+    assert payload["scaleout"]["distributed_execution_tested"] is False
+    assert payload["measurements"]["peak_reserved_gib"] <= 14.5
+    assert payload["scientific_scope"]["task_quality_evaluated"] is False
+    assert payload["scientific_scope"]["algorithm_comparison"] is False
+
+
+def test_wsl2_smoke_is_measured_scoped_and_frozen() -> None:
+    path = Path("docs/evidence/wsl2-rtx4080-smollm2-opd-v1.json")
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == (
+        "1e88d0b8a02cae137fe539b82f632dfbb7973e7362c2e0a13f26de0fdd7965d2"
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert payload["status"] == "maintainer_measured"
+    assert payload["platform"]["kernel"].endswith("microsoft-standard-WSL2")
+    assert payload["probe"]["parameter_updates"] == 0
+    assert payload["execution"]["optimizer_updates"] == 1
+    assert payload["execution"]["peft_export_and_reload"] == "passed"
+    assert payload["scope"]["teacher_scoring_completed"] is True
+    assert payload["scope"]["task_quality_evaluated"] is False
+    assert payload["scope"]["distributed_execution_tested"] is False

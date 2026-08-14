@@ -4,7 +4,7 @@ Current maintainer handoff for **miniVERL** (`mini-verl` package, `miniverl`
 CLI). `release-state.yaml` is the canonical version source; this page indexes
 current product and evidence state rather than repeating release history.
 
-Last updated: 2026-08-13.
+Last updated: 2026-08-14.
 
 Canonical release state: stable `v0.9.1` (`6c0f3d818c10419e0bfba81f3ad1c5adf24eaf09`), development `0.10.0.dev0`.
 
@@ -31,13 +31,12 @@ Executable compatibility claims are mutation-tested and recorded in
 unknown-size quantized roles require proof instead of receiving an executable
 plan.
 
-Development `0.10.0.dev0` now has a closed typed profile registry and
-torch-free compatibility introspection. New profile-scoped plans, caches,
-checkpoints and exports bind an independent identity; the only registered
-executable profile remains the measured direct-GKD path until PG-k1 conformance
-and runtime work is complete.
+Development `0.10.0.dev0` has a closed typed profile registry and torch-free
+compatibility introspection. Profile-scoped plans, caches, checkpoints and
+exports bind an independent identity. The direct-GKD and sampled-k1 vanilla
+policy-loss profiles both have pinned conformance and measured RTX 4080 paths.
 
-Arbitrary verl YAML, policy-gradient OPD, rewards, PPO/GRPO, Ray, FSDP,
+Arbitrary verl YAML, other policy-gradient modes, rewards, PPO/GRPO, Ray, FSDP,
 Megatron, multi-GPU and distributed execution remain unsupported. The legacy
 environment/PPO artifact bridge is migration-only.
 
@@ -46,7 +45,9 @@ environment/PPO artifact bridge is migration-only.
 | Evidence | Status |
 | --- | --- |
 | Qwen3-0.6B/1.7B developer workload | 32 prompts, 8 current-policy updates, 3.1914 GiB peak reserved on one RTX 4080; matched interruption/resume was byte-identical |
-| SmolLM2-360M/1.7B | one pinned compatibility smoke; not a second measured recipe |
+| Qwen3 sampled-k1 PG | 32 prompts, 8 updates, exact interruption/resume, 3.1914 GiB peak reserved; no quality comparison |
+| SmolLM2-360M/1.7B direct GKD | 32 prompts, 8 updates, 1.4961 GiB peak reserved; exact resume, PEFT reload and materialized export passed |
+| Ubuntu 26.04 WSL2 | plan, bounded probe, rollout, teacher scoring, one update and PEFT reload measured on the same RTX 4080 |
 | external alignment v1 | preregistered early stop: 0 selected checkpoints, teachers, continuation arms or final-test accesses |
 | distributed verl execution | not tested |
 
