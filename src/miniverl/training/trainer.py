@@ -2618,8 +2618,15 @@ class OPDTrainer:
                     else [None] * len(per_token)
                 )
                 teacher_top: list[int | None] = [None] * len(per_token)
+                teacher_sampled_log_prob: list[float | None] = [None] * len(per_token)
                 if sample.teacher is not None and sample.teacher.cacheable is not None:
-                    teacher_top = sample.teacher.cacheable.topk_indices[:, 0].tolist()
+                    cacheable = sample.teacher.cacheable
+                    if cacheable.topk_indices is not None:
+                        teacher_top = cacheable.topk_indices[:, 0].tolist()
+                    if cacheable.teacher_sampled_token_log_probs is not None:
+                        teacher_sampled_log_prob = (
+                            cacheable.teacher_sampled_token_log_probs.tolist()
+                        )
                 records = []
                 max_tokens = self.config.report.max_tokens_per_trajectory
                 for i, target_position in enumerate(alignment.student_prediction_positions):
@@ -2639,6 +2646,11 @@ class OPDTrainer:
                             "token_loss": per_token[i] if i < len(per_token) else None,
                             "teacher_entropy": entropy[i] if i < len(entropy) else None,
                             "teacher_top_token": teacher_top[i] if i < len(teacher_top) else None,
+                            "teacher_sampled_token_log_prob": (
+                                teacher_sampled_log_prob[i]
+                                if i < len(teacher_sampled_log_prob)
+                                else None
+                            ),
                             "student_top_token": student_top[i] if i < len(student_top) else None,
                         }
                     )

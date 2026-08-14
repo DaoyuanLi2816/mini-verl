@@ -284,7 +284,11 @@ def test_prompt_pg_k1_uses_rollout_actor_and_sampled_teacher_logprobs(tmp_path) 
             "memory": {"strategy": "resident"},
             "cache": {"entries_per_shard": 2, "dtype": "float32", "keep_cycles": 1},
             "eval": {"enabled": False},
-            "report": {"enabled": False},
+            "report": {
+                "enabled": True,
+                "max_trajectories": 2,
+                "max_tokens_per_trajectory": 8,
+            },
         }
     )
 
@@ -330,3 +334,12 @@ def test_prompt_pg_k1_uses_rollout_actor_and_sampled_teacher_logprobs(tmp_path) 
         ]
         for entry in cache_index["entries"].values()
     )
+    token_rows = [
+        json.loads(line)
+        for line in (result.run_dir / "token_analysis.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+    ]
+    assert token_rows
+    assert all(row["teacher_top_token"] is None for row in token_rows)
+    assert all(row["teacher_sampled_token_log_prob"] is not None for row in token_rows)
