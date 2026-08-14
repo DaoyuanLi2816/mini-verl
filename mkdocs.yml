@@ -50,6 +50,7 @@ nav:
   - Current verl-style OPD runtime: verl-opd-runtime.md
   - Run verl-style OPD: opd-quickstart.md
   - RTX 4080 developer workload: verl-opd-reference-workload.md
+  - SmolLM2 developer workload: smollm2-opd-workload.md
   - RTX 4080 PG-k1 workload: verl-pg-k1-workload.md
   - Start on one GPU: single-gpu-guide.md
   - Align:

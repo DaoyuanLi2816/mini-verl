@@ -7,11 +7,11 @@ after the exact release commit and its remote checks are green.
 ## v0.10.0 development
 
 - [x] Begin from the verified v0.9.1 release and `0.10.0.dev0` canonical state.
-- [ ] Add the versioned internal compatibility-profile registry and profile
+- [x] Add the versioned internal compatibility-profile registry and profile
       identity binding without an unrestricted plugin loader.
-- [ ] Add the pinned verl v0.8 policy-gradient k1 profile with scalar, gradient,
+- [x] Add the pinned verl v0.8 policy-gradient k1 profile with scalar, gradient,
       freshness, resume and export conformance.
-- [ ] Publish bounded RTX 4080 systems evidence for PG k1 and a full SmolLM2
+- [x] Publish bounded RTX 4080 systems evidence for PG k1 and a full SmolLM2
       direct-GKD developer recipe; do not add a task-quality benchmark.
 - [ ] Add validated community hardware records and document the measured or
       explicitly unmeasured Linux/WSL state.

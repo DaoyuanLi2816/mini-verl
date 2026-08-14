@@ -331,7 +331,15 @@ def test_offline_download_dereferences_only_one_repository_cache(
     source = cache / "snapshots" / ("a" * 40)
     source.mkdir(parents=True)
     (source / "config.json").write_text("{}", encoding="utf-8")
-    monkeypatch.setattr(huggingface_hub, "snapshot_download", lambda **kwargs: str(source))
+    (source / "onnx").mkdir()
+    (source / "onnx/model_q4.onnx").write_bytes(b"not part of a Transformers snapshot")
+    received: dict[str, object] = {}
+
+    def fake_download(**kwargs: object) -> str:
+        received.update(kwargs)
+        return str(source)
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", fake_download)
     destination = tmp_path / "regular"
 
     resolved = _download_snapshot(
@@ -344,6 +352,9 @@ def test_offline_download_dereferences_only_one_repository_cache(
     assert resolved == destination
     assert (resolved / "config.json").read_text(encoding="utf-8") == "{}"
     assert not (resolved / "config.json").is_symlink()
+    assert not (resolved / "onnx").exists()
+    assert "model.safetensors" in received["allow_patterns"]
+    assert "*.onnx" not in received["allow_patterns"]
 
 
 def test_snapshot_symlink_is_rejected_before_publication(tmp_path: Path) -> None:

@@ -299,6 +299,7 @@ def test_every_published_benchmark_result_validates_against_the_schema():
             "rtx4080-verl-opd-runtime-v1.json",
             "rtx4080-verl-opd-developer-v1.json",
             "rtx4080-smollm2-opd-family-smoke-v1.json",
+            "rtx4080-smollm2-opd-developer-v1.json",
         }
     )
     assert results, "benchmarks/results/ has no published result to validate"

@@ -52,16 +52,17 @@ record is [`rtx4080-verl-opd-developer-v1.json`](https://github.com/DaoyuanLi281
 and [`run_verl_opd_reference_workload.py`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/scripts/run_verl_opd_reference_workload.py)
 reconstructs the dataset, plan, uninterrupted run and resumed run.
 
-## Scope
+## Second fully measured model pair
 
-A separate model-family compatibility smoke used pinned Apache-2.0
-SmolLM2-360M/1.7B snapshots. Their structural tokenizer identity matched, and
-one 16-token rollout, teacher-score phase, optimizer update and standard PEFT
-reload completed at 1.416 GiB peak reserved VRAM. The checksummed
-[`rtx4080-smollm2-opd-family-smoke-v1.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/rtx4080-smollm2-opd-family-smoke-v1.json)
-is compatibility evidence only—not a second supported recipe or quality result.
+Pinned Apache-2.0 SmolLM2-360M/1.7B snapshots now have a separate full systems
+recipe: 32 distinct prompts, eight updates, exact interruption/resume, PEFT
+reload and materialized scale-out validation. See the
+[SmolLM2 developer workload](smollm2-opd-workload.md). The earlier one-update
+compatibility smoke stays immutable as historical evidence.
+
+## Scope
 
 No reward, task correctness, alignment, preference, safety or method-comparison
 endpoint was evaluated. This record does not show that OPD beats SFT, DPO or
-KD, and it does not show that a distributed verl job ran. It validates one
-Qwen3, one-GPU, forward-top-k compatibility profile.
+KD, and it does not show that a distributed verl job ran. It validates two
+pinned model pairs on the same one-GPU, forward-top-k profile.

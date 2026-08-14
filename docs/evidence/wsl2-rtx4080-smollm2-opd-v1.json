@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "kind": "wsl2_single_gpu_opd_smoke",
+  "status": "maintainer_measured",
+  "measured_at": "2026-08-14T07:49:21Z",
+  "source_commit": "6cf11cfacb455c872559dc1ca48d928594556b15",
+  "miniverl_version": "0.10.0.dev0",
+  "profile": "verl-opd-v0.8-single-gpu-v1",
+  "profile_identity_digest": "cc30bae03b65fe1bb915990fbd0359bbff436332b1b44c4887bd77ae8e0e4c35",
+  "platform": {
+    "distribution": "Ubuntu 26.04 LTS",
+    "kernel": "6.18.33.2-microsoft-standard-WSL2",
+    "python": "3.12.13",
+    "gpu": "NVIDIA GeForce RTX 4080",
+    "vram_gib": 15.992,
+    "driver": "596.49",
+    "torch": "2.13.0+cu130",
+    "cuda_runtime": "13.0",
+    "transformers": "5.15.0",
+    "bitsandbytes": "0.50.1",
+    "peft": "0.20.0"
+  },
+  "models": {
+    "student": {
+      "id": "HuggingFaceTB/SmolLM2-360M-Instruct",
+      "revision": "a10cc1512eabd3dde888204e902eca88bddb4951",
+      "quantization": "nf4"
+    },
+    "teacher": {
+      "id": "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+      "revision": "31b70e2e869a7173562077fd711b654946d38674",
+      "quantization": "nf4"
+    }
+  },
+  "probe": {
+    "status": "measured",
+    "parameter_updates": 0,
+    "duration_seconds": 38.648,
+    "peak_reserved_gib": 1.0449
+  },
+  "execution": {
+    "plan_digest": "a7e941448a73562235a5b05ad8294dcfff5c508c1424adfbddf908523bb9075e",
+    "prompts": 1,
+    "response_limit": 64,
+    "generated_tokens": 42,
+    "optimizer_updates": 1,
+    "time_to_first_update_seconds": 9.5106,
+    "rollout_tokens_per_second": 12.84,
+    "teacher_scored_positions_per_second": 313.15,
+    "update_positions_per_second": 75.1401,
+    "peak_allocated_gib": 1.3808,
+    "peak_reserved_gib": 1.4043,
+    "peft_export_and_reload": "passed"
+  },
+  "artifacts": {
+    "checkpoint_adapter_sha256": "0ad396b576ab89bba894407331bedff529272dbc80a10d5b73935f42f0d444de",
+    "checkpoint_optimizer_sha256": "b41f8da8946c3d6691bbf9266866a95a7fbd0e76a0d927a56f802749c4d4cd0e",
+    "trajectory_sha256": "0adbe928a45d5aba8c2c85234fcbba246b4c1bbd1c48397c4f6ea584d701d3e3",
+    "peft_adapter_sha256": "9429bc79db18ac773a65c7f6a776eef45f9275f7a7f5c783ccd10286d5127c55"
+  },
+  "scope": {
+    "plan_completed": true,
+    "probe_completed": true,
+    "rollout_completed": true,
+    "teacher_scoring_completed": true,
+    "optimizer_update_completed": true,
+    "peft_reload_completed": true,
+    "task_quality_evaluated": false,
+    "distributed_execution_tested": false
+  }
+}
