@@ -110,7 +110,8 @@ def test_external_run_requires_explicit_high_risk_reinterpretation_acceptance() 
     acceptance = payload["compatibility"]["reinterpretation_acceptance"]
     assert acceptance["accepted"] is True
     assert acceptance["source"] == "cli_flag"
-    assert "actor_rollout_ref.actor.ppo_mini_batch_size" in acceptance["required_fields"]
+    assert "actor_rollout_ref.rollout.name" in acceptance["required_fields"]
+    assert "actor_rollout_ref.actor.ppo_mini_batch_size" not in acceptance["required_fields"]
 
 
 def test_builtin_approval_is_value_bound_and_does_not_approve_semantic_drift() -> None:
@@ -138,7 +139,7 @@ def test_builtin_approval_is_value_bound_and_does_not_approve_semantic_drift() -
             "--config",
             "builtin:qwen3-0.6b-1.7b-opd",
             "--set",
-            "actor_rollout_ref.actor.ppo_mini_batch_size=4",
+            "actor_rollout_ref.rollout.name=sglang",
             "--dry-run",
             "--offline",
         ],

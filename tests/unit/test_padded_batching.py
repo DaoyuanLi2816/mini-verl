@@ -49,6 +49,28 @@ def test_length_bucketing_is_deterministic_and_stable_on_ties() -> None:
     assert deterministic_length_batches(lengths, batch_size=4) == ((1, 4, 3, 0), (2, 5))
 
 
+def test_physical_update_batches_respect_count_and_padded_token_limits() -> None:
+    from miniverl.training.batching import deterministic_padded_token_batches
+
+    lengths = [8, 2, 10, 5, 2, 9]
+    batches = deterministic_padded_token_batches(
+        lengths,
+        batch_size=4,
+        max_padded_tokens=18,
+    )
+
+    assert batches == ((1, 4, 3), (0, 5), (2,))
+    assert all(len(batch) <= 4 for batch in batches)
+    assert all(max(lengths[index] for index in batch) * len(batch) <= 18 for batch in batches)
+
+
+def test_physical_update_token_limit_rejects_one_oversized_trajectory() -> None:
+    from miniverl.training.batching import deterministic_padded_token_batches
+
+    with pytest.raises(ValueError, match="trajectory 1 has 20 tokens"):
+        deterministic_padded_token_batches([4, 20], batch_size=2, max_padded_tokens=16)
+
+
 def test_toy_padded_hidden_states_match_sequential_for_variable_lengths() -> None:
     from miniverl.models.tokenizers import ToyTokenizer
     from miniverl.models.toy import ToyBackend

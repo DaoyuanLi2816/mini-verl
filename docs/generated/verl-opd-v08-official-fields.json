@@ -2,11 +2,11 @@
   "claim": "Every fixture leaf is classified; coverage does not imply that policy-gradient, FSDP, or distributed execution is supported.",
   "classifications": {
     "derived": 0,
-    "exact": 23,
-    "informational_only": 18,
-    "locally_reinterpreted": 22,
-    "semantically_conformant": 16,
-    "unsupported": 3
+    "exact": 29,
+    "informational_only": 14,
+    "locally_reinterpreted": 20,
+    "semantically_conformant": 15,
+    "unsupported": 4
   },
   "executable": false,
   "official_example_fields_total": 82,
@@ -23,6 +23,7 @@
   "unsupported_fields": [
     "actor_rollout_ref.actor.fsdp_config.optimizer_offload",
     "actor_rollout_ref.actor.fsdp_config.param_offload",
-    "algorithm.adv_estimator"
+    "algorithm.adv_estimator",
+    "data.filter_overlong_prompts"
   ]
 }

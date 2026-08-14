@@ -183,16 +183,26 @@ class HFBackend(CausalLMBackend):
         quantization = spec.quantization
         adapter_provenance = None
         validated_adapter = None
-        if isinstance(spec, TeacherModelConfig) and spec.adapter is not None:
-            from miniverl.models.adapter_io import validate_teacher_adapter
+        if spec.adapter is not None:
+            if isinstance(spec, TeacherModelConfig):
+                from miniverl.models.adapter_io import validate_teacher_adapter
 
-            validated_adapter = validate_teacher_adapter(
-                spec.adapter,
-                spec,
-                tokenizer_fingerprint=tokenizer.fingerprint,
-                protocol_version=protocol_version,
-                local_files_only=local_files_only,
-            )
+                validated_adapter = validate_teacher_adapter(
+                    spec.adapter,
+                    spec,
+                    tokenizer_fingerprint=tokenizer.fingerprint,
+                    protocol_version=protocol_version,
+                    local_files_only=local_files_only,
+                )
+            else:
+                from miniverl.models.adapter_io import validate_student_adapter
+
+                validated_adapter = validate_student_adapter(
+                    spec.adapter,
+                    spec,
+                    tokenizer_fingerprint=tokenizer.fingerprint,
+                    local_files_only=local_files_only,
+                )
             adapter_provenance = validated_adapter.provenance
         kwargs: dict[str, Any] = {
             "revision": spec.revision,
@@ -255,7 +265,31 @@ class HFBackend(CausalLMBackend):
         gradient_checkpointing = getattr(spec, "gradient_checkpointing", False)
         if trainable:
             lora_spec = getattr(spec, "lora", None)
-            if isinstance(lora_spec, LoRAConfig) and lora_spec.enabled:
+            if isinstance(spec, StudentModelConfig) and spec.adapter is not None:
+                assert validated_adapter is not None
+                peft = require_peft("Loading a trainable existing student adapter")
+                if quant_config is not None and spec.prepare_kbit_training:
+                    model = peft.prepare_model_for_kbit_training(
+                        model, use_gradient_checkpointing=gradient_checkpointing
+                    )
+                elif quant_config is not None:
+                    for parameter in model.parameters():
+                        parameter.requires_grad_(False)
+                try:
+                    model = peft.PeftModel.from_pretrained(
+                        model,
+                        str(validated_adapter.snapshot_dir),
+                        adapter_name=student_adapter_name,
+                        is_trainable=True,
+                        local_files_only=True,
+                    )
+                except (OSError, ValueError) as exc:
+                    raise BackendError(
+                        f"could not attach trainable student adapter {spec.adapter.path!r}: {exc}",
+                        hint="verify the pinned adapter/base pair and PEFT target modules",
+                    ) from exc
+                lora_enabled = True
+            elif isinstance(lora_spec, LoRAConfig) and lora_spec.enabled:
                 model = cls._attach_lora(
                     model,
                     lora_spec,

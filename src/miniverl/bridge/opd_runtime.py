@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from miniverl.bridge.opd_capabilities import decide_placement
 from miniverl.bridge.opd_v08 import CompiledLocalExecutionPlan
 from miniverl.config.models import RunConfig
 from miniverl.errors import ConfigError
@@ -36,7 +37,7 @@ class OPDSystemPlan(BaseModel):
     loss: dict[str, Any]
     local_execution: dict[str, Any]
     memory: dict[str, Any]
-    batching: dict[str, int]
+    batching: dict[str, Any]
     disk: dict[str, Any]
     time_to_first_update: dict[str, Any]
 
@@ -52,6 +53,16 @@ def _gib(value: float) -> float:
     return round(value / (1024**3), 3)
 
 
+def _weight_bytes_per_parameter(*, quantization: str, dtype: str) -> float:
+    if quantization == "nf4":
+        return 0.65
+    if quantization == "int8":
+        return 1.15
+    if dtype == "float32":
+        return 4.2
+    return 2.2
+
+
 def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
     """Build a deterministic plan without importing torch or loading weights."""
     source = compiled.source
@@ -60,11 +71,25 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
         source.distillation.teacher_models.teacher_model.model_path
     )
     rank = source.actor_rollout_ref.model.lora_rank
-    # NF4 estimates include a conservative 0.65 byte/parameter allowance for
-    # quantized weights, scales and allocator overhead. LoRA/Adam is estimated
-    # separately and deliberately rounded up.
-    student_static = None if student_params is None else student_params * 0.65
-    teacher_static = None if teacher_params is None else teacher_params * 0.65
+    actor_runtime = source.miniverl.actor_runtime
+    teacher_runtime = source.miniverl.teacher_runtime
+    teacher_dtype = source.distillation.teacher_models.teacher_model.inference.dtype
+    student_static = (
+        None
+        if student_params is None
+        else student_params
+        * _weight_bytes_per_parameter(
+            quantization=actor_runtime.quantization, dtype=actor_runtime.dtype
+        )
+    )
+    teacher_static = (
+        None
+        if teacher_params is None
+        else teacher_params
+        * _weight_bytes_per_parameter(
+            quantization=teacher_runtime.quantization, dtype=teacher_dtype
+        )
+    )
     trainable_optimizer = (
         None if student_params is None else max(96 * rank * math.sqrt(student_params), 64 * 1024**2)
     )
@@ -84,28 +109,21 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
     )
     limit = source.miniverl.memory.vram_limit_gib
     headroom = source.miniverl.memory.headroom_gib
-    requested = source.miniverl.runtime.mode
-    if requested == "auto":
-        if student_static is None or teacher_static is None:
-            strategy = "swap"
-            reason = "auto -> swap because one or more model-size estimates are unknown"
-        elif _gib(known_static + token_buffers + target_bytes) <= limit - headroom:
-            strategy = "dual_model_resident"
-            reason = "auto -> dual_model_resident from model metadata and configured headroom"
-        else:
-            strategy = "swap"
-            reason = "auto -> swap because estimated resident demand exceeds usable VRAM"
-    else:
-        strategy = requested
-        reason = f"runtime mode was set explicitly to {requested}"
-    if strategy == "shared_backbone" and (
-        source.actor_rollout_ref.model.path
-        != source.distillation.teacher_models.teacher_model.model_path
-    ):
-        raise ConfigError(
-            "shared_backbone requires the student and teacher to use the same base model",
-            hint="use miniverl.runtime.mode=auto, dual_model_resident, or swap",
-        )
+    resident_feasible = (
+        None
+        if student_static is None or teacher_static is None
+        else _gib(known_static + token_buffers + target_bytes) <= limit - headroom
+    )
+    decision = decide_placement(
+        requested=source.miniverl.runtime.mode,
+        student_quantization=actor_runtime.quantization,
+        teacher_quantization=teacher_runtime.quantization,
+        resident_feasible=resident_feasible,
+        shared_backbone_feasible=(
+            source.actor_rollout_ref.model.path
+            == source.distillation.teacher_models.teacher_model.model_path
+        ),
+    )
     classifications: dict[str, int] = {}
     for item in compiled.compatibility:
         classifications[item.classification] = classifications.get(item.classification, 0) + 1
@@ -113,7 +131,7 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
         profile=compiled.profile,
         upstream=compiled.upstream,
         compiled_digest=compiled.compiled_digest,
-        executable=compiled.executable,
+        executable=compiled.executable and decision.executable_without_probe,
         overrides=[item.model_dump(mode="json") for item in compiled.overrides],
         reinterpretation_acceptance=compiled.reinterpretation_acceptance,
         acknowledgement_required_mappings=[
@@ -132,6 +150,11 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
             "revision": source.miniverl.student_revision,
             "parameter_count": student_params,
             "parameter_count_status": student_basis,
+            "runtime": actor_runtime.model_dump(mode="json"),
+            "adapter": {
+                "path": source.actor_rollout_ref.model.lora_adapter_path,
+                **source.miniverl.student_adapter.model_dump(mode="json"),
+            },
         },
         teacher={
             "model_id": source.distillation.teacher_models.teacher_model.model_path,
@@ -139,6 +162,10 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
             "parameter_count": teacher_params,
             "parameter_count_status": teacher_basis,
             "adapter": source.miniverl.teacher_adapter.model_dump(mode="json"),
+            "runtime": {
+                "dtype": teacher_dtype,
+                **teacher_runtime.model_dump(mode="json"),
+            },
         },
         data={
             "train_files": source.data.train_files,
@@ -154,8 +181,14 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
             "task_rewards": False,
         },
         local_execution={
-            "strategy": strategy,
-            "reason": reason,
+            "strategy": decision.strategy,
+            "requested_strategy": source.miniverl.runtime.mode,
+            "reason": decision.reason,
+            "placement_not_proven": decision.placement_not_proven,
+            "executable_without_probe": decision.executable_without_probe,
+            "swap_feasible": decision.swap_feasible,
+            "resident_feasible": decision.resident_feasible,
+            "shared_backbone_feasible": decision.shared_backbone_feasible,
             "roles": [
                 "ActorRuntime",
                 "TeacherRuntime",
@@ -171,6 +204,17 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
                 "checkpoint_evaluation",
             ],
             "distributed_execution": False,
+            "declared_rollout_engine": source.actor_rollout_ref.rollout.name,
+            "declared_teacher_engine": (
+                source.distillation.teacher_models.teacher_model.inference.name
+            ),
+            "dynamic_physical_batching": source.actor_rollout_ref.actor.use_dynamic_bsz,
+            "context_limits": {
+                "actor": source.actor_rollout_ref.rollout.max_model_len,
+                "teacher": (
+                    source.distillation.teacher_models.teacher_model.inference.max_model_len
+                ),
+            },
         },
         memory={
             "status": "estimated",
@@ -185,12 +229,21 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
             "teacher_target_gib": _gib(target_bytes),
             "configured_vram_limit_gib": limit,
             "configured_headroom_gib": headroom,
+            "declared_rollout_memory_fraction": (
+                source.actor_rollout_ref.rollout.gpu_memory_utilization
+            ),
+            "declared_teacher_memory_fraction": (
+                source.distillation.teacher_models.teacher_model.inference.gpu_memory_utilization
+            ),
             "measured_peak_reserved_gib": None,
         },
         batching={
             "rollout": source.miniverl.batching.rollout_batch_size,
+            "declared_rollout_sequence_cap": source.actor_rollout_ref.rollout.max_num_seqs,
+            "declared_rollout_token_cap": (source.actor_rollout_ref.rollout.max_num_batched_tokens),
             "teacher_score": source.miniverl.batching.teacher_score_batch_size,
             "update_trajectories": source.miniverl.batching.update_trajectory_batch_size,
+            "update_token_cap": source.actor_rollout_ref.actor.ppo_max_token_len_per_gpu,
         },
         disk={
             "status": "estimated",
@@ -210,6 +263,13 @@ def compile_native_run_config(
     source = compiled.source
     plan = system_plan or build_system_plan(compiled)
     strategy = plan.local_execution["strategy"]
+    if not plan.executable:
+        if strategy == "requires_probe":
+            raise ConfigError(
+                "OPD placement requires a resident feasibility probe before execution",
+                hint="use model identities with known sizes or an explicitly proven legal placement",
+            )
+        raise ConfigError("OPD system plan is not executable under the configured placement")
     if strategy == "shared_backbone":
         raise ConfigError(
             "shared_backbone execution needs a materialized frozen teacher adapter",
@@ -225,6 +285,12 @@ def compile_native_run_config(
         total_steps = source.trainer.total_epochs
     logical_batch = source.data.train_batch_size
     memory_strategy = "resident" if strategy == "dual_model_resident" else strategy
+    student_adapter = None
+    if source.actor_rollout_ref.model.lora_adapter_path is not None:
+        student_adapter = {
+            "path": source.actor_rollout_ref.model.lora_adapter_path,
+            **source.miniverl.student_adapter.model_dump(mode="json"),
+        }
     payload = {
         "schema_version": 1,
         "run": {
@@ -242,8 +308,9 @@ def compile_native_run_config(
             "student": {
                 "model_id": source.actor_rollout_ref.model.path,
                 "revision": source.miniverl.student_revision,
-                "dtype": "auto",
-                "quantization": "nf4",
+                "dtype": source.miniverl.actor_runtime.dtype,
+                "quantization": source.miniverl.actor_runtime.quantization,
+                "attn_implementation": source.miniverl.actor_runtime.attn_implementation,
                 "gradient_checkpointing": source.actor_rollout_ref.model.enable_gradient_checkpointing,
                 "lora": {
                     "enabled": True,
@@ -251,14 +318,21 @@ def compile_native_run_config(
                     "alpha": source.actor_rollout_ref.model.lora_alpha,
                     "target_modules": source.actor_rollout_ref.model.target_modules,
                 },
+                "adapter": student_adapter,
             },
             "teacher": {
                 "model_id": source.distillation.teacher_models.teacher_model.model_path,
                 "revision": source.miniverl.teacher_revision,
-                "dtype": "auto",
-                "quantization": "nf4",
+                "dtype": source.distillation.teacher_models.teacher_model.inference.dtype,
+                "quantization": source.miniverl.teacher_runtime.quantization,
+                "attn_implementation": source.miniverl.teacher_runtime.attn_implementation,
                 "mode": "standard",
                 "toy_pretrain_steps": 0,
+                "adapter": (
+                    None
+                    if source.miniverl.teacher_adapter.path is None
+                    else source.miniverl.teacher_adapter.model_dump(mode="json")
+                ),
             },
         },
         "source": {
@@ -279,9 +353,14 @@ def compile_native_run_config(
             "max_total_tokens": source.data.max_prompt_length + source.data.max_response_length,
             "temperature": source.actor_rollout_ref.rollout.temperature,
             "top_p": source.actor_rollout_ref.rollout.top_p,
-            "prompt_batch_size": source.miniverl.batching.rollout_batch_size,
+            "prompt_batch_size": min(
+                source.miniverl.batching.rollout_batch_size,
+                source.actor_rollout_ref.rollout.max_num_seqs
+                or source.miniverl.batching.rollout_batch_size,
+            ),
             "max_padded_tokens": source.actor_rollout_ref.rollout.max_num_batched_tokens
-            or source.actor_rollout_ref.actor.ppo_max_token_len_per_gpu,
+            or (source.data.max_prompt_length + source.data.max_response_length)
+            * source.miniverl.batching.rollout_batch_size,
         },
         "selection": {"selector": "all_model_tokens"},
         "loss": {
@@ -300,6 +379,8 @@ def compile_native_run_config(
             "rollouts_per_cycle": logical_batch,
             "gradient_accumulation_steps": logical_batch,
             "trajectory_batch_size": source.miniverl.batching.update_trajectory_batch_size,
+            "length_bucketing": source.actor_rollout_ref.actor.use_dynamic_bsz,
+            "max_update_padded_tokens": (source.actor_rollout_ref.actor.ppo_max_token_len_per_gpu),
             "learning_rate": source.actor_rollout_ref.actor.optim.lr,
             "weight_decay": source.actor_rollout_ref.actor.optim.weight_decay,
             "warmup_steps": source.actor_rollout_ref.actor.optim.lr_warmup_steps,
