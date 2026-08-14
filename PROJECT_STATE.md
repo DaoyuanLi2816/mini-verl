@@ -6,6 +6,8 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-08-13.
 
+Canonical release state: stable `v0.9.0` (`bc03d0e6aa5b7646423c460b253ea53070db31de`), development `0.9.1.dev0`.
+
 ## Release state
 
 - Stable: `v0.9.0` at `bc03d0e6aa5b7646423c460b253ea53070db31de`.
