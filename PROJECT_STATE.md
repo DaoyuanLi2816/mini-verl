@@ -6,11 +6,12 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-08-13.
 
-Canonical release state: releasing `v0.9.1`.
+Canonical release state: stable `v0.9.1` (`6c0f3d818c10419e0bfba81f3ad1c5adf24eaf09`), development `0.10.0.dev0`.
 
 ## Release state
 
-- Release candidate: `v0.9.1` (release commit pending).
+- Stable: `v0.9.1` at `6c0f3d818c10419e0bfba81f3ad1c5adf24eaf09`.
+- Development: `0.10.0.dev0`.
 - Stable docs: <https://daoyuanli2816.github.io/mini-verl/>.
 - Development docs: <https://daoyuanli2816.github.io/mini-verl/dev/>.
 - Historical build log: [v0.1-v0.9 archive](docs/history/project-state-v0.1-v0.9.md).
@@ -23,7 +24,7 @@ of official verl `v0.8.0` at commit
 `n=1`, reward-free direct GKD `forward_kl_topk` and token-mean reduction in one
 local process on one NVIDIA CUDA GPU.
 
-The v0.9.1 development repair makes dtype, quantization, attention, student
+The stable v0.9.1 repair makes dtype, quantization, attention, student
 adapter input, logical/physical batch limits and placement legality explicit.
 Executable compatibility claims are mutation-tested and recorded in
 `docs/generated/verl-opd-v0.8-field-effects.json`. Quantized roles cannot swap;

@@ -4,6 +4,18 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.10.0 development
+
+- [x] Begin from the verified v0.9.1 release and `0.10.0.dev0` canonical state.
+- [ ] Add the versioned internal compatibility-profile registry and profile
+      identity binding without an unrestricted plugin loader.
+- [ ] Add the pinned verl v0.8 policy-gradient k1 profile with scalar, gradient,
+      freshness, resume and export conformance.
+- [ ] Publish bounded RTX 4080 systems evidence for PG k1 and a full SmolLM2
+      direct-GKD developer recipe; do not add a task-quality benchmark.
+- [ ] Add validated community hardware records and document the measured or
+      explicitly unmeasured Linux/WSL state.
+
 ## v0.9.1 development
 
 The focused v0.9.1 scope repairs the verl OPD semantic contract: explicit
@@ -203,6 +215,23 @@ unauthorized after checkpoint-selection failure**.
       generated-artifact, visual, package and attribution gates before merge.
 
 ## After the tag
+
+- [x] v0.9.1 release run
+      [`31772945981`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772945981)
+      completed the full release gate, OIDC Trusted Publishing, per-file
+      attestations, exact public install and GitHub Release creation for commit
+      `6c0f3d818c10419e0bfba81f3ad1c5adf24eaf09`.
+- [x] PyPI and the
+      [v0.9.1 GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.9.1)
+      expose identical files: wheel SHA-256
+      `3cf1bd61b915e8ae57e0cccdc6ca9c017bbe5bcf1b81ac7ed20c7c9ed9808825`,
+      sdist SHA-256
+      `9fc4e63d6efb70a0b635af4f61c4b01a99d3496634841d7a8e8e6d8d06784e9e`.
+- [x] A fresh CPython 3.10 environment installed CUDA PyTorch 2.13.0+cu130,
+      public `miniverl[train,cuda]==0.9.1` and bitsandbytes 0.50.1; `doctor`
+      reported RTX 4080 CUDA, BF16 and QLoRA capabilities available.
+- [x] Advance subsequent development to `0.10.0.dev0`; the main-only docs
+      deployment is verified after this state-sync PR merges.
 
 - [x] v0.9.0 release run
       [`31681888075`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31681888075)
