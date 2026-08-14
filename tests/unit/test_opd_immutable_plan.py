@@ -57,6 +57,8 @@ def test_plan_out_binds_source_data_models_and_exact_native_config(tmp_path: Pat
 
     assert payload["schema_version"] == 1
     assert payload["artifact_type"] == "miniverl_immutable_opd_plan"
+    assert payload["profile_identity"]["profile_name"] == "verl-opd-v0.8-single-gpu-v1"
+    assert len(payload["profile_identity"]["digest"]) == 64
     assert len(payload["plan_digest"]) == 64
     assert payload["source_config"]["path"] == str(profile.resolve())
     assert len(payload["source_config"]["sha256"]) == 64
@@ -68,6 +70,9 @@ def test_plan_out_binds_source_data_models_and_exact_native_config(tmp_path: Pat
     assert payload["compatibility_acceptance"]["accepted"] is True
     assert (
         payload["resolved_native_config"]["run"]["execution_plan_digest"] == payload["plan_digest"]
+    )
+    assert (
+        payload["resolved_native_config"]["run"]["profile_identity"] == payload["profile_identity"]
     )
     assert plan.read_bytes().endswith(b"\n")
 

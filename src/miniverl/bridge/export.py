@@ -663,6 +663,7 @@ def _export_opd_bundle(
         report: dict[str, Any] = {
             "schema_version": 2,
             "profile": _OPD_PROFILE,
+            "profile_identity": read_json(manifest_path).get("profile_identity") or {},
             "target_verl": {
                 "repository": VERL_REPOSITORY,
                 "tag": VERL_TAG,

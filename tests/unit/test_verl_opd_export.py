@@ -22,10 +22,16 @@ def _safetensors_bytes() -> bytes:
 
 
 def _opd_run(tmp_path: Path, *, teacher_adapter: bool = False) -> tuple[Path, Path, Path]:
+    from miniverl.bridge.profiles import get_profile
+
     run = tmp_path / "run"
     model = run / "final-peft-adapter"
     model.mkdir(parents=True)
-    (run / "manifest.json").write_text(json.dumps({"status": "complete"}), encoding="utf-8")
+    profile_identity = get_profile("verl-opd-v0.8-single-gpu-v1").identity.model_dump(mode="json")
+    (run / "manifest.json").write_text(
+        json.dumps({"status": "complete", "profile_identity": profile_identity}),
+        encoding="utf-8",
+    )
     (model / "adapter_config.json").write_text(
         json.dumps(
             {
@@ -215,6 +221,8 @@ def test_pure_opd_export_is_reward_free_and_preserves_data_bytes(tmp_path: Path)
     assert report["launchable"] is False
     assert report["distributed_execution_tested"] is False
     assert report["target_semantics"] == "pure GKD forward_kl_topk OPD"
+    assert report["profile_identity"]["profile_name"] == "verl-opd-v0.8-single-gpu-v1"
+    assert len(report["profile_identity"]["digest"]) == 64
     assert (
         report["data_round_trip"]["train"][0]["sha256"]
         == hashlib.sha256(train.read_bytes()).hexdigest()

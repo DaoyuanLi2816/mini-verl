@@ -125,6 +125,11 @@ data, role and error mappings.
 
 ## Tested profile boundary
 
+Use `miniverl profiles list`, `profiles show/schema`, and `compat
+explain/check` to inspect the closed built-in registry and distinguish an
+accepted field from one with a demonstrated native effect. New plans, caches,
+checkpoints and exports bind the complete independent profile identity.
+
 `verl-opd-v0.8-single-gpu-v1` pins official verl `v0.8.0` at commit
 `7aed6b230776f963fa09509c10d9c3a767d1102c`. Its executable path is intentionally
 narrow:

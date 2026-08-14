@@ -5,6 +5,11 @@ keeps familiar field names and Parquet data, then compiles distributed resource
 intent into sequential phases on one CUDA GPU. It is an independent project;
 the mapping is explicit and does not imply endorsement or full compatibility.
 
+Inspect the closed, versioned registry with `miniverl profiles list`; use
+`miniverl compat explain` before assuming that an accepted field is effective.
+The [profile registry guide](profiles/index.md) documents the identity carried
+by plans, caches, checkpoints and exports.
+
 <picture>
   <source media="(max-width: 640px)" srcset="../verl-local-runtime-mobile.svg">
   <img src="../verl-local-runtime.svg" alt="verl-shaped YAML, overrides and Parquet prompts pass through a typed compiler; one CUDA GPU runs actor rollout, teacher scoring and actor update; portable artifacts can be handed to pinned verl while distributed execution remains outside miniVERL.">

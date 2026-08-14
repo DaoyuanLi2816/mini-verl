@@ -24,6 +24,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from miniverl import __version__
+from miniverl.commands.compat import compat_app, profiles_app
 from miniverl.errors import ConfigError, MiniVerlError
 from miniverl.utils.runs import make_run_id
 
@@ -58,6 +59,8 @@ evidence_app = typer.Typer(
 app.add_typer(evidence_app, name="evidence")
 data_app = typer.Typer(help="Create and inspect portable prompt data.", no_args_is_help=True)
 app.add_typer(data_app, name="data")
+app.add_typer(profiles_app, name="profiles")
+app.add_typer(compat_app, name="compat")
 
 console = Console()
 err_console = Console(stderr=True)

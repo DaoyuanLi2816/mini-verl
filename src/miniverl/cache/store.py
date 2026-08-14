@@ -180,6 +180,7 @@ class TeacherCache:
         loss_mode: str,
         score_implementation_version: str | None = None,
         execution_plan_digest: str | None = None,
+        profile_identity: dict[str, Any] | None = None,
         dtype: str = "float32",
         entries_per_shard: int = 32,
         overwrite: bool = False,
@@ -221,6 +222,7 @@ class TeacherCache:
             loss_mode=loss_mode,
             score_implementation_version=score_implementation_version,
             execution_plan_digest=execution_plan_digest,
+            profile_identity=dict(profile_identity or {}),
             dtype=dtype,
             entries_per_shard=entries_per_shard,
         )
@@ -274,6 +276,7 @@ class TeacherCache:
         loss_mode: str,
         score_implementation_version: str | None = None,
         execution_plan_digest: str | None = None,
+        profile_identity: dict[str, Any] | None = None,
         dtype: str,
     ) -> None:
         """Reject reuse when any objective or teacher identity component changed."""
@@ -285,6 +288,8 @@ class TeacherCache:
                 unverified.append("teacher adapter provenance")
             if execution_plan_digest is not None:
                 unverified.append("immutable execution plan identity")
+            if profile_identity:
+                unverified.append("compatibility profile identity")
             if unverified:
                 raise StaleCacheError(
                     "schema-v1 teacher cache cannot verify " + " or ".join(unverified),
@@ -309,6 +314,7 @@ class TeacherCache:
                 dict(teacher_adapter_provenance) if teacher_adapter_provenance is not None else None
             )
             expected["execution_plan_digest"] = execution_plan_digest
+            expected["profile_identity"] = dict(profile_identity or {})
         mismatches = {
             key: (getattr(self.index, key), value)
             for key, value in expected.items()

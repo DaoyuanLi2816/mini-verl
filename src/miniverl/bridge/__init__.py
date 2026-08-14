@@ -11,6 +11,7 @@ from miniverl.bridge.contract import (
     VERL_TAG,
 )
 from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
+from miniverl.bridge.profiles import ProfileIdentity, get_profile, list_profiles
 
 __all__ = [
     "BRIDGE_PROFILE",
@@ -18,4 +19,7 @@ __all__ = [
     "VERL_OPD_V08_PROFILE",
     "VERL_REPOSITORY",
     "VERL_TAG",
+    "ProfileIdentity",
+    "get_profile",
+    "list_profiles",
 ]

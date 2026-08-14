@@ -291,6 +291,9 @@ def compile_native_run_config(
             "path": source.actor_rollout_ref.model.lora_adapter_path,
             **source.miniverl.student_adapter.model_dump(mode="json"),
         }
+    from miniverl.bridge.profiles import get_profile
+
+    profile_identity = get_profile(compiled.profile).identity.model_dump(mode="json")
     payload = {
         "schema_version": 1,
         "run": {
@@ -300,6 +303,7 @@ def compile_native_run_config(
             "output_dir": "runs",
             "deterministic": True,
             "tags": [compiled.profile, "verl-v0.8.0", "pure-opd"],
+            "profile_identity": profile_identity,
         },
         "models": {
             "backend": "hf",

@@ -31,6 +31,12 @@ Executable compatibility claims are mutation-tested and recorded in
 unknown-size quantized roles require proof instead of receiving an executable
 plan.
 
+Development `0.10.0.dev0` now has a closed typed profile registry and
+torch-free compatibility introspection. New profile-scoped plans, caches,
+checkpoints and exports bind an independent identity; the only registered
+executable profile remains the measured direct-GKD path until PG-k1 conformance
+and runtime work is complete.
+
 Arbitrary verl YAML, policy-gradient OPD, rewards, PPO/GRPO, Ray, FSDP,
 Megatron, multi-GPU and distributed execution remain unsupported. The legacy
 environment/PPO artifact bridge is migration-only.

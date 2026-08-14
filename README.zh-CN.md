@@ -104,6 +104,11 @@ config、data、role 与错误映射见[面向 verl 用户的指南](docs/for-ve
 
 ## 已测试的 profile 边界
 
+可用 `miniverl profiles list`、`profiles show/schema` 和 `compat
+explain/check` 查看封闭的内置 registry，并区分“字段可接受”和“字段确实对本地运行时
+生效”。新生成的 plan、cache、checkpoint 与 export 都绑定完整且独立版本化的 profile
+identity。
+
 `verl-opd-v0.8-single-gpu-v1` 固定官方 verl `v0.8.0` 与 commit
 `7aed6b230776f963fa09509c10d9c3a767d1102c`。可执行边界有意保持狭窄：
 

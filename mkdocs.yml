@@ -42,6 +42,7 @@ plugins:
 nav:
   - Home: index.md
   - For verl users: for-verl-users.md
+  - Compatibility profiles: profiles/index.md
   - Config overrides: config-overrides.md
   - Immutable plans: immutable-plans.md
   - Hardware planning: hardware-planning.md
