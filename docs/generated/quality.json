@@ -1,50 +1,37 @@
 {
   "schema_version": 2,
-  "release": "0.9.1",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.9.1",
+  "release": "0.10.0",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.10.0",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
-    "commit": "7dd7bdbf65207e15fdebed7e9ceb0eb82883046a",
-    "commit_relationship": "final release PR head; the squash merge carries the same product tree",
-    "measured_at": "2026-08-13T22:10:22-07:00",
+    "commit": "b2157301e5d0fd5652d8a1bd02fbf5e87735f9d3",
+    "commit_relationship": "final product head before release-only metadata; merge 0749e58 carries the same tree and passed the full required CI matrix",
+    "measured_at": "2026-08-14T01:32:04-07:00",
     "platform": "Windows 11",
-    "python": "CPython 3.10 for coverage, local CUDA tests and the clean public CUDA install",
+    "python": "CPython 3.10 for coverage, local CUDA and network tests",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2234,
-      "skipped": 10,
+      "passed": 2300,
+      "skipped": 7,
       "deselected": 22,
-      "branch_coverage_percent": 83.98,
-      "skip_reason": "eight platform or privilege skips plus two pinned-verl conformance skips while the official package was intentionally absent from the general environment; all three pinned checks ran separately"
+      "branch_coverage_percent": 83.70,
+      "skip_reason": "seven Windows platform or privilege skips; pinned-verl and package gates ran separately"
     },
     "gpu": {
       "passed": 8,
       "hardware": "NVIDIA GeForce RTX 4080"
     },
     "network": {
-      "passed": 15
+      "passed": 16
     }
   },
   "release_validation": {
-    "scope": "the exact immutable v0.9.1 release commit",
-    "commit": "6c0f3d818c10419e0bfba81f3ad1c5adf24eaf09",
-    "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772652832",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772652856",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772945978",
-      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772652801",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772945981"
-    },
-    "conclusion": "success",
+    "scope": "the exact immutable v0.10.0 release commit",
+    "commit": "pending",
+    "workflows": {},
+    "conclusion": "pending",
     "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement",
-    "publication": {
-      "pypi": "https://pypi.org/project/miniverl/0.9.1/",
-      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.9.1",
-      "documentation": "https://daoyuanli2816.github.io/mini-verl/",
-      "immutable_documentation_build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772945978",
-      "wheel_sha256": "3cf1bd61b915e8ae57e0cccdc6ca9c017bbe5bcf1b81ac7ed20c7c9ed9808825",
-      "sdist_sha256": "9fc4e63d6efb70a0b635af4f61c4b01a99d3496634841d7a8e8e6d8d06784e9e"
-    }
+    "publication": null
   }
 }
