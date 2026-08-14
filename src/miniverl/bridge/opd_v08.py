@@ -26,7 +26,9 @@ __all__ = [
     "CompiledLocalExecutionPlan",
     "VERL_OPD_V08_PROFILE",
     "VerlOPDV08Profile",
+    "compatibility_rule",
     "compile_verl_opd_v08",
+    "field_rules_digest",
     "load_verl_opd_v08",
     "load_verl_opd_v08_source",
     "parse_overrides",
@@ -729,6 +731,30 @@ _FIELD_RULES: dict[str, _Rule] = {
         "miniVERL-only adapter/tokenizer identity binding",
     ),
 }
+
+
+def compatibility_rule(field: str) -> dict[str, Any]:
+    """Return one immutable-profile rule without exposing the mutable registry."""
+    try:
+        rule = _FIELD_RULES[field]
+    except KeyError as exc:
+        raise ConfigError(
+            f"field {field!r} is not part of profile {VERL_OPD_V08_PROFILE!r}"
+        ) from exc
+    return {
+        "upstream_field": field,
+        "local_target": rule.target,
+        "classification": rule.classification,
+        "reason": rule.reason,
+        "semantic_risk": rule.risk,
+        "user_confirmation_required": rule.confirmation,
+    }
+
+
+def field_rules_digest() -> str:
+    """Bind profile identity to the complete canonical field-rule table."""
+    payload = [compatibility_rule(field) for field in sorted(_FIELD_RULES)]
+    return _canonical_digest(payload)
 
 
 def _flatten(value: Mapping[str, Any], prefix: str = "") -> dict[str, Any]:

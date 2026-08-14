@@ -9,7 +9,7 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from miniverl import __version__
 from miniverl.bridge.opd_runtime import OPDSystemPlan, build_system_plan, compile_native_run_config
@@ -38,6 +38,7 @@ class ImmutableOPDPlan(BaseModel):
     artifact_type: Literal["miniverl_immutable_opd_plan"] = "miniverl_immutable_opd_plan"
     miniverl_version: str
     profile: str
+    profile_identity: dict[str, Any] = Field(default_factory=dict)
     pinned_verl: dict[str, str]
     source_config: dict[str, Any]
     overrides: list[dict[str, Any]]
@@ -179,11 +180,15 @@ def build_immutable_opd_plan(
         native.models.teacher.revision,
         role="teacher",
     )
+    from miniverl.bridge.profiles import get_profile
+
+    profile_identity = get_profile(compiled.profile).identity.model_dump(mode="json")
     payload: dict[str, Any] = {
         "schema_version": 1,
         "artifact_type": "miniverl_immutable_opd_plan",
         "miniverl_version": __version__,
         "profile": compiled.profile,
+        "profile_identity": profile_identity,
         "pinned_verl": compiled.upstream,
         "source_config": source_identity,
         "overrides": [item.model_dump(mode="json") for item in compiled.overrides],

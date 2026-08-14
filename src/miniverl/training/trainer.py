@@ -911,6 +911,7 @@ class OPDTrainer:
         return {
             "miniverl_version": __version__,
             "execution_plan_digest": config.run.execution_plan_digest,
+            "profile_identity": config.run.profile_identity,
             "run_id": self.run_id,
             "run_name": config.run.name,
             "created_at": self._started_at,
@@ -1312,6 +1313,7 @@ class OPDTrainer:
                     else "miniverl-native-v1"
                 ),
                 "execution_plan_digest": self.config.run.execution_plan_digest,
+                "profile_identity": self.config.run.profile_identity,
                 "dtype": self.config.cache.dtype,
             }
             if (path / "index.json").is_file():
@@ -2925,6 +2927,7 @@ class OPDTrainer:
             "tokenizer_revision": student.tokenizer_revision or student.revision,
             "lora": student.lora.model_dump(mode="json"),
             "execution_plan_digest": self.config.run.execution_plan_digest,
+            "profile_identity": self.config.run.profile_identity,
         }
 
     def save_checkpoint(self, *, name: str | None = None) -> Path:
@@ -2968,6 +2971,7 @@ class OPDTrainer:
             config_digest=self._config_digest(),
             resolved_config_digest=self._resolved_config_digest(),
             execution_plan_digest=self.config.run.execution_plan_digest or "",
+            profile_identity=self.config.run.profile_identity,
             offline_dataset_digest=self.offline_dataset_digest,
         )
         save_checkpoint(

@@ -752,6 +752,7 @@ class RunMeta(_Base):
     notes: str = ""
     tags: list[str] = Field(default_factory=list)
     execution_plan_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    profile_identity: dict[str, Any] = Field(default_factory=dict)
 
 
 class RunConfig(_Base):

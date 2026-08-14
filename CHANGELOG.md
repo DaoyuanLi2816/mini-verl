@@ -6,6 +6,19 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Versioned compatibility profiles
+
+- Added a closed, typed compatibility-profile registry with independent
+  identity over the upstream pin, field-rule digest, native compiler, loss
+  conformance and export versions. New plans, native runs, teacher caches,
+  checkpoints and scale-out reports carry that identity.
+- Added torch-free `profiles list/show/schema` and `compat explain/check`
+  commands. They distinguish accepted, effective, locally reinterpreted,
+  informational, unsupported and non-applicable fields without loading
+  third-party entry points.
+- Began the CLI domain split by moving profile and compatibility commands out
+  of the root module without changing existing command names.
+
 ## [0.9.1] - 2026-08-13
 
 ### Semantic contract repair

@@ -79,6 +79,7 @@ def test_execution_plan_digest_is_persisted_and_required_for_reuse(tmp_path: Pat
         temperature=1.0,
         loss_mode="bucketed_topk_tail",
         execution_plan_digest="a" * 64,
+        profile_identity={"profile_name": "example", "digest": "b" * 64},
     )
     reopened = TeacherCache.open(cache.path)
     common = {
@@ -92,10 +93,16 @@ def test_execution_plan_digest_is_persisted_and_required_for_reuse(tmp_path: Pat
         "temperature": 1.0,
         "loss_mode": "bucketed_topk_tail",
         "dtype": "float32",
+        "profile_identity": {"profile_name": "example", "digest": "b" * 64},
     }
     reopened.assert_compatible(**common, execution_plan_digest="a" * 64)
     with pytest.raises(StaleCacheError, match="execution_plan_digest"):
         reopened.assert_compatible(**common, execution_plan_digest=None)
+    with pytest.raises(StaleCacheError, match="profile_identity"):
+        reopened.assert_compatible(
+            **{**common, "profile_identity": {"profile_name": "other", "digest": "c" * 64}},
+            execution_plan_digest="a" * 64,
+        )
 
 
 # ----------------------------------------------------------- round trip

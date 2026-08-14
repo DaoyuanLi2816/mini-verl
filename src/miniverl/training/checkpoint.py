@@ -64,6 +64,7 @@ class CheckpointState:
     config_digest: str = ""
     resolved_config_digest: str = ""
     execution_plan_digest: str = ""
+    profile_identity: dict[str, Any] = field(default_factory=dict)
     offline_dataset_digest: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)
 
@@ -100,6 +101,8 @@ class CheckpointState:
         }
         if self.execution_plan_digest:
             payload["execution_plan_digest"] = self.execution_plan_digest
+        if self.profile_identity:
+            payload["profile_identity"] = self.profile_identity
         return payload
 
     @classmethod
