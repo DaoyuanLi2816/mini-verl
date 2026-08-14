@@ -8,6 +8,7 @@ only then replaces the fail-closed launch template with ``launch.sh``.
 
 from __future__ import annotations
 
+import fnmatch
 import gc
 import hashlib
 import importlib.metadata
@@ -239,7 +240,6 @@ def _copy_cached_snapshot_to_regular(source: Path, destination: Path) -> None:
     destination.mkdir(parents=True)
     for item in sorted(source.rglob("*")):
         relative = item.relative_to(source)
-        target = destination / relative
         try:
             attributes = getattr(item.lstat(), "st_file_attributes", 0)
         except OSError as exc:
@@ -249,8 +249,10 @@ def _copy_cached_snapshot_to_regular(source: Path, destination: Path) -> None:
         if item.is_dir():
             if item.is_symlink():
                 raise ConfigError(f"cached snapshot contains a linked directory: {relative}")
-            target.mkdir(parents=True, exist_ok=True)
             continue
+        if not _is_model_snapshot_file(relative):
+            continue
+        target = destination / relative
         try:
             resolved = item.resolve(strict=True)
             resolved.relative_to(repository_cache)
@@ -260,6 +262,38 @@ def _copy_cached_snapshot_to_regular(source: Path, destination: Path) -> None:
             raise ConfigError(f"cached snapshot entry is not a regular file: {relative}")
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(resolved, target)
+
+
+_MODEL_SNAPSHOT_ALLOW_PATTERNS = (
+    "config.json",
+    "generation_config.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+    "special_tokens_map.json",
+    "added_tokens.json",
+    "chat_template.jinja",
+    "vocab.json",
+    "vocab.txt",
+    "merges.txt",
+    "tokenizer.model",
+    "spiece.model",
+    "model.safetensors",
+    "model-*.safetensors",
+    "model.safetensors.index.json",
+    "pytorch_model.bin",
+    "pytorch_model-*.bin",
+    "pytorch_model.bin.index.json",
+    "LICENSE*",
+    "NOTICE*",
+    "COPYING*",
+)
+
+
+def _is_model_snapshot_file(relative: Path) -> bool:
+    """Keep only the top-level files needed for a local Transformers load."""
+    return len(relative.parts) == 1 and any(
+        fnmatch.fnmatchcase(relative.name, pattern) for pattern in _MODEL_SNAPSHOT_ALLOW_PATTERNS
+    )
 
 
 def _download_snapshot(*, model_id: str, revision: str, destination: Path, offline: bool) -> Path:
@@ -278,6 +312,7 @@ def _download_snapshot(*, model_id: str, revision: str, destination: Path, offli
                         repo_id=model_id,
                         revision=revision,
                         local_files_only=True,
+                        allow_patterns=list(_MODEL_SNAPSHOT_ALLOW_PATTERNS),
                     )
                 )
             except Exception:
@@ -300,6 +335,7 @@ def _download_snapshot(*, model_id: str, revision: str, destination: Path, offli
                 revision=revision,
                 local_dir=destination,
                 local_files_only=False,
+                allow_patterns=list(_MODEL_SNAPSHOT_ALLOW_PATTERNS),
             )
     except Exception as exc:
         mode = "offline cache resolution" if offline else "snapshot download"
