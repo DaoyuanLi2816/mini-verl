@@ -130,19 +130,24 @@ explain/check` to inspect the closed built-in registry and distinguish an
 accepted field from one with a demonstrated native effect. New plans, caches,
 checkpoints and exports bind the complete independent profile identity.
 
-`verl-opd-v0.8-single-gpu-v1` pins official verl `v0.8.0` at commit
-`7aed6b230776f963fa09509c10d9c3a767d1102c`. Its executable path is intentionally
-narrow:
+Both profiles pin official verl `v0.8.0` at commit
+`7aed6b230776f963fa09509c10d9c3a767d1102c`:
+
+| Profile | Objective | Teacher target | Status |
+| --- | --- | --- | --- |
+| direct GKD | `forward_kl_topk` | top-k IDs/log-probabilities | measured |
+| PG OPD | sampled `k1` + vanilla policy loss | sampled-token teacher log-probability | measured |
+
+Their shared executable boundary is intentionally narrow:
 
 - one trainable actor and one teacher;
 - one generated response per prompt (`n=1`);
-- reward-free generalized knowledge distillation;
-- `forward_kl_topk` with teacher top-k IDs/log-probabilities, mass/overlap
-  diagnostics and token-mean aggregation;
+- reward-free distillation with token-mean aggregation;
 - LoRA or QLoRA adapter updates on one CUDA GPU;
 - immutable model revisions and verl-style structured prompt Parquet.
 
-Policy-gradient OPD, task rewards, KL penalties, multi-teacher routing,
+The PG path is not PPO: it uses a detached distillation-derived advantage with
+the pinned vanilla policy-loss form. Task rewards, KL penalties, multi-teacher routing,
 multimodal inputs, PPO, GRPO, critics, Ray, FSDP, Megatron, multi-GPU and
 multi-node execution are unsupported. Known unsupported values receive a
 machine-readable classification; unknown fields and unresolved `${...}`

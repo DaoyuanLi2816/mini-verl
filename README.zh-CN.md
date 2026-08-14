@@ -109,17 +109,24 @@ explain/check` 查看封闭的内置 registry，并区分“字段可接受”�
 生效”。新生成的 plan、cache、checkpoint 与 export 都绑定完整且独立版本化的 profile
 identity。
 
-`verl-opd-v0.8-single-gpu-v1` 固定官方 verl `v0.8.0` 与 commit
-`7aed6b230776f963fa09509c10d9c3a767d1102c`。可执行边界有意保持狭窄：
+两个 profile 都固定官方 verl `v0.8.0` 与 commit
+`7aed6b230776f963fa09509c10d9c3a767d1102c`：
+
+| Profile | 目标 | Teacher target | 状态 |
+| --- | --- | --- | --- |
+| direct GKD | `forward_kl_topk` | top-k ID/log-probability | 已实测 |
+| PG OPD | sampled `k1` + vanilla policy loss | sampled-token teacher log-probability | 已实测 |
+
+两者的可执行边界有意保持狭窄：
 
 - 一个可训练 actor 与一个 teacher；
 - 每个 prompt 只生成一个 response（`n=1`）；
-- 无 reward 的 generalized knowledge distillation；
-- `forward_kl_topk` 使用 teacher top-k token ID/log-probability、top-k mass/overlap 诊断与 token-mean 聚合；
+- 无 reward 的 distillation 与 token-mean 聚合；
 - 一张 CUDA GPU 上的 LoRA/QLoRA adapter 更新；
 - 不可变模型 revision 与 verl 风格结构化 prompt Parquet。
 
-PG OPD、task reward、KL penalty、多 teacher、多模态、PPO、GRPO、critic、Ray、FSDP、
+PG 路径不是 PPO：它用 detach 的 distillation advantage 和固定 vanilla policy-loss 形式。
+Task reward、KL penalty、多 teacher、多模态、PPO、GRPO、critic、Ray、FSDP、
 Megatron、多 GPU 与多节点均不支持。已知不支持值会得到机器可读分类；未知字段和未解析
 的 `${...}` 会被拒绝。输入必须是 resolved profile 子集，而不是任意启动脚本。
 

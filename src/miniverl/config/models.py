@@ -155,6 +155,7 @@ class LossMode(str, Enum):
     EXACT_FULL_VOCAB = "exact_full_vocab"
     BUCKETED_TOPK_TAIL = "bucketed_topk_tail"
     VERL_FORWARD_KL_TOPK = "forward_kl_topk"
+    VERL_PG_K1 = "verl_pg_k1"
 
 
 class LossAggregation(str, Enum):
@@ -475,6 +476,14 @@ class LossConfig(_Base):
         ge=0.0,
         le=1.0,
     )
+    #: Closed verl v0.8 policy-gradient subset. These values are inactive for
+    #: every other loss mode and are rejected if changed outside that profile.
+    policy_loss_mode: Literal["vanilla"] = "vanilla"
+    clip_ratio: float = Field(default=0.2, ge=0.0, lt=1.0)
+    clip_ratio_low: float = Field(default=0.2, ge=0.0, lt=1.0)
+    clip_ratio_high: float = Field(default=0.2, ge=0.0, lt=1.0)
+    clip_ratio_c: float = Field(default=3.0, gt=1.0)
+    estimator_implementation_version: str | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -523,6 +532,9 @@ class RolloutConfig(_Base):
     temperature: float = Field(default=1.0, ge=0.0, le=5.0)
     top_p: float = Field(default=1.0, gt=0.0, le=1.0)
     top_k: int = Field(default=0, ge=0)
+    #: Capture the exact sampled-token policy log-probability at rollout time.
+    #: Required by the pinned PG-k1 profile; otherwise disabled by default.
+    record_logprobs: bool = False
     # Maximum parse errors tolerated in an episode. The rollout terminates as
     # soon as the count reaches this limit; zero therefore terminates on the
     # first parse error.
@@ -905,6 +917,57 @@ class RunConfig(_Base):
                     "supported verl v0.8 profile"
                 )
 
+        if self.loss.mode is LossMode.VERL_PG_K1:
+            from miniverl.losses.verl_pg import VERL_PG_K1_IMPLEMENTATION_VERSION
+
+            if mode is not TrainingMode.OPD:
+                raise ValueError("loss.mode=verl_pg_k1 requires run.mode=opd")
+            if self.source.kind is not SourceKind.VERL_PARQUET:
+                raise ValueError("loss.mode=verl_pg_k1 requires source.kind=verl_parquet")
+            if self.models.teacher.mode is not TeacherContextMode.STANDARD:
+                raise ValueError("loss.mode=verl_pg_k1 requires a standard same-prompt teacher")
+            if self.loss.divergence is not Divergence.REVERSE_KL:
+                raise ValueError("loss.mode=verl_pg_k1 requires divergence=reverse_kl")
+            if self.loss.aggregation is not LossAggregation.TOKEN_MEAN:
+                raise ValueError("loss.mode=verl_pg_k1 requires loss.aggregation=token-mean")
+            if self.loss.temperature != 1.0 or self.loss.scale_by_temperature_squared:
+                raise ValueError(
+                    "loss.mode=verl_pg_k1 uses sampled log-probabilities directly; set "
+                    "temperature=1.0 and scale_by_temperature_squared=false"
+                )
+            if self.loss.sampled_token_nll_weight != 0.0:
+                raise ValueError("loss.mode=verl_pg_k1 cannot mix sampled-token NLL")
+            if self.loss.top_k != 1:
+                raise ValueError("loss.mode=verl_pg_k1 has no top-k target; set loss.top_k=1")
+            if self.loss.policy_loss_mode != "vanilla" or (
+                self.loss.clip_ratio,
+                self.loss.clip_ratio_low,
+                self.loss.clip_ratio_high,
+                self.loss.clip_ratio_c,
+            ) != (0.2, 0.2, 0.2, 3.0):
+                raise ValueError(
+                    "loss.mode=verl_pg_k1 supports only the pinned vanilla 0.2/0.2/0.2, "
+                    "dual-clip 3.0 policy-loss contract"
+                )
+            if self.loss.estimator_implementation_version != VERL_PG_K1_IMPLEMENTATION_VERSION:
+                raise ValueError(
+                    "loss.mode=verl_pg_k1 requires estimator_implementation_version="
+                    f"{VERL_PG_K1_IMPLEMENTATION_VERSION}"
+                )
+            if not self.rollout.record_logprobs:
+                raise ValueError("loss.mode=verl_pg_k1 requires rollout.record_logprobs=true")
+            if self.selection.selector is not SelectorName.ALL_MODEL_TOKENS:
+                raise ValueError(
+                    "loss.mode=verl_pg_k1 requires selection.selector=all_model_tokens"
+                )
+            if (
+                self.selection.max_positions_per_trajectory is not None
+                or self.selection.critical_weight != 1.0
+                or self.selection.other_weight != 1.0
+            ):
+                raise ValueError(
+                    "loss.mode=verl_pg_k1 requires every response token with unit response-mask weight"
+                )
         if mode is TrainingMode.SFT and self.loss.sampled_token_nll_weight not in (0.0, 1.0):
             raise ValueError(
                 "run.mode=sft trains with oracle cross-entropy only; "

@@ -1,6 +1,6 @@
 # Current verl-style OPD runtime
 
-This is miniVERL's current executable path: one documented, resolved subset of
+This is miniVERL's current executable path: two documented, resolved subsets of
 official verl `v0.8.0`, pinned at `7aed6b23`, compiled into local phases on one
 NVIDIA CUDA GPU. It is not a distributed verl runtime and does not accept
 arbitrary Hydra YAML.
@@ -37,6 +37,12 @@ reinterpretations; the built-in profile has a value-bound approval manifest.
 `forward_kl_topk` consumes teacher top-k token IDs and log-probabilities and
 reports top-k mass/overlap diagnostics. It does not create the explicit K+1
 tail bucket used by miniVERL's separate native `bucketed_topk_tail` objective.
+
+The second profile, `verl-opd-v0.8-single-gpu-pg-k1-v1`, records the sampled
+token, rollout-time actor log-probability and teacher log-probability, then
+recomputes the current actor log-probability for pinned `k1` + vanilla
+policy-loss semantics. It exports no top-k requirement. See [Which profile
+should I use?](profiles/index.md) for the neutral choice boundary.
 
 ## Placement is fail-closed
 

@@ -18,6 +18,8 @@ from miniverl.bridge.contract import (
     VERL_REPOSITORY,
     VERL_TAG,
 )
+from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
+from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.bridge.preflight import preflight_bundle_tree
 from miniverl.bridge.reward_static import REWARD_LEVELS, inspect_reward_scaffold
 from miniverl.bridge.safetensors_check import SAFETENSORS_LEVELS, inspect_safetensors
@@ -388,11 +390,15 @@ def _check_config(root: Path) -> dict[str, Any]:
             teacher_identity = json.loads(
                 (root / "teacher" / "teacher-model.json").read_text(encoding="utf-8")
             )
+            compatibility = json.loads(
+                (root / "provenance" / "compatibility-report.json").read_text(encoding="utf-8")
+            )
         except (OSError, json.JSONDecodeError, yaml.YAMLError) as exc:
             return {"status": "fail", "detail": str(exc)}
         required_roots = {"data", "actor_rollout_ref", "algorithm", "distillation", "trainer"}
         actual = set(payload) if isinstance(payload, dict) else set()
         opd_problems: list[str] = []
+        profile = compatibility.get("profile")
         if not required_roots.issubset(actual):
             opd_problems.append("missing required pure-OPD root")
         try:
@@ -408,11 +414,24 @@ def _check_config(root: Path) -> dict[str, Any]:
                 if model.get(field) != value:
                     opd_problems.append(f"actor_rollout_ref.model.{field}")
             loss = payload["distillation"]["distillation_loss"]
-            semantic_expected = {
-                "loss_mode": "forward_kl_topk",
-                "use_task_rewards": False,
-                "use_policy_gradient": False,
-            }
+            semantic_expected = (
+                {
+                    "loss_mode": "k1",
+                    "use_task_rewards": False,
+                    "use_policy_gradient": True,
+                    "policy_loss_mode": "vanilla",
+                }
+                if profile == VERL_OPD_PG_K1_V08_PROFILE
+                else {
+                    "loss_mode": "forward_kl_topk",
+                    "use_task_rewards": False,
+                    "use_policy_gradient": False,
+                }
+            )
+            if profile not in {VERL_OPD_V08_PROFILE, VERL_OPD_PG_K1_V08_PROFILE}:
+                opd_problems.append("unregistered pure-OPD profile")
+            if profile == VERL_OPD_PG_K1_V08_PROFILE and "topk" in loss:
+                opd_problems.append("distillation.distillation_loss.topk")
             for field, value in semantic_expected.items():
                 if loss.get(field) != value:
                     opd_problems.append(f"distillation.distillation_loss.{field}")
@@ -435,7 +454,8 @@ def _check_config(root: Path) -> dict[str, Any]:
             opd_problems.append("invalid pure-OPD handoff structure")
         return {
             "status": "ok" if not opd_problems else "fail",
-            "profile": "verl-opd-v0.8-single-gpu-v1",
+            "profile": profile,
+            "target_representation": compatibility.get("target_representation"),
             "roots": sorted(actual),
             "model_handoff_problems": opd_problems,
         }
@@ -1229,7 +1249,10 @@ def inspect_bridge_bundle(
     snapshot_checks = (student_snapshot, teacher_snapshot) if snapshot_required else ()
     checks = (target, model, tokenizer, parquet, config, reward, hashes, privacy, *snapshot_checks)
     artifact_failed = any(check.get("status") != "ok" for check in checks)
-    opd_profile = config.get("profile") == "verl-opd-v0.8-single-gpu-v1"
+    opd_profile = config.get("profile") in {
+        VERL_OPD_V08_PROFILE,
+        VERL_OPD_PG_K1_V08_PROFILE,
+    }
     materialized_complete = not opd_profile or (
         student_snapshot.get("status") == "ok" and teacher_snapshot.get("status") == "ok"
     )
@@ -1298,7 +1321,7 @@ def inspect_bridge_bundle(
         "teacher_artifact_loadable": teacher_snapshot.get("status") == "ok",
         "dataset_loadable": parquet.get("status") == "ok",
         "reward_implementation_complete": bool(reward.get("implementation_complete", False)),
-        "reward_required": config.get("profile") != "verl-opd-v0.8-single-gpu-v1",
+        "reward_required": not opd_profile,
         "launchable": bool(
             require_verl
             and upstream["status"] == "passed"

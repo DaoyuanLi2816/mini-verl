@@ -94,10 +94,13 @@ bytes and schema are copied into export provenance.
 
 ## Actor, teacher and reference roles
 
-The actor is the trainable PEFT policy. The teacher produces top-k token IDs
-and log-probabilities on actor-generated tokens; top-k mass and overlap are
-diagnostics, not an explicit tail bucket. Pure GKD in this profile has no reference
-policy, critic, task reward or policy-gradient term. Local runtime strategies
+The actor is the trainable PEFT policy. In the direct-GKD profile the teacher
+produces top-k token IDs and log-probabilities on actor-generated tokens;
+top-k mass and overlap are diagnostics, not an explicit tail bucket. In the PG
+k1 profile the target is only the sampled token's teacher log-probability,
+bound to the rollout actor log-probability and policy version; current actor
+log-probability is recomputed at update time. Neither profile has a reference
+policy, critic or task reward. Local runtime strategies
 may keep quantized roles resident, swap movable unquantized roles, or share a
 compatible backbone, but role identities never collapse in provenance.
 
@@ -121,8 +124,9 @@ tested.
 - **Unknown field:** capture a resolved config and remove fields outside the
   documented profile; inspect-only compilation can still explain known
   unsupported values.
-- **Algorithm field rejected:** PG OPD, rewards, KL penalties, `n>1`, multiple
-  teachers and distributed counts are intentionally unsupported.
+- **Algorithm field rejected:** select the explicit PG-k1 profile for its
+  narrow sampled policy-loss path. Rewards, critics, external advantages, KL
+  penalties, `n>1`, multiple teachers and distributed counts remain unsupported.
 - **Interpolation rejected:** resolve Hydra/OmegaConf in your trusted verl
   environment first. miniVERL will not execute `${...}`.
 - **High-risk reinterpretation not accepted:** inspect `miniverl plan`, then

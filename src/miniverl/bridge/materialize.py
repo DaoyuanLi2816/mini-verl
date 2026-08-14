@@ -21,6 +21,8 @@ import yaml
 
 from miniverl import __version__
 from miniverl.bridge.contract import VERL_COMMIT
+from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
+from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.bridge.preflight import preflight_bundle_tree
 from miniverl.bridge.safetensors_check import inspect_safetensors
 from miniverl.errors import ConfigError
@@ -450,6 +452,8 @@ def _load_local_transformers_metadata(
 
 
 def _validate_upstream_bundle(root: Path) -> dict[str, Any]:
+    report = read_json(root / "provenance/compatibility-report.json")
+    profile = report.get("profile")
     try:
         distribution = importlib.metadata.distribution("verl")
     except importlib.metadata.PackageNotFoundError as exc:
@@ -499,12 +503,34 @@ def _validate_upstream_bundle(root: Path) -> dict[str, Any]:
     )
     teacher = _load_local_transformers_metadata(root / "teacher/base", role="teacher")
     recipe = yaml.safe_load((root / "recipe/verl-opd-overrides.yaml").read_text(encoding="utf-8"))
-    topk = recipe["distillation"]["distillation_loss"].get("topk")
-    if isinstance(topk, bool) or not isinstance(topk, int) or topk < 1:
-        raise ConfigError("pure-OPD top-k must be a positive integer")
-    for role, metadata in (("student", student), ("teacher", teacher)):
-        if topk > metadata["vocab_size"]:
-            raise ConfigError(f"top-k {topk} exceeds the {role} tokenizer vocabulary")
+    loss = recipe["distillation"]["distillation_loss"]
+    semantic_checks: dict[str, Any]
+    if profile == VERL_OPD_PG_K1_V08_PROFILE:
+        semantic_checks = {
+            "loss_mode": "k1",
+            "use_policy_gradient": True,
+            "policy_loss_mode": "vanilla",
+            "use_task_rewards": False,
+        }
+        if "topk" in loss:
+            raise ConfigError("sampled-k1 PG materialization forbids top-k targets")
+        target_check = "sampled_k1_policy_gradient_contract"
+    else:
+        semantic_checks = {
+            "loss_mode": "forward_kl_topk",
+            "use_policy_gradient": False,
+            "use_task_rewards": False,
+        }
+        topk = loss.get("topk")
+        if isinstance(topk, bool) or not isinstance(topk, int) or topk < 1:
+            raise ConfigError("pure-OPD top-k must be a positive integer")
+        for role, metadata in (("student", student), ("teacher", teacher)):
+            if topk > metadata["vocab_size"]:
+                raise ConfigError(f"top-k {topk} exceeds the {role} tokenizer vocabulary")
+        target_check = "topk_contract"
+    for field, expected in semantic_checks.items():
+        if loss.get(field) != expected:
+            raise ConfigError(f"profile loss contract requires {field}={expected!r}")
     if student["tokenizer_structural_digest_v2"] != teacher["tokenizer_structural_digest_v2"]:
         raise ConfigError("student and teacher tokenizer structural identities differ")
     return {
@@ -521,7 +547,7 @@ def _validate_upstream_bundle(root: Path) -> dict[str, Any]:
             "student_peft": "passed",
             "student_snapshot": student,
             "teacher_snapshot": teacher,
-            "topk_contract": "passed",
+            target_check: "passed",
         },
     }
 
@@ -580,8 +606,8 @@ def materialize_verl_bundle(
         teacher_identity = read_json(root / "teacher/teacher-model.json")
     except (OSError, json.JSONDecodeError) as exc:
         raise ConfigError(f"cannot read scale-out bundle identities: {exc}") from exc
-    if report.get("profile") != "verl-opd-v0.8-single-gpu-v1":
-        raise ConfigError("materialize supports only the pure-OPD v0.8 single-GPU profile")
+    if report.get("profile") not in {VERL_OPD_V08_PROFILE, VERL_OPD_PG_K1_V08_PROFILE}:
+        raise ConfigError("materialize supports only a registered pure-OPD v0.8 profile")
     student_id = str(student_identity.get("model_id") or "")
     teacher_id = str(teacher_identity.get("model_id") or "")
     student_revision = _immutable_revision(student_identity.get("revision"), role="student")

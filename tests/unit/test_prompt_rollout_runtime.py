@@ -52,6 +52,48 @@ def test_real_padded_greedy_generation_matches_sequential() -> None:
     assert single[0].token_ids == expected[0].token_ids
 
 
+def test_prompt_runtime_records_exact_rollout_logprobs_for_pg_targets() -> None:
+    tokenizer = ToyTokenizer()
+    backend = ToyBackend(tokenizer=tokenizer, model_id="toy", seed=23, trainable=False)
+    runtime = PromptDatasetRolloutRuntime(
+        backend=backend,
+        source_config=VerlParquetSourceConfig(
+            train_files=["unused.parquet"], allow_plain_string_prompts=True
+        ),
+        rollout_config=RolloutConfig(
+            max_new_tokens_per_turn=4,
+            max_total_tokens=32,
+            temperature=0.0,
+            prompt_batch_size=2,
+            max_padded_tokens=64,
+            record_logprobs=True,
+        ),
+    )
+    rendered = [
+        RenderedPrompt(
+            record=_record(index),
+            text=text,
+            token_ids=tuple(tokenizer.encode(text)),
+            tokenizer_identity=tokenizer.identity,
+            rendered_prompt_digest=f"{index + 40:064x}",
+            prompt_token_count=len(tokenizer.encode(text)),
+            truncation_decision="not_needed",
+            original_prompt_token_count=len(tokenizer.encode(text)),
+        )
+        for index, text in enumerate(("short", "longer prompt"))
+    ]
+
+    batch = runtime.prepare_batch(rendered)
+    generated = runtime.generate(batch, policy_version=7, seed=11)
+    trajectories = runtime.to_trajectories(batch, generated, policy_version=7)
+
+    for output, trajectory in zip(generated.outputs, trajectories, strict=True):
+        assert len(output.logprobs) == len(output.token_ids)
+        assert all(value <= 0.0 for value in output.logprobs)
+        assert trajectory.metadata["actor_rollout_log_probs"] == output.logprobs
+        assert trajectory.metadata["actor_rollout_policy_version"] == 7
+
+
 def test_prompt_trajectories_never_select_prompt_or_padding_tokens() -> None:
     tokenizer = ToyTokenizer()
     backend = ToyBackend(tokenizer=tokenizer, model_id="toy", seed=7, trainable=False)

@@ -955,16 +955,10 @@ def plan_command(
     """Plan pinned single-GPU verl-style OPD without loading model weights."""
     try:
         from miniverl.bridge.opd_runtime import build_system_plan
-        from miniverl.bridge.opd_v08 import (
-            VERL_OPD_V08_PROFILE,
-            load_verl_opd_v08_source,
-        )
+        from miniverl.bridge.profiles import load_profile_source
 
-        if profile != VERL_OPD_V08_PROFILE:
-            raise ConfigError(
-                f"unsupported OPD profile {profile!r}", hint=f"use --profile {VERL_OPD_V08_PROFILE}"
-            )
-        compiled = load_verl_opd_v08_source(
+        compiled = load_profile_source(
+            profile,
             config,
             override_files=override_files,
             overrides=overrides,
@@ -1074,15 +1068,8 @@ def verl_run_command(
     """Execute the pinned verl v0.8 pure-OPD subset on one local CUDA GPU."""
     try:
         from miniverl.bridge.opd_runtime import build_system_plan, compile_native_run_config
-        from miniverl.bridge.opd_v08 import (
-            VERL_OPD_V08_PROFILE,
-            load_verl_opd_v08_source,
-        )
+        from miniverl.bridge.profiles import load_profile_source
 
-        if profile != VERL_OPD_V08_PROFILE:
-            raise ConfigError(
-                f"unsupported OPD profile {profile!r}", hint=f"use --profile {VERL_OPD_V08_PROFILE}"
-            )
         if plan_path is not None and config is not None:
             raise ConfigError("--plan and --config are mutually exclusive")
         if plan_path is not None and (
@@ -1108,7 +1095,8 @@ def verl_run_command(
         else:
             if config is None:
                 raise ConfigError("one of --config or --plan is required")
-            compiled = load_verl_opd_v08_source(
+            compiled = load_profile_source(
+                profile,
                 config,
                 override_files=override_files,
                 overrides=overrides,
@@ -1912,14 +1900,10 @@ def bridge_compile_opd_command(
 ) -> None:
     """Compile the pinned single-GPU verl v0.8 OPD config subset offline."""
     try:
-        from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE, load_verl_opd_v08_source
+        from miniverl.bridge.profiles import load_profile_source
 
-        if profile != VERL_OPD_V08_PROFILE:
-            raise ConfigError(
-                f"unsupported OPD profile {profile!r}",
-                hint=f"use --profile {VERL_OPD_V08_PROFILE}",
-            )
-        plan = load_verl_opd_v08_source(
+        plan = load_profile_source(
+            profile,
             config,
             override_files=override_files,
             overrides=overrides,

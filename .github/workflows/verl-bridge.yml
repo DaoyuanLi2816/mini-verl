@@ -47,7 +47,7 @@ jobs:
           changed=$(git diff --name-only "origin/$BASE_REF"...HEAD)
           echo "changed files:"
           echo "$changed"
-          if echo "$changed" | grep -Eq '^(\.github/workflows/verl-bridge\.yml|pyproject\.toml|scripts/[^/]*verl_bridge[^/]*|src/miniverl/bridge/.*|src/miniverl/losses/verl_topk\.py|tests/.*verl_(bridge|opd).*|tests/conformance/test_verl_v08_loss\.py)$'; then
+          if echo "$changed" | grep -Eq '^(\.github/workflows/verl-bridge\.yml|pyproject\.toml|scripts/[^/]*verl_bridge[^/]*|src/miniverl/bridge/.*|src/miniverl/losses/verl_(topk|pg)\.py|tests/.*verl_(bridge|opd|pg).*|tests/conformance/test_verl_v08_(loss|pg_k1)\.py)$'; then
             echo "bridge=true" >> "$GITHUB_OUTPUT"
           else
             echo "bridge=false" >> "$GITHUB_OUTPUT"
@@ -75,6 +75,8 @@ jobs:
           "git+https://github.com/verl-project/verl.git@7aed6b230776f963fa09509c10d9c3a767d1102c"
       - name: Compare forward_kl_topk values, diagnostics and gradients
         run: python -m pytest -q tests/conformance/test_verl_v08_loss.py -m verl_conformance
+      - name: Compare sampled k1 policy-loss values, gradients and optimizer step
+        run: python -m pytest -q tests/conformance/test_verl_v08_pg_k1.py -m verl_conformance
       - name: Materialize and recheck a tiny launchable pure-OPD bundle
         run: >-
           python -m pytest -q tests/conformance/test_verl_v08_materialize.py

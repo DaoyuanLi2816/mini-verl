@@ -8,7 +8,7 @@ shard is checksummed.  Nothing in the load path executes code from the file.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -22,8 +22,8 @@ __all__ = [
     "CacheCompressionStats",
 ]
 
-CACHE_SCHEMA_VERSION = 2
-READABLE_CACHE_SCHEMA_VERSIONS = frozenset({1, CACHE_SCHEMA_VERSION})
+CACHE_SCHEMA_VERSION = 3
+READABLE_CACHE_SCHEMA_VERSIONS = frozenset({1, 2, CACHE_SCHEMA_VERSION})
 
 
 class CacheEntryMeta(BaseModel):
@@ -77,7 +77,11 @@ class CacheIndex(BaseModel):
     top_k: int = Field(ge=1)
     temperature: float = Field(gt=0.0)
     loss_mode: str
+    target_representation: Literal["topk_distribution", "sampled_token_log_probs"] = (
+        "topk_distribution"
+    )
     score_implementation_version: str | None = None
+    estimator_implementation_version: str | None = None
     execution_plan_digest: str | None = None
     profile_identity: dict[str, Any] = Field(default_factory=dict)
     dtype: str = "float32"
@@ -91,6 +95,13 @@ class CacheIndex(BaseModel):
             raise ValueError(f"unsupported cache schema_version {self.schema_version}")
         if self.top_k > self.vocab_size:
             raise ValueError(f"top_k={self.top_k} exceeds vocab_size={self.vocab_size}")
+        if (
+            self.target_representation == "sampled_token_log_probs"
+            and not self.estimator_implementation_version
+        ):
+            raise ValueError(
+                "sampled-token teacher targets require an estimator implementation version"
+            )
         for traj_id, entry in self.entries.items():
             if entry.trajectory_id != traj_id:
                 raise ValueError(
@@ -120,21 +131,29 @@ class TeacherTargetBatch:
     ``tail_log_prob``  ``[N]`` float32 -- ``log(1 - sum_k p_teacher)``
     ``target_token_ids`` ``[N]`` int64
     ``weights``        ``[N]`` float32
+
+    For ``sampled_token_log_probs`` targets the top-k/tail tensors are absent
+    and two ``[N]`` float32 vectors are present instead: rollout-time actor
+    log-probabilities and teacher log-probabilities for the exact sampled IDs.
     """
 
     trajectory_id: str
     policy_version: int
     positions: Any
-    topk_indices: Any
-    topk_log_probs: Any
-    tail_log_prob: Any
     target_token_ids: Any
     weights: Any
+    topk_indices: Any = None
+    topk_log_probs: Any = None
+    tail_log_prob: Any = None
+    old_actor_log_probs: Any = None
+    teacher_sampled_token_log_probs: Any = None
     temperature: float = 1.0
     top_k: int = 0
     span_types: list[str] = field(default_factory=list)
     prompt_row_digest: str | None = None
     actor_response_token_ids: list[int] | None = None
+    target_representation: str = "topk_distribution"
+    estimator_implementation_version: str | None = None
 
 
 class CacheCompressionStats(BaseModel):

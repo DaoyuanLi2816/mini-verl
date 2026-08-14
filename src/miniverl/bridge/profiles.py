@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -15,6 +16,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from miniverl.bridge.contract import VERL_COMMIT, VERL_REPOSITORY, VERL_TAG
+from miniverl.bridge.opd_pg_v08 import (
+    VERL_OPD_PG_K1_V08_PROFILE,
+    load_verl_pg_k1_v08_source,
+    pg_compatibility_rule,
+    pg_field_rules_digest,
+)
 from miniverl.bridge.opd_v08 import (
     VERL_OPD_V08_PROFILE,
     VerlOPDV08Profile,
@@ -34,6 +41,7 @@ __all__ = [
     "check_profile",
     "get_profile",
     "list_profiles",
+    "load_profile_source",
 ]
 
 
@@ -253,13 +261,160 @@ class _DirectGKDProfile(CompatibilityProfile):
         }
 
 
+@dataclass(frozen=True)
+class _PGK1Profile(CompatibilityProfile):
+    @property
+    def identity(self) -> ProfileIdentity:
+        return ProfileIdentity.create(
+            profile_name=VERL_OPD_PG_K1_V08_PROFILE,
+            profile_schema_version=1,
+            upstream_repository=VERL_REPOSITORY,
+            upstream_tag=VERL_TAG,
+            upstream_commit=VERL_COMMIT,
+            field_rule_digest=pg_field_rules_digest(),
+            native_compiler_version="pg-k1-native-v1",
+            loss_conformance_version="pg-k1-verl-v0.8-v1",
+            export_version="verl-opd-pg-k1-export-v1",
+        )
+
+    @property
+    def summary(self) -> ProfileSummary:
+        return ProfileSummary(
+            name=VERL_OPD_PG_K1_V08_PROFILE,
+            objective="k1 + vanilla policy loss",
+            teacher_target="sampled-token teacher log-probability",
+            status="conformance_only",
+            identity=self.identity,
+        )
+
+    def config_schema(self) -> dict[str, Any]:
+        return VerlOPDV08Profile.model_json_schema()
+
+    def explain(self, field: str) -> CompatibilityExplanation:
+        rule = pg_compatibility_rule(field)
+        classification = str(rule["classification"])
+        unsupported = classification == "unsupported"
+        informational = classification == "informational_only"
+        return CompatibilityExplanation(
+            profile=VERL_OPD_PG_K1_V08_PROFILE,
+            upstream_field=field,
+            classification=classification,
+            local_target=rule["local_target"],
+            reason=str(rule["reason"]),
+            semantic_risk=str(rule["semantic_risk"]),
+            user_confirmation_required=bool(rule["user_confirmation_required"]),
+            supported_algorithm=True,
+            field_accepted=not unsupported,
+            field_effective=(
+                not unsupported and not informational and rule["local_target"] is not None
+            ),
+            field_locally_reinterpreted=classification == "locally_reinterpreted",
+            field_informational=informational,
+            field_unsupported=unsupported,
+            profile_applicable=True,
+        )
+
+    def check(
+        self, source: str | Path, *, accept_local_reinterpretations: bool = False
+    ) -> CompatibilityCheck:
+        compiled = load_verl_pg_k1_v08_source(
+            source,
+            accept_local_reinterpretations=accept_local_reinterpretations,
+            require_executable=False,
+        )
+        fields = [item.model_dump(mode="json") for item in compiled.compatibility]
+        unsupported = sum(not item.executable for item in compiled.compatibility)
+        informational = sum(
+            item.classification == "informational_only" for item in compiled.compatibility
+        )
+        reinterpreted = sum(
+            item.classification == "locally_reinterpreted" for item in compiled.compatibility
+        )
+        effective = sum(
+            item.executable
+            and item.classification != "informational_only"
+            and item.local_target is not None
+            for item in compiled.compatibility
+        )
+        accepted = bool(compiled.reinterpretation_acceptance["accepted"])
+        status: Literal["compatible", "needs_user_confirmation", "unsupported"]
+        if unsupported:
+            status = "unsupported"
+        elif not accepted:
+            status = "needs_user_confirmation"
+        else:
+            status = "compatible"
+        return CompatibilityCheck(
+            status=status,
+            executable=compiled.executable and accepted,
+            profile_identity=self.identity,
+            source_digest=compiled.source_digest,
+            compiled_digest=compiled.compiled_digest,
+            summary={
+                "supported_algorithm": True,
+                "field_accepted": len(fields) - unsupported,
+                "field_effective": effective,
+                "field_locally_reinterpreted": reinterpreted,
+                "field_informational": informational,
+                "field_unsupported": unsupported,
+                "profile_not_applicable": False,
+            },
+            fields=fields,
+        )
+
+    def show(self) -> dict[str, Any]:
+        from importlib.resources import files
+
+        import yaml
+
+        payload = yaml.safe_load(
+            files("miniverl")
+            .joinpath("resources/qwen3_0_6b_1_7b_opd.yaml")
+            .read_text(encoding="utf-8")
+        )
+        payload["distillation"]["distillation_loss"].update(
+            {
+                "loss_mode": "k1",
+                "topk": None,
+                "use_policy_gradient": True,
+                "policy_loss_mode": "vanilla",
+                "clip_ratio": 0.2,
+                "clip_ratio_low": 0.2,
+                "clip_ratio_high": 0.2,
+                "loss_max_clamp": 10.0,
+                "log_prob_min_clamp": None,
+            }
+        )
+        payload["algorithm"]["adv_estimator"] = None
+        return {
+            **self.summary.model_dump(mode="json"),
+            "identity": self.identity.model_dump(mode="json"),
+            "algorithm_contract": {
+                "actor_count": 1,
+                "teacher_count": 1,
+                "generations_per_prompt": 1,
+                "objective": "sampled k1 through vanilla policy loss",
+                "task_rewards": False,
+                "distributed_execution": False,
+                "device": "one local CUDA GPU",
+            },
+            "minimal_yaml": yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
+            "override_invocation": (
+                "miniverl plan --profile verl-opd-v0.8-single-gpu-pg-k1-v1 "
+                "--config pg-k1.yaml --set data.train_batch_size=4 --json"
+            ),
+        }
+
+
 _REGISTRY: dict[str, CompatibilityProfile] = {
     VERL_OPD_V08_PROFILE: _DirectGKDProfile(),
+    VERL_OPD_PG_K1_V08_PROFILE: _PGK1Profile(),
 }
 
 
 def list_profiles() -> tuple[ProfileSummary, ...]:
-    return tuple(_REGISTRY[name].summary for name in sorted(_REGISTRY))
+    """Return profiles in stable product order: direct GKD, then sampled PG."""
+    return tuple(profile.summary for profile in _REGISTRY.values())
 
 
 def get_profile(name: str) -> CompatibilityProfile:
@@ -281,3 +436,36 @@ def check_profile(
     return get_profile(name).check(
         source, accept_local_reinterpretations=accept_local_reinterpretations
     )
+
+
+def load_profile_source(
+    name: str,
+    source: str | Path,
+    *,
+    override_files: Sequence[Path] = (),
+    overrides: Sequence[str] = (),
+    trailing_overrides: Sequence[str] = (),
+    accept_local_reinterpretations: bool = False,
+    require_executable: bool = True,
+) -> Any:
+    """Compile one source through the selected closed built-in profile."""
+    get_profile(name)  # fail closed before dispatch; never load third-party code
+    if name == VERL_OPD_V08_PROFILE:
+        return load_verl_opd_v08_source(
+            source,
+            override_files=override_files,
+            overrides=overrides,
+            trailing_overrides=trailing_overrides,
+            accept_local_reinterpretations=accept_local_reinterpretations,
+            require_executable=require_executable,
+        )
+    if name == VERL_OPD_PG_K1_V08_PROFILE:
+        return load_verl_pg_k1_v08_source(
+            source,
+            override_files=override_files,
+            overrides=overrides,
+            trailing_overrides=trailing_overrides,
+            accept_local_reinterpretations=accept_local_reinterpretations,
+            require_executable=require_executable,
+        )
+    raise AssertionError(f"registered profile {name!r} has no compiler dispatch")

@@ -1288,13 +1288,19 @@ class OPDTrainer:
 
     def _open_cache(self) -> TeacherCache:
         if self._cache is None:
+            from miniverl.losses.verl_pg import VERL_PG_K1_IMPLEMENTATION_VERSION
             from miniverl.losses.verl_topk import VERL_TOPK_SCORE_IMPLEMENTATION
 
             assert self.teacher is not None
+            pg_k1 = self.config.loss.mode is LossMode.VERL_PG_K1
             top_k = (
-                self.student.vocab_size
-                if self.config.loss.mode is LossMode.EXACT_FULL_VOCAB
-                else min(self.config.loss.top_k, self.student.vocab_size)
+                1
+                if pg_k1
+                else (
+                    self.student.vocab_size
+                    if self.config.loss.mode is LossMode.EXACT_FULL_VOCAB
+                    else min(self.config.loss.top_k, self.student.vocab_size)
+                )
             )
             path = Path(self.config.cache.dir or self.paths.teacher_cache)
             identity = {
@@ -1307,10 +1313,20 @@ class OPDTrainer:
                 "top_k": top_k,
                 "temperature": self.config.loss.temperature,
                 "loss_mode": self.config.loss.mode.value,
+                "target_representation": (
+                    "sampled_token_log_probs" if pg_k1 else "topk_distribution"
+                ),
                 "score_implementation_version": (
-                    VERL_TOPK_SCORE_IMPLEMENTATION
-                    if self.config.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
-                    else "miniverl-native-v1"
+                    VERL_PG_K1_IMPLEMENTATION_VERSION
+                    if pg_k1
+                    else (
+                        VERL_TOPK_SCORE_IMPLEMENTATION
+                        if self.config.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
+                        else "miniverl-native-v1"
+                    )
+                ),
+                "estimator_implementation_version": (
+                    VERL_PG_K1_IMPLEMENTATION_VERSION if pg_k1 else None
                 ),
                 "execution_plan_digest": self.config.run.execution_plan_digest,
                 "profile_identity": self.config.run.profile_identity,
@@ -1741,6 +1757,10 @@ class OPDTrainer:
         verl_teacher_mass: list[Any] = []
         verl_overlap_count: list[Any] = []
         verl_overlap_advantage: list[Any] = []
+        verl_pg_estimators: list[Any] = []
+        verl_pg_advantages: list[Any] = []
+        verl_pg_ratios: list[Any] = []
+        verl_pg_metric_rows: list[dict[str, float]] = []
         group_scale = 1.0 / max(len(group), 1)
         token_mean = config.loss.aggregation is LossAggregation.TOKEN_MEAN
         group_weight_total = sum(sum(sample.alignment.token_weights) for sample in group)
@@ -1820,10 +1840,22 @@ class OPDTrainer:
                 if not isinstance(diagnostics, list):
                     continue
                 for values in diagnostics:
-                    verl_student_mass.append(values["student_mass"])
-                    verl_teacher_mass.append(values["teacher_mass"])
-                    verl_overlap_count.append(values["overlap_count"])
-                    verl_overlap_advantage.append(values["overlap_token_advantage"])
+                    if "student_mass" in values:
+                        verl_student_mass.append(values["student_mass"])
+                        verl_teacher_mass.append(values["teacher_mass"])
+                        verl_overlap_count.append(values["overlap_count"])
+                        verl_overlap_advantage.append(values["overlap_token_advantage"])
+                    elif "estimator" in values:
+                        verl_pg_estimators.append(values["estimator"])
+                        verl_pg_advantages.append(values["advantages"])
+                        verl_pg_ratios.append(values["ratio"])
+                        verl_pg_metric_rows.append(
+                            {
+                                key: float(value)
+                                for key, value in values.items()
+                                if isinstance(value, (int, float))
+                            }
+                        )
                 diagnostics.clear()
             loss_total += float(output.loss) * microbatch_scale
             positions_total += output.num_positions
@@ -1902,6 +1934,22 @@ class OPDTrainer:
                     else 0.0
                 ),
             }
+        if verl_pg_estimators:
+            estimators = torch.cat(verl_pg_estimators).float()
+            advantages = torch.cat(verl_pg_advantages).float()
+            ratios = torch.cat(verl_pg_ratios).float()
+            metric_names = sorted({key for row in verl_pg_metric_rows for key in row})
+            result["verl_pg_k1"] = {
+                "estimator_mean": float(estimators.mean()),
+                "estimator_abs_mean": float(estimators.abs().mean()),
+                "advantage_mean": float(advantages.mean()),
+                "ratio_mean": float(ratios.mean()),
+                **{
+                    key: sum(row.get(key, 0.0) for row in verl_pg_metric_rows)
+                    / len(verl_pg_metric_rows)
+                    for key in metric_names
+                },
+            }
         return result
 
     def _commit_update(self) -> dict[str, float]:
@@ -1957,6 +2005,16 @@ class OPDTrainer:
         rollout_policy_version = (
             next(iter(rollout_versions)) if rollout_versions else self.parameter_version
         )
+        if (
+            self.config.run.mode is TrainingMode.OPD
+            and self.config.train.opd_freshness is OPDFreshness.STRICT
+            and rollout_policy_version != self.parameter_version
+        ):
+            raise LifecycleError(
+                "strict OPD requires rollout policy version to equal the current parameter "
+                f"version before update (rollout={rollout_policy_version}, "
+                f"parameters={self.parameter_version})"
+            )
         for start in range(0, len(samples), accum):
             group = samples[start : start + accum]
             if not group:
@@ -2593,7 +2651,11 @@ class OPDTrainer:
 
     def _reload_targets_from_cache(self, samples: list[TrainSample]) -> list[TrainSample]:
         """Re-attach providers from the on-disk cache after the teacher is gone."""
-        from miniverl.losses.chunked import BucketedTargetProvider, VerlTopKTargetProvider
+        from miniverl.losses.chunked import (
+            BucketedTargetProvider,
+            VerlPGK1TargetProvider,
+            VerlTopKTargetProvider,
+        )
 
         cache = self._open_cache()
         config = self.config
@@ -2617,15 +2679,31 @@ class OPDTrainer:
                 ],
                 device=self.plan.device,
             )
-            sample.teacher.provider = (
-                VerlTopKTargetProvider(
+            if config.loss.mode is LossMode.VERL_PG_K1:
+                if (
+                    batch.old_actor_log_probs is None
+                    or batch.teacher_sampled_token_log_probs is None
+                ):
+                    raise CheckpointError("PG-k1 cache is missing sampled-token log-probabilities")
+                sample.teacher.provider = VerlPGK1TargetProvider(
+                    target_token_ids=batch.target_token_ids,
+                    old_actor_log_probs=batch.old_actor_log_probs,
+                    teacher_sampled_token_log_probs=batch.teacher_sampled_token_log_probs,
+                    clip_ratio=config.loss.clip_ratio,
+                    clip_ratio_low=config.loss.clip_ratio_low,
+                    clip_ratio_high=config.loss.clip_ratio_high,
+                    clip_ratio_c=config.loss.clip_ratio_c,
+                    loss_max_clamp=config.loss.loss_max_clamp,
+                )
+            elif config.loss.mode is LossMode.VERL_FORWARD_KL_TOPK:
+                sample.teacher.provider = VerlTopKTargetProvider(
                     topk_indices=batch.topk_indices,
                     topk_log_probs=batch.topk_log_probs,
                     log_prob_min_clamp=config.loss.log_prob_min_clamp,
                     loss_max_clamp=config.loss.loss_max_clamp,
                 )
-                if config.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
-                else BucketedTargetProvider(
+            else:
+                sample.teacher.provider = BucketedTargetProvider(
                     topk_indices=batch.topk_indices,
                     topk_log_probs=batch.topk_log_probs,
                     tail_log_prob=batch.tail_log_prob,
@@ -2635,7 +2713,6 @@ class OPDTrainer:
                     jsd_beta=config.loss.jsd_beta,
                     tail_epsilon=config.loss.tail_epsilon,
                 )
-            )
         return samples
 
     def evaluate(

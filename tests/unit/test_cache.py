@@ -124,6 +124,60 @@ def test_float32_round_trip_is_exact(tmp_path: Path):
     assert loaded.span_types == batch.span_types
 
 
+def test_pg_sampled_token_target_round_trip_is_version_bound(tmp_path: Path) -> None:
+    cache = TeacherCache.create(
+        tmp_path / "pg-cache",
+        miniverl_version="0.10.0.dev0",
+        teacher_model_id="toy-teacher",
+        teacher_model_revision="rev-pg",
+        tokenizer_fingerprint="fp-pg",
+        vocab_size=VOCAB,
+        top_k=1,
+        temperature=1.0,
+        loss_mode="verl_pg_k1",
+        target_representation="sampled_token_log_probs",
+        estimator_implementation_version="verl-v0.8-pg-k1-v1",
+        score_implementation_version="verl-v0.8-pg-k1-v1",
+    )
+    batch = TeacherTargetBatch(
+        trajectory_id="pg:0",
+        policy_version=9,
+        positions=torch.tensor([3, 4, 5]),
+        target_token_ids=torch.tensor([11, 12, 13]),
+        weights=torch.ones(3),
+        old_actor_log_probs=torch.tensor([-2.0, -1.5, -3.0]),
+        teacher_sampled_token_log_probs=torch.tensor([-1.0, -2.0, -2.5]),
+        temperature=1.0,
+        top_k=1,
+        span_types=["assistant_text"] * 3,
+        prompt_row_digest="a" * 64,
+        actor_response_token_ids=[11, 12, 13],
+        target_representation="sampled_token_log_probs",
+        estimator_implementation_version="verl-v0.8-pg-k1-v1",
+    )
+    cache.write(batch, selector="all_model_tokens")
+    cache.flush()
+
+    loaded = cache.read(
+        "pg:0",
+        expect_policy_version=9,
+        expect_prompt_row_digest="a" * 64,
+        expect_actor_response_token_ids=[11, 12, 13],
+    )
+    assert loaded.topk_indices is None
+    assert loaded.topk_log_probs is None
+    assert loaded.tail_log_prob is None
+    assert loaded.target_representation == "sampled_token_log_probs"
+    assert loaded.estimator_implementation_version == "verl-v0.8-pg-k1-v1"
+    assert torch.equal(loaded.old_actor_log_probs, batch.old_actor_log_probs)
+    assert torch.equal(
+        loaded.teacher_sampled_token_log_probs,
+        batch.teacher_sampled_token_log_probs,
+    )
+    with pytest.raises(StaleCacheError, match="off-policy"):
+        cache.read("pg:0", expect_policy_version=10)
+
+
 def test_prompt_target_binding_rejects_a_different_actor_response(tmp_path: Path):
     cache = TeacherCache.create(
         tmp_path / "tc",

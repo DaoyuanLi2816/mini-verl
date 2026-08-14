@@ -191,3 +191,142 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
         "overlap_ratio",
         "overlap_token_advantage",
     }
+
+
+def test_prompt_pg_k1_uses_rollout_actor_and_sampled_teacher_logprobs(tmp_path) -> None:
+    from miniverl.config import RunConfig
+    from miniverl.trainer import OPDTrainer
+
+    train = tmp_path / "pg-train.parquet"
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {"prompt": "alpha", "data_source": "unit", "extra_info": {"row": 0}},
+                {"prompt": "beta", "data_source": "unit", "extra_info": {"row": 1}},
+            ]
+        ),
+        train,
+        row_group_size=1,
+    )
+    config = RunConfig.model_validate(
+        {
+            "run": {
+                "name": "prompt-pg-k1",
+                "mode": "opd",
+                "seed": 13,
+                "output_dir": str(tmp_path / "runs"),
+                "execution_plan_digest": "b" * 64,
+                "profile_identity": {
+                    "profile_name": "verl-opd-v0.8-single-gpu-pg-k1-v1",
+                    "digest": "c" * 64,
+                },
+            },
+            "models": {
+                "backend": "toy",
+                "device": "cpu",
+                "student": {
+                    "model_id": "toy-student",
+                    "lora": {"enabled": False},
+                    "toy": {
+                        "hidden_size": 16,
+                        "num_layers": 1,
+                        "num_heads": 2,
+                        "intermediate_size": 32,
+                        "max_position_embeddings": 128,
+                    },
+                },
+                "teacher": {
+                    "model_id": "toy-teacher",
+                    "toy_pretrain_steps": 0,
+                    "toy": {
+                        "hidden_size": 16,
+                        "num_layers": 1,
+                        "num_heads": 2,
+                        "intermediate_size": 32,
+                        "max_position_embeddings": 128,
+                    },
+                },
+            },
+            "source": {
+                "kind": "verl_parquet",
+                "train_files": [str(train)],
+                "allow_plain_string_prompts": True,
+                "max_prompt_length": 32,
+                "shuffle": False,
+            },
+            "rollout": {
+                "max_turns": 1,
+                "max_new_tokens_per_turn": 3,
+                "max_total_tokens": 64,
+                "temperature": 0.0,
+                "prompt_batch_size": 2,
+                "max_padded_tokens": 128,
+                "record_logprobs": True,
+            },
+            "selection": {"selector": "all_model_tokens"},
+            "loss": {
+                "mode": "verl_pg_k1",
+                "divergence": "reverse_kl",
+                "aggregation": "token-mean",
+                "temperature": 1.0,
+                "scale_by_temperature_squared": False,
+                "top_k": 1,
+                "chunk_size": 16,
+                "loss_max_clamp": 10.0,
+                "estimator_implementation_version": "verl-v0.8-pg-k1-v1",
+            },
+            "train": {
+                "cycles": 2,
+                "rollouts_per_cycle": 2,
+                "gradient_accumulation_steps": 2,
+                "learning_rate": 0.001,
+            },
+            "memory": {"strategy": "resident"},
+            "cache": {"entries_per_shard": 2, "dtype": "float32", "keep_cycles": 1},
+            "eval": {"enabled": False},
+            "report": {"enabled": False},
+        }
+    )
+
+    trainer = OPDTrainer.from_config(config, run_id="prompt-pg-k1-test")
+    try:
+        result = trainer.train()
+    finally:
+        trainer.close()
+
+    assert result.global_step == 2
+    assert result.parameter_version == 2
+    metrics = [
+        json.loads(line)
+        for line in (result.run_dir / "metrics.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    updates = [row for row in metrics if row.get("phase") == "opd"]
+    assert [row["rollout_policy_version"] for row in updates] == [0, 1]
+    assert [row["parameter_version"] for row in updates] == [1, 2]
+    assert all(row["verl_pg_k1"]["ratio_mean"] == pytest.approx(1.0) for row in updates)
+    trajectories = [
+        json.loads(line)
+        for line in (result.run_dir / "trajectories.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert {row["metadata"]["actor_rollout_policy_version"] for row in trajectories} == {0, 1}
+    assert all(
+        len(row["metadata"]["actor_rollout_log_probs"]) == row["metadata"]["response_token_count"]
+        for row in trajectories
+    )
+    cache_index = json.loads(
+        (result.run_dir / "teacher-cache" / "index.json").read_text(encoding="utf-8")
+    )
+    assert cache_index["target_representation"] == "sampled_token_log_probs"
+    assert cache_index["estimator_implementation_version"] == "verl-v0.8-pg-k1-v1"
+    assert {entry["policy_version"] for entry in cache_index["entries"].values()} == {1}
+    assert all(
+        entry["tensor_keys"]
+        == [
+            "positions",
+            "target_token_ids",
+            "weights",
+            "old_actor_log_probs",
+            "teacher_sampled_token_log_probs",
+        ]
+        for entry in cache_index["entries"].values()
+    )

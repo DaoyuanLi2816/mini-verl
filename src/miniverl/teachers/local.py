@@ -13,6 +13,7 @@ from miniverl.losses.bucketed import bucketed_teacher_entropy, teacher_topk_targ
 from miniverl.losses.chunked import (
     BucketedTargetProvider,
     ExactTargetProvider,
+    VerlPGK1TargetProvider,
     VerlTopKTargetProvider,
 )
 from miniverl.losses.exact import exact_teacher_entropy
@@ -101,7 +102,14 @@ class LocalTeacherScorer(TeacherScorer):
                 policy_version=student.policy_version,
                 shape="bucketed",
                 provider=(
-                    VerlTopKTargetProvider(
+                    VerlPGK1TargetProvider(
+                        target_token_ids=torch.zeros(0, dtype=torch.long),
+                        old_actor_log_probs=empty,
+                        teacher_sampled_token_log_probs=empty,
+                        loss_max_clamp=self.loss.loss_max_clamp,
+                    )
+                    if self.loss.mode is LossMode.VERL_PG_K1
+                    else VerlTopKTargetProvider(
                         topk_indices=torch.zeros(0, 1, dtype=torch.long),
                         topk_log_probs=torch.zeros(0, 1),
                         log_prob_min_clamp=self.loss.log_prob_min_clamp,
@@ -135,6 +143,95 @@ class LocalTeacherScorer(TeacherScorer):
         with role_context, torch.no_grad():
             hidden = self.backend.hidden_states_at(source.token_ids, positions, with_grad=False)
 
+            if self.loss.mode is LossMode.VERL_PG_K1:
+                if teacher_view is not None:
+                    raise AlignmentError("PG-k1 supports only a standard same-prompt teacher")
+                response_ids = [
+                    token_id
+                    for token_id, generated in zip(
+                        student.token_ids, student.model_generated_mask, strict=True
+                    )
+                    if generated
+                ]
+                if alignment.target_token_ids != response_ids:
+                    raise AlignmentError(
+                        "PG-k1 requires every sampled response token in its exact original order"
+                    )
+                raw_old = student.metadata.get("actor_rollout_log_probs")
+                rollout_version = student.metadata.get("actor_rollout_policy_version")
+                if rollout_version != student.policy_version:
+                    raise AlignmentError(
+                        "PG-k1 actor log-probabilities are not bound to the trajectory policy version"
+                    )
+                if not isinstance(raw_old, list) or len(raw_old) != n:
+                    raise AlignmentError(
+                        "PG-k1 requires one rollout-time actor log-probability per response token"
+                    )
+                old_actor_log_probs = torch.tensor(raw_old, dtype=torch.float32)
+                if not torch.isfinite(old_actor_log_probs).all():
+                    raise AlignmentError("PG-k1 actor rollout log-probabilities must be finite")
+                teacher_parts = []
+                for start in range(0, n, self.loss.chunk_size):
+                    logits = self.backend.project(hidden[start : start + self.loss.chunk_size]).to(
+                        torch.float32
+                    )
+                    chunk_targets = target_ids[start : start + self.loss.chunk_size].to(
+                        logits.device
+                    )
+                    teacher_parts.append(
+                        torch.log_softmax(logits, dim=-1)
+                        .gather(-1, chunk_targets.unsqueeze(-1))
+                        .squeeze(-1)
+                        .cpu()
+                    )
+                    del logits
+                teacher_log_probs = torch.cat(teacher_parts)
+                del hidden, teacher_parts
+                pg_provider = VerlPGK1TargetProvider(
+                    target_token_ids=target_ids,
+                    old_actor_log_probs=old_actor_log_probs,
+                    teacher_sampled_token_log_probs=teacher_log_probs,
+                    clip_ratio=self.loss.clip_ratio,
+                    clip_ratio_low=self.loss.clip_ratio_low,
+                    clip_ratio_high=self.loss.clip_ratio_high,
+                    clip_ratio_c=self.loss.clip_ratio_c,
+                    loss_max_clamp=self.loss.loss_max_clamp,
+                )
+                from miniverl.losses.verl_pg import VERL_PG_K1_IMPLEMENTATION_VERSION
+
+                batch = TeacherTargetBatch(
+                    trajectory_id=student.trajectory_id,
+                    policy_version=student.policy_version,
+                    positions=torch.tensor(positions, dtype=torch.long),
+                    target_token_ids=target_ids,
+                    weights=weights,
+                    old_actor_log_probs=old_actor_log_probs,
+                    teacher_sampled_token_log_probs=teacher_log_probs,
+                    temperature=1.0,
+                    top_k=1,
+                    span_types=list(alignment.span_types),
+                    prompt_row_digest=student.metadata.get("row_digest"),
+                    actor_response_token_ids=response_ids,
+                    target_representation="sampled_token_log_probs",
+                    estimator_implementation_version=VERL_PG_K1_IMPLEMENTATION_VERSION,
+                )
+                return TeacherScoreResult(
+                    trajectory_id=student.trajectory_id,
+                    policy_version=student.policy_version,
+                    shape="sampled_token_log_probs",
+                    provider=pg_provider,
+                    target_token_ids=target_ids,
+                    weights=weights,
+                    span_types=list(alignment.span_types),
+                    teacher_entropy=torch.zeros(0, dtype=torch.float32),
+                    num_positions=n,
+                    cacheable=batch,
+                    metrics={
+                        "selected_positions": float(n),
+                        "teacher_sampled_token_positions": float(n),
+                    },
+                )
+
             if exact_resident:
                 # Keep only [N, H]; the [chunk, V] distribution is rebuilt on demand.
                 # Bound to its own name because the bucketed branch below `del`s
@@ -148,7 +245,7 @@ class LocalTeacherScorer(TeacherScorer):
                         exact_teacher_entropy(chunk, temperature=self.loss.temperature)
                     )
                     del chunk
-                provider: Any = ExactTargetProvider(
+                exact_provider: Any = ExactTargetProvider(
                     teacher_logits_fn=lambda a, b: project(teacher_hidden[a:b]),
                     divergence_name=self.loss.divergence.value,
                     temperature=self.loss.temperature,
@@ -159,7 +256,7 @@ class LocalTeacherScorer(TeacherScorer):
                     trajectory_id=student.trajectory_id,
                     policy_version=student.policy_version,
                     shape="exact_hidden",
-                    provider=provider,
+                    provider=exact_provider,
                     target_token_ids=target_ids,
                     weights=weights,
                     span_types=list(alignment.span_types),
@@ -220,7 +317,7 @@ class LocalTeacherScorer(TeacherScorer):
                 if generated
             ],
         )
-        provider = (
+        distribution_provider = (
             VerlTopKTargetProvider(
                 topk_indices=topk_indices,
                 topk_log_probs=topk_log_probs,
@@ -244,7 +341,7 @@ class LocalTeacherScorer(TeacherScorer):
             trajectory_id=student.trajectory_id,
             policy_version=student.policy_version,
             shape="bucketed",
-            provider=provider,
+            provider=distribution_provider,
             target_token_ids=target_ids,
             weights=weights,
             span_types=list(alignment.span_types),
@@ -270,8 +367,12 @@ class LocalTeacherScorer(TeacherScorer):
             "score_implementation_version": (
                 "verl-v0.8.0-forward-kl-topk-v1"
                 if self.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
-                else "miniverl-native-v1"
+                else (
+                    "verl-v0.8-pg-k1-v1"
+                    if self.loss.mode is LossMode.VERL_PG_K1
+                    else "miniverl-native-v1"
+                )
             ),
-            "top_k": self._effective_top_k(),
+            "top_k": None if self.loss.mode is LossMode.VERL_PG_K1 else self._effective_top_k(),
             "temperature": self.loss.temperature,
         }

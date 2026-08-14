@@ -43,6 +43,7 @@ nav:
   - Home: index.md
   - For verl users: for-verl-users.md
   - Compatibility profiles: profiles/index.md
+  - PG-k1 semantic ADR: adr/0010-verl-v0.8-pg-k1-contract.md
   - Config overrides: config-overrides.md
   - Immutable plans: immutable-plans.md
   - Hardware planning: hardware-planning.md
