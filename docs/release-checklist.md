@@ -6,9 +6,12 @@ after the exact release commit and its remote checks are green.
 
 ## v0.9.1 development
 
-Development reopened from the exact published v0.9.0 commit. No v0.9.1
-release scope, scientific result or publication is claimed by this state-sync
-change.
+The focused v0.9.1 scope repairs the verl OPD semantic contract: explicit
+dtype/quantization/attention settings, pinned trainable student adapters,
+logical versus physical batch limits, field-effect evidence and fail-closed
+placement legality. Documentation separates the current pure-OPD runtime from
+the legacy PPO/reward scaffold. No benchmark result, model revision,
+distributed execution or new scientific claim changes.
 
 ## v0.8.1 development
 

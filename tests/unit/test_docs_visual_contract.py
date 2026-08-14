@@ -51,6 +51,9 @@ def test_versioned_docs_and_browser_visual_gate_are_wired() -> None:
         '"/consumer-runtime/"',
         '"/recoverybench/recoverybench-v1/"',
         '"/verl-bridge/"',
+        '"/verl-opd-runtime/"',
+        '"/verl-opd-scaleout/"',
+        '"/legacy-verl-bridge/"',
     ):
         assert page in script
     for contract in (

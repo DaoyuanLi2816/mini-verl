@@ -31,7 +31,7 @@ PyPI `v0.9.0` 是稳定版；`main` 是开发版。miniVERL 是独立项目，�
 请先安装与本机 CUDA 匹配的 PyTorch wheel，然后运行：
 
 ```bash
-python -m pip install "miniverl[train]"
+python -m pip install "miniverl[train,cuda]"
 miniverl data sample --format verl-parquet --out prompts.parquet
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
   --config builtin:qwen3-0.6b-1.7b-opd \
@@ -110,7 +110,7 @@ config、data、role 与错误映射见[面向 verl 用户的指南](docs/for-ve
 - 一个可训练 actor 与一个 teacher；
 - 每个 prompt 只生成一个 response（`n=1`）；
 - 无 reward 的 generalized knowledge distillation；
-- `forward_kl_topk`、top-k + tail target 与 token-mean 聚合；
+- `forward_kl_topk` 使用 teacher top-k token ID/log-probability、top-k mass/overlap 诊断与 token-mean 聚合；
 - 一张 CUDA GPU 上的 LoRA/QLoRA adapter 更新；
 - 不可变模型 revision 与 verl 风格结构化 prompt Parquet。
 
@@ -138,7 +138,7 @@ rollout/scoring/update 循环；它不是第二套完整实测 recipe。
 | 情况 | 建议起点 | 保持不变的内容 |
 | --- | --- | --- |
 | CPU 或笔记本上先检查 | `plan` 与 `run --dry-run` | 完整配置分类 |
-| 单张小显存 CUDA GPU | QLoRA 与角色 swap | 逻辑 batch 与 loss 语义 |
+| 单张小显存 CUDA GPU | QLoRA 使用 resident 本地分阶段；或 unquantized LoRA 使用 swap | 逻辑 batch 与 loss 语义 |
 | 同 base 的 actor/teacher adapter | shared-backbone | 明确角色 provenance |
 | 显存更充足 | 增大各阶段 physical batch | 数据与 optimizer 意图 |
 
@@ -166,10 +166,10 @@ miniverl bridge materialize scaleout --download --offline
 miniverl bridge doctor scaleout --json
 ```
 
-v0.8.1 export 保留 student/teacher 身份、Parquet 原始字节与纯 OPD override；在精确 base
+v0.9 export 保留 student/teacher 身份、Parquet 原始字节与纯 OPD override；在精确 base
 snapshot 被物化并通过已安装的固定 verl commit 验证前，仍报告 `launchable: false`。只有此后
 `bridge materialize` 才会发布带校验和的 `launch.sh`；分布式执行仍是未测试。详见
-[物化契约](docs/scaleout-materialization.md)、[桥接契约](docs/verl-bridge.md)与
+[物化契约](docs/scaleout-materialization.md)、[当前 scale-out 契约](docs/verl-opd-scaleout.md)与
 [兼容性政策](docs/compatibility.md)。
 
 建议操作闭环是 **plan → inspect → run → inspect → export**。`plan --out` 把 YAML、按顺序

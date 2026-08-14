@@ -4,6 +4,8 @@ site_url: https://daoyuanli2816.github.io/mini-verl/
 repo_url: https://github.com/DaoyuanLi2816/mini-verl
 repo_name: DaoyuanLi2816/mini-verl
 edit_uri: edit/main/docs/
+exclude_docs: |
+  history/*
 theme:
   name: material
   custom_dir: docs/overrides
@@ -43,6 +45,7 @@ nav:
   - Config overrides: config-overrides.md
   - Immutable plans: immutable-plans.md
   - Hardware planning: hardware-planning.md
+  - Current verl-style OPD runtime: verl-opd-runtime.md
   - Run verl-style OPD: opd-quickstart.md
   - RTX 4080 developer workload: verl-opd-reference-workload.md
   - Start on one GPU: single-gpu-guide.md
@@ -56,10 +59,11 @@ nav:
       - Runtime benchmarking: benchmarking.md
       - RecoveryBench: recoverybench/recoverybench-v1.md
   - Scale out:
-      - verl bridge boundary: verl-bridge.md
+      - Current OPD scale-out: verl-opd-scaleout.md
       - Materialize a handoff: scaleout-materialization.md
       - Launch requirements: verl-bridge-launch.md
       - Demo recording script: verl-bridge-demo.md
+      - Legacy environment/PPO bridge: legacy-verl-bridge.md
   - Community benchmarks: community-benchmarks.md
   - Schemas:
       - Trajectories: trajectory-schema.md

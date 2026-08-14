@@ -61,7 +61,16 @@ def _anchors(path: Path) -> set[str]:
 
 def check_markdown_links(root: Path) -> list[str]:
     """Return every broken repository-local target."""
-    ignored_parts = {".artifacts", ".git", ".venv", "dist", "build", "runs", "site"}
+    ignored_parts = {
+        ".artifacts",
+        ".git",
+        ".venv",
+        "dist",
+        "build",
+        "history",
+        "runs",
+        "site",
+    }
     files = [
         path
         for path in root.rglob("*.md")

@@ -6,12 +6,12 @@ scoring → update locally, then export standard artifacts. miniVERL is
 independent; distributed execution and full verl compatibility are not claimed.
 
 [Install and run locally](single-gpu-guide.md){ .md-button .md-button--primary }
-[Read the compatibility boundary](verl-bridge.md){ .md-button }
+[Read the compatibility boundary](verl-opd-runtime.md){ .md-button }
 
 ## Pip-only OPD quickstart
 
 ```bash
-python -m pip install "miniverl[train]"
+python -m pip install "miniverl[train,cuda]"
 miniverl data sample --format verl-parquet --out prompts.parquet
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
   --config builtin:qwen3-0.6b-1.7b-opd \
@@ -39,11 +39,13 @@ commit. See [scale-out materialization](scaleout-materialization.md).
 
 ## Measured runtime evidence
 
-One RTX 4080 run of the pinned Qwen3-0.6B/1.7B recipe completed its first OPD
-update in 12.0224 s at 3.1758 GiB peak reserved VRAM, then reloaded its standard
-PEFT adapter. No quality endpoint or method comparison ran.
+The v0.9 RTX 4080 developer workload consumed 32 distinct prompts and completed
+8 current-policy updates at 3.1914 GiB peak reserved VRAM. Median steady-state
+rollout, teacher-scoring and update times were 9.7200, 0.4864 and 2.3260 seconds;
+a matched interruption/resume reproduced byte-identical trajectories, adapter
+and optimizer tensors. No quality endpoint or method comparison ran.
 
-[Exact quickstart evidence](opd-quickstart.md){ .md-button }
+[Measured workload evidence](verl-opd-reference-workload.md){ .md-button }
 
 ## Choose a path
 
@@ -94,7 +96,7 @@ miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
 
 **Artifact:** PEFT + Parquet + OPD overrides and separate readiness flags.
 
-**Next:** [verl bridge contract](verl-bridge.md)
+**Next:** [current scale-out contract](verl-opd-scaleout.md)
 
 </div>
 

@@ -456,7 +456,8 @@ runtime parity or generic verl YAML support. Legacy PPO/reward-scaffold bundles
 remain non-launchable. A pure-OPD bundle can become `launchable: true` only
 after exact snapshots, the fixed upstream config merge and bounded local model
 loads pass; that status still does not say a distributed invocation succeeded.
-See the [exact contract](verl-bridge.md) and [materialization workflow](scaleout-materialization.md).
+See the [current OPD runtime](verl-opd-runtime.md), [scale-out contract](verl-opd-scaleout.md),
+[legacy bridge](legacy-verl-bridge.md) and [materialization workflow](scaleout-materialization.md).
 
 `models.teacher.mode: privileged_context` works only with environments that
 implement `privileged_context()`. All three built-in environments do;
