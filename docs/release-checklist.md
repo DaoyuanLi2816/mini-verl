@@ -4,6 +4,11 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.10.1 development
+
+- [x] Begin from the verified v0.10.0 release and advance only the canonical
+      development state to `0.10.1.dev0`.
+
 ## v0.10.0 development
 
 - [x] Begin from the verified v0.9.1 release and `0.10.0.dev0` canonical state.
@@ -219,6 +224,23 @@ unauthorized after checkpoint-selection failure**.
       generated-artifact, visual, package and attribution gates before merge.
 
 ## After the tag
+
+- [x] v0.10.0 release run
+      [`31785370545`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31785370545)
+      completed the full release gate, OIDC Trusted Publishing, per-file
+      attestations, exact public install and GitHub Release creation for commit
+      `51264f86e8226b1abc6ca1901d379c5e6fabb81e`.
+- [x] PyPI and the
+      [v0.10.0 GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.10.0)
+      expose identical files: wheel SHA-256
+      `ff6bff4169dc5076fb6f3b10c2e38003dd681fb6513b1a0e3719948af16cc560`,
+      sdist SHA-256
+      `13eab0de5f339e125a5a9c2cab707efeee28cc32cbe0f35030943ba0eef01ae2`.
+- [x] A fresh CPython 3.10 environment installed CUDA PyTorch 2.13.0+cu130 and
+      public `miniverl[train,cuda]==0.10.0`; `doctor` reported RTX 4080 CUDA,
+      BF16, GPU training and QLoRA capabilities available.
+- [x] Advance subsequent development to `0.10.1.dev0`; the main-only docs
+      deployment is verified after this state-sync PR merges.
 
 - [x] v0.9.1 release run
       [`31772945981`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31772945981)
