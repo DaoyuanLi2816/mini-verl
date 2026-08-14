@@ -99,6 +99,17 @@ def test_schema_check_reads_no_row_group(tmp_path: Path, monkeypatch: pytest.Mon
     assert "footer metadata only" in check["read_scope"]
 
 
+def test_reward_free_opd_schema_does_not_require_reward_model(tmp_path: Path) -> None:
+    data = tmp_path / "data"
+    data.mkdir()
+    row = _row(0)
+    row.pop("reward_model")
+    pq.write_table(pa.Table.from_pylist([row]), data / "train.parquet")
+
+    assert _check_parquet(tmp_path)["status"] == "fail"
+    assert _check_parquet(tmp_path, require_reward_model=False)["status"] == "ok"
+
+
 # --------------------------------------------------------- streaming bounds
 
 

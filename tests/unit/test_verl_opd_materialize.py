@@ -128,6 +128,14 @@ def _passed_upstream(root: Path) -> dict[str, Any]:
     }
 
 
+def test_materialization_accepts_a_padded_model_vocabulary() -> None:
+    from miniverl.bridge.materialize import _validate_vocab_domain
+
+    _validate_vocab_domain(model_vocab_size=151_936, tokenizer_max_token_id=151_668)
+    with pytest.raises(ValueError, match="tokenizer ID domain"):
+        _validate_vocab_domain(model_vocab_size=151_668, tokenizer_max_token_id=151_668)
+
+
 def test_materialize_publishes_complete_launchable_bundle_transactionally(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

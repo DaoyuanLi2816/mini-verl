@@ -283,7 +283,7 @@ class _PGK1Profile(CompatibilityProfile):
             name=VERL_OPD_PG_K1_V08_PROFILE,
             objective="k1 + vanilla policy loss",
             teacher_target="sampled-token teacher log-probability",
-            status="conformance_only",
+            status="measured",
             identity=self.identity,
         )
 

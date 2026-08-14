@@ -6,9 +6,11 @@ import hashlib
 import importlib.metadata
 import json
 import re
+import subprocess
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 import yaml
 
@@ -336,7 +338,7 @@ def _finalize_tokenizer(check: dict[str, Any], *, require_load: bool) -> dict[st
     return check
 
 
-def _check_parquet(root: Path) -> dict[str, Any]:
+def _check_parquet(root: Path, *, require_reward_model: bool = True) -> dict[str, Any]:
     """Validate the exchange schema from Parquet metadata alone.
 
     Column names, row counts and row-group counts all live in the footer, so a
@@ -346,7 +348,9 @@ def _check_parquet(root: Path) -> dict[str, Any]:
         import pyarrow.parquet as pq
     except ImportError:
         return {"status": "fail", "detail": "pyarrow is not installed"}
-    required = {"data_source", "prompt", "ability", "reward_model", "extra_info"}
+    required = {"data_source", "prompt", "ability", "extra_info"}
+    if require_reward_model:
+        required.add("reward_model")
     schemas: dict[str, list[str]] = {}
     rows: dict[str, int] = {}
     files = sorted((root / "data").glob("*.parquet"))
@@ -1003,6 +1007,21 @@ def _installed_verl() -> dict[str, Any]:
         except json.JSONDecodeError:
             direct_url = {"invalid": True}
     commit = ((direct_url or {}).get("vcs_info") or {}).get("commit_id")
+    if commit is None and isinstance(direct_url, dict):
+        raw_url = direct_url.get("url")
+        if isinstance(raw_url, str) and urlparse(raw_url).scheme == "file":
+            checkout = Path(unquote(urlparse(raw_url).path.lstrip("/")))
+            try:
+                commit = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=checkout,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                ).stdout.strip()
+            except (OSError, subprocess.SubprocessError):
+                commit = None
     return {
         "status": "ok" if commit == VERL_COMMIT else "unverified",
         "version": version,
@@ -1225,8 +1244,12 @@ def inspect_bridge_bundle(
     student_snapshot = _check_materialized_snapshot(bundle, role="student")
     teacher_snapshot = _check_materialized_snapshot(bundle, role="teacher")
     tokenizer = _check_tokenizer(bundle, require_load=require_tokenizer_load)
-    parquet = _check_parquet(bundle)
     config = _check_config(bundle)
+    parquet = _check_parquet(
+        bundle,
+        require_reward_model=config.get("profile")
+        not in {VERL_OPD_V08_PROFILE, VERL_OPD_PG_K1_V08_PROFILE},
+    )
     reward = _check_reward(bundle, trust_and_import=trust_and_import_reward_code)
     hashes = _check_hashes(bundle)
     privacy = _check_privacy(
