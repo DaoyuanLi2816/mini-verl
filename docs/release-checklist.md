@@ -19,10 +19,6 @@ distributed execution or new scientific claim changes.
 - [x] Current runtime/scale-out documentation separated from the legacy bridge.
 - [x] Frozen calculator artifact remains SHA-256
       `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc`.
-- [ ] Merge the release metadata PR after all required checks are green.
-- [ ] Publish through the existing OIDC workflow and verify PyPI, attestations,
-      GitHub Release, stable docs and clean CUDA onboarding.
-- [ ] Advance `main` to `0.10.0.dev0` in a separate state-sync PR.
 
 ## v0.8.1 development
 
