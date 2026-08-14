@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from miniverl.bridge.contract import VERL_COMMIT, VERL_REPOSITORY, VERL_TAG
 from miniverl.bridge.opd_pg_v08 import (
     VERL_OPD_PG_K1_V08_PROFILE,
+    VerlPGK1V08Profile,
     load_verl_pg_k1_v08_source,
     pg_compatibility_rule,
     pg_field_rules_digest,
@@ -288,7 +289,7 @@ class _PGK1Profile(CompatibilityProfile):
         )
 
     def config_schema(self) -> dict[str, Any]:
-        return VerlOPDV08Profile.model_json_schema()
+        return VerlPGK1V08Profile.model_json_schema()
 
     def explain(self, field: str) -> CompatibilityExplanation:
         rule = pg_compatibility_rule(field)

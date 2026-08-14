@@ -16,7 +16,15 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializeAsAny,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from miniverl.bridge.contract import VERL_COMMIT, VERL_REPOSITORY, VERL_TAG
 from miniverl.bridge.interpolation import reject_interpolation
@@ -188,16 +196,12 @@ class VerlOPDTeacherModelsConfig(_StrictModel):
 
 class VerlOPDLossConfig(_StrictModel):
     loss_mode: str
-    topk: int | None = Field(default=None, ge=1)
+    topk: int = Field(ge=1)
     use_task_rewards: bool = False
     distillation_loss_coef: float = Field(default=1.0, ge=0)
     loss_max_clamp: float | None = Field(default=None, ge=0)
     log_prob_min_clamp: float | None = None
     use_policy_gradient: bool = False
-    policy_loss_mode: str = "vanilla"
-    clip_ratio: float = Field(default=0.2, ge=0, lt=1)
-    clip_ratio_low: float | None = Field(default=0.2, ge=0, lt=1)
-    clip_ratio_high: float | None = Field(default=0.2, ge=0, lt=1)
 
     @model_validator(mode="after")
     def _numbers_are_finite(self) -> VerlOPDLossConfig:
@@ -206,11 +210,6 @@ class VerlOPDLossConfig(_StrictModel):
             _finite(self.loss_max_clamp, "loss_max_clamp")
         if self.log_prob_min_clamp is not None:
             _finite(self.log_prob_min_clamp, "log_prob_min_clamp")
-        _finite(self.clip_ratio, "clip_ratio")
-        if self.clip_ratio_low is not None:
-            _finite(self.clip_ratio_low, "clip_ratio_low")
-        if self.clip_ratio_high is not None:
-            _finite(self.clip_ratio_high, "clip_ratio_high")
         return self
 
 
@@ -394,7 +393,7 @@ class CompiledLocalExecutionPlan(_StrictModel):
     source_digest: str
     compiled_digest: str
     source_leaf_fields: list[str]
-    source: VerlOPDV08Profile
+    source: SerializeAsAny[VerlOPDV08Profile]
     overrides: list[OverrideRecord]
     compatibility: list[CompatibilityEntry]
     reinterpretation_acceptance: dict[str, Any]
@@ -632,18 +631,6 @@ _FIELD_RULES: dict[str, _Rule] = {
     ),
     "distillation.distillation_loss.use_policy_gradient": _rule(
         "loss.use_policy_gradient", "exact", "must remain disabled for direct GKD OPD"
-    ),
-    "distillation.distillation_loss.policy_loss_mode": _rule(
-        None, "informational_only", "inactive because direct GKD does not use a policy loss"
-    ),
-    "distillation.distillation_loss.clip_ratio": _rule(
-        None, "informational_only", "inactive because direct GKD does not use a policy loss"
-    ),
-    "distillation.distillation_loss.clip_ratio_low": _rule(
-        None, "informational_only", "inactive because direct GKD does not use a policy loss"
-    ),
-    "distillation.distillation_loss.clip_ratio_high": _rule(
-        None, "informational_only", "inactive because direct GKD does not use a policy loss"
     ),
     "trainer.project_name": _rule("run.project", "exact", "same provenance label"),
     "trainer.experiment_name": _rule("run.name", "exact", "same provenance label"),
@@ -1055,8 +1042,6 @@ def _semantic_blocker(path: str, value: Any) -> str | None:
         return expected[1]
     if path == "trainer.n_gpus_per_node" and value != 1:
         return "more than one local training GPU is unsupported"
-    if path == "distillation.distillation_loss.topk" and value is None:
-        return "direct forward_kl_topk requires a positive topk"
     if path == "distillation.nnodes" and value not in {0, 1}:
         return "multi-node teacher execution is unsupported"
     if path == "algorithm.adv_estimator" and value is not None:

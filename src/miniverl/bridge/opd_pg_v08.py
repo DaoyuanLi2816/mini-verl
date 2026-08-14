@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from miniverl.bridge.contract import VERL_COMMIT, VERL_REPOSITORY, VERL_TAG
 from miniverl.bridge.interpolation import reject_interpolation
@@ -17,8 +17,11 @@ from miniverl.bridge.opd_v08 import (
     CompatibilityEntry,
     CompiledLocalExecutionPlan,
     FieldClassification,
+    VerlOPDDistillationConfig,
+    VerlOPDLossConfig,
     VerlOPDV08Profile,
     _canonical_digest,
+    _finite,
     _flatten,
     _reject_non_finite_source_numbers,
     _resolve_overrides,
@@ -37,6 +40,34 @@ __all__ = [
 ]
 
 VERL_OPD_PG_K1_V08_PROFILE = "verl-opd-v0.8-single-gpu-pg-k1-v1"
+
+
+class VerlPGK1LossConfig(VerlOPDLossConfig):
+    """PG-only loss fields, isolated from the published direct profile schema."""
+
+    topk: int | None = Field(default=None, ge=1)  # type: ignore[assignment]
+    policy_loss_mode: str = "vanilla"
+    clip_ratio: float = Field(default=0.2, ge=0, lt=1)
+    clip_ratio_low: float | None = Field(default=0.2, ge=0, lt=1)
+    clip_ratio_high: float | None = Field(default=0.2, ge=0, lt=1)
+
+    @model_validator(mode="after")
+    def _pg_numbers_are_finite(self) -> VerlPGK1LossConfig:
+        _finite(self.clip_ratio, "clip_ratio")
+        if self.clip_ratio_low is not None:
+            _finite(self.clip_ratio_low, "clip_ratio_low")
+        if self.clip_ratio_high is not None:
+            _finite(self.clip_ratio_high, "clip_ratio_high")
+        return self
+
+
+class VerlPGK1DistillationConfig(VerlOPDDistillationConfig):
+    distillation_loss: VerlPGK1LossConfig
+
+
+class VerlPGK1V08Profile(VerlOPDV08Profile):
+    distillation: VerlPGK1DistillationConfig
+
 
 _PG_FIELD_RULES: dict[str, _Rule] = dict(_FIELD_RULES)
 _PG_FIELD_RULES.update(
@@ -227,7 +258,7 @@ def compile_verl_pg_k1_v08(
             hint="the profile accepts only its documented resolved verl v0.8 subset",
         )
     try:
-        source = VerlOPDV08Profile.model_validate(merged)
+        source = VerlPGK1V08Profile.model_validate(merged)
     except ValidationError as exc:
         finite = any("finite" in error.get("msg", "").lower() for error in exc.errors())
         message = "verl PG-k1 numeric fields must be finite" if finite else "invalid PG-k1 profile"
