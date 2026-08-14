@@ -1,5 +1,13 @@
 # verl bridge: portable artifacts, bounded semantics
 
+!!! note "Combined historical reference"
+
+    New users should start with the [current local OPD runtime](verl-opd-runtime.md)
+    and [current scale-out contract](verl-opd-scaleout.md). The older
+    environment/PPO reward scaffold is isolated on the [legacy bridge
+    page](legacy-verl-bridge.md). This combined page remains as a detailed
+    historical security and artifact reference.
+
 miniVERL is an independent project; no endorsement by the verl project is
 implied. The bridge targets the documented
 `single-gpu-online-distillation-v1` profile subset of

@@ -46,7 +46,7 @@ miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
 ```
 
 Planning is weight-free and offline. Use `--json` to retain the complete field
-matrix. The development CLI records repeated `--set`, override files and
+matrix. The stable v0.9 CLI records repeated `--set`, override files and
 trailing tokens with deterministic precedence; it does not execute `${...}`
 interpolations or shell text. See [Config overrides](config-overrides.md).
 
@@ -89,11 +89,12 @@ bytes and schema are copied into export provenance.
 
 ## Actor, teacher and reference roles
 
-The actor is the trainable PEFT policy. The teacher produces top-k plus tail
-targets on actor-generated tokens. Pure GKD in this profile has no reference
+The actor is the trainable PEFT policy. The teacher produces top-k token IDs
+and log-probabilities on actor-generated tokens; top-k mass and overlap are
+diagnostics, not an explicit tail bucket. Pure GKD in this profile has no reference
 policy, critic, task reward or policy-gradient term. Local runtime strategies
-may keep roles resident, swap them, or share a compatible backbone, but role
-identities never collapse in provenance.
+may keep quantized roles resident, swap movable unquantized roles, or share a
+compatible backbone, but role identities never collapse in provenance.
 
 ## Export boundary
 
@@ -103,8 +104,8 @@ miniverl bridge materialize scaleout --download --offline
 miniverl bridge doctor scaleout --json
 ```
 
-The v0.8.1 bundle carries PEFT, Parquet, config and provenance artifacts, but is
-reported as `launchable: false` until exact base snapshots are materialized and
+The stable v0.9 bundle carries PEFT, Parquet, config and provenance artifacts,
+but is reported as `launchable: false` until exact base snapshots are materialized and
 the pinned upstream checks pass. Read the [materialization workflow](scaleout-materialization.md).
 Upstream parse/load smoke, artifact completeness, launchability and distributed
 execution are separate statuses. miniVERL never reports a distributed job as

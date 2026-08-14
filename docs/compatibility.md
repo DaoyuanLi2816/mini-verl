@@ -6,7 +6,7 @@ artifact. Release notes identify migrations, and the current reader either
 loads an older artifact with its historical semantics or rejects it with a
 regeneration hint.
 
-## Stable surfaces through v0.6
+## Stable surfaces through v0.9
 
 - Package name `miniverl`, command name `miniverl`, documented command names,
   and the small Python entry points `RunConfig` and `OPDTrainer`.
@@ -34,7 +34,10 @@ labelled as a reinterpretation of upstream resource fields.
 
 The [machine-readable field matrix](generated/verl-opd-v0.8-compatibility.json)
 is regenerated directly from the typed compiler and its pinned resolved
-fixture; CI compares the committed bytes with the generator output.
+fixture; CI compares the committed bytes with the generator output. The
+[field-effect record](generated/verl-opd-v0.8-field-effects.json) independently
+mutates every executable non-informational field and records its observed plan
+or native-runtime effect.
 
 The older `single-gpu-online-distillation-v1` import/export contract remains
 available for migration and retains its historical non-launchable PPO/reward
@@ -53,7 +56,8 @@ PPO-reference-cache conversion are unsupported. The release smoke validates
 artifacts and configuration; distributed execution is recorded as not tested.
 Current bundles contain a fail-closed reward scaffold and an absent base
 snapshot, so they use `launch.template.sh` and report `launchable: false`.
-See the [bridge contract](verl-bridge.md).
+See the [current local runtime](verl-opd-runtime.md), [current scale-out
+contract](verl-opd-scaleout.md), and [legacy bridge](legacy-verl-bridge.md).
 
 ## Versioned but extensible
 

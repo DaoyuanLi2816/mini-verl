@@ -1,6 +1,6 @@
 # Run verl-style OPD locally
 
-miniVERL v0.8 supports one pinned, fail-closed subset of verl v0.8: one actor,
+miniVERL v0.9 supports one pinned, fail-closed subset of verl v0.8: one actor,
 one teacher, one generation per prompt, reward-free direct GKD with
 `forward_kl_topk`, token-mean aggregation and a LoRA/QLoRA student. It is local
 single-GPU execution, not Ray/FSDP or distributed verl execution.
@@ -43,8 +43,10 @@ The checksummed record is
 
 `plan` reports estimates separately from measurements. Auto placement uses
 model metadata plus the configured VRAM headroom; it never branches on a GPU
-product name. Unknown model sizes conservatively select swap. `--probe` is
-reserved but fails closed in v0.8.0 rather than loading weights unexpectedly.
+product name. Unknown-size quantized roles report `requires_probe` because
+bitsandbytes weights cannot legally swap. `plan --probe` performs a bounded,
+cached CUDA calibration with zero optimizer updates; normal planning remains
+weight-free.
 
 Unsupported settings—including policy-gradient OPD, task rewards, reference
 KL, multiple teachers, multiple generations, multimodal inputs and every
