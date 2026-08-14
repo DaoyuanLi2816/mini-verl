@@ -6,11 +6,12 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-08-14.
 
-Canonical release state: releasing `v0.10.0`.
+Canonical release state: stable `v0.10.0` (`51264f86e8226b1abc6ca1901d379c5e6fabb81e`), development `0.10.1.dev0`.
 
 ## Release state
 
-- Release candidate: `v0.10.0` (release commit pending).
+- Stable: `v0.10.0` at `51264f86e8226b1abc6ca1901d379c5e6fabb81e`.
+- Development: `0.10.1.dev0`.
 - Stable docs: <https://daoyuanli2816.github.io/mini-verl/>.
 - Development docs: <https://daoyuanli2816.github.io/mini-verl/dev/>.
 - Historical build log: [v0.1-v0.9 archive](docs/history/project-state-v0.1-v0.9.md).
