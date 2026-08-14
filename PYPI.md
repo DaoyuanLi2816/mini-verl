@@ -34,7 +34,7 @@ launch distributed jobs, or claim full algorithmic compatibility.
 Install the matching CUDA-enabled PyTorch build for your machine first, then:
 
 ```bash
-python -m pip install "miniverl[train]"
+python -m pip install "miniverl[train,cuda]"
 miniverl data sample --format verl-parquet --out prompts.parquet
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
   --config builtin:qwen3-0.6b-1.7b-opd \
@@ -78,7 +78,8 @@ The actor generates from the current adapter; the teacher scores exactly those
 visited token positions; the actor then receives a padded, token-mean update.
 The teacher is never treated as a reward model, tool output never becomes a
 training label, and a stale actor-policy version cannot enter an on-policy
-batch. Memory planning chooses resident, swap, or compatible shared-backbone
+batch. Memory planning chooses resident phased roles for quantized models,
+swap only for movable unquantized roles, or compatible shared-backbone
 placement while keeping actor, teacher and reference identities distinct.
 
 Each phase writes evidence before the next boundary: structured trajectories
@@ -131,7 +132,8 @@ narrow:
 - one trainable actor and one teacher;
 - one generated response per prompt (`n=1`);
 - reward-free generalized knowledge distillation;
-- `forward_kl_topk` with top-k plus tail targets and token-mean aggregation;
+- `forward_kl_topk` with teacher top-k IDs/log-probabilities, mass/overlap
+  diagnostics and token-mean aggregation;
 - LoRA or QLoRA adapter updates on one CUDA GPU;
 - immutable model revisions and verl-style structured prompt Parquet.
 
@@ -164,7 +166,7 @@ fit depends on VRAM, context length, quantization and installed kernels.
 | Situation | Recommended starting point | What remains constant |
 | --- | --- | --- |
 | inspect on CPU or a laptop | `plan` and `run --dry-run` | full config classification |
-| one CUDA GPU with limited VRAM | QLoRA plus role swapping | logical batch and loss semantics |
+| one CUDA GPU with limited VRAM | QLoRA with resident local phases, or unquantized LoRA with swap | logical batch and loss semantics |
 | same-base actor and teacher adapters | shared-backbone mode | explicit role provenance |
 | more VRAM available | larger physical phase batches | source data and optimizer intent |
 
@@ -196,12 +198,12 @@ miniverl bridge materialize scaleout --download --offline
 miniverl bridge doctor scaleout --json
 ```
 
-The v0.8.1 export preserves student/teacher identities, Parquet bytes and pure
+The v0.9 export preserves student/teacher identities, Parquet bytes and pure
 OPD overrides, but reports `launchable: false` until exact base snapshots are
 materialized and validated against the installed pinned verl commit. Only then
 does `bridge materialize` publish a checksummed `launch.sh`; distributed
-execution remains untested. Review the [materialization contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/scaleout-materialization.md),
-[bridge contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-bridge.md) and [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md).
+execution remains untested. Review the [current scale-out contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-opd-scaleout.md),
+[legacy bridge](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/legacy-verl-bridge.md) and [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md).
 
 The intended operating loop is **plan → inspect → run → inspect → export**.
 `plan --out` byte-binds the YAML, ordered overrides and scanned Parquet inputs
