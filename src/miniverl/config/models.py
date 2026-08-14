@@ -56,6 +56,7 @@ __all__ = [
     "StudentModelConfig",
     "TeacherModelConfig",
     "ReferenceModelConfig",
+    "StudentAdapterConfig",
     "TeacherAdapterConfig",
     "ModelsConfig",
     "LossConfig",
@@ -248,6 +249,25 @@ class LoRAConfig(_Base):
     bias: str = Field(default="none", pattern="^(none|all|lora_only)$")
 
 
+class StudentAdapterConfig(_Base):
+    """Pinned existing PEFT adapter used as the trainable student initialization."""
+
+    path: str = Field(min_length=1)
+    source: AdapterSource = AdapterSource.LOCAL
+    revision: str | None = None
+    base_model_revision: str = Field(min_length=1)
+    tokenizer_fingerprint: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _pin_and_bind(self) -> StudentAdapterConfig:
+        if self.source is AdapterSource.HUB and not self.revision:
+            raise ValueError(
+                "a Hub student adapter must pin adapter.revision; moving adapter "
+                "branches are not reproducible"
+            )
+        return self
+
+
 class StudentModelConfig(_Base):
     """The policy being trained."""
 
@@ -264,6 +284,7 @@ class StudentModelConfig(_Base):
     #: remains numerically identical to a separately loaded base+adapter.
     prepare_kbit_training: bool = True
     lora: LoRAConfig = Field(default_factory=LoRAConfig)
+    adapter: StudentAdapterConfig | None = None
     toy: ToyModelConfig = Field(default_factory=ToyModelConfig)
     trust_remote_code: bool = False
 
@@ -597,6 +618,10 @@ class TrainConfig(_Base):
     #: reference path; ``auto`` uses the full optimizer group. The objective and
     #: effective optimizer batch remain independent of this physical batch.
     trajectory_batch_size: int | Literal["auto"] = 1
+    #: Maximum padded token cells in one physical actor-update forward. This is
+    #: distinct from rollout.max_padded_tokens and never changes the logical
+    #: optimizer group or the number of optimizer updates.
+    max_update_padded_tokens: int | None = Field(default=None, ge=1, le=1048576)
     #: Stable shortest-first packing reduces padding without changing which
     #: trajectories share an optimizer update.
     length_bucketing: bool = True
@@ -924,6 +949,10 @@ class RunConfig(_Base):
                 raise ValueError(
                     "the toy backend cannot load a PEFT teacher adapter; use models.backend: hf"
                 )
+            if self.models.student.adapter is not None:
+                raise ValueError(
+                    "the toy backend cannot load a PEFT student adapter; use models.backend: hf"
+                )
 
         if self.rollout.max_total_tokens <= self.rollout.max_new_tokens_per_turn:
             raise ValueError("rollout.max_total_tokens must exceed rollout.max_new_tokens_per_turn")
@@ -1090,14 +1119,14 @@ class RunConfig(_Base):
     def resolved_for_runtime(self) -> RunConfig:
         """Return a deep copy with local paths resolved, without mutating provenance."""
         runtime = self.model_copy(deep=True)
-        adapter = runtime.models.teacher.adapter
-        if adapter is not None and adapter.source is AdapterSource.LOCAL:
-            adapter_path = Path(adapter.path)
-            if not adapter_path.is_absolute():
-                private = getattr(self, "__pydantic_private__", None)
-                source = private.get("_source_path") if isinstance(private, dict) else None
-                base = source.parent if isinstance(source, Path) else Path.cwd()
-                adapter.path = str((base / adapter_path).resolve())
+        for adapter in (runtime.models.student.adapter, runtime.models.teacher.adapter):
+            if adapter is not None and adapter.source is AdapterSource.LOCAL:
+                adapter_path = Path(adapter.path)
+                if not adapter_path.is_absolute():
+                    private = getattr(self, "__pydantic_private__", None)
+                    source = private.get("_source_path") if isinstance(private, dict) else None
+                    base = source.parent if isinstance(source, Path) else Path.cwd()
+                    adapter.path = str((base / adapter_path).resolve())
         dataset_path = runtime.offline_kd.dataset_path
         if dataset_path:
             path = Path(dataset_path)

@@ -158,7 +158,7 @@ class VerlOPDAlgorithmConfig(_StrictModel):
 
 class VerlOPDTeacherInferenceConfig(_StrictModel):
     name: str
-    dtype: str = "bfloat16"
+    dtype: Literal["auto", "float16", "bfloat16", "float32"] = "bfloat16"
     tensor_model_parallel_size: int = Field(default=1, ge=1)
     data_parallel_size: int = Field(default=1, ge=1)
     pipeline_model_parallel_size: int = Field(default=1, ge=1)
@@ -230,6 +230,17 @@ class MiniVerlRuntimeExtensions(_StrictModel):
     mode: RuntimeMode = "auto"
 
 
+class MiniVerlModelRuntimeExtensions(_StrictModel):
+    dtype: Literal["auto", "float16", "bfloat16", "float32"] = "auto"
+    quantization: Literal["none", "nf4", "int8"] = "none"
+    attn_implementation: Literal["sdpa", "eager"] = "sdpa"
+
+
+class MiniVerlTeacherRuntimeExtensions(_StrictModel):
+    quantization: Literal["none", "nf4", "int8"] = "none"
+    attn_implementation: Literal["sdpa", "eager"] = "sdpa"
+
+
 class MiniVerlMemoryExtensions(_StrictModel):
     vram_limit_gib: float = Field(default=16.0, gt=0)
     headroom_gib: float = Field(default=1.5, ge=0)
@@ -254,14 +265,30 @@ class MiniVerlTeacherAdapterExtensions(_StrictModel):
     revision: str | None = None
 
 
+class MiniVerlStudentAdapterExtensions(_StrictModel):
+    source: Literal["local", "hub"] = "local"
+    revision: str | None = None
+    base_model_revision: str | None = None
+    tokenizer_fingerprint: str | None = None
+
+
 class MiniVerlLocalExtensions(_StrictModel):
     student_revision: str | None = None
     teacher_revision: str | None = None
     runtime: MiniVerlRuntimeExtensions = Field(default_factory=MiniVerlRuntimeExtensions)
+    actor_runtime: MiniVerlModelRuntimeExtensions = Field(
+        default_factory=MiniVerlModelRuntimeExtensions
+    )
+    teacher_runtime: MiniVerlTeacherRuntimeExtensions = Field(
+        default_factory=MiniVerlTeacherRuntimeExtensions
+    )
     memory: MiniVerlMemoryExtensions = Field(default_factory=MiniVerlMemoryExtensions)
     batching: MiniVerlBatchingExtensions = Field(default_factory=MiniVerlBatchingExtensions)
     teacher_adapter: MiniVerlTeacherAdapterExtensions = Field(
         default_factory=MiniVerlTeacherAdapterExtensions
+    )
+    student_adapter: MiniVerlStudentAdapterExtensions = Field(
+        default_factory=MiniVerlStudentAdapterExtensions
     )
 
 
@@ -274,6 +301,55 @@ class VerlOPDV08Profile(_StrictModel):
     distillation: VerlOPDDistillationConfig
     trainer: VerlOPDTrainerConfig
     miniverl: MiniVerlLocalExtensions = Field(default_factory=MiniVerlLocalExtensions)
+
+    @model_validator(mode="after")
+    def _validate_student_adapter_contract(self) -> VerlOPDV08Profile:
+        total_tokens = self.data.max_prompt_length + self.data.max_response_length
+        rollout = self.actor_rollout_ref.rollout
+        teacher_inference = self.distillation.teacher_models.teacher_model.inference
+        if rollout.max_model_len is not None and rollout.max_model_len < total_tokens:
+            raise ValueError(
+                "actor_rollout_ref.rollout.max_model_len must cover max_prompt_length + "
+                "max_response_length"
+            )
+        if (
+            teacher_inference.max_model_len is not None
+            and teacher_inference.max_model_len < total_tokens
+        ):
+            raise ValueError(
+                "teacher inference max_model_len must cover max_prompt_length + max_response_length"
+            )
+        path = self.actor_rollout_ref.model.lora_adapter_path
+        adapter = self.miniverl.student_adapter
+        if path is None:
+            if (
+                any(
+                    value is not None
+                    for value in (
+                        adapter.revision,
+                        adapter.base_model_revision,
+                        adapter.tokenizer_fingerprint,
+                    )
+                )
+                or adapter.source != "local"
+            ):
+                raise ValueError(
+                    "miniverl.student_adapter metadata requires "
+                    "actor_rollout_ref.model.lora_adapter_path"
+                )
+            return self
+        if not adapter.base_model_revision or not adapter.tokenizer_fingerprint:
+            raise ValueError(
+                "actor lora_adapter_path requires miniverl.student_adapter."
+                "base_model_revision and tokenizer_fingerprint"
+            )
+        if adapter.source == "hub" and not adapter.revision:
+            raise ValueError("a Hub student_adapter requires an immutable revision")
+        if adapter.base_model_revision != self.miniverl.student_revision:
+            raise ValueError(
+                "student_adapter.base_model_revision must match miniverl.student_revision"
+            )
+        return self
 
 
 class OverrideRecord(_StrictModel):
@@ -347,7 +423,9 @@ _FIELD_RULES: dict[str, _Rule] = {
     "data.max_prompt_length": _rule("source.max_prompt_length", "exact", "same token bound"),
     "data.max_response_length": _rule("source.max_response_length", "exact", "same token bound"),
     "data.filter_overlong_prompts": _rule(
-        "source.filter_overlong_prompts", "semantically_conformant", "same filtering intent"
+        None,
+        "informational_only",
+        "false is recorded; explicit truncation controls local overlength handling",
     ),
     "data.truncation": _rule("source.truncation", "semantically_conformant", "same named policy"),
     "data.shuffle": _rule(
@@ -404,10 +482,9 @@ _FIELD_RULES: dict[str, _Rule] = {
         "loss.actor_reference_kl", "exact", "must remain disabled for this profile"
     ),
     "actor_rollout_ref.actor.ppo_mini_batch_size": _rule(
-        "batching.update_trajectory_batch_size",
-        "locally_reinterpreted",
-        "used as a logical update batch, not a PPO mini-batch",
-        "high",
+        None,
+        "informational_only",
+        "direct one-step GKD has no PPO mini-batch; data.train_batch_size is the logical group",
     ),
     "actor_rollout_ref.actor.ppo_max_token_len_per_gpu": _rule(
         "batching.update_token_budget",
@@ -584,33 +661,72 @@ _FIELD_RULES: dict[str, _Rule] = {
     "trainer.val_before_train": _rule(
         None, "informational_only", "recorded; validation scheduling follows the local run contract"
     ),
-    "miniverl.runtime.mode": _rule(None, "informational_only", "miniVERL-only local extension"),
+    "miniverl.runtime.mode": _rule(
+        "placement.requested", "exact", "miniVERL-only requested local placement"
+    ),
+    "miniverl.actor_runtime.dtype": _rule(
+        "student.dtype", "exact", "miniVERL-only explicit actor runtime dtype"
+    ),
+    "miniverl.actor_runtime.quantization": _rule(
+        "student.quantization", "exact", "miniVERL-only explicit actor quantization"
+    ),
+    "miniverl.actor_runtime.attn_implementation": _rule(
+        "student.attn_implementation",
+        "exact",
+        "miniVERL-only explicit actor attention implementation",
+    ),
+    "miniverl.teacher_runtime.quantization": _rule(
+        "teacher.quantization", "exact", "miniVERL-only explicit teacher quantization"
+    ),
+    "miniverl.teacher_runtime.attn_implementation": _rule(
+        "teacher.attn_implementation",
+        "exact",
+        "miniVERL-only explicit teacher attention implementation",
+    ),
     "miniverl.student_revision": _rule(
-        "student.revision", "informational_only", "miniVERL-only immutable Hub revision"
+        "student.revision", "exact", "miniVERL-only immutable Hub revision"
     ),
     "miniverl.teacher_revision": _rule(
-        "teacher.revision", "informational_only", "miniVERL-only immutable Hub revision"
+        "teacher.revision", "exact", "miniVERL-only immutable Hub revision"
     ),
     "miniverl.memory.vram_limit_gib": _rule(
-        None, "informational_only", "miniVERL-only planner limit"
+        "memory.vram_limit_gib", "exact", "miniVERL-only planner limit"
     ),
     "miniverl.memory.headroom_gib": _rule(
-        None, "informational_only", "miniVERL-only planner headroom"
+        "memory.headroom_gib", "exact", "miniVERL-only planner headroom"
     ),
     "miniverl.batching.rollout_batch_size": _rule(
-        None, "informational_only", "miniVERL-only physical batch"
+        "batching.rollout_batch_size", "exact", "miniVERL-only physical rollout batch"
     ),
     "miniverl.batching.teacher_score_batch_size": _rule(
-        None, "informational_only", "miniVERL-only physical batch"
+        None,
+        "informational_only",
+        "reserved for a future batched teacher scorer; current scoring is trajectory-serial",
     ),
     "miniverl.batching.update_trajectory_batch_size": _rule(
-        None, "informational_only", "miniVERL-only physical batch"
+        "batching.update_trajectory_batch_size", "exact", "miniVERL-only actor-update batch"
     ),
     "miniverl.teacher_adapter.path": _rule(
-        None, "informational_only", "miniVERL-only teacher adapter extension"
+        "teacher.adapter.path", "exact", "miniVERL-only teacher adapter identity"
     ),
     "miniverl.teacher_adapter.revision": _rule(
-        None, "informational_only", "miniVERL-only teacher adapter extension"
+        "teacher.adapter.revision", "exact", "miniVERL-only teacher adapter revision"
+    ),
+    "miniverl.student_adapter.source": _rule(
+        "student.adapter.source", "exact", "miniVERL-only trainable adapter provenance"
+    ),
+    "miniverl.student_adapter.revision": _rule(
+        "student.adapter.revision", "exact", "miniVERL-only immutable adapter revision"
+    ),
+    "miniverl.student_adapter.base_model_revision": _rule(
+        "student.adapter.base_model_revision",
+        "exact",
+        "miniVERL-only adapter/base identity binding",
+    ),
+    "miniverl.student_adapter.tokenizer_fingerprint": _rule(
+        "student.adapter.tokenizer_fingerprint",
+        "exact",
+        "miniVERL-only adapter/tokenizer identity binding",
     ),
 }
 
@@ -896,6 +1012,11 @@ def _semantic_blocker(path: str, value: Any) -> str | None:
         return "multi-node teacher execution is unsupported"
     if path == "algorithm.adv_estimator" and value is not None:
         return "policy-gradient advantage estimation is outside direct GKD OPD"
+    if path == "data.filter_overlong_prompts" and value:
+        return (
+            "filter_overlong_prompts=true is unsupported; choose explicit left/right "
+            "truncation or fail closed with truncation=error"
+        )
     if (
         path
         in {
@@ -969,7 +1090,23 @@ def compile_verl_opd_v08(
             classification = rule.classification
             reason = rule.reason
             risk = rule.risk
-        confirmation_required = rule.confirmation or (
+        if path == "trainer.total_epochs" and source.trainer.total_training_steps is not None:
+            classification = "informational_only"
+            reason = "recorded but superseded by the explicit total_training_steps cap"
+            risk = "none"
+        if (
+            path
+            in {
+                "actor_rollout_ref.model.lora_adapter_path",
+                "miniverl.teacher_adapter.path",
+                "miniverl.teacher_adapter.revision",
+            }
+            and value is None
+        ):
+            classification = "informational_only"
+            reason = "null records that no existing adapter input is configured"
+            risk = "none"
+        confirmation_required = (rule.confirmation and classification != "informational_only") or (
             classification == "locally_reinterpreted" and risk == "high"
         )
         compatibility.append(

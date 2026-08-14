@@ -17,6 +17,8 @@ from miniverl.config.models import (
     ModelRuntime,
     Quantization,
     RunConfig,
+    StudentAdapterConfig,
+    StudentModelConfig,
     TeacherAdapterConfig,
     TeacherModelConfig,
 )
@@ -27,6 +29,7 @@ from miniverl.utils.runs import RunPaths, canonical_json, read_json, write_json
 __all__ = [
     "ADAPTER_MANIFEST",
     "ValidatedTeacherAdapter",
+    "validate_student_adapter",
     "validate_teacher_adapter",
     "export_adapter",
     "digest_tree",
@@ -148,7 +151,9 @@ def _read_local_adapter(path: Path) -> tuple[dict[str, Any], dict[str, Any], dic
             hint="export it with `miniverl export-adapter`, or correct models.teacher.adapter.path",
         )
     required = (_ADAPTER_CONFIG, _ADAPTER_WEIGHTS, ADAPTER_MANIFEST)
-    missing = [name for name in required if not (path / name).is_file()]
+    missing = [
+        name for name in required if not (path / name).is_file() or (path / name).is_symlink()
+    ]
     if missing:
         raise BackendError(
             f"teacher adapter {path} is incomplete (missing {', '.join(missing)})",
@@ -264,6 +269,11 @@ def validate_teacher_adapter(
         )
 
     expected_revision = adapter.base_model_revision or manifest.get("base_model_revision")
+    manifest_revision = manifest.get("base_model_revision")
+    if adapter.base_model_revision and manifest_revision not in {None, adapter.base_model_revision}:
+        raise BackendError(
+            "adapter manifest base revision conflicts with the configured pinned revision"
+        )
     if expected_revision and teacher.revision != expected_revision:
         raise BackendError(
             f"teacher base revision {teacher.revision!r} does not match adapter "
@@ -356,6 +366,15 @@ def validate_teacher_adapter(
                 f"{str(expected)[:16]}..., got {actual[:16]}..."
             )
 
+    from miniverl.bridge.safetensors_check import inspect_safetensors
+
+    tensor_check = inspect_safetensors(downloaded[_ADAPTER_WEIGHTS], require_payload=True)
+    if tensor_check.get("status") != "ok":
+        raise BackendError(
+            f"adapter weights failed safetensors validation: {tensor_check.get('detail')}",
+            hint="publish a complete standard PEFT safetensors adapter and retry",
+        )
+
     weights_digest, _ = sha256_file(downloaded[_ADAPTER_WEIGHTS])
     provenance = {
         "source": adapter.source.value,
@@ -368,6 +387,8 @@ def validate_teacher_adapter(
         "tokenizer_fingerprint": expected_tokenizer,
         "peft_type": peft_type,
         "target_modules": sorted(str(name) for name in target_modules),
+        "rank": adapter_config.get("r"),
+        "alpha": adapter_config.get("lora_alpha"),
         "weights_sha256": weights_digest,
         "manifest_digest": (
             hashlib.sha256(canonical_json(manifest).encode("utf-8")).hexdigest()
@@ -383,6 +404,72 @@ def validate_teacher_adapter(
         adapter_config_path=downloaded[_ADAPTER_CONFIG],
         weights_path=downloaded[_ADAPTER_WEIGHTS],
         manifest_path=downloaded[ADAPTER_MANIFEST],
+    )
+
+
+def validate_student_adapter(
+    adapter: StudentAdapterConfig,
+    student: StudentModelConfig,
+    *,
+    tokenizer_fingerprint: str,
+    local_files_only: bool = False,
+) -> ValidatedTeacherAdapter:
+    """Validate a pinned existing LoRA adapter before making it trainable."""
+    if adapter.source is AdapterSource.LOCAL and Path(adapter.path).is_symlink():
+        raise BackendError(
+            f"student adapter path must be a real directory, not a symlink: {adapter.path}"
+        )
+    teacher_adapter = TeacherAdapterConfig(
+        path=adapter.path,
+        source=adapter.source,
+        revision=adapter.revision,
+        base_model_revision=adapter.base_model_revision,
+        tokenizer_fingerprint=adapter.tokenizer_fingerprint,
+        require_policy_evaluation=False,
+    )
+    model_view = TeacherModelConfig(
+        model_id=student.model_id,
+        revision=student.revision,
+        tokenizer_id=student.tokenizer_id,
+        tokenizer_revision=student.tokenizer_revision,
+        dtype=student.dtype,
+        quantization=student.quantization,
+        attn_implementation=student.attn_implementation,
+        trust_remote_code=student.trust_remote_code,
+    )
+    validated = validate_teacher_adapter(
+        teacher_adapter,
+        model_view,
+        tokenizer_fingerprint=tokenizer_fingerprint,
+        local_files_only=local_files_only,
+    )
+    configured_targets = set(student.lora.target_modules)
+    actual_targets = set(validated.provenance["target_modules"])
+    if configured_targets != actual_targets:
+        raise BackendError(
+            "student adapter target_modules do not match models.student.lora.target_modules",
+            hint=(
+                f"adapter has {sorted(actual_targets)!r}; configure "
+                f"{sorted(configured_targets)!r} to the same exact set"
+            ),
+        )
+    if validated.provenance.get("rank") != student.lora.r:
+        raise BackendError(
+            f"student adapter rank {validated.provenance.get('rank')!r} does not match "
+            f"models.student.lora.r={student.lora.r}"
+        )
+    if validated.provenance.get("alpha") != student.lora.alpha:
+        raise BackendError(
+            f"student adapter alpha {validated.provenance.get('alpha')!r} does not match "
+            f"models.student.lora.alpha={student.lora.alpha}"
+        )
+    provenance = {**validated.provenance, "role": "student_initialization"}
+    return ValidatedTeacherAdapter(
+        provenance=provenance,
+        snapshot_dir=validated.snapshot_dir,
+        adapter_config_path=validated.adapter_config_path,
+        weights_path=validated.weights_path,
+        manifest_path=validated.manifest_path,
     )
 
 
@@ -496,6 +583,7 @@ def export_adapter(
         "source_run": paths.root.name,
         "source_checkpoint": checkpoint_path.name,
         "source_checkpoint_digest": digest_tree(checkpoint_path),
+        "parent_student_adapter": getattr(backend, "adapter_provenance", None),
         "lora": config.models.student.lora.model_dump(mode="json"),
         "training_environment": env,
         "training_task": (

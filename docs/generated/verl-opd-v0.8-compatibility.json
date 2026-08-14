@@ -1,13 +1,13 @@
 {
   "classification_counts": {
-    "exact": 23,
-    "informational_only": 12,
-    "locally_reinterpreted": 22,
-    "semantically_conformant": 15
+    "exact": 34,
+    "informational_only": 9,
+    "locally_reinterpreted": 20,
+    "semantically_conformant": 14
   },
-  "compiled_digest": "d9458fba483548bedbff9b112d8e192e48055baec24a389f151323417d3072ea",
+  "compiled_digest": "860b25e12c88bc772c9003008aafece2e4a71337a75373441f940ddde65bd008",
   "executable": true,
-  "field_count": 72,
+  "field_count": 77,
   "fields": [
     {
       "classification": "semantically_conformant",
@@ -60,14 +60,14 @@
       "user_confirmation_required": false
     },
     {
-      "classification": "locally_reinterpreted",
+      "classification": "informational_only",
       "executable": true,
-      "local_target": "batching.update_trajectory_batch_size",
-      "reason": "used as a logical update batch, not a PPO mini-batch",
-      "semantic_risk": "high",
+      "local_target": null,
+      "reason": "direct one-step GKD has no PPO mini-batch; data.train_batch_size is the logical group",
+      "semantic_risk": "none",
       "source_value": 8,
       "upstream_field": "actor_rollout_ref.actor.ppo_mini_batch_size",
-      "user_confirmation_required": true
+      "user_confirmation_required": false
     },
     {
       "classification": "locally_reinterpreted",
@@ -100,10 +100,10 @@
       "user_confirmation_required": false
     },
     {
-      "classification": "exact",
+      "classification": "informational_only",
       "executable": true,
       "local_target": "student.adapter.path",
-      "reason": "same optional adapter artifact identity",
+      "reason": "null records that no existing adapter input is configured",
       "semantic_risk": "none",
       "source_value": null,
       "upstream_field": "actor_rollout_ref.model.lora_adapter_path",
@@ -253,10 +253,10 @@
       "user_confirmation_required": false
     },
     {
-      "classification": "semantically_conformant",
+      "classification": "informational_only",
       "executable": true,
-      "local_target": "source.filter_overlong_prompts",
-      "reason": "same filtering intent",
+      "local_target": null,
+      "reason": "false is recorded; explicit truncation controls local overlength handling",
       "semantic_risk": "none",
       "source_value": false,
       "upstream_field": "data.filter_overlong_prompts",
@@ -557,10 +557,40 @@
       "user_confirmation_required": true
     },
     {
-      "classification": "informational_only",
+      "classification": "exact",
       "executable": true,
-      "local_target": null,
-      "reason": "miniVERL-only physical batch",
+      "local_target": "student.attn_implementation",
+      "reason": "miniVERL-only explicit actor attention implementation",
+      "semantic_risk": "none",
+      "source_value": "sdpa",
+      "upstream_field": "miniverl.actor_runtime.attn_implementation",
+      "user_confirmation_required": false
+    },
+    {
+      "classification": "exact",
+      "executable": true,
+      "local_target": "student.dtype",
+      "reason": "miniVERL-only explicit actor runtime dtype",
+      "semantic_risk": "none",
+      "source_value": "auto",
+      "upstream_field": "miniverl.actor_runtime.dtype",
+      "user_confirmation_required": false
+    },
+    {
+      "classification": "exact",
+      "executable": true,
+      "local_target": "student.quantization",
+      "reason": "miniVERL-only explicit actor quantization",
+      "semantic_risk": "none",
+      "source_value": "nf4",
+      "upstream_field": "miniverl.actor_runtime.quantization",
+      "user_confirmation_required": false
+    },
+    {
+      "classification": "exact",
+      "executable": true,
+      "local_target": "batching.rollout_batch_size",
+      "reason": "miniVERL-only physical rollout batch",
       "semantic_risk": "none",
       "source_value": 2,
       "upstream_field": "miniverl.batching.rollout_batch_size",
@@ -570,26 +600,26 @@
       "classification": "informational_only",
       "executable": true,
       "local_target": null,
-      "reason": "miniVERL-only physical batch",
+      "reason": "reserved for a future batched teacher scorer; current scoring is trajectory-serial",
       "semantic_risk": "none",
       "source_value": 2,
       "upstream_field": "miniverl.batching.teacher_score_batch_size",
       "user_confirmation_required": false
     },
     {
-      "classification": "informational_only",
+      "classification": "exact",
       "executable": true,
-      "local_target": null,
-      "reason": "miniVERL-only physical batch",
+      "local_target": "batching.update_trajectory_batch_size",
+      "reason": "miniVERL-only actor-update batch",
       "semantic_risk": "none",
       "source_value": 2,
       "upstream_field": "miniverl.batching.update_trajectory_batch_size",
       "user_confirmation_required": false
     },
     {
-      "classification": "informational_only",
+      "classification": "exact",
       "executable": true,
-      "local_target": null,
+      "local_target": "memory.headroom_gib",
       "reason": "miniVERL-only planner headroom",
       "semantic_risk": "none",
       "source_value": 1.5,
@@ -597,9 +627,9 @@
       "user_confirmation_required": false
     },
     {
-      "classification": "informational_only",
+      "classification": "exact",
       "executable": true,
-      "local_target": null,
+      "local_target": "memory.vram_limit_gib",
       "reason": "miniVERL-only planner limit",
       "semantic_risk": "none",
       "source_value": 16,
@@ -607,17 +637,17 @@
       "user_confirmation_required": false
     },
     {
-      "classification": "informational_only",
+      "classification": "exact",
       "executable": true,
-      "local_target": null,
-      "reason": "miniVERL-only local extension",
+      "local_target": "placement.requested",
+      "reason": "miniVERL-only requested local placement",
       "semantic_risk": "none",
       "source_value": "auto",
       "upstream_field": "miniverl.runtime.mode",
       "user_confirmation_required": false
     },
     {
-      "classification": "informational_only",
+      "classification": "exact",
       "executable": true,
       "local_target": "student.revision",
       "reason": "miniVERL-only immutable Hub revision",
@@ -629,8 +659,8 @@
     {
       "classification": "informational_only",
       "executable": true,
-      "local_target": null,
-      "reason": "miniVERL-only teacher adapter extension",
+      "local_target": "teacher.adapter.path",
+      "reason": "null records that no existing adapter input is configured",
       "semantic_risk": "none",
       "source_value": null,
       "upstream_field": "miniverl.teacher_adapter.path",
@@ -639,21 +669,41 @@
     {
       "classification": "informational_only",
       "executable": true,
-      "local_target": null,
-      "reason": "miniVERL-only teacher adapter extension",
+      "local_target": "teacher.adapter.revision",
+      "reason": "null records that no existing adapter input is configured",
       "semantic_risk": "none",
       "source_value": null,
       "upstream_field": "miniverl.teacher_adapter.revision",
       "user_confirmation_required": false
     },
     {
-      "classification": "informational_only",
+      "classification": "exact",
       "executable": true,
       "local_target": "teacher.revision",
       "reason": "miniVERL-only immutable Hub revision",
       "semantic_risk": "none",
       "source_value": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
       "upstream_field": "miniverl.teacher_revision",
+      "user_confirmation_required": false
+    },
+    {
+      "classification": "exact",
+      "executable": true,
+      "local_target": "teacher.attn_implementation",
+      "reason": "miniVERL-only explicit teacher attention implementation",
+      "semantic_risk": "none",
+      "source_value": "sdpa",
+      "upstream_field": "miniverl.teacher_runtime.attn_implementation",
+      "user_confirmation_required": false
+    },
+    {
+      "classification": "exact",
+      "executable": true,
+      "local_target": "teacher.quantization",
+      "reason": "miniVERL-only explicit teacher quantization",
+      "semantic_risk": "none",
+      "source_value": "nf4",
+      "upstream_field": "miniverl.teacher_runtime.quantization",
       "user_confirmation_required": false
     },
     {
@@ -717,14 +767,14 @@
       "user_confirmation_required": true
     },
     {
-      "classification": "locally_reinterpreted",
+      "classification": "informational_only",
       "executable": true,
       "local_target": "schedule.dataset_passes",
-      "reason": "local bounded dataset passes",
-      "semantic_risk": "medium",
+      "reason": "recorded but superseded by the explicit total_training_steps cap",
+      "semantic_risk": "none",
       "source_value": 1,
       "upstream_field": "trainer.total_epochs",
-      "user_confirmation_required": true
+      "user_confirmation_required": false
     },
     {
       "classification": "semantically_conformant",
@@ -741,7 +791,6 @@
   "reinterpretation_acceptance": {
     "accepted": false,
     "required_fields": [
-      "actor_rollout_ref.actor.ppo_mini_batch_size",
       "actor_rollout_ref.rollout.gpu_memory_utilization",
       "actor_rollout_ref.rollout.name",
       "actor_rollout_ref.rollout.tensor_model_parallel_size",
@@ -756,15 +805,14 @@
       "trainer.n_gpus_per_node",
       "trainer.nnodes",
       "trainer.save_freq",
-      "trainer.test_freq",
-      "trainer.total_epochs"
+      "trainer.test_freq"
     ],
     "source": "not_accepted"
   },
   "schema_version": 2,
   "scope": "config conformance for one documented local pure-OPD profile; not full verl compatibility or distributed execution",
   "source_fixture": "examples/verl-opd-v0.8-single-gpu.yaml",
-  "source_sha256": "085805d904136ae271db7629b4810340f54d6aba7c2ed08e7a88d8ac01511b4f",
+  "source_sha256": "ed8dcbc2e7edefb91beea3f74234a27a8f724411649880b897c9adaffdeb4182",
   "upstream": {
     "commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
     "repository": "https://github.com/verl-project/verl",

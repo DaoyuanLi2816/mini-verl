@@ -128,8 +128,8 @@ def test_compiler_is_typed_deterministic_and_classifies_every_source_leaf() -> N
     classes = {item.upstream_field: item.classification for item in first.compatibility}
     assert classes["data.train_files"] == "exact"
     assert classes["actor_rollout_ref.rollout.name"] == "locally_reinterpreted"
-    assert classes["trainer.total_epochs"] == "locally_reinterpreted"
-    assert classes["miniverl.runtime.mode"] == "informational_only"
+    assert classes["trainer.total_epochs"] == "informational_only"
+    assert classes["miniverl.runtime.mode"] == "exact"
 
 
 def test_override_precedence_and_scientific_notation_are_safe() -> None:

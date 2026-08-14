@@ -409,6 +409,13 @@ class OPDTrainer:
             or config.models.teacher.quantization is not Quantization.NONE
         )
         memory_config = config.memory
+        from miniverl.bridge.opd_capabilities import assert_runtime_placement_legal
+
+        assert_runtime_placement_legal(
+            strategy=memory_config.strategy.value,
+            student_quantization=config.models.student.quantization.value,
+            teacher_quantization=config.models.teacher.quantization.value,
+        )
         if (
             config.models.runtime is ModelRuntime.SHARED_BACKBONE
             and memory_config.strategy is MemoryStrategy.SWAP
@@ -933,6 +940,7 @@ class OPDTrainer:
                     "tokenizer_revision": config.models.student.tokenizer_revision,
                     "quantization": config.models.student.quantization.value,
                     "precision": config.models.student.dtype.value,
+                    "adapter": getattr(self.student, "adapter_provenance", None),
                     "capabilities": self.student.capabilities.to_dict(),
                 },
                 "teacher": (
@@ -1705,7 +1713,7 @@ class OPDTrainer:
         from miniverl.training.batching import (
             build_padded_trajectory_batch,
             concatenate_target_providers,
-            deterministic_length_batches,
+            deterministic_padded_token_batches,
             normalize_trajectory_weights,
         )
 
@@ -1739,16 +1747,12 @@ class OPDTrainer:
             len(group) if requested_batch_size == "auto" else int(requested_batch_size)
         )
         physical_batch_size = max(1, min(physical_batch_size, max(len(group), 1)))
-        if config.train.length_bucketing:
-            batch_indices = deterministic_length_batches(
-                [len(sample.trajectory.token_ids) for sample in group],
-                batch_size=physical_batch_size,
-            )
-        else:
-            batch_indices = tuple(
-                tuple(range(start, min(start + physical_batch_size, len(group))))
-                for start in range(0, len(group), physical_batch_size)
-            )
+        batch_indices = deterministic_padded_token_batches(
+            [len(sample.trajectory.token_ids) for sample in group],
+            batch_size=physical_batch_size,
+            max_padded_tokens=config.train.max_update_padded_tokens,
+            sort_by_length=config.train.length_bucketing,
+        )
 
         for index_group in batch_indices:
             samples = [group[index] for index in index_group]

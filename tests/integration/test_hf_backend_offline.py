@@ -922,6 +922,50 @@ def test_frozen_teacher_adapter_round_trip_preserves_logits(local_teacher_adapte
 
 
 @requires_peft
+def test_existing_student_adapter_loads_trainable_with_pinned_provenance(
+    local_teacher_adapter, tiny_tokenizer
+):
+    from miniverl.config.models import LoRAConfig, StudentAdapterConfig, StudentModelConfig
+    from miniverl.models.hf import HFBackend
+
+    base, adapter, reference = local_teacher_adapter
+    revision = "local-base-revision"
+    spec = StudentModelConfig(
+        model_id=str(base),
+        revision=revision,
+        dtype="float32",
+        attn_implementation="eager",
+        lora=LoRAConfig(r=4, alpha=8, target_modules=["q_proj", "v_proj"]),
+        adapter=StudentAdapterConfig(
+            path=str(adapter),
+            base_model_revision=revision,
+            tokenizer_fingerprint=tiny_tokenizer.fingerprint,
+        ),
+    )
+    backend = HFBackend.load(
+        spec,
+        device="cpu",
+        tokenizer=tiny_tokenizer,
+        trainable=True,
+        local_files_only=True,
+    )
+
+    ids = tiny_tokenizer.encode("<|im_start|>assistant\n<final>\n4\n</final>")
+    with torch.no_grad():
+        expected = reference(torch.tensor([ids])).logits
+        actual = backend.model(torch.tensor([ids])).logits
+    assert torch.allclose(actual, expected, atol=1e-6)
+    trainable = [
+        name for name, parameter in backend.model.named_parameters() if parameter.requires_grad
+    ]
+    assert trainable
+    assert all("lora_" in name for name in trainable)
+    assert backend.adapter_provenance["role"] == "student_initialization"
+    assert backend.adapter_provenance["identity"] == adapter.name
+    assert backend.adapter_provenance["weights_sha256"]
+
+
+@requires_peft
 def test_teacher_adapter_rejects_wrong_base_and_tokenizer(
     tmp_path: Path,
     local_teacher_adapter,

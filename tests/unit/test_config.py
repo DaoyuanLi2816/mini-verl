@@ -829,6 +829,24 @@ def test_a_quantized_student_without_lora_is_rejected(quantization: str) -> None
     )
 
 
+def test_hub_student_adapter_requires_an_immutable_revision() -> None:
+    payload = _payload(
+        models={
+            "backend": "hf",
+            "student": {
+                "adapter": {
+                    "path": "owner/adapter",
+                    "source": "hub",
+                    "base_model_revision": "a" * 40,
+                    "tokenizer_fingerprint": "b" * 64,
+                }
+            },
+        }
+    )
+
+    _rejects(payload, "Hub student adapter must pin")
+
+
 def test_an_unquantized_student_may_disable_lora() -> None:
     config = RunConfig.from_mapping(
         _payload(models={"student": {"quantization": "none", "lora": {"enabled": False}}})

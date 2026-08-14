@@ -16,6 +16,7 @@ __all__ = [
     "build_padded_trajectory_batch",
     "concatenate_target_providers",
     "deterministic_length_batches",
+    "deterministic_padded_token_batches",
     "normalize_trajectory_weights",
 ]
 
@@ -172,6 +173,49 @@ def deterministic_length_batches(
     return tuple(
         tuple(order[start : start + batch_size]) for start in range(0, len(order), batch_size)
     )
+
+
+def deterministic_padded_token_batches(
+    lengths: Sequence[int],
+    *,
+    batch_size: int,
+    max_padded_tokens: int | None,
+    sort_by_length: bool = True,
+) -> tuple[tuple[int, ...], ...]:
+    """Stable shortest-first batches bounded by count and padded token footprint."""
+    if batch_size < 1:
+        raise ValueError(f"batch_size must be >= 1, got {batch_size}")
+    if any(length < 1 for length in lengths):
+        raise ValueError("trajectory lengths must all be positive")
+    if max_padded_tokens is not None and max_padded_tokens < 1:
+        raise ValueError(f"max_padded_tokens must be >= 1, got {max_padded_tokens}")
+
+    order = (
+        sorted(range(len(lengths)), key=lambda index: (int(lengths[index]), index))
+        if sort_by_length
+        else list(range(len(lengths)))
+    )
+    batches: list[tuple[int, ...]] = []
+    pending: list[int] = []
+    for index in order:
+        length = int(lengths[index])
+        if max_padded_tokens is not None and length > max_padded_tokens:
+            raise ValueError(
+                f"trajectory {index} has {length} tokens, exceeding the physical update "
+                f"limit of {max_padded_tokens} padded tokens"
+            )
+        candidate_size = len(pending) + 1
+        exceeds_count = candidate_size > batch_size
+        exceeds_tokens = (
+            max_padded_tokens is not None and length * candidate_size > max_padded_tokens
+        )
+        if pending and (exceeds_count or exceeds_tokens):
+            batches.append(tuple(pending))
+            pending = []
+        pending.append(index)
+    if pending:
+        batches.append(tuple(pending))
+    return tuple(batches)
 
 
 def concatenate_target_providers(

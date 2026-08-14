@@ -1,0 +1,1668 @@
+{
+  "coverage": {
+    "covered": 68,
+    "eligible": 68,
+    "percent": 100.0
+  },
+  "fields": [
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "loss.reduction",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "token-mean",
+        "unsupported-token-mean"
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "actor_rollout_ref.actor.loss_agg_mode"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "optimizer.lr",
+      "observed_changed_paths": [
+        "native_run_config.train.learning_rate",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "1e-5",
+        2e-05
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.actor.optim.lr"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "optimizer.lr_warmup_steps",
+      "observed_changed_paths": [
+        "native_run_config.train.warmup_steps",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        0,
+        1
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.actor.optim.lr_warmup_steps"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "optimizer.weight_decay",
+      "observed_changed_paths": [
+        "native_run_config.train.weight_decay",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        0.01,
+        0.011
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.actor.optim.weight_decay"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "batching.update_token_budget",
+      "observed_changed_paths": [
+        "native_run_config.train.max_update_padded_tokens",
+        "system_plan.batching.update_token_cap",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        2048,
+        2049
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.actor.ppo_max_token_len_per_gpu"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "batching.dynamic_physical_batching",
+      "observed_changed_paths": [
+        "native_run_config.train.length_bucketing",
+        "system_plan.local_execution.dynamic_physical_batching",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        true,
+        false
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.actor.use_dynamic_bsz"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "loss.actor_reference_kl",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        false,
+        true
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "actor_rollout_ref.actor.use_kl_loss"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "student.gradient_checkpointing",
+      "observed_changed_paths": [
+        "native_run_config.models.student.gradient_checkpointing",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        true,
+        false
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.model.enable_gradient_checkpointing"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "student.lora.alpha",
+      "observed_changed_paths": [
+        "native_run_config.models.student.lora.alpha",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        32,
+        33
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.model.lora_alpha"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "student.lora.r",
+      "observed_changed_paths": [
+        "native_run_config.models.student.lora.r",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        16,
+        17
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.model.lora_rank"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "student.model_id",
+      "observed_changed_paths": [
+        "native_run_config.models.student.model_id",
+        "system_plan.disk.model_download_gib",
+        "system_plan.memory.static_weight_gib.student",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.student.model_id",
+        "system_plan.student.parameter_count"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "Qwen/Qwen3-0.6B",
+        "Qwen/Qwen3-0.7B"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.model.path"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "student.lora.target_modules",
+      "observed_changed_paths": [
+        "native_run_config.models.student.lora.target_modules",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        [
+          "q_proj",
+          "v_proj"
+        ],
+        [
+          "q_proj",
+          "k_proj",
+          "v_proj"
+        ]
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.model.target_modules"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "memory.rollout_fraction",
+      "observed_changed_paths": [
+        "system_plan.acknowledgement_required_mappings",
+        "system_plan.memory.declared_rollout_memory_fraction",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        0.5,
+        0.55
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.rollout.gpu_memory_utilization"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "rollout.max_model_len",
+      "observed_changed_paths": [
+        "system_plan.local_execution.context_limits.actor",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        320,
+        321
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.rollout.max_model_len"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "batching.rollout_token_budget",
+      "observed_changed_paths": [
+        "native_run_config.rollout.max_padded_tokens",
+        "system_plan.batching.declared_rollout_token_cap",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        2048,
+        2049
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.rollout.max_num_batched_tokens"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "batching.rollout_batch_limit",
+      "observed_changed_paths": [
+        "native_run_config.rollout.prompt_batch_size",
+        "system_plan.batching.declared_rollout_sequence_cap",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        8,
+        1
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.rollout.max_num_seqs"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "rollout.n",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "actor_rollout_ref.rollout.n"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "rollout.backend",
+      "observed_changed_paths": [
+        "system_plan.acknowledgement_required_mappings",
+        "system_plan.local_execution.declared_rollout_engine",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "vllm",
+        "sglang"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.rollout.name"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "rollout.temperature",
+      "observed_changed_paths": [
+        "native_run_config.rollout.temperature",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1.0,
+        1.1
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.rollout.temperature"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "placement.tensor_parallel",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "actor_rollout_ref.rollout.tensor_model_parallel_size"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "rollout.top_p",
+      "observed_changed_paths": [
+        "native_run_config.rollout.top_p",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        0.95,
+        0.9
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "actor_rollout_ref.rollout.top_p"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "loss.kl_in_reward",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        false,
+        true
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "algorithm.use_kl_in_reward"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "source.max_prompt_length",
+      "observed_changed_paths": [
+        "native_run_config.rollout.max_total_tokens",
+        "native_run_config.source.max_prompt_length",
+        "system_plan.data.prompt_tokens_max",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        256,
+        255
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "data.max_prompt_length"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "source.max_response_length",
+      "observed_changed_paths": [
+        "native_run_config.rollout.max_total_tokens",
+        "native_run_config.source.max_response_length",
+        "system_plan.data.response_tokens_max",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        64,
+        63
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "data.max_response_length"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "source.prompt_key",
+      "observed_changed_paths": [
+        "native_run_config.source.prompt_key",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "prompt",
+        "messages"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "data.prompt_key"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "source.seed",
+      "observed_changed_paths": [
+        "native_run_config.run.seed",
+        "native_run_config.source.seed",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        17,
+        18
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "data.seed"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "source.shuffle",
+      "observed_changed_paths": [
+        "native_run_config.source.shuffle",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        true,
+        false
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "data.shuffle"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "scheduler.logical_batch_size",
+      "observed_changed_paths": [
+        "native_run_config.train.gradient_accumulation_steps",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        8,
+        9
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "data.train_batch_size"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "source.train_files",
+      "observed_changed_paths": [
+        "native_run_config.source.train_files",
+        "system_plan.data.train_files",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        [
+          "data/train.parquet"
+        ],
+        [
+          "data/train-alternate.parquet"
+        ]
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "data.train_files"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "source.truncation",
+      "observed_changed_paths": [
+        "native_run_config.source.truncation",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "error",
+        "left"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "data.truncation"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "source.val_files",
+      "observed_changed_paths": [
+        "native_run_config.source.val_files",
+        "system_plan.data.val_files",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        [
+          "data/val.parquet"
+        ],
+        [
+          "data/val-alternate.parquet"
+        ]
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "data.val_files"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "loss.log_prob_min_clamp",
+      "observed_changed_paths": [
+        "native_run_config.loss.log_prob_min_clamp",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        -10.0,
+        -9.0
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.distillation_loss.log_prob_min_clamp"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "loss.loss_max_clamp",
+      "observed_changed_paths": [
+        "native_run_config.loss.loss_max_clamp",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        null,
+        2.0
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.distillation_loss.loss_max_clamp"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "loss.mode",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "forward_kl_topk",
+        "unsupported-forward_kl_topk"
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "distillation.distillation_loss.loss_mode"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "loss.top_k",
+      "observed_changed_paths": [
+        "native_run_config.loss.top_k",
+        "system_plan.loss.top_k",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        32,
+        33
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.distillation_loss.topk"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "loss.use_policy_gradient",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        false,
+        true
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "distillation.distillation_loss.use_policy_gradient"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "loss.use_task_rewards",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        false,
+        true
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "distillation.distillation_loss.use_task_rewards"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "loss.enabled",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        true,
+        false
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "distillation.enabled"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "placement.teacher_phase",
+      "observed_changed_paths": [
+        "system_plan.acknowledgement_required_mappings",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.n_gpus_per_node"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "placement.teacher_phase",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "distillation.nnodes"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "placement.teacher_data_parallel",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "distillation.teacher_models.teacher_model.inference.data_parallel_size"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "teacher.dtype",
+      "observed_changed_paths": [
+        "native_run_config.models.teacher.dtype",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.teacher.runtime.dtype"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "bfloat16",
+        "float16"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.teacher_models.teacher_model.inference.dtype"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "memory.teacher_fraction",
+      "observed_changed_paths": [
+        "system_plan.acknowledgement_required_mappings",
+        "system_plan.memory.declared_teacher_memory_fraction",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        0.5,
+        0.55
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.teacher_models.teacher_model.inference.gpu_memory_utilization"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "teacher.max_model_len",
+      "observed_changed_paths": [
+        "system_plan.local_execution.context_limits.teacher",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        321,
+        322
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.teacher_models.teacher_model.inference.max_model_len"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "teacher.backend",
+      "observed_changed_paths": [
+        "system_plan.acknowledgement_required_mappings",
+        "system_plan.local_execution.declared_teacher_engine",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "vllm",
+        "sglang"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.teacher_models.teacher_model.inference.name"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "placement.teacher_pipeline_parallel",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "distillation.teacher_models.teacher_model.inference.pipeline_model_parallel_size"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "placement.teacher_tensor_parallel",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "distillation.teacher_models.teacher_model.inference.tensor_model_parallel_size"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "teacher.model_id",
+      "observed_changed_paths": [
+        "native_run_config.models.teacher.model_id",
+        "system_plan.disk.model_download_gib",
+        "system_plan.memory.static_weight_gib.teacher",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.teacher.model_id",
+        "system_plan.teacher.parameter_count"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id"
+      ],
+      "source_values": [
+        "Qwen/Qwen3-1.7B",
+        "Qwen/Qwen3-1.8B"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.teacher_models.teacher_model.model_path"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "placement.teacher_phase",
+      "observed_changed_paths": [
+        "system_plan.acknowledgement_required_mappings",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "distillation.teacher_models.teacher_model.num_replicas"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "student.attn_implementation",
+      "observed_changed_paths": [
+        "native_run_config.models.student.attn_implementation",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.student.runtime.attn_implementation"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "sdpa",
+        "eager"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.actor_runtime.attn_implementation"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "student.dtype",
+      "observed_changed_paths": [
+        "native_run_config.models.student.dtype",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.student.runtime.dtype"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "auto",
+        "float16"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.actor_runtime.dtype"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "student.quantization",
+      "observed_changed_paths": [
+        "native_run_config.models.student.quantization",
+        "system_plan.disk.model_download_gib",
+        "system_plan.memory.static_weight_gib.student",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.student.runtime.quantization"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "nf4",
+        "int8"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.actor_runtime.quantization"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "batching.rollout_batch_size",
+      "observed_changed_paths": [
+        "native_run_config.rollout.prompt_batch_size",
+        "system_plan.batching.rollout",
+        "system_plan.memory.kv_and_token_buffer_gib",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        2,
+        3
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.batching.rollout_batch_size"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "batching.update_trajectory_batch_size",
+      "observed_changed_paths": [
+        "native_run_config.train.trajectory_batch_size",
+        "system_plan.batching.update_trajectories",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        2,
+        3
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.batching.update_trajectory_batch_size"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "memory.headroom_gib",
+      "observed_changed_paths": [
+        "native_run_config.memory.auto_swap_vram_headroom_gb",
+        "system_plan.memory.configured_headroom_gib",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1.5,
+        1.65
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.memory.headroom_gib"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "memory.vram_limit_gib",
+      "observed_changed_paths": [
+        "system_plan.memory.configured_vram_limit_gib",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        16,
+        17
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.memory.vram_limit_gib"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "placement.requested",
+      "observed_changed_paths": [
+        "system_plan.local_execution.reason",
+        "system_plan.local_execution.requested_strategy",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "auto",
+        "dual_model_resident"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.runtime.mode"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "student.revision",
+      "observed_changed_paths": [
+        "native_run_config.models.student.revision",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.student.revision"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "c1899de289a04d12100db370d81485cdf75e47ca",
+        "c1899de289a04d12100db370d81485cdf75e47ca-alternate"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.student_revision"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "teacher.revision",
+      "observed_changed_paths": [
+        "native_run_config.models.teacher.revision",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.teacher.revision"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+        "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e-alternate"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.teacher_revision"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "teacher.attn_implementation",
+      "observed_changed_paths": [
+        "native_run_config.models.teacher.attn_implementation",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.teacher.runtime.attn_implementation"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "sdpa",
+        "eager"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.teacher_runtime.attn_implementation"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "teacher.quantization",
+      "observed_changed_paths": [
+        "native_run_config.models.teacher.quantization",
+        "system_plan.disk.model_download_gib",
+        "system_plan.memory.static_weight_gib.teacher",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source",
+        "system_plan.teacher.runtime.quantization"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "nf4",
+        "int8"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "miniverl.teacher_runtime.quantization"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "run.name",
+      "observed_changed_paths": [
+        "native_run_config.run.name",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "opd-smoke",
+        "opd-smoke-alternate"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "trainer.experiment_name"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "placement.device_count",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "trainer.n_gpus_per_node"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "placement.node_count",
+      "observed_changed_paths": [
+        "validation.executable_constraint"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        1,
+        2
+      ],
+      "test_status": "fixed_constraint_rejected_alternate",
+      "upstream_field": "trainer.nnodes"
+    },
+    {
+      "classification": "exact",
+      "declared_local_target": "run.project",
+      "observed_changed_paths": [
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        "mini-verl",
+        "mini-verl-alternate"
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "trainer.project_name"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "checkpoint.interval",
+      "observed_changed_paths": [
+        "native_run_config.train.save_every_cycles",
+        "system_plan.acknowledgement_required_mappings",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        10,
+        11
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "trainer.save_freq"
+    },
+    {
+      "classification": "locally_reinterpreted",
+      "declared_local_target": "evaluation.interval",
+      "observed_changed_paths": [
+        "native_run_config.train.eval_every_cycles",
+        "system_plan.acknowledgement_required_mappings",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.cycles",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        10,
+        11
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "trainer.test_freq"
+    },
+    {
+      "classification": "semantically_conformant",
+      "declared_local_target": "schedule.optimizer_steps",
+      "observed_changed_paths": [
+        "native_run_config.train.cycles",
+        "system_plan.reinterpretation_acceptance.accepted",
+        "system_plan.reinterpretation_acceptance.source"
+      ],
+      "observed_unchanged_critical_paths": [
+        "native_run_config.run.mode",
+        "native_run_config.train.rollouts_per_cycle",
+        "system_plan.loss.mode",
+        "system_plan.loss.top_k",
+        "system_plan.student.model_id",
+        "system_plan.teacher.model_id"
+      ],
+      "source_values": [
+        2,
+        3
+      ],
+      "test_status": "effect_observed",
+      "upstream_field": "trainer.total_training_steps"
+    }
+  ],
+  "profile": "verl-opd-v0.8-single-gpu-v1",
+  "schema_version": 1,
+  "source_fixture": "examples/verl-opd-v0.8-single-gpu.yaml",
+  "source_sha256": "ed8dcbc2e7edefb91beea3f74234a27a8f724411649880b897c9adaffdeb4182"
+}
