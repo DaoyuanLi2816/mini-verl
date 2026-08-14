@@ -535,6 +535,10 @@ def export_adapter(
         safe_serialization=True,
         **({"selected_adapters": [selected_adapter]} if selected_adapter else {}),
     )
+    save_tokenizer = getattr(getattr(tokenizer, "raw", None), "save_pretrained", None)
+    if not callable(save_tokenizer):
+        raise BackendError("loaded HF tokenizer cannot be serialized with the PEFT adapter")
+    save_tokenizer(target)
     if selected_adapter is not None:
         nested = target / selected_adapter
         if nested.is_dir():

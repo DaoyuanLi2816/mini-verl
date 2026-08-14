@@ -135,6 +135,7 @@ def run_greedy_padded_generation(
     eos_token_id: int,
     max_new_tokens: int,
     stop_sequences: Sequence[str] = (),
+    record_logprobs: bool = False,
 ) -> list[GenerationOutput]:
     """Greedy decode a real padded batch while retaining per-row stop state.
 
@@ -152,6 +153,7 @@ def run_greedy_padded_generation(
     generated: list[list[int]] = [[] for _ in sequences]
     reasons = ["max_new_tokens"] * len(sequences)
     matched: list[str | None] = [None] * len(sequences)
+    logprobs: list[list[float]] = [[] for _ in sequences]
     active = [True] * len(sequences)
     for _ in range(max_new_tokens):
         logits = step(sequences)
@@ -163,6 +165,9 @@ def run_greedy_padded_generation(
             if not active[index]:
                 continue
             token = int(torch.argmax(logits[index].detach().to(torch.float32)).item())
+            if record_logprobs:
+                row_log_probs = torch.log_softmax(logits[index].detach().to(torch.float32), dim=-1)
+                logprobs[index].append(float(row_log_probs[token].item()))
             generated[index].append(token)
             sequences[index].append(token)
             if token == eos_token_id:
@@ -183,6 +188,7 @@ def run_greedy_padded_generation(
             text=decode(row),
             stop_reason=reasons[index],
             matched_stop=matched[index],
+            logprobs=logprobs[index],
         )
         for index, row in enumerate(generated)
     ]

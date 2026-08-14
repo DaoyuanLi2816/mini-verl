@@ -1,0 +1,171 @@
+{
+  "artifacts": {
+    "checkpoint_hashes": {
+      "adapter.safetensors": "315673b72ab3c871b6225e32981bce21877fca9d63d1c2e8e34d0b4b9295b8e6",
+      "optimizer.safetensors": "972cfa720e394da0435eeffde2a6602d764dfc774060b082e6dbb754e8842ffc",
+      "state.json": "e2b5135ba3bb78c09cdd1d946cd5b2a22456cbec4ff8f4b5bfe364da7e550e61"
+    },
+    "standard_peft_adapter_sha256": "769a2be71627d1e0d78e35aa7131d360d0750e71c8dce89c0b7c354c2f5dee01",
+    "total_workload_bytes": 130048818,
+    "trajectory_sha256": "765d76ed2f16da571d35cd71176f08ffe447b78e7fb94a13e73474ed3b7cb893"
+  },
+  "hardware": {
+    "bitsandbytes": "0.50.0",
+    "cuda_runtime": "13.0",
+    "driver": "596.49",
+    "gpu": "NVIDIA GeForce RTX 4080",
+    "gpu_count": 1,
+    "peft": "0.18.0",
+    "torch": "2.13.0+cu130",
+    "transformers": "5.14.1",
+    "vram_gib": 15.992
+  },
+  "kind": "single_gpu_verl_pg_k1_systems_workload",
+  "measured_at": "2026-08-14T06:51:51Z",
+  "measurements": {
+    "adapter_bytes": 9198518,
+    "batch_downshifts": {
+      "rollout_oom": 0,
+      "update_chunk_oom": 0
+    },
+    "cache_bytes": 26382,
+    "checkpoint_bytes": 27600769,
+    "cold_startup_seconds": 8.1302,
+    "distinct_prompts_consumed": 32,
+    "observed_rollout_physical_batch_sizes": [
+      4
+    ],
+    "peak_allocated_gib": 2.3032,
+    "peak_reserved_gib": 3.1914,
+    "prompts_consumed": 32,
+    "steady_state_median_seconds": {
+      "actor_update": 1.1579,
+      "rollout": 19.0062,
+      "teacher_scoring": 0.2864
+    },
+    "steady_state_median_throughput": {
+      "rollout_tokens_per_second": 13.4693,
+      "teacher_scored_positions_per_second": 893.86,
+      "update_positions_per_second": 221.0899
+    },
+    "time_to_first_rollout_seconds": 28.4604,
+    "time_to_first_teacher_targets_seconds": 28.7706,
+    "time_to_first_update_seconds": 30.0902,
+    "total_run_bytes": 64966843
+  },
+  "miniverl_version": "0.10.0.dev0",
+  "models": {
+    "student": {
+      "adapter": null,
+      "attn_implementation": "sdpa",
+      "dtype": "auto",
+      "gradient_checkpointing": true,
+      "lora": {
+        "alpha": 32,
+        "bias": "none",
+        "dropout": 0.0,
+        "enabled": true,
+        "r": 16,
+        "target_modules": [
+          "q_proj",
+          "v_proj"
+        ]
+      },
+      "model_id": "Qwen/Qwen3-0.6B",
+      "prepare_kbit_training": true,
+      "quantization": "nf4",
+      "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "tokenizer_id": null,
+      "tokenizer_revision": null,
+      "toy": {
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "max_position_embeddings": 1024,
+        "num_heads": 4,
+        "num_layers": 2
+      },
+      "trust_remote_code": false
+    },
+    "teacher": {
+      "adapter": null,
+      "attn_implementation": "sdpa",
+      "dtype": "bfloat16",
+      "mode": "standard",
+      "model_id": "Qwen/Qwen3-1.7B",
+      "quantization": "nf4",
+      "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "tokenizer_id": null,
+      "tokenizer_revision": null,
+      "toy": {
+        "hidden_size": 64,
+        "intermediate_size": 128,
+        "max_position_embeddings": 1024,
+        "num_heads": 4,
+        "num_layers": 2
+      },
+      "toy_pretrain_lr": 0.003,
+      "toy_pretrain_steps": 0,
+      "toy_teacher_seed": 99,
+      "trust_remote_code": false
+    }
+  },
+  "profile": "verl-opd-v0.8-single-gpu-pg-k1-v1",
+  "profile_identity": {
+    "digest": "8bbff2027f44d9601d3ed3143621a60280a1bacafd1b08d2ad95bf4d9caac3ca",
+    "export_version": "verl-opd-pg-k1-export-v1",
+    "field_rule_digest": "d53a91b0094a12428006d973683ac85e91fc6b55f47dc33636ce1d2e661b7e57",
+    "loss_conformance_version": "pg-k1-verl-v0.8-v1",
+    "native_compiler_version": "pg-k1-native-v1",
+    "profile_name": "verl-opd-v0.8-single-gpu-pg-k1-v1",
+    "profile_schema_version": 1,
+    "upstream_commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+    "upstream_repository": "https://github.com/verl-project/verl",
+    "upstream_tag": "v0.8.0"
+  },
+  "recipe": {
+    "compiled_plan_sha256": "47f7a2218c823abf8e021d6569805db7c4d2805f33493a920d627322533cea5e",
+    "estimator": "k1",
+    "input_parquet_sha256": "baa99ba8c59d4c30b2e3081346860e7e8b2665dd70fdbcd7952935545a0cd770",
+    "interrupt_after_updates": 4,
+    "logical_batch": 4,
+    "optimizer_updates": 8,
+    "policy_loss": "vanilla",
+    "prompt_limit": 128,
+    "prompts_available": 64,
+    "prompts_consumed": 32,
+    "response_limit": 64,
+    "teacher_target": "sampled_token_log_probability"
+  },
+  "resource_contract": {
+    "gpu_hour_limit": 3.0,
+    "peak_reserved_limit_gib": 14.5,
+    "peak_reserved_within_limit": true,
+    "total_gpu_workload_seconds": 359.7
+  },
+  "resume": {
+    "adapter_and_optimizer_byte_identical": true,
+    "excluded_run_identity_field": "resolved_config_digest",
+    "global_optimizer_steps": 8,
+    "interrupt_checkpoint_bytes": 27600769,
+    "resume_load_seconds": 5.5309,
+    "status": "exact_match",
+    "task_cursor": 32,
+    "training_state_fields_identical": true,
+    "trajectories_byte_identical": true
+  },
+  "schema_version": 1,
+  "scientific_scope": {
+    "algorithm_comparison": false,
+    "runtime_correctness_only": true,
+    "task_quality_evaluated": false
+  },
+  "source_commit": "5c2482c34244508c4581056e09f46f6eab0948fb",
+  "status": "measured",
+  "verl": {
+    "commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+    "distributed_execution_tested": false,
+    "repository": "https://github.com/verl-project/verl",
+    "tag": "v0.8.0"
+  },
+  "workload_driver_sha256": "5b712a40ef2932800ce43072fa88f175a2454febe7a60b0642356bc5be4dfdd3"
+}

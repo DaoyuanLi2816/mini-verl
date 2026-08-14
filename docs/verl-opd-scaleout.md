@@ -1,6 +1,6 @@
 # Current OPD scale-out contract
 
-A completed `verl-opd-v0.8-single-gpu-v1` run can export portable PEFT,
+A completed direct-GKD or sampled-k1 PG profile run can export portable PEFT,
 Parquet, config and provenance artifacts for the exact pinned upstream profile.
 This is an artifact handoff, not proof that a distributed job ran or that
 miniVERL and verl have algorithmic parity.
@@ -13,7 +13,8 @@ miniverl bridge doctor scaleout --require-verl
 
 The export preserves source-run student and teacher identities, model
 revisions, prompt/response bounds, learning rate, schedule, Parquet bytes and
-pure `forward_kl_topk` overrides. Any inserted placeholder is listed; missing
+the selected profile's exact `forward_kl_topk` or sampled-k1 policy-loss
+overrides. The PG bundle has no top-k requirement. Any inserted placeholder is listed; missing
 validation data remains missing rather than being replaced with training data.
 
 ## Readiness states stay separate

@@ -1237,6 +1237,8 @@ def test_miniverl_checkpoint_exports_and_reloads_as_standard_peft(
         "adapter_model.safetensors",
     }
     assert (exported / "miniverl_adapter_manifest.json").is_file()
+    assert (exported / "tokenizer_config.json").is_file()
+    assert (exported / "tokenizer.json").is_file()
     assert manifest["policy_evaluation"] is None
 
     opd_mapping = config.model_dump(mode="json")

@@ -135,6 +135,7 @@ class PromptDatasetRolloutRuntime:
                 top_p=self.config.top_p,
                 top_k=self.config.top_k,
                 seeds=[base_seed * 1_000_003 + index for index in indices],
+                record_logprobs=self.config.record_logprobs,
             )
         except BaseException as exc:
             message = str(exc).lower()
@@ -232,6 +233,14 @@ class PromptDatasetRolloutRuntime:
                 "response_token_count": len(response_ids),
                 "generation_stop_reason": output.stop_reason,
             }
+            if self.config.record_logprobs:
+                if len(output.logprobs) != len(response_ids):
+                    raise ValueError(
+                        "PG rollout requested sampled-token log-probabilities but the backend "
+                        "did not return exactly one value per response token"
+                    )
+                metadata["actor_rollout_log_probs"] = list(output.logprobs)
+                metadata["actor_rollout_policy_version"] = policy_version
             trajectories.append(
                 Trajectory(
                     trajectory_id=trajectory_id,

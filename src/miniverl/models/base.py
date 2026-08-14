@@ -98,6 +98,7 @@ class CausalLMBackend(ABC):
         top_p: float = 1.0,
         top_k: int = 0,
         seed: int | None = None,
+        record_logprobs: bool = False,
     ) -> GenerationOutput:
         """Sample a continuation, stopping on EOS, a stop string, or the budget."""
         ...
@@ -112,6 +113,7 @@ class CausalLMBackend(ABC):
         top_p: float = 1.0,
         top_k: int = 0,
         seeds: Sequence[int | None] | None = None,
+        record_logprobs: bool = False,
     ) -> list[GenerationOutput]:
         """Compatibility batch API; concrete local backends use one padded forward.
 
@@ -130,6 +132,7 @@ class CausalLMBackend(ABC):
                 top_p=top_p,
                 top_k=top_k,
                 seed=seed,
+                record_logprobs=record_logprobs,
             )
             for prefix, seed in zip(prefix_token_ids, chosen_seeds, strict=True)
         ]

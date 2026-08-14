@@ -52,13 +52,20 @@ __all__ = ["TeacherCache", "read_safetensors_header", "sha256_file"]
 
 _INDEX_NAME = "index.json"
 _SHARD_NAME = re.compile(r"^shard-(\d+)\.safetensors$")
-_TENSOR_FIELDS = (
+_DISTRIBUTION_TENSOR_FIELDS = (
     "positions",
     "topk_indices",
     "topk_log_probs",
     "tail_log_prob",
     "target_token_ids",
     "weights",
+)
+_PG_TENSOR_FIELDS = (
+    "positions",
+    "target_token_ids",
+    "weights",
+    "old_actor_log_probs",
+    "teacher_sampled_token_log_probs",
 )
 logger = get_logger("cache")
 
@@ -178,7 +185,9 @@ class TeacherCache:
         top_k: int,
         temperature: float,
         loss_mode: str,
+        target_representation: str = "topk_distribution",
         score_implementation_version: str | None = None,
+        estimator_implementation_version: str | None = None,
         execution_plan_digest: str | None = None,
         profile_identity: dict[str, Any] | None = None,
         dtype: str = "float32",
@@ -220,7 +229,9 @@ class TeacherCache:
             top_k=top_k,
             temperature=temperature,
             loss_mode=loss_mode,
+            target_representation=target_representation,
             score_implementation_version=score_implementation_version,
+            estimator_implementation_version=estimator_implementation_version,
             execution_plan_digest=execution_plan_digest,
             profile_identity=dict(profile_identity or {}),
             dtype=dtype,
@@ -274,7 +285,9 @@ class TeacherCache:
         top_k: int,
         temperature: float,
         loss_mode: str,
+        target_representation: str = "topk_distribution",
         score_implementation_version: str | None = None,
+        estimator_implementation_version: str | None = None,
         execution_plan_digest: str | None = None,
         profile_identity: dict[str, Any] | None = None,
         dtype: str,
@@ -304,10 +317,13 @@ class TeacherCache:
             "top_k": top_k,
             "temperature": temperature,
             "loss_mode": loss_mode,
+            "target_representation": target_representation,
             "dtype": dtype,
         }
         if score_implementation_version is not None:
             expected["score_implementation_version"] = score_implementation_version
+        if estimator_implementation_version is not None:
+            expected["estimator_implementation_version"] = estimator_implementation_version
         if self.index.schema_version >= 2:
             expected["tokenizer_identity"] = dict(tokenizer_identity or {})
             expected["teacher_adapter_provenance"] = (
@@ -359,20 +375,60 @@ class TeacherCache:
         if batch.trajectory_id in self.index.entries or batch.trajectory_id in self._pending:
             raise CacheError(f"trajectory {batch.trajectory_id!r} is already in the cache")
 
+        if batch.target_representation != self.index.target_representation:
+            raise CacheError(
+                f"entry target representation {batch.target_representation!r} does not match "
+                f"cache {self.index.target_representation!r}"
+            )
+        if batch.estimator_implementation_version != self.index.estimator_implementation_version:
+            raise CacheError("entry estimator implementation version does not match cache identity")
         float_dtype = self._dtype()
-        tensors = {
+        common_tensors = {
             "positions": batch.positions.to(torch.int64).cpu().contiguous(),
-            "topk_indices": batch.topk_indices.to(torch.int32).cpu().contiguous(),
-            "topk_log_probs": batch.topk_log_probs.to(float_dtype).cpu().contiguous(),
-            "tail_log_prob": _finite_tail(batch.tail_log_prob, torch)
-            .to(float_dtype)
-            .cpu()
-            .contiguous(),
             "target_token_ids": batch.target_token_ids.to(torch.int64).cpu().contiguous(),
             "weights": batch.weights.to(torch.float32).cpu().contiguous(),
         }
+        tensor_fields: tuple[str, ...]
+        if self.index.target_representation == "sampled_token_log_probs":
+            if batch.old_actor_log_probs is None or batch.teacher_sampled_token_log_probs is None:
+                raise CacheError(
+                    "sampled-token targets require actor and teacher log-probabilities"
+                )
+            tensors = {
+                **common_tensors,
+                "old_actor_log_probs": batch.old_actor_log_probs.to(torch.float32)
+                .cpu()
+                .contiguous(),
+                "teacher_sampled_token_log_probs": batch.teacher_sampled_token_log_probs.to(
+                    torch.float32
+                )
+                .cpu()
+                .contiguous(),
+            }
+            tensor_fields = _PG_TENSOR_FIELDS
+        elif self.index.target_representation == "topk_distribution":
+            if (
+                batch.topk_indices is None
+                or batch.topk_log_probs is None
+                or batch.tail_log_prob is None
+            ):
+                raise CacheError("top-k distribution targets require top-k and tail tensors")
+            tensors = {
+                **common_tensors,
+                "topk_indices": batch.topk_indices.to(torch.int32).cpu().contiguous(),
+                "topk_log_probs": batch.topk_log_probs.to(float_dtype).cpu().contiguous(),
+                "tail_log_prob": _finite_tail(batch.tail_log_prob, torch)
+                .to(float_dtype)
+                .cpu()
+                .contiguous(),
+            }
+            tensor_fields = _DISTRIBUTION_TENSOR_FIELDS
+        else:
+            raise CacheError(
+                f"unsupported teacher target representation {self.index.target_representation!r}"
+            )
         digest = hashlib.sha256()
-        for key in _TENSOR_FIELDS:
+        for key in tensor_fields:
             digest.update(key.encode("utf-8"))
             digest.update(tensors[key].numpy().tobytes())
         span_counts: dict[str, int] = {}
@@ -398,6 +454,7 @@ class TeacherCache:
                 "prompt_row_digest": batch.prompt_row_digest,
                 "actor_response_token_ids": batch.actor_response_token_ids,
                 "binding_checksum": binding_checksum,
+                "tensor_fields": list(tensor_fields),
             },
         }
         self._pending_order.append(batch.trajectory_id)
@@ -414,7 +471,7 @@ class TeacherCache:
             loss_mode=self.index.loss_mode,
             temperature=self.index.temperature,
             created_at=_utc_now(),
-            tensor_keys=list(_TENSOR_FIELDS),
+            tensor_keys=list(tensor_fields),
             checksum=digest.hexdigest(),
             selected_span_types=span_counts,
             ordered_span_types=list(batch.span_types),
@@ -472,7 +529,7 @@ class TeacherCache:
                 loss_mode=next_index.loss_mode,
                 temperature=next_index.temperature,
                 created_at=created,
-                tensor_keys=list(_TENSOR_FIELDS),
+                tensor_keys=list(meta["tensor_fields"]),
                 checksum=meta["checksum"],
                 selected_span_types=meta["selected_span_types"],
                 ordered_span_types=meta["ordered_span_types"],
@@ -556,7 +613,16 @@ class TeacherCache:
         tensors = load_file(str(shard_path), device="cpu")
         loaded = {}
         digest = hashlib.sha256()
-        for key in _TENSOR_FIELDS:
+        expected_fields = (
+            _PG_TENSOR_FIELDS
+            if self.index.target_representation == "sampled_token_log_probs"
+            else _DISTRIBUTION_TENSOR_FIELDS
+        )
+        if tuple(entry.tensor_keys) != tuple(expected_fields):
+            raise CacheCorruptionError(
+                f"entry {trajectory_id!r} tensor schema does not match target representation"
+            )
+        for key in expected_fields:
             full_key = f"{trajectory_id}|{key}"
             if full_key not in tensors:
                 raise CacheCorruptionError(f"shard {entry.shard} is missing tensor {full_key!r}")
@@ -580,15 +646,25 @@ class TeacherCache:
                 f"v1 cache entry {trajectory_id!r} does not preserve ordered span types",
                 hint="re-score this legacy cache before using per-span metrics",
             )
-        tail_log_prob = loaded["tail_log_prob"].to(device=device, dtype=torch.float32)
-        if entry.tail_is_exact_zero:
-            tail_log_prob = torch.full_like(tail_log_prob, float("-inf"))
+        tail_log_prob = None
+        if "tail_log_prob" in loaded:
+            tail_log_prob = loaded["tail_log_prob"].to(device=device, dtype=torch.float32)
+            if entry.tail_is_exact_zero:
+                tail_log_prob = torch.full_like(tail_log_prob, float("-inf"))
         return TeacherTargetBatch(
             trajectory_id=trajectory_id,
             policy_version=entry.policy_version,
             positions=loaded["positions"].to(device),
-            topk_indices=loaded["topk_indices"].to(device=device, dtype=torch.long),
-            topk_log_probs=loaded["topk_log_probs"].to(device=device, dtype=torch.float32),
+            topk_indices=(
+                loaded["topk_indices"].to(device=device, dtype=torch.long)
+                if "topk_indices" in loaded
+                else None
+            ),
+            topk_log_probs=(
+                loaded["topk_log_probs"].to(device=device, dtype=torch.float32)
+                if "topk_log_probs" in loaded
+                else None
+            ),
             tail_log_prob=tail_log_prob,
             target_token_ids=loaded["target_token_ids"].to(device),
             weights=loaded["weights"].to(device),
@@ -597,6 +673,18 @@ class TeacherCache:
             span_types=span_types,
             prompt_row_digest=entry.prompt_row_digest,
             actor_response_token_ids=entry.actor_response_token_ids,
+            old_actor_log_probs=(
+                loaded["old_actor_log_probs"].to(device=device, dtype=torch.float32)
+                if "old_actor_log_probs" in loaded
+                else None
+            ),
+            teacher_sampled_token_log_probs=(
+                loaded["teacher_sampled_token_log_probs"].to(device=device, dtype=torch.float32)
+                if "teacher_sampled_token_log_probs" in loaded
+                else None
+            ),
+            target_representation=self.index.target_representation,
+            estimator_implementation_version=self.index.estimator_implementation_version,
         )
 
     def __contains__(self, trajectory_id: object) -> bool:
@@ -625,7 +713,7 @@ class TeacherCache:
                 f"{traj_id}|{field}"
                 for traj_id, entry in self.index.entries.items()
                 if entry.shard == name
-                for field in _TENSOR_FIELDS
+                for field in entry.tensor_keys
             }
             missing = expected - tensor_names
             if missing:

@@ -43,12 +43,14 @@ nav:
   - Home: index.md
   - For verl users: for-verl-users.md
   - Compatibility profiles: profiles/index.md
+  - PG-k1 semantic ADR: adr/0010-verl-v0.8-pg-k1-contract.md
   - Config overrides: config-overrides.md
   - Immutable plans: immutable-plans.md
   - Hardware planning: hardware-planning.md
   - Current verl-style OPD runtime: verl-opd-runtime.md
   - Run verl-style OPD: opd-quickstart.md
   - RTX 4080 developer workload: verl-opd-reference-workload.md
+  - RTX 4080 PG-k1 workload: verl-pg-k1-workload.md
   - Start on one GPU: single-gpu-guide.md
   - Align:
       - "External Alignment Gate v1: early stop": alignment-external/alignment-external-v1.md

@@ -7,13 +7,14 @@ import pytest
 from miniverl.errors import ConfigError
 
 DIRECT_PROFILE = "verl-opd-v0.8-single-gpu-v1"
+PG_PROFILE = "verl-opd-v0.8-single-gpu-pg-k1-v1"
 
 
 def test_registry_exposes_immutable_direct_gkd_identity() -> None:
     from miniverl.bridge.profiles import get_profile, list_profiles
 
     profiles = list_profiles()
-    assert [item.name for item in profiles] == [DIRECT_PROFILE]
+    assert [item.name for item in profiles] == [DIRECT_PROFILE, PG_PROFILE]
 
     profile = get_profile(DIRECT_PROFILE)
     identity = profile.identity

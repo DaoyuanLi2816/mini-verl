@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 
 def _safetensors_bytes() -> bytes:
@@ -49,17 +50,57 @@ def _snapshot(root: Path, revision: str) -> Path:
     return snapshot
 
 
-def _bundle(tmp_path: Path, *, teacher_adapter: bool = False) -> tuple[Path, str, str]:
+def _bundle(
+    tmp_path: Path,
+    *,
+    teacher_adapter: bool = False,
+    profile: str = "verl-opd-v0.8-single-gpu-v1",
+) -> tuple[Path, str, str]:
     from miniverl.bridge.contract import VERL_TAG
     from miniverl.bridge.export import export_verl_bundle
     from tests.unit.test_verl_opd_export import _opd_run
 
-    run, _, _ = _opd_run(tmp_path, teacher_adapter=teacher_adapter)
+    run, _, _ = _opd_run(tmp_path, teacher_adapter=teacher_adapter, profile=profile)
     bundle = tmp_path / "bundle"
     export_verl_bundle(run, target_verl=VERL_TAG, out=bundle)
     student_revision = "c1899de289a04d12100db370d81485cdf75e47ca"
     teacher_revision = "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
     return bundle, student_revision, teacher_revision
+
+
+def test_pg_k1_bundle_materializes_without_a_topk_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from miniverl.bridge import materialize
+
+    profile = "verl-opd-v0.8-single-gpu-pg-k1-v1"
+    bundle, student_revision, teacher_revision = _bundle(tmp_path, profile=profile)
+    student = _snapshot(tmp_path / "student-cache", student_revision)
+    teacher = _snapshot(tmp_path / "teacher-cache", teacher_revision)
+
+    def passed_pg(root: Path) -> dict[str, Any]:
+        recipe = yaml.safe_load(
+            (root / "recipe/verl-opd-overrides.yaml").read_text(encoding="utf-8")
+        )
+        loss = recipe["distillation"]["distillation_loss"]
+        assert "topk" not in loss
+        assert loss["loss_mode"] == "k1"
+        assert loss["use_policy_gradient"] is True
+        return {"status": "passed", "checks": {"sampled_k1_policy_gradient_contract": "passed"}}
+
+    monkeypatch.setattr(materialize, "_validate_upstream_bundle", passed_pg)
+    report = materialize.materialize_verl_bundle(
+        bundle,
+        student_snapshot=student,
+        teacher_snapshot=teacher,
+        offline=True,
+    )
+
+    assert report["profile"] == profile
+    assert report["launchable"] is True
+    assert report["materialization"]["upstream_validation"]["checks"] == {
+        "sampled_k1_policy_gradient_contract": "passed"
+    }
 
 
 def _tree_hashes(root: Path) -> dict[str, str]:
@@ -85,6 +126,14 @@ def _passed_upstream(root: Path) -> dict[str, Any]:
             "topk_contract": "passed",
         },
     }
+
+
+def test_materialization_accepts_a_padded_model_vocabulary() -> None:
+    from miniverl.bridge.materialize import _validate_vocab_domain
+
+    _validate_vocab_domain(model_vocab_size=151_936, tokenizer_max_token_id=151_668)
+    with pytest.raises(ValueError, match="tokenizer ID domain"):
+        _validate_vocab_domain(model_vocab_size=151_668, tokenizer_max_token_id=151_668)
 
 
 def test_materialize_publishes_complete_launchable_bundle_transactionally(

@@ -302,6 +302,7 @@ class ToyBackend(CausalLMBackend):
         top_p: float = 1.0,
         top_k: int = 0,
         seed: int | None = None,
+        record_logprobs: bool = False,
     ) -> GenerationOutput:
         """Sample a continuation with a KV cache."""
         was_training = self.model.training
@@ -328,6 +329,7 @@ class ToyBackend(CausalLMBackend):
                 top_p=top_p,
                 top_k=top_k,
                 generator=generator,
+                record_logprobs=record_logprobs,
             )
         finally:
             if was_training:
@@ -343,6 +345,7 @@ class ToyBackend(CausalLMBackend):
         top_p: float = 1.0,
         top_k: int = 0,
         seeds: Sequence[int | None] | None = None,
+        record_logprobs: bool = False,
     ) -> list[GenerationOutput]:
         """Use one masked padded forward per greedy decoding step."""
         if temperature != 0.0:
@@ -354,6 +357,7 @@ class ToyBackend(CausalLMBackend):
                 top_p=top_p,
                 top_k=top_k,
                 seeds=seeds,
+                record_logprobs=record_logprobs,
             )
         was_training = self.model.training
         self.model.eval()
@@ -390,6 +394,7 @@ class ToyBackend(CausalLMBackend):
                 eos_token_id=self.tokenizer.eos_token_id,
                 max_new_tokens=max_new_tokens,
                 stop_sequences=stop_sequences,
+                record_logprobs=record_logprobs,
             )
         finally:
             if was_training:

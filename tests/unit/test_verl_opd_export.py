@@ -21,13 +21,18 @@ def _safetensors_bytes() -> bytes:
     return struct.pack("<Q", len(header)) + header + struct.pack("<f", 0.0)
 
 
-def _opd_run(tmp_path: Path, *, teacher_adapter: bool = False) -> tuple[Path, Path, Path]:
+def _opd_run(
+    tmp_path: Path,
+    *,
+    teacher_adapter: bool = False,
+    profile: str = "verl-opd-v0.8-single-gpu-v1",
+) -> tuple[Path, Path, Path]:
     from miniverl.bridge.profiles import get_profile
 
     run = tmp_path / "run"
     model = run / "final-peft-adapter"
     model.mkdir(parents=True)
-    profile_identity = get_profile("verl-opd-v0.8-single-gpu-v1").identity.model_dump(mode="json")
+    profile_identity = get_profile(profile).identity.model_dump(mode="json")
     (run / "manifest.json").write_text(
         json.dumps({"status": "complete", "profile_identity": profile_identity}),
         encoding="utf-8",
@@ -161,11 +166,24 @@ def _opd_run(tmp_path: Path, *, teacher_adapter: bool = False) -> tuple[Path, Pa
             },
         },
     }
+    if profile == "verl-opd-v0.8-single-gpu-pg-k1-v1":
+        source["distillation"]["distillation_loss"] = {
+            "loss_mode": "k1",
+            "topk": None,
+            "use_task_rewards": False,
+            "distillation_loss_coef": 1.0,
+            "log_prob_min_clamp": None,
+            "use_policy_gradient": True,
+            "policy_loss_mode": "vanilla",
+            "clip_ratio": 0.2,
+            "clip_ratio_low": 0.2,
+            "clip_ratio_high": 0.2,
+        }
     (run / "verl-source-config.json").write_text(json.dumps(source), encoding="utf-8")
     (run / "verl-compatibility-report.json").write_text(
         json.dumps(
             {
-                "profile": "verl-opd-v0.8-single-gpu-v1",
+                "profile": profile,
                 "executable": True,
                 "compiled_digest": "b" * 64,
                 "source": source,
@@ -174,10 +192,40 @@ def _opd_run(tmp_path: Path, *, teacher_adapter: bool = False) -> tuple[Path, Pa
         encoding="utf-8",
     )
     (run / "local-execution-plan.json").write_text(
-        json.dumps({"profile": "verl-opd-v0.8-single-gpu-v1", "compiled_digest": "b" * 64}),
+        json.dumps({"profile": profile, "compiled_digest": "b" * 64}),
         encoding="utf-8",
     )
     return run, train, val
+
+
+def test_pg_k1_export_preserves_sampled_logprob_semantics_without_topk(tmp_path: Path) -> None:
+    from miniverl.bridge.contract import VERL_TAG
+    from miniverl.bridge.doctor import inspect_bridge_bundle
+    from miniverl.bridge.export import export_verl_bundle
+
+    profile = "verl-opd-v0.8-single-gpu-pg-k1-v1"
+    run, _, _ = _opd_run(tmp_path, profile=profile)
+    out = tmp_path / "pg-bundle"
+
+    report = export_verl_bundle(run, target_verl=VERL_TAG, out=out)
+    overrides = yaml.safe_load((out / "recipe/verl-opd-overrides.yaml").read_text())
+    loss = overrides["distillation"]["distillation_loss"]
+
+    assert report["profile"] == profile
+    assert report["target_semantics"] == "pure OPD sampled k1 policy gradient"
+    assert report["reward_required"] is False
+    assert loss["loss_mode"] == "k1"
+    assert loss["use_policy_gradient"] is True
+    assert loss["policy_loss_mode"] == "vanilla"
+    assert loss["use_task_rewards"] is False
+    assert "topk" not in loss
+    assert overrides["actor_rollout_ref"]["actor"]["use_kl_loss"] is False
+    assert overrides["algorithm"]["use_kl_in_reward"] is False
+
+    diagnosis = inspect_bridge_bundle(out)
+    assert diagnosis["verdict"] == "ok"
+    assert diagnosis["config_profile"]["profile"] == profile
+    assert diagnosis["config_profile"]["target_representation"] == ("sampled_token_log_probability")
 
 
 def test_pure_opd_export_is_reward_free_and_preserves_data_bytes(tmp_path: Path) -> None:

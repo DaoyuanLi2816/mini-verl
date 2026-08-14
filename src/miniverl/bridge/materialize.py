@@ -13,14 +13,18 @@ import hashlib
 import importlib.metadata
 import json
 import shutil
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 import yaml
 
 from miniverl import __version__
 from miniverl.bridge.contract import VERL_COMMIT
+from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
+from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.bridge.preflight import preflight_bundle_tree
 from miniverl.bridge.safetensors_check import inspect_safetensors
 from miniverl.errors import ConfigError
@@ -32,6 +36,12 @@ _REVISION_LENGTH = 40
 _MAX_SNAPSHOT_FILES = 100_000
 _MAX_SNAPSHOT_BYTES = 16 * 1024 * 1024 * 1024
 _IGNORED_TOP_LEVEL = {".cache", ".git"}
+
+
+def _validate_vocab_domain(*, model_vocab_size: int, tokenizer_max_token_id: int) -> None:
+    """Accept padded model vocabularies while rejecting unreachable tokenizer IDs."""
+    if model_vocab_size <= tokenizer_max_token_id:
+        raise ValueError("causal-LM logits do not cover the tokenizer ID domain")
 
 
 def _sha256(path: Path) -> str:
@@ -431,14 +441,21 @@ def _load_local_transformers_metadata(
         encoded = tokenizer("materialization smoke", return_tensors="pt")
         with torch.no_grad():
             output = model(**encoded, use_cache=False)
-        if output.logits.ndim != 3 or output.logits.shape[-1] != len(tokenizer):
-            raise ValueError("causal-LM logits do not match the tokenizer vocabulary")
+        model_vocab_size = int(output.logits.shape[-1]) if output.logits.ndim == 3 else 0
+        tokenizer_max_id = max(int(value) for value in tokenizer.get_vocab().values())
+        if output.logits.ndim != 3:
+            raise ValueError("causal-LM logits must have batch, sequence and vocabulary axes")
+        _validate_vocab_domain(
+            model_vocab_size=model_vocab_size, tokenizer_max_token_id=tokenizer_max_id
+        )
     except Exception as exc:
         raise ConfigError(f"{role} local model/tokenizer smoke failed: {exc}") from exc
     metadata = {
         "config_class": type(config).__name__,
         "tokenizer_class": type(tokenizer).__name__,
         "vocab_size": len(tokenizer),
+        "model_vocab_size": model_vocab_size,
+        "tokenizer_max_token_id": tokenizer_max_id,
         "tokenizer_structural_digest_v2": tokenizer_digest,
         "parameters": sum(parameter.numel() for parameter in model.parameters()),
         "peft_adapter_loaded": adapter is not None,
@@ -450,6 +467,8 @@ def _load_local_transformers_metadata(
 
 
 def _validate_upstream_bundle(root: Path) -> dict[str, Any]:
+    report = read_json(root / "provenance/compatibility-report.json")
+    profile = report.get("profile")
     try:
         distribution = importlib.metadata.distribution("verl")
     except importlib.metadata.PackageNotFoundError as exc:
@@ -463,6 +482,21 @@ def _validate_upstream_bundle(root: Path) -> dict[str, Any]:
     except json.JSONDecodeError as exc:
         raise ConfigError("installed verl has invalid direct_url.json") from exc
     actual_commit = ((direct or {}).get("vcs_info") or {}).get("commit_id")
+    if actual_commit is None:
+        raw_url = (direct or {}).get("url")
+        if isinstance(raw_url, str) and urlparse(raw_url).scheme == "file":
+            checkout = Path(unquote(urlparse(raw_url).path.lstrip("/")))
+            try:
+                actual_commit = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    cwd=checkout,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                ).stdout.strip()
+            except (OSError, subprocess.SubprocessError):
+                actual_commit = None
     if actual_commit != VERL_COMMIT:
         raise ConfigError(
             f"installed verl commit is {actual_commit or 'unverified'}, expected {VERL_COMMIT}"
@@ -489,7 +523,7 @@ def _validate_upstream_bundle(root: Path) -> dict[str, Any]:
     from miniverl.bridge.doctor import _check_model, _check_parquet
 
     adapter = _check_model(root, require_payload=True)
-    parquet = _check_parquet(root)
+    parquet = _check_parquet(root, require_reward_model=False)
     if adapter["status"] != "ok":
         raise ConfigError(f"student PEFT validation failed: {adapter.get('detail')}")
     if parquet["status"] != "ok":
@@ -499,12 +533,34 @@ def _validate_upstream_bundle(root: Path) -> dict[str, Any]:
     )
     teacher = _load_local_transformers_metadata(root / "teacher/base", role="teacher")
     recipe = yaml.safe_load((root / "recipe/verl-opd-overrides.yaml").read_text(encoding="utf-8"))
-    topk = recipe["distillation"]["distillation_loss"].get("topk")
-    if isinstance(topk, bool) or not isinstance(topk, int) or topk < 1:
-        raise ConfigError("pure-OPD top-k must be a positive integer")
-    for role, metadata in (("student", student), ("teacher", teacher)):
-        if topk > metadata["vocab_size"]:
-            raise ConfigError(f"top-k {topk} exceeds the {role} tokenizer vocabulary")
+    loss = recipe["distillation"]["distillation_loss"]
+    semantic_checks: dict[str, Any]
+    if profile == VERL_OPD_PG_K1_V08_PROFILE:
+        semantic_checks = {
+            "loss_mode": "k1",
+            "use_policy_gradient": True,
+            "policy_loss_mode": "vanilla",
+            "use_task_rewards": False,
+        }
+        if "topk" in loss:
+            raise ConfigError("sampled-k1 PG materialization forbids top-k targets")
+        target_check = "sampled_k1_policy_gradient_contract"
+    else:
+        semantic_checks = {
+            "loss_mode": "forward_kl_topk",
+            "use_policy_gradient": False,
+            "use_task_rewards": False,
+        }
+        topk = loss.get("topk")
+        if isinstance(topk, bool) or not isinstance(topk, int) or topk < 1:
+            raise ConfigError("pure-OPD top-k must be a positive integer")
+        for role, metadata in (("student", student), ("teacher", teacher)):
+            if topk > metadata["vocab_size"]:
+                raise ConfigError(f"top-k {topk} exceeds the {role} tokenizer vocabulary")
+        target_check = "topk_contract"
+    for field, expected in semantic_checks.items():
+        if loss.get(field) != expected:
+            raise ConfigError(f"profile loss contract requires {field}={expected!r}")
     if student["tokenizer_structural_digest_v2"] != teacher["tokenizer_structural_digest_v2"]:
         raise ConfigError("student and teacher tokenizer structural identities differ")
     return {
@@ -512,8 +568,13 @@ def _validate_upstream_bundle(root: Path) -> dict[str, Any]:
         "resolved_config": "recipe/verl-opd-resolved.yaml",
         "scope": (
             "exact verl config merge, Parquet footer, PEFT payload, local model config and "
-            "tokenizer loads, sequential CPU model loads and tiny forwards, and top-k bounds; "
-            "no distributed job was run"
+            "tokenizer loads, sequential CPU model loads and tiny forwards, and "
+            + (
+                "the sampled-k1 policy-gradient contract; "
+                if profile == VERL_OPD_PG_K1_V08_PROFILE
+                else "top-k bounds; "
+            )
+            + "no distributed job was run"
         ),
         "checks": {
             "config_parse": "passed",
@@ -521,7 +582,7 @@ def _validate_upstream_bundle(root: Path) -> dict[str, Any]:
             "student_peft": "passed",
             "student_snapshot": student,
             "teacher_snapshot": teacher,
-            "topk_contract": "passed",
+            target_check: "passed",
         },
     }
 
@@ -580,8 +641,8 @@ def materialize_verl_bundle(
         teacher_identity = read_json(root / "teacher/teacher-model.json")
     except (OSError, json.JSONDecodeError) as exc:
         raise ConfigError(f"cannot read scale-out bundle identities: {exc}") from exc
-    if report.get("profile") != "verl-opd-v0.8-single-gpu-v1":
-        raise ConfigError("materialize supports only the pure-OPD v0.8 single-GPU profile")
+    if report.get("profile") not in {VERL_OPD_V08_PROFILE, VERL_OPD_PG_K1_V08_PROFILE}:
+        raise ConfigError("materialize supports only a registered pure-OPD v0.8 profile")
     student_id = str(student_identity.get("model_id") or "")
     teacher_id = str(teacher_identity.get("model_id") or "")
     student_revision = _immutable_revision(student_identity.get("revision"), role="student")

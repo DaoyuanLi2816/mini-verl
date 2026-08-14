@@ -25,6 +25,8 @@ from miniverl.bridge.contract import (
     required_verl_text,
     validate_target_verl,
 )
+from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
+from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.errors import ConfigError
 from miniverl.utils.privacy import portable_payload
 from miniverl.utils.runs import read_json, write_json, write_text
@@ -426,7 +428,7 @@ def _write_hashes(root: Path) -> None:
     write_text(checksum, "\n".join(lines) + "\n")
 
 
-_OPD_PROFILE = "verl-opd-v0.8-single-gpu-v1"
+_OPD_PROFILES = frozenset({VERL_OPD_V08_PROFILE, VERL_OPD_PG_K1_V08_PROFILE})
 
 
 def _opd_run_contract(run: Path) -> tuple[dict[str, Any], dict[str, Any]] | None:
@@ -440,17 +442,28 @@ def _opd_run_contract(run: Path) -> tuple[dict[str, Any], dict[str, Any]] | None
         source = read_json(source_path) if source_path.is_file() else report.get("source")
     except (OSError, json.JSONDecodeError) as exc:
         raise ConfigError(f"cannot read source-run OPD compatibility artifacts: {exc}") from exc
-    if report.get("profile") != _OPD_PROFILE:
+    profile = report.get("profile")
+    if profile not in _OPD_PROFILES:
         return None
     if report.get("executable") is not True or not isinstance(source, dict):
         raise ConfigError("source run does not carry an executable verl OPD compatibility plan")
-    required = {
-        "distillation.distillation_loss.loss_mode": "forward_kl_topk",
+    required: dict[str, Any] = {
         "distillation.distillation_loss.use_task_rewards": False,
-        "distillation.distillation_loss.use_policy_gradient": False,
         "actor_rollout_ref.actor.use_kl_loss": False,
         "algorithm.use_kl_in_reward": False,
     }
+    required.update(
+        {
+            "distillation.distillation_loss.loss_mode": "k1",
+            "distillation.distillation_loss.use_policy_gradient": True,
+            "distillation.distillation_loss.policy_loss_mode": "vanilla",
+        }
+        if profile == VERL_OPD_PG_K1_V08_PROFILE
+        else {
+            "distillation.distillation_loss.loss_mode": "forward_kl_topk",
+            "distillation.distillation_loss.use_policy_gradient": False,
+        }
+    )
     for field, expected in required.items():
         if _get(source, field) != expected:
             raise ConfigError(
@@ -508,7 +521,11 @@ def _copy_opd_data(
 
 
 def _opd_overrides(
-    source: dict[str, Any], adapter: dict[str, Any], data_paths: dict[str, list[str]]
+    source: dict[str, Any],
+    adapter: dict[str, Any],
+    data_paths: dict[str, list[str]],
+    *,
+    profile: str,
 ) -> dict[str, Any]:
     """Preserve the supported source profile while rebasing portable paths."""
     overrides: dict[str, Any] = {
@@ -532,6 +549,8 @@ def _opd_overrides(
     # no such teacher inference key. It therefore belongs in provenance, not
     # in an override file that promises to parse upstream.
     teacher.get("inference", {}).pop("pipeline_model_parallel_size", None)
+    if profile == VERL_OPD_PG_K1_V08_PROFILE:
+        overrides["distillation"]["distillation_loss"].pop("topk", None)
     return overrides
 
 
@@ -559,11 +578,16 @@ exit 2
 """
 
 
-def _opd_bundle_readme() -> str:
+def _opd_bundle_readme(profile: str) -> str:
+    semantics = (
+        "sampled k1 teacher log-probabilities and pinned vanilla policy-gradient loss"
+        if profile == VERL_OPD_PG_K1_V08_PROFILE
+        else "pure GKD `forward_kl_topk` targets"
+    )
     return f"""# miniVERL pure-OPD scale-out bundle
 
-This checksummed bundle preserves a local `{_OPD_PROFILE}` run as standard
-PEFT, tokenizer and Parquet artifacts plus pure GKD `forward_kl_topk`
+This checksummed bundle preserves a local `{profile}` run as standard
+PEFT, tokenizer and Parquet artifacts plus {semantics}
 overrides for [`verl {VERL_TAG}`]({VERL_REPOSITORY}/tree/{VERL_TAG}) at
 `{VERL_COMMIT}`. It contains no reward scaffold because task rewards are
 disabled by contract.
@@ -585,6 +609,7 @@ def _export_opd_bundle(
     compatibility: dict[str, Any],
     destination: Path,
 ) -> dict[str, Any]:
+    profile = str(compatibility["profile"])
     student_id = _get(source, "actor_rollout_ref.model.path")
     student_revision = _get(source, "miniverl.student_revision")
     if student_id != adapter["base_model"] or student_revision != adapter["revision"]:
@@ -640,7 +665,7 @@ def _export_opd_bundle(
         if teacher_adapter_path is not None and teacher_adapter_source is not None:
             _copy_adapter_payload(teacher_adapter_source, teacher_dir / "adapter")
         data_paths, data_evidence = _copy_opd_data(run, source, temporary / "data")
-        overrides = _opd_overrides(source, adapter, data_paths)
+        overrides = _opd_overrides(source, adapter, data_paths, profile=profile)
         recipe = temporary / "recipe"
         recipe.mkdir()
         write_text(
@@ -662,7 +687,7 @@ def _export_opd_bundle(
         )
         report: dict[str, Any] = {
             "schema_version": 2,
-            "profile": _OPD_PROFILE,
+            "profile": profile,
             "profile_identity": read_json(manifest_path).get("profile_identity") or {},
             "target_verl": {
                 "repository": VERL_REPOSITORY,
@@ -670,7 +695,16 @@ def _export_opd_bundle(
                 "commit": VERL_COMMIT,
             },
             "miniverl_version": __version__,
-            "target_semantics": "pure GKD forward_kl_topk OPD",
+            "target_semantics": (
+                "pure OPD sampled k1 policy gradient"
+                if profile == VERL_OPD_PG_K1_V08_PROFILE
+                else "pure GKD forward_kl_topk OPD"
+            ),
+            "target_representation": (
+                "sampled_token_log_probability"
+                if profile == VERL_OPD_PG_K1_V08_PROFILE
+                else "topk_distribution"
+            ),
             "artifact_complete": False,
             "artifact_bundle_complete": True,
             "config_semantics_supported": True,
@@ -687,11 +721,18 @@ def _export_opd_bundle(
             "reward_required": False,
             "launch_blockers": blockers,
             "data_round_trip": data_evidence,
-            "unsupported_semantics": list(_UNSUPPORTED),
+            "unsupported_semantics": [
+                item
+                for item in _UNSUPPORTED
+                if not (
+                    profile == VERL_OPD_PG_K1_V08_PROFILE
+                    and item == "PPO advantage or clipping semantics"
+                )
+            ],
             "distributed_execution_status": "not tested",
         }
         write_json(provenance / "compatibility-report.json", report)
-        write_text(temporary / "README.md", _opd_bundle_readme())
+        write_text(temporary / "README.md", _opd_bundle_readme(profile))
         _write_hashes(temporary)
         temporary.replace(destination)
     except BaseException:

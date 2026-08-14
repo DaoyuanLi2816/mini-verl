@@ -50,6 +50,49 @@ def test_run_dry_compiles_a_valid_native_recipe() -> None:
     assert payload["resolved_native_config"]["loss"]["mode"] == "forward_kl_topk"
 
 
+def test_pg_profile_plans_and_dry_runs_through_public_cli(tmp_path: Path) -> None:
+    from miniverl.bridge.profiles import get_profile
+
+    profile = "verl-opd-v0.8-single-gpu-pg-k1-v1"
+    config = tmp_path / "pg-k1.yaml"
+    config.write_text(get_profile(profile).show()["minimal_yaml"], encoding="utf-8")
+
+    planned = runner.invoke(
+        app,
+        ["plan", "--profile", profile, "--config", str(config), "--json"],
+    )
+    assert planned.exit_code == 0, planned.output
+    plan = json.loads(planned.stdout)
+    assert plan["profile"] == profile
+    assert plan["loss"] == {
+        "mode": "k1",
+        "aggregation": "token-mean",
+        "teacher_target": "sampled_token_log_probability",
+        "policy_gradient": True,
+        "policy_loss_mode": "vanilla",
+        "task_rewards": False,
+    }
+
+    dry = runner.invoke(
+        app,
+        [
+            "run",
+            "--profile",
+            profile,
+            "--config",
+            str(config),
+            "--accept-local-reinterpretations",
+            "--dry-run",
+            "--offline",
+            "--json",
+        ],
+    )
+    assert dry.exit_code == 0, dry.output
+    native = json.loads(dry.stdout)["resolved_native_config"]
+    assert native["loss"]["mode"] == "verl_pg_k1"
+    assert native["rollout"]["record_logprobs"] is True
+
+
 def test_plan_accepts_trailing_hydra_style_overrides_and_override_files(tmp_path) -> None:
     override_file = tmp_path / "plan.overrides"
     override_file.write_text(

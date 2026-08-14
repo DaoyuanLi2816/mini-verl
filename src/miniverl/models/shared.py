@@ -194,6 +194,7 @@ class SharedAdapterRoleBackend(CausalLMBackend):
         top_p: float = 1.0,
         top_k: int = 0,
         seed: int | None = None,
+        record_logprobs: bool = False,
     ) -> GenerationOutput:
         with self.activated():
             return self.owner.generate(
@@ -204,6 +205,7 @@ class SharedAdapterRoleBackend(CausalLMBackend):
                 top_p=top_p,
                 top_k=top_k,
                 seed=seed,
+                record_logprobs=record_logprobs,
             )
 
     def hidden_states_at(

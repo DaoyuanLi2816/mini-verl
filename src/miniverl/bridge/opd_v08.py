@@ -16,7 +16,15 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializeAsAny,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from miniverl.bridge.contract import VERL_COMMIT, VERL_REPOSITORY, VERL_TAG
 from miniverl.bridge.interpolation import reject_interpolation
@@ -380,12 +388,12 @@ class CompatibilityEntry(_StrictModel):
 
 class CompiledLocalExecutionPlan(_StrictModel):
     schema_version: Literal[2] = 2
-    profile: Literal["verl-opd-v0.8-single-gpu-v1"] = "verl-opd-v0.8-single-gpu-v1"
+    profile: str = VERL_OPD_V08_PROFILE
     upstream: dict[str, str]
     source_digest: str
     compiled_digest: str
     source_leaf_fields: list[str]
-    source: VerlOPDV08Profile
+    source: SerializeAsAny[VerlOPDV08Profile]
     overrides: list[OverrideRecord]
     compatibility: list[CompatibilityEntry]
     reinterpretation_acceptance: dict[str, Any]

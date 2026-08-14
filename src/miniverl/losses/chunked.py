@@ -46,6 +46,7 @@ __all__ = [
     "ExactTargetProvider",
     "BucketedTargetProvider",
     "VerlTopKTargetProvider",
+    "VerlPGK1TargetProvider",
     "LossOutput",
     "chunked_selected_position_loss",
 ]
@@ -171,6 +172,58 @@ class VerlTopKTargetProvider:
 
     def teacher_entropy(self, start: int, end: int) -> torch.Tensor:
         """Entropy is undefined without the omitted tail distribution."""
+        return torch.full((end - start,), float("nan"), dtype=torch.float32)
+
+
+@dataclass
+class VerlPGK1TargetProvider:
+    """Sampled-token teacher and rollout-policy targets for pinned PG-k1."""
+
+    target_token_ids: torch.Tensor
+    old_actor_log_probs: torch.Tensor
+    teacher_sampled_token_log_probs: torch.Tensor
+    clip_ratio: float = 0.2
+    clip_ratio_low: float = 0.2
+    clip_ratio_high: float = 0.2
+    clip_ratio_c: float = 3.0
+    loss_max_clamp: float | None = None
+    kind: str = "verl_pg_k1"
+    diagnostics: list[dict[str, torch.Tensor | float]] = field(default_factory=list)
+
+    def divergence(self, start: int, end: int, student_logits: torch.Tensor) -> torch.Tensor:
+        from miniverl.losses.verl_pg import verl_pg_k1_loss
+
+        targets = self.target_token_ids[start:end].to(student_logits.device)
+        current = (
+            torch.log_softmax(student_logits.to(torch.float32), dim=-1)
+            .gather(-1, targets.unsqueeze(-1))
+            .squeeze(-1)
+        )
+        output = verl_pg_k1_loss(
+            current_log_probs=current,
+            old_log_probs=self.old_actor_log_probs[start:end].to(student_logits.device),
+            teacher_log_probs=self.teacher_sampled_token_log_probs[start:end].to(
+                student_logits.device
+            ),
+            weights=torch.ones(end - start, device=student_logits.device),
+            clip_ratio=self.clip_ratio,
+            clip_ratio_low=self.clip_ratio_low,
+            clip_ratio_high=self.clip_ratio_high,
+            clip_ratio_c=self.clip_ratio_c,
+            loss_max_clamp=self.loss_max_clamp,
+        )
+        self.diagnostics.append(
+            {
+                "estimator": output.estimator.detach().cpu(),
+                "advantages": output.advantages.detach().cpu(),
+                "ratio": output.ratio.detach().cpu(),
+                **output.metrics,
+            }
+        )
+        return output.per_token_loss
+
+    def teacher_entropy(self, start: int, end: int) -> torch.Tensor:
+        """Entropy is not available from one sampled-token log-probability."""
         return torch.full((end - start,), float("nan"), dtype=torch.float32)
 
 

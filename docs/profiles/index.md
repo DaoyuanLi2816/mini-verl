@@ -39,6 +39,17 @@ scale-out reports carry the complete profile identity. Changing any version
 axis produces a new digest. Existing profile names cannot silently acquire new
 semantics; a later algorithm path is registered under a different name.
 
-Currently measured: `verl-opd-v0.8-single-gpu-v1`, the reward-free direct-GKD
-`forward_kl_topk` path. See [For verl users](../for-verl-users.md) for the
-algorithm and execution boundary.
+## Which profile should I use?
+
+| Profile | Objective | Teacher target | Trade-off | Status |
+| --- | --- | --- | --- | --- |
+| `verl-opd-v0.8-single-gpu-v1` | direct GKD `forward_kl_topk` | top-k token IDs and log-probabilities | fuller distributional signal; larger target artifact | measured |
+| `verl-opd-v0.8-single-gpu-pg-k1-v1` | sampled `k1` + vanilla policy loss | sampled-token teacher log-probability | sampled-token signal; smaller target artifact | measured |
+
+Both are reward-free, strict current-policy, one-actor/one-teacher profiles on
+one CUDA GPU. The PG profile is not PPO: it uses a policy-loss form with a
+detached distillation-derived advantage and has no task reward, critic,
+reference KL or replay. Neither profile is claimed to be more accurate or
+better aligned. See [For verl users](../for-verl-users.md), the
+[PG-k1 ADR](../adr/0010-verl-v0.8-pg-k1-contract.md), and the runtime evidence
+for the measured boundary.

@@ -9,6 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict
 
 from miniverl.bridge.opd_capabilities import decide_placement
+from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
 from miniverl.bridge.opd_v08 import CompiledLocalExecutionPlan
 from miniverl.config.models import RunConfig
 from miniverl.errors import ConfigError
@@ -96,12 +97,15 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
     max_tokens = source.data.max_prompt_length + source.data.max_response_length
     rollout_batch = source.miniverl.batching.rollout_batch_size
     token_buffers = max_tokens * rollout_batch * 64 * 1024
-    target_bytes = (
-        source.data.train_batch_size
-        * source.data.max_response_length
-        * source.distillation.distillation_loss.topk
-        * 12
-    )
+    pg_k1 = compiled.profile == VERL_OPD_PG_K1_V08_PROFILE
+    if pg_k1:
+        # token id + position + actor/teacher log-probs + response-mask weight
+        target_bytes = source.data.train_batch_size * source.data.max_response_length * 28
+    else:
+        top_k = source.distillation.distillation_loss.topk
+        if top_k is None:
+            raise ConfigError("direct forward_kl_topk profile requires a positive topk")
+        target_bytes = source.data.train_batch_size * source.data.max_response_length * top_k * 12
     known_static = sum(
         value
         for value in (student_static, teacher_static, trainable_optimizer)
@@ -174,12 +178,23 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
             "prompt_tokens_max": source.data.max_prompt_length,
             "response_tokens_max": source.data.max_response_length,
         },
-        loss={
-            "mode": source.distillation.distillation_loss.loss_mode,
-            "aggregation": source.actor_rollout_ref.actor.loss_agg_mode,
-            "top_k": source.distillation.distillation_loss.topk,
-            "task_rewards": False,
-        },
+        loss=(
+            {
+                "mode": "k1",
+                "aggregation": "token-mean",
+                "teacher_target": "sampled_token_log_probability",
+                "policy_gradient": True,
+                "policy_loss_mode": "vanilla",
+                "task_rewards": False,
+            }
+            if pg_k1
+            else {
+                "mode": source.distillation.distillation_loss.loss_mode,
+                "aggregation": source.actor_rollout_ref.actor.loss_agg_mode,
+                "top_k": source.distillation.distillation_loss.topk,
+                "task_rewards": False,
+            }
+        ),
         local_execution={
             "strategy": decision.strategy,
             "requested_strategy": source.miniverl.runtime.mode,
@@ -294,6 +309,37 @@ def compile_native_run_config(
     from miniverl.bridge.profiles import get_profile
 
     profile_identity = get_profile(compiled.profile).identity.model_dump(mode="json")
+    pg_k1 = compiled.profile == VERL_OPD_PG_K1_V08_PROFILE
+    loss_payload = (
+        {
+            "mode": "verl_pg_k1",
+            "aggregation": "token-mean",
+            "divergence": "reverse_kl",
+            "temperature": 1.0,
+            "scale_by_temperature_squared": False,
+            "top_k": 1,
+            "loss_max_clamp": source.distillation.distillation_loss.loss_max_clamp,
+            "sampled_token_nll_weight": 0.0,
+            "policy_loss_mode": "vanilla",
+            "clip_ratio": 0.2,
+            "clip_ratio_low": 0.2,
+            "clip_ratio_high": 0.2,
+            "clip_ratio_c": 3.0,
+            "estimator_implementation_version": "verl-v0.8-pg-k1-v1",
+        }
+        if pg_k1
+        else {
+            "mode": "forward_kl_topk",
+            "aggregation": "token-mean",
+            "divergence": "forward_kl",
+            "temperature": 1.0,
+            "scale_by_temperature_squared": False,
+            "top_k": source.distillation.distillation_loss.topk,
+            "log_prob_min_clamp": source.distillation.distillation_loss.log_prob_min_clamp,
+            "loss_max_clamp": source.distillation.distillation_loss.loss_max_clamp,
+            "sampled_token_nll_weight": 0.0,
+        }
+    )
     payload = {
         "schema_version": 1,
         "run": {
@@ -302,7 +348,12 @@ def compile_native_run_config(
             "seed": source.data.seed or 0,
             "output_dir": "runs",
             "deterministic": True,
-            "tags": [compiled.profile, "verl-v0.8.0", "pure-opd"],
+            "tags": [
+                compiled.profile,
+                "verl-v0.8.0",
+                "pure-opd",
+                "pg-k1" if pg_k1 else "direct-gkd",
+            ],
             "profile_identity": profile_identity,
         },
         "models": {
@@ -357,6 +408,7 @@ def compile_native_run_config(
             "max_total_tokens": source.data.max_prompt_length + source.data.max_response_length,
             "temperature": source.actor_rollout_ref.rollout.temperature,
             "top_p": source.actor_rollout_ref.rollout.top_p,
+            "record_logprobs": pg_k1,
             "prompt_batch_size": min(
                 source.miniverl.batching.rollout_batch_size,
                 source.actor_rollout_ref.rollout.max_num_seqs
@@ -367,17 +419,7 @@ def compile_native_run_config(
             * source.miniverl.batching.rollout_batch_size,
         },
         "selection": {"selector": "all_model_tokens"},
-        "loss": {
-            "mode": "forward_kl_topk",
-            "aggregation": "token-mean",
-            "divergence": "forward_kl",
-            "temperature": 1.0,
-            "scale_by_temperature_squared": False,
-            "top_k": source.distillation.distillation_loss.topk,
-            "log_prob_min_clamp": source.distillation.distillation_loss.log_prob_min_clamp,
-            "loss_max_clamp": source.distillation.distillation_loss.loss_max_clamp,
-            "sampled_token_nll_weight": 0.0,
-        },
+        "loss": loss_payload,
         "train": {
             "cycles": total_steps,
             "rollouts_per_cycle": logical_batch,
