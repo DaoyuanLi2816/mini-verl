@@ -1,21 +1,21 @@
 {
   "schema_version": 2,
-  "release": "0.9.0",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.9.0",
+  "release": "0.9.1",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.9.1",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
-    "commit": "7a36f59d822d9d1393882c19ad4ef56b7364d43e",
-    "commit_relationship": "exact product branch head; merge fb78f64 carries the same tree and passed the full required CI matrix",
-    "measured_at": "2026-08-13T00:55:00-07:00",
+    "commit": "b3223f2e5f038ce9cb72cb4376f0a01d86050e32",
+    "commit_relationship": "semantic-contract and documentation product head before release-only metadata",
+    "measured_at": "2026-08-13T22:10:22-07:00",
     "platform": "Windows 11",
     "python": "CPython 3.10 for coverage; CPython 3.12 for CUDA",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2222,
+      "passed": 2234,
       "skipped": 10,
       "deselected": 22,
-      "branch_coverage_percent": 83.95,
+      "branch_coverage_percent": 83.98,
       "skip_reason": "eight platform or privilege skips plus two pinned-verl conformance skips while the official package was intentionally absent from the general environment; all three pinned checks ran separately"
     },
     "gpu": {
@@ -27,24 +27,11 @@
     }
   },
   "release_validation": {
-    "scope": "the exact immutable v0.9.0 release commit",
-    "commit": "bc03d0e6aa5b7646423c460b253ea53070db31de",
-    "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31681471818",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31681471787",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31681471824",
-      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31681471747",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31681888075"
-    },
-    "conclusion": "success",
+    "scope": "the exact immutable v0.9.1 release commit",
+    "commit": "pending",
+    "workflows": {},
+    "conclusion": "pending",
     "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement",
-    "publication": {
-      "pypi": "https://pypi.org/project/miniverl/0.9.0/",
-      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.9.0",
-      "documentation": "https://daoyuanli2816.github.io/mini-verl/",
-      "documentation_workflow": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31682785478",
-      "wheel_sha256": "cffc46b433170aecad11539f9f512a37d936827e3dc1e123bb359cbde6557bcc",
-      "sdist_sha256": "a08b94b63888e0a9038610c60b94493379fdc265034706d56b016572e11a4bed"
-    }
+    "publication": null
   }
 }
