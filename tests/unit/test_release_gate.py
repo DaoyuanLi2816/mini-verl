@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -36,6 +37,22 @@ def test_release_gate_lists_the_product_checks_without_publishing(tmp_path: Path
     assert "gh release create" not in text
     assert "git tag" not in text
     assert "twine upload" not in text
+
+
+def test_release_gate_list_does_not_require_a_git_checkout(tmp_path: Path) -> None:
+    scripts = tmp_path / "scripts"
+    scripts.mkdir()
+    shutil.copy2("scripts/release_gate.py", scripts / "release_gate.py")
+
+    completed = subprocess.run(
+        [sys.executable, "scripts/release_gate.py", "--list"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "gpu_qualification" in json.loads(completed.stdout)
 
 
 def test_release_gate_requires_qualification_when_running() -> None:

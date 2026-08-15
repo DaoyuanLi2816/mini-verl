@@ -25,8 +25,20 @@ class Gate:
     timeout: int = 1800
 
 
-def gate_plan(*, qualification: Path, site: Path, screenshots: Path, dist: Path) -> list[Gate]:
+def gate_plan(
+    *,
+    qualification: Path,
+    site: Path,
+    screenshots: Path,
+    dist: Path,
+    source_commit: str | None = None,
+    known_good_sha256: str | None = None,
+) -> list[Gate]:
     python = sys.executable
+    source_commit = source_commit or _git_head()
+    known_good_sha256 = known_good_sha256 or _sha256(
+        ROOT / "environments/known-good-rtx4080-cu130.json"
+    )
     return [
         Gate("release_state", (python, "scripts/release_state.py", "--check")),
         Gate("pypi_readme", (python, "scripts/build_pypi_readme.py", "--check")),
@@ -94,9 +106,9 @@ def gate_plan(*, qualification: Path, site: Path, screenshots: Path, dist: Path)
                 "scripts/validate_gpu_qualification.py",
                 str(qualification),
                 "--commit",
-                _git_head(),
+                source_commit,
                 "--known-good-sha256",
-                _sha256(ROOT / "environments/known-good-rtx4080-cu130.json"),
+                known_good_sha256,
                 "--required-gpu-name",
                 "NVIDIA GeForce RTX 4080",
             ),
@@ -231,6 +243,8 @@ def main() -> int:
             site=root / "site",
             screenshots=root / "screenshots",
             dist=root / "dist",
+            source_commit="not-used-by-list" if args.list else None,
+            known_good_sha256="not-used-by-list" if args.list else None,
         )
         if args.list:
             print(json.dumps([gate.name for gate in plan]))
