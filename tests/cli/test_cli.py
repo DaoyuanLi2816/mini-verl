@@ -46,6 +46,7 @@ EXPECTED_COMMANDS = {
     "compat check",
     "hardware record",
     "hardware validate",
+    "qualification validate",
     "data sample",
     "align",
     "alignment-suite prepare",

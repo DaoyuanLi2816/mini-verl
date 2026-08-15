@@ -1,74 +1,144 @@
 name: gpu
 
-# Manual only. There is no GPU runner configured for this repository, so this
-# workflow is never part of a required check -- it exists so that a maintainer
-# with a self-hosted CUDA runner (Actions Runner >= 2.327.1 for Node 24 actions)
-# can execute the GPU tests on demand, and so the
-# exact commands are version-controlled rather than living in someone's shell
-# history.
-#
-# To use it, register a self-hosted runner with the label `cuda` and dispatch
-# this workflow. Without such a runner the job will simply stay queued; that is
-# expected and is not a failure of the project.
-
+# Manual, maintainer-operated qualification on the one measured workstation.
+# This is not hosted GPU CI and is not a required pull-request check. Registering
+# the private runner is an external maintainer action; without it this workflow
+# remains queued and no qualification may be claimed.
 on:
   workflow_dispatch:
     inputs:
-      run_recipe:
-        description: "Also run the full single-GPU recipe (slow, ~10 minutes)"
+      qualification_level:
+        description: "Release smoke, or all three canonical full workloads"
+        type: choice
+        required: true
+        default: smoke
+        options:
+          - smoke
+          - full
+      offline:
+        description: "Require all pinned model snapshots to be present locally"
         type: boolean
         default: false
 
+permissions:
+  contents: read
+
+concurrency:
+  group: gpu-qualification-${{ github.sha }}
+  cancel-in-progress: false
+
 jobs:
-  gpu-tests:
-    name: gpu tests (self-hosted cuda)
-    runs-on: [self-hosted, cuda]
-    timeout-minutes: 120
+  qualify:
+    name: exact-commit RTX 4080 qualification
+    runs-on: [self-hosted, cuda, rtx4080]
+    timeout-minutes: 360
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
-      - name: Environment
+      - name: Verify the dedicated measured device
         run: |
+          $name = nvidia-smi --query-gpu=name --format=csv,noheader
+          if (($name | Measure-Object).Count -ne 1) { throw "exactly one visible GPU is required" }
+          if ($name.Trim() -ne "NVIDIA GeForce RTX 4080") { throw "unexpected GPU: $name" }
           nvidia-smi
           python --version
 
-      - name: Install
+      - name: Build source distributions from the exact checkout
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev,train,cuda]"
+          python -m pip install --upgrade pip build
+          python -m build
+          $wheel = Get-ChildItem -LiteralPath dist -Filter '*.whl'
+          if (($wheel | Measure-Object).Count -ne 1) { throw "expected exactly one wheel" }
+          New-Item -ItemType Directory -Path qualification | Out-Null
+          Copy-Item -LiteralPath $wheel.FullName -Destination qualification
+          "QUALIFICATION_WHEEL=$((Resolve-Path (Join-Path qualification $wheel.Name)).Path)" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: doctor
+      - name: Install the wheel into a clean known-good environment
         run: |
-          miniverl doctor
-          miniverl doctor --json > doctor.json
-          python -c "import json; d=json.load(open('doctor.json')); assert d['verdict']['gpu_training'] is True"
+          python -m venv .gpu-qualification-venv
+          $python = (Resolve-Path '.gpu-qualification-venv/Scripts/python.exe').Path
+          & $python -m pip install --upgrade pip
+          & $python -m pip install 'torch==2.13.0+cu130' --index-url https://download.pytorch.org/whl/cu130
+          & $python -m pip install "$env:QUALIFICATION_WHEEL[train,cuda]" --constraint environments/known-good-rtx4080-cu130.txt
+          (Resolve-Path '.gpu-qualification-venv/Scripts').Path | Out-File -FilePath $env:GITHUB_PATH -Append
+          "QUALIFICATION_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: GPU tests
-        run: pytest -q -m gpu -ra
-
-      - name: Full single-GPU recipe
-        if: ${{ inputs.run_recipe }}
-        env:
-          MINIVERL_LOG_LEVEL: INFO
+      - name: Run wheel-installed release smoke
         run: |
-          miniverl train recipes/qwen_consumer_gpu_calc.yaml --output runs --run-id ci-4080 --json > train.json
-          miniverl eval --run runs/ci-4080 --split test --json > eval.json
-          miniverl report runs/ci-4080 --out runs/ci-4080/report.html
-          miniverl export-benchmark runs/ci-4080 --out runs/ci-4080/benchmark-submission.json
-          python - <<'PY'
-          import json
-          from miniverl.evaluation.schema import BenchmarkResult
-          BenchmarkResult.model_validate(json.load(open("runs/ci-4080/benchmark-submission.json")))
-          print("submission validates against the published schema")
-          PY
+          $offline = @()
+          if ('${{ inputs.offline }}' -eq 'true') { $offline = @('--offline') }
+          & $env:QUALIFICATION_PYTHON scripts/run_gpu_qualification.py `
+            --commit $env:GITHUB_SHA `
+            --wheel $env:QUALIFICATION_WHEEL `
+            --known-good environments/known-good-rtx4080-cu130.json `
+            --output qualification `
+            --work qualification-work `
+            @offline
+          & $env:QUALIFICATION_PYTHON scripts/validate_gpu_qualification.py `
+            qualification/qualification.json `
+            --commit $env:GITHUB_SHA `
+            --required-gpu-name 'NVIDIA GeForce RTX 4080'
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Run GPU regression tests
+        run: '& $env:QUALIFICATION_PYTHON -m pytest -q -m gpu -ra'
+
+      - name: Run full canonical qualification workloads
+        if: ${{ inputs.qualification_level == 'full' }}
+        run: |
+          $offline = @()
+          if ('${{ inputs.offline }}' -eq 'true') { $offline = @('--offline') }
+          New-Item -ItemType Directory -Path qualification-full | Out-Null
+          & $env:QUALIFICATION_PYTHON scripts/run_verl_opd_reference_workload.py `
+            --out qualification-full-work/direct `
+            --result qualification-full/direct.json `
+            @offline
+          & $env:QUALIFICATION_PYTHON scripts/run_verl_pg_k1_workload.py `
+            --out qualification-full-work/pg-k1 `
+            --result qualification-full/pg-k1.json `
+            @offline
+          & $env:QUALIFICATION_PYTHON scripts/run_smollm2_opd_reference_workload.py `
+            --out qualification-full-work/smollm2 `
+            --result qualification-full/smollm2.json `
+            @offline
+          & $env:QUALIFICATION_PYTHON scripts/promote_full_gpu_qualification.py `
+            --qualification qualification/qualification.json `
+            --direct qualification-full/direct.json `
+            --pg-k1 qualification-full/pg-k1.json `
+            --smollm2 qualification-full/smollm2.json
+
+      - name: Upload exact-commit release smoke
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: gpu-run
-          path: |
-            runs/ci-4080/manifest.json
-            runs/ci-4080/eval.json
-            runs/ci-4080/summary.md
-            runs/ci-4080/benchmark-submission.json
-          if-no-files-found: ignore
+          name: gpu-release-smoke
+          path: qualification/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload full qualification records
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() && inputs.qualification_level == 'full' }}
+        with:
+          name: gpu-full-qualification
+          path: qualification/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Remove runner-local environments and model-free work products
+        if: always()
+        run: |
+          foreach ($relative in @('.gpu-qualification-venv', 'qualification-work', 'qualification-full-work')) {
+            if (Test-Path -LiteralPath $relative) {
+              $target = (Resolve-Path -LiteralPath $relative).Path
+              $workspace = (Resolve-Path -LiteralPath $env:GITHUB_WORKSPACE).Path
+              if (-not $target.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) {
+                throw "refusing cleanup outside workspace: $target"
+              }
+              Remove-Item -LiteralPath $target -Recurse -Force
+            }
+          }

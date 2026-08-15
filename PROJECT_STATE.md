@@ -31,7 +31,7 @@ Executable compatibility claims are mutation-tested and recorded in
 unknown-size quantized roles require proof instead of receiving an executable
 plan.
 
-Development `0.10.0.dev0` has a closed typed profile registry and torch-free
+Development `0.10.1.dev0` has a closed typed profile registry and torch-free
 compatibility introspection. Profile-scoped plans, caches, checkpoints and
 exports bind an independent identity. The direct-GKD and sampled-k1 vanilla
 policy-loss profiles both have pinned conformance and measured RTX 4080 paths.

@@ -35,6 +35,8 @@ jobs:
           python scripts/publish_verl_bridge_diagrams.py --check
           python scripts/publish_verl_opd_compatibility.py --check
           python scripts/publish_hardware_record_schema.py --check
+          python scripts/publish_gpu_qualification_schema.py --check
+          python scripts/check_known_good_environment.py
       - name: Build complete development site strictly
         run: mkdocs build --strict
       - name: Install deterministic Chromium

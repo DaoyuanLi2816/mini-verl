@@ -9,8 +9,46 @@ permissions:
   contents: read
 
 jobs:
+  verify-gpu-qualification:
+    name: verify exact-commit RTX 4080 qualification
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Install torch-free validator dependencies
+        run: python -m pip install .
+
+      - name: Fetch and validate the exact-SHA workflow artifact
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/verify_release_qualification.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --workflow gpu.yml \
+            --commit "$GITHUB_SHA" \
+            --artifact-name gpu-release-smoke \
+            --required-gpu-name "NVIDIA GeForce RTX 4080" \
+            --known-good environments/known-good-rtx4080-cu130.json \
+            --output verified-gpu-qualification
+
+      - name: Preserve the verified qualification for distribution binding
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verified-gpu-qualification
+          path: verified-gpu-qualification/
+          if-no-files-found: error
+          retention-days: 14
+
   validate-and-test:
     name: validate metadata and run release gates
+    needs: verify-gpu-qualification
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -84,6 +122,8 @@ jobs:
           mypy src/miniverl
           python scripts/build_pypi_readme.py --check
           python scripts/release_state.py --check
+          python scripts/check_known_good_environment.py
+          python scripts/publish_gpu_qualification_schema.py --check
           python scripts/check_markdown_links.py
           echo "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc  benchmarks/results/gpu-calc-hard-equal-update-v2.json" | sha256sum --check
           pytest -q -m "not gpu and not network" \
@@ -106,6 +146,12 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
+
+      - name: Download the verified GPU qualification
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verified-gpu-qualification
+          path: verified-gpu-qualification
 
       - name: Build and inspect wheel and sdist
         run: |
@@ -130,6 +176,28 @@ jobs:
           ]
           pathlib.Path("SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="ascii")
           print("\n".join(lines))
+          PY
+
+      - name: Bind the release wheel to the qualified wheel
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import pathlib
+
+          qualification = json.loads(
+              pathlib.Path("verified-gpu-qualification/qualification.json").read_text()
+          )
+          wheels = list(pathlib.Path("dist").glob("*.whl"))
+          if len(wheels) != 1:
+              raise SystemExit(f"expected one wheel, found {len(wheels)}")
+          actual = hashlib.sha256(wheels[0].read_bytes()).hexdigest()
+          expected = qualification["wheel"]["sha256"]
+          if actual != expected:
+              raise SystemExit(
+                  f"release wheel {actual} differs from exact-SHA qualified wheel {expected}"
+              )
+          print(f"release wheel matches exact-SHA qualification: {actual}")
           PY
 
       - name: Upload immutable release distributions

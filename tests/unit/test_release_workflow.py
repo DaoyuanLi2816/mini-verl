@@ -69,3 +69,17 @@ def test_every_action_is_pinned_to_a_full_commit_sha() -> None:
     assert uses
     for action in uses:
         assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", action), action
+
+
+def test_release_requires_exact_sha_rtx4080_qualification_before_build() -> None:
+    text = _workflow_text()
+    qualification = _job(text, "verify-gpu-qualification", "validate-and-test")
+    validation = _job(text, "validate-and-test", "build-distributions")
+    build = _job(text, "build-distributions", "publish-pypi")
+
+    assert "permissions:" in qualification and "actions: read" in qualification
+    assert "scripts/verify_release_qualification.py" in qualification
+    assert '--commit "$GITHUB_SHA"' in qualification
+    assert '--required-gpu-name "NVIDIA GeForce RTX 4080"' in qualification
+    assert "needs: verify-gpu-qualification" in validation
+    assert "needs: validate-and-test" in build

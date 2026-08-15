@@ -53,6 +53,7 @@ nav:
   - SmolLM2 developer workload: smollm2-opd-workload.md
   - RTX 4080 PG-k1 workload: verl-pg-k1-workload.md
   - Start on one GPU: single-gpu-guide.md
+  - Release qualification: release-qualification.md
   - Align:
       - "External Alignment Gate v1: early stop": alignment-external/alignment-external-v1.md
       - When OPD should follow SFT: alignment-lab/when-opd-should-follow-sft.md
@@ -69,6 +70,12 @@ nav:
       - Demo recording script: verl-bridge-demo.md
       - Legacy environment/PPO bridge: legacy-verl-bridge.md
   - Community benchmarks: community-benchmarks.md
+  - Maintainer:
+      - Architecture: maintainer-architecture.md
+      - Upstream support policy: upstream-support-policy.md
+      - v1 readiness: v1-readiness.md
+      - Repository settings audit: repository-settings.md
+      - v0.10.1 security review: security-review-v0.10.1.md
   - Schemas:
       - Trajectories: trajectory-schema.md
       - Benchmark results: benchmarking.md

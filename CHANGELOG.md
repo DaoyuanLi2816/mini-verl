@@ -6,6 +6,20 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Product maturity and release qualification
+
+- Added a strict, torch-free GPU qualification schema and validator, a
+  wheel-installed RTX 4080 self-hosted workflow, and an exact-source-SHA
+  release gate that also binds the release wheel hash to the qualified wheel.
+- Added a machine-readable maintainer-measured CUDA stack with exact top-level
+  constraints while preserving flexible package dependency ranges.
+- Extended canonical release-state checks to security support and current
+  product prose, and documented v1 readiness, immutable upstream-profile
+  lifecycle, runner safety and maintainer architecture.
+- Added one non-publishing release-gate command that composes the existing
+  metadata, quality, documentation, build, clean-install and qualification
+  checks into a strict JSON summary.
+
 ## [0.10.0] - 2026-08-14
 
 ### Versioned compatibility profiles

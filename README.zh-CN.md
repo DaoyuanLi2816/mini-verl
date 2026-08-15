@@ -45,8 +45,20 @@ miniverl run --profile verl-opd-v0.8-single-gpu-v1 \
 上移除 `--dry-run`，即可运行固定版本的 Qwen3-0.6B actor 与 Qwen3-1.7B teacher，并
 得到可检查、可重新加载的 PEFT adapter。
 
+检查 plan 后，标准后续路径为：
+
+```bash
+miniverl run --profile verl-opd-v0.8-single-gpu-v1 --plan plan.json \
+  --output runs --run-id my-opd
+miniverl inspect runs/my-opd/trajectories.jsonl
+miniverl cache stats runs/my-opd/teacher-cache
+miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
+miniverl bridge doctor scaleout --json
+```
+
 `train` extra 安装训练运行时，但不会选择正确的 CUDA PyTorch；`cuda` extra 只额外安装
-bitsandbytes。真实运行前请阅读[单卡安装与显存指南](docs/single-gpu-guide.md)。
+bitsandbytes。[单卡安装与显存指南](docs/single-gpu-guide.md)同时提供灵活安装与机器可读的
+RTX 4080 known-good 环境；除这一张实测 RTX 4080 外，其余硬件仍是未测量状态。
 
 ## 架构
 
@@ -144,7 +156,10 @@ snapshot 的 scale-out 物化均通过。详见[完整 SmolLM2 系统记录](doc
 
 这只证明一个运行时与产物路径，不是吞吐 benchmark、对齐质量 endpoint，也不证明 OPD
 优于 SFT、DPO 或 KD。其他 NVIDIA GPU 使用相同的 device-name-agnostic CUDA 路径，但
-能否装下仍取决于显存、上下文、量化与 kernel。
+能否装下仍取决于显存、上下文、量化与 kernel，并且仍未测量。
+[发布资格契约](docs/release-qualification.md)要求在唯一实测 RTX 4080 上绑定 exact-SHA
+wheel smoke；[上游支持政策](docs/upstream-support-policy.md)保证已发布 profile identity
+不原地漂移。runner 尚未激活时不会被描述成持续 GPU CI。
 
 ### 按硬件条件选择路径，而不是按显卡名称
 
