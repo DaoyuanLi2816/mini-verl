@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import zipfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -234,6 +235,19 @@ def test_full_qualification_rejects_failed_resume_equivalence(tmp_path: Path) ->
             pg_k1=results["pg_k1"],
             smollm2=results["smollm2"],
         )
+
+
+def test_process_teardown_clears_bnb_and_cublas_caches() -> None:
+    from scripts.run_gpu_qualification import _clear_process_global_cuda_caches
+
+    calls: list[str] = []
+    torch_module = SimpleNamespace(
+        _C=SimpleNamespace(_cuda_clearCublasWorkspaces=lambda: calls.append("cublas"))
+    )
+    bnb_functional = SimpleNamespace(name2qmap={"dynamic": object()})
+    _clear_process_global_cuda_caches(torch_module, bnb_functional)
+    assert bnb_functional.name2qmap == {}
+    assert calls == ["cublas"]
 
 
 def test_committed_schema_is_generated_from_the_strict_model() -> None:

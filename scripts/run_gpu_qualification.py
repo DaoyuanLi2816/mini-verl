@@ -117,6 +117,46 @@ def _reload_peft_adapter(model_id: str, revision: str, adapter: Path, *, offline
     gc.collect()
 
 
+def _live_cuda_tensor_summary() -> list[dict[str, Any]]:
+    """Return bounded diagnostics for tensors that make teardown fail closed."""
+    import torch
+
+    summary: list[dict[str, Any]] = []
+    for candidate in gc.get_objects():
+        try:
+            if torch.is_tensor(candidate) and candidate.is_cuda:
+                summary.append(
+                    {
+                        "shape": list(candidate.shape),
+                        "dtype": str(candidate.dtype),
+                        "bytes": candidate.numel() * candidate.element_size(),
+                    }
+                )
+        except (ReferenceError, RuntimeError):
+            continue
+        if len(summary) >= 16:
+            break
+    return summary
+
+
+def _clear_process_global_cuda_caches(
+    torch_module: Any | None = None, bnb_functional: Any | None = None
+) -> None:
+    """Release third-party device caches when qualifying whole-process teardown."""
+    if torch_module is None:
+        import torch as torch_module
+    if bnb_functional is None:
+        import bitsandbytes.functional as bnb_functional
+
+    # bitsandbytes 0.50 retains its 8-bit dynamic map on the first CUDA device
+    # in a module-global dictionary. It is not trainer state, but qualification
+    # models process shutdown and therefore clears this documented cache.
+    bnb_functional.name2qmap.clear()
+    # cuBLAS workspaces are allocator-owned rather than live tensors. Clear the
+    # process-global pool so the final measurement represents user allocations.
+    torch_module._C._cuda_clearCublasWorkspaces()
+
+
 def run(args: argparse.Namespace) -> GPUQualification:
     import torch
 
@@ -238,6 +278,7 @@ def run(args: argparse.Namespace) -> GPUQualification:
         offline=args.offline,
     )
     del trainer
+    _clear_process_global_cuda_caches()
     gc.collect()
     torch.cuda.empty_cache()
     torch.cuda.synchronize()
@@ -245,7 +286,8 @@ def run(args: argparse.Namespace) -> GPUQualification:
     if after_teardown > baseline_allocated + tolerance:
         raise RuntimeError(
             f"CUDA teardown left {after_teardown} bytes allocated; baseline "
-            f"{baseline_allocated}, tolerance {tolerance}"
+            f"{baseline_allocated}, tolerance {tolerance}; live tensors "
+            f"{canonical_json(_live_cuda_tensor_summary())}"
         )
 
     metrics = read_jsonl(run_dir / "metrics.jsonl")
