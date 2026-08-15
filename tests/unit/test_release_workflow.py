@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "release.yml"
+GPU_WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "gpu.yml"
 
 
 def _workflow_text() -> str:
@@ -83,3 +84,14 @@ def test_release_requires_exact_sha_rtx4080_qualification_before_build() -> None
     assert '--required-gpu-name "NVIDIA GeForce RTX 4080"' in qualification
     assert "needs: verify-gpu-qualification" in validation
     assert "needs: validate-and-test" in build
+
+
+def test_full_gpu_qualification_installs_only_the_exact_pinned_verl_source() -> None:
+    text = GPU_WORKFLOW.read_text(encoding="utf-8")
+    requirement = (
+        "git+https://github.com/verl-project/verl.git@7aed6b230776f963fa09509c10d9c3a767d1102c"
+    )
+    assert "qualification_level == 'full'" in text
+    assert "pip install --no-deps" in text
+    assert requirement in text
+    assert "scripts/promote_full_gpu_qualification.py" in text
