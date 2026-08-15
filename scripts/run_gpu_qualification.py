@@ -6,16 +6,21 @@ import argparse
 import gc
 import importlib.metadata
 import json
+import os
 import platform
 import shutil
 import subprocess
+import sys
+import sysconfig
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import miniverl
 from miniverl import __version__
 from miniverl.models.adapter_io import export_adapter
 from miniverl.qualification import GPUQualification, sha256_file
+from miniverl.release_candidate import load_candidate_manifest, validate_candidate_directory
 from miniverl.utils.runs import canonical_json, read_jsonl, write_json_atomic
 
 PROFILE = "verl-opd-v0.8-single-gpu-v1"
@@ -28,6 +33,7 @@ _PACKAGES = (
     "bitsandbytes",
     "numpy",
     "pyarrow",
+    "safetensors",
 )
 
 
@@ -63,7 +69,7 @@ def _driver_version() -> str:
 
 def _assert_known_good(path: Path, packages: dict[str, str], gpu_name: str) -> dict[str, Any]:
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    expected = manifest["packages"]
+    expected = manifest["required"]["packages"]
     differences = {
         name: {"expected": expected.get(name), "actual": actual}
         for name, actual in packages.items()
@@ -73,16 +79,31 @@ def _assert_known_good(path: Path, packages: dict[str, str], gpu_name: str) -> d
         raise RuntimeError(
             "installed packages do not match the known-good stack: " + canonical_json(differences)
         )
-    if platform.python_version() != manifest["platform"]["python"]:
+    if platform.python_version() != manifest["required"]["python"]:
         raise RuntimeError(
             f"Python {platform.python_version()} does not match known-good "
-            f"{manifest['platform']['python']}"
+            f"{manifest['required']['python']}"
         )
-    if gpu_name != manifest["hardware"]["gpu"]:
+    if gpu_name != manifest["required"]["gpu_name"]:
         raise RuntimeError(
-            f"GPU {gpu_name!r} does not match measured stack {manifest['hardware']['gpu']!r}"
+            f"GPU {gpu_name!r} does not match measured stack {manifest['required']['gpu_name']!r}"
         )
     return manifest
+
+
+def _verify_install_origin(import_file: str, executable: str) -> None:
+    if sys.prefix == sys.base_prefix:
+        raise RuntimeError("qualification must run inside a dedicated virtual environment")
+    site_packages = Path(sysconfig.get_paths()["purelib"]).resolve(strict=True)
+    imported = Path(import_file).resolve(strict=True)
+    cli = Path(executable).resolve(strict=True)
+    try:
+        imported.relative_to(site_packages)
+        cli.relative_to(Path(sys.prefix).resolve(strict=True))
+    except ValueError as exc:
+        raise RuntimeError(
+            "miniVERL import or CLI did not originate in the qualification venv"
+        ) from exc
 
 
 def _copy_artifact(source: Path, output: Path, name: str) -> dict[str, Any]:
@@ -166,6 +187,39 @@ def run(args: argparse.Namespace) -> GPUQualification:
         raise RuntimeError("GPU qualification requires exactly one visible CUDA GPU")
     if not args.wheel.is_file() or args.wheel.suffix != ".whl":
         raise RuntimeError(f"wheel not found: {args.wheel}")
+    if any(os.environ.get(name) for name in ("PYTHONPATH", "PYTHONHOME")):
+        raise RuntimeError("qualification requires empty PYTHONPATH and PYTHONHOME")
+    candidate_problems = validate_candidate_directory(
+        args.candidate_manifest.parent,
+        manifest_path=args.candidate_manifest,
+        expected_commit=args.commit,
+        expected_version=__version__,
+    )
+    if candidate_problems:
+        raise RuntimeError("candidate validation failed: " + "; ".join(candidate_problems))
+    candidate = load_candidate_manifest(args.candidate_manifest)
+    if (
+        args.wheel.name != candidate.wheel.filename
+        or sha256_file(args.wheel) != candidate.wheel.sha256
+    ):
+        raise RuntimeError("qualification wheel does not match candidate manifest")
+    if candidate.workflow.kind == "github_actions":
+        actual = {
+            "repository": os.environ.get("GITHUB_REPOSITORY"),
+            "workflow_path": os.environ.get("GITHUB_WORKFLOW_REF", "")
+            .split("@", 1)[0]
+            .split("/", 2)[-1],
+            "run_id": int(os.environ.get("GITHUB_RUN_ID", "0")),
+            "run_attempt": int(os.environ.get("GITHUB_RUN_ATTEMPT", "0")),
+        }
+        expected = {
+            "repository": candidate.workflow.repository,
+            "workflow_path": candidate.workflow.workflow_path,
+            "run_id": candidate.workflow.run_id,
+            "run_attempt": candidate.workflow.run_attempt,
+        }
+        if actual != expected:
+            raise RuntimeError("candidate and qualification workflow identities differ")
     if args.output.exists() and any(args.output.iterdir()):
         existing = {path.resolve() for path in args.output.iterdir()}
         if args.wheel.resolve() not in existing or len(existing) != 1:
@@ -183,6 +237,7 @@ def run(args: argparse.Namespace) -> GPUQualification:
     executable = shutil.which("miniverl")
     if executable is None:
         raise RuntimeError("installed miniverl console script was not found")
+    _verify_install_origin(miniverl.__file__, executable)
     version = subprocess.run(
         [executable, "--version"],
         check=True,
@@ -328,6 +383,7 @@ def run(args: argparse.Namespace) -> GPUQualification:
             args.output,
             "adapter/miniverl_adapter_manifest.json",
         ),
+        _copy_artifact(args.candidate_manifest, args.output, "candidate-manifest.json"),
     ]
     record = GPUQualification(
         level="release_smoke",
@@ -339,6 +395,18 @@ def run(args: argparse.Namespace) -> GPUQualification:
         source_commit=args.commit,
         miniverl_version=__version__,
         wheel={"filename": args.wheel.name, "sha256": sha256_file(args.wheel)},
+        candidate={
+            "manifest_sha256": sha256_file(args.candidate_manifest),
+            "artifact_name": candidate.artifact_name,
+            "workflow_repository": candidate.workflow.repository,
+            "workflow_path": candidate.workflow.workflow_path,
+            "workflow_run_id": candidate.workflow.run_id,
+            "workflow_run_attempt": candidate.workflow.run_attempt,
+            "installed_from_candidate": True,
+            "import_origin_verified": True,
+            "cli_origin_verified": True,
+            "import_origin": "qualification_venv_site_packages",
+        },
         profile={
             "name": plan.profile,
             "identity_digest": plan.profile_identity["digest"],
@@ -412,6 +480,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--commit", required=True)
     parser.add_argument("--wheel", required=True, type=Path)
+    parser.add_argument("--candidate-manifest", required=True, type=Path)
     parser.add_argument("--known-good", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--work", required=True, type=Path)

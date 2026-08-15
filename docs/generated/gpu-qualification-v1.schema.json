@@ -33,6 +33,101 @@
       "title": "ArtifactEvidence",
       "type": "object"
     },
+    "CandidateBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_name": {
+          "const": "candidate-distributions",
+          "title": "Artifact Name",
+          "type": "string"
+        },
+        "cli_origin_verified": {
+          "const": true,
+          "title": "Cli Origin Verified",
+          "type": "boolean"
+        },
+        "import_origin": {
+          "const": "qualification_venv_site_packages",
+          "title": "Import Origin",
+          "type": "string"
+        },
+        "import_origin_verified": {
+          "const": true,
+          "title": "Import Origin Verified",
+          "type": "boolean"
+        },
+        "installed_from_candidate": {
+          "const": true,
+          "title": "Installed From Candidate",
+          "type": "boolean"
+        },
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "workflow_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow Path"
+        },
+        "workflow_repository": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow Repository"
+        },
+        "workflow_run_attempt": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow Run Attempt"
+        },
+        "workflow_run_id": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow Run Id"
+        }
+      },
+      "required": [
+        "manifest_sha256",
+        "artifact_name",
+        "installed_from_candidate",
+        "import_origin_verified",
+        "cli_origin_verified",
+        "import_origin"
+      ],
+      "title": "CandidateBinding",
+      "type": "object"
+    },
     "CheckEvidence": {
       "additionalProperties": false,
       "properties": {
@@ -345,6 +440,9 @@
       "title": "Artifacts",
       "type": "array"
     },
+    "candidate": {
+      "$ref": "#/$defs/CandidateBinding"
+    },
     "checks": {
       "$ref": "#/$defs/CheckEvidence"
     },
@@ -423,6 +521,7 @@
     "source_commit",
     "miniverl_version",
     "wheel",
+    "candidate",
     "profile",
     "environment",
     "models",

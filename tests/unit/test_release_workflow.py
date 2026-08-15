@@ -44,18 +44,18 @@ def test_publish_eligibility_is_tag_push_only(
         assert text.count(condition) == 3
 
 
-def test_distributions_are_built_once_and_consumed_without_rebuild() -> None:
+def test_release_consumes_qualified_candidate_without_rebuild() -> None:
     text = _workflow_text()
-    assert text.count("python -m build") == 1
-    build = _job(text, "build-distributions", "publish-pypi")
+    assert "python -m build" not in text
+    prepare = _job(text, "prepare-verified-distributions", "publish-pypi")
     publish = _job(text, "publish-pypi", "verify-pypi")
     verify = _job(text, "verify-pypi", "create-github-release")
     release = _job(text, "create-github-release", None)
 
-    assert "python -m build" in build
-    assert "twine check" in build
-    assert "SHA256SUMS" in build
-    assert "actions/upload-artifact@" in build
+    assert "copy the identical candidate bytes" in prepare
+    assert "candidate-manifest.json" in prepare
+    assert "qualification.json" in prepare
+    assert "actions/upload-artifact@" in prepare
     assert "actions/download-artifact@" in publish
     assert "python -m build" not in publish
     assert "actions/checkout@" not in publish
@@ -66,24 +66,41 @@ def test_distributions_are_built_once_and_consumed_without_rebuild() -> None:
 
 
 def test_every_action_is_pinned_to_a_full_commit_sha() -> None:
-    uses = re.findall(r"^\s*-\s+uses:\s+([^\s#]+)", _workflow_text(), flags=re.MULTILINE)
+    text = _workflow_text() + GPU_WORKFLOW.read_text(encoding="utf-8")
+    uses = re.findall(r"^\s*-\s+uses:\s+([^\s#]+)", text, flags=re.MULTILINE)
     assert uses
     for action in uses:
         assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", action), action
 
 
-def test_release_requires_exact_sha_rtx4080_qualification_before_build() -> None:
+def test_release_requires_same_run_exact_sha_candidate_and_qualification() -> None:
     text = _workflow_text()
-    qualification = _job(text, "verify-gpu-qualification", "validate-and-test")
-    validation = _job(text, "validate-and-test", "build-distributions")
-    build = _job(text, "build-distributions", "publish-pypi")
+    qualification = _job(text, "verify-qualified-candidate", "validate-and-test")
+    validation = _job(text, "validate-and-test", "prepare-verified-distributions")
+    prepare = _job(text, "prepare-verified-distributions", "publish-pypi")
 
     assert "permissions:" in qualification and "actions: read" in qualification
     assert "scripts/verify_release_qualification.py" in qualification
     assert '--commit "$GITHUB_SHA"' in qualification
+    assert "--candidate-artifact-name candidate-distributions" in qualification
+    assert "--qualification-artifact-name gpu-release-smoke" in qualification
     assert '--required-gpu-name "NVIDIA GeForce RTX 4080"' in qualification
-    assert "needs: verify-gpu-qualification" in validation
-    assert "needs: validate-and-test" in build
+    assert "needs: verify-qualified-candidate" in validation
+    assert "needs: [verify-qualified-candidate, validate-and-test]" in prepare
+
+
+def test_gpu_workflow_builds_candidate_only_on_hosted_job() -> None:
+    text = GPU_WORKFLOW.read_text(encoding="utf-8")
+    build = _job(text, "build-candidate", "qualify")
+    qualify = _job(text, "qualify", None)
+    assert "runs-on: ubuntu-latest" in build
+    assert "scripts/build_release_candidate.py" in build
+    assert "name: candidate-distributions" in build
+    assert "needs: build-candidate" in qualify
+    assert "actions/download-artifact@" in qualify
+    assert "python -m build" not in qualify
+    assert "--candidate-manifest candidate/candidate-manifest.json" in qualify
+    assert 'PYTHONPATH: ""' in qualify and 'PYTHONHOME: ""' in qualify
 
 
 def test_full_gpu_qualification_installs_only_the_exact_pinned_verl_source() -> None:

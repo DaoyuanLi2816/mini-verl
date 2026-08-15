@@ -47,9 +47,11 @@ python -m pip install "miniverl[train,cuda]" \
 python scripts/check_known_good_environment.py
 ```
 
-The ordinary dependency ranges remain the library contract. This manifest is
-one maintainer-measured known-good stack, not a universal lock: other GPUs are
-unmeasured, and other CUDA/PyTorch combinations remain user-selected.
+The ordinary dependency ranges remain the library contract. In the manifest,
+Python and package pins are required reproducibility inputs; GPU name, VRAM,
+driver and CUDA runtime are observed audit fields, not install requirements.
+This is one maintainer-measured known-good stack, not a universal lock: other
+GPUs are unmeasured, and other CUDA/PyTorch combinations remain user-selected.
 
 Then watch free memory in another terminal before the real run:
 

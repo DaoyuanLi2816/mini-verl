@@ -45,7 +45,11 @@ def check_known_good_environment(root: Path) -> list[str]:
         problems.append("manifest: schema_version must be 1")
     if payload.get("status") != "maintainer_measured":
         problems.append("manifest: status must be maintainer_measured")
-    packages = payload.get("packages")
+    required = payload.get("required")
+    observed = payload.get("observed")
+    if not isinstance(required, dict) or not isinstance(observed, dict):
+        return [*problems, "manifest: required and observed must be objects"]
+    packages = required.get("packages")
     if not isinstance(packages, dict):
         return [*problems, "manifest: packages must be an object"]
     missing = sorted(REQUIRED_PACKAGES - packages.keys())
@@ -66,10 +70,14 @@ def check_known_good_environment(root: Path) -> list[str]:
                 f"constraints: {package} is {actual!r}, expected manifest value {expected!r}"
             )
     pytorch = payload.get("pytorch") or {}
-    if pytorch.get("version") != packages.get("torch"):
-        problems.append("manifest: pytorch.version and packages.torch disagree")
     if not str(pytorch.get("index_url", "")).startswith("https://download.pytorch.org/whl/"):
         problems.append("manifest: PyTorch index must be an official CUDA wheel index")
+    for field in ("gpu_name", "python"):
+        if not required.get(field):
+            problems.append(f"manifest: required.{field} must be non-empty")
+    for field in ("os", "driver", "cuda_runtime", "vram_mib"):
+        if field not in observed:
+            problems.append(f"manifest: observed.{field} is missing")
     private = re.compile(r"(?i)(?:[a-z]:\\users\\|/home/|onedrive|token|credential)")
     if private.search(json.dumps(payload, sort_keys=True)):
         problems.append("privacy: known-good manifest contains private text")
@@ -77,8 +85,9 @@ def check_known_good_environment(root: Path) -> list[str]:
     for required in (
         constraints_value,
         str(pytorch.get("index_url")),
-        f"torch=={pytorch.get('version')}",
+        f"torch=={packages.get('torch')}",
         "other GPUs are unmeasured",
+        "driver and CUDA runtime are observed audit fields",
     ):
         if required not in guide:
             problems.append(f"docs: single-GPU guide is missing {required!r}")

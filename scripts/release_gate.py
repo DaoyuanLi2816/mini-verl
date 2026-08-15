@@ -27,10 +27,12 @@ class Gate:
 
 def gate_plan(
     *,
+    candidate_dir: Path,
+    candidate_wheel: Path,
+    candidate_sdist: Path,
     qualification: Path,
     site: Path,
     screenshots: Path,
-    dist: Path,
     source_commit: str | None = None,
     known_good_sha256: str | None = None,
 ) -> list[Gate]:
@@ -46,6 +48,18 @@ def gate_plan(
         Gate(
             "qualification_schema",
             (python, "scripts/publish_gpu_qualification_schema.py", "--check"),
+        ),
+        Gate(
+            "candidate_artifact",
+            (
+                python,
+                "scripts/build_release_candidate.py",
+                "--output",
+                str(candidate_dir),
+                "--commit",
+                source_commit,
+                "--check",
+            ),
         ),
         Gate("ruff_check", (python, "-m", "ruff", "check", ".")),
         Gate("ruff_format", (python, "-m", "ruff", "format", "--check", ".")),
@@ -97,13 +111,20 @@ def gate_plan(
             ),
             3600,
         ),
-        Gate("build", (python, "-m", "build", "--outdir", str(dist))),
-        Gate("twine", (python, "-m", "twine", "check", str(dist / "*"))),
         Gate(
-            "gpu_qualification",
+            "twine",
+            (python, "-m", "twine", "check", str(candidate_wheel), str(candidate_sdist)),
+        ),
+        Gate(
+            "release_evidence_chain",
             (
                 python,
-                "scripts/validate_gpu_qualification.py",
+                "scripts/validate_release_chain.py",
+                "--candidate-dir",
+                str(candidate_dir),
+                "--candidate-manifest",
+                str(candidate_dir / "candidate-manifest.json"),
+                "--qualification",
                 str(qualification),
                 "--commit",
                 source_commit,
@@ -133,9 +154,6 @@ def _sha256(path: Path) -> str:
 def _run_gate(gate: Gate, env: dict[str, str]) -> dict[str, Any]:
     started = time.perf_counter()
     command = list(gate.command)
-    if gate.name == "twine":
-        pattern = Path(command[-1])
-        command[-1:] = [str(path) for path in sorted(pattern.parent.glob(pattern.name))]
     try:
         completed = subprocess.run(
             command,
@@ -162,9 +180,9 @@ def _run_gate(gate: Gate, env: dict[str, str]) -> dict[str, Any]:
     }
 
 
-def _base_wheel_smoke(dist: Path) -> dict[str, Any]:
+def _base_wheel_smoke(candidate_dir: Path) -> dict[str, Any]:
     started = time.perf_counter()
-    wheels = list(dist.glob("*.whl"))
+    wheels = list(candidate_dir.glob("*.whl"))
     if len(wheels) != 1:
         return {
             "name": "clean_base_wheel_install",
@@ -228,21 +246,50 @@ def _tree_clean(summary: Path) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--candidate-dir", type=Path)
+    parser.add_argument("--candidate-manifest", type=Path)
     parser.add_argument("--qualification", type=Path)
     parser.add_argument("--summary", type=Path, default=ROOT / "runs/release-gate-summary.json")
     parser.add_argument("--list", action="store_true", help="Print gate names without running.")
     parser.add_argument("--fail-fast", action="store_true")
     args = parser.parse_args()
-    if not args.list and args.qualification is None:
-        parser.error("--qualification is required unless --list is used")
+    required = (args.candidate_dir, args.candidate_manifest, args.qualification)
+    if not args.list and any(value is None for value in required):
+        parser.error(
+            "--candidate-dir, --candidate-manifest and --qualification are required "
+            "unless --list is used"
+        )
     with tempfile.TemporaryDirectory(prefix="miniverl-release-gate-") as temporary:
         root = Path(temporary)
         qualification = args.qualification or root / "qualification-not-used.json"
+        candidate_dir = args.candidate_dir or root / "candidate-not-used"
+        candidate_manifest = args.candidate_manifest or candidate_dir / "candidate-manifest.json"
+        if args.list:
+            candidate_wheel = candidate_dir / "not-used.whl"
+            candidate_sdist = candidate_dir / "not-used.tar.gz"
+            wheel_sha256 = "not-used-by-list"
+            manifest_sha256 = "not-used-by-list"
+        else:
+            sys.path.insert(0, str(ROOT / "src"))
+            from miniverl.release_candidate import load_candidate_manifest
+
+            expected_manifest = candidate_dir / "candidate-manifest.json"
+            if candidate_manifest.resolve() != expected_manifest.resolve():
+                parser.error(
+                    "--candidate-manifest must name candidate-manifest.json inside --candidate-dir"
+                )
+            record = load_candidate_manifest(candidate_manifest)
+            candidate_wheel = candidate_dir / record.wheel.filename
+            candidate_sdist = candidate_dir / record.sdist.filename
+            wheel_sha256 = record.wheel.sha256
+            manifest_sha256 = _sha256(candidate_manifest)
         plan = gate_plan(
+            candidate_dir=candidate_dir.resolve(),
+            candidate_wheel=candidate_wheel.resolve(),
+            candidate_sdist=candidate_sdist.resolve(),
             qualification=qualification.resolve(),
             site=root / "site",
             screenshots=root / "screenshots",
-            dist=root / "dist",
             source_commit="not-used-by-list" if args.list else None,
             known_good_sha256="not-used-by-list" if args.list else None,
         )
@@ -259,7 +306,7 @@ def main() -> int:
             if result["status"] == "failed" and args.fail_fast:
                 break
         if all(item["status"] == "passed" for item in results) and len(results) == len(plan):
-            install = _base_wheel_smoke(root / "dist")
+            install = _base_wheel_smoke(candidate_dir)
             results.append(install)
             print(f"{install['status']}: {install['name']}")
         else:
@@ -278,6 +325,8 @@ def main() -> int:
             "kind": "miniverl_release_gate",
             "status": status,
             "source_commit": _git_head(),
+            "candidate_manifest_sha256": manifest_sha256,
+            "candidate_wheel_sha256": wheel_sha256,
             "created_at": datetime.now(timezone.utc)
             .replace(microsecond=0)
             .isoformat()

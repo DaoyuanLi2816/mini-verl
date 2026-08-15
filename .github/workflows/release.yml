@@ -9,23 +9,20 @@ permissions:
   contents: read
 
 jobs:
-  verify-gpu-qualification:
-    name: verify exact-commit RTX 4080 qualification
+  verify-qualified-candidate:
+    name: accept same-run exact-SHA qualified candidate
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-
       - name: Install torch-free validator dependencies
         run: python -m pip install .
-
-      - name: Fetch and validate the exact-SHA workflow artifact
+      - name: Fetch candidate and qualification from one successful GPU run
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -33,22 +30,22 @@ jobs:
             --repository "$GITHUB_REPOSITORY" \
             --workflow gpu.yml \
             --commit "$GITHUB_SHA" \
-            --artifact-name gpu-release-smoke \
+            --candidate-artifact-name candidate-distributions \
+            --qualification-artifact-name gpu-release-smoke \
             --required-gpu-name "NVIDIA GeForce RTX 4080" \
             --known-good environments/known-good-rtx4080-cu130.json \
-            --output verified-gpu-qualification
-
-      - name: Preserve the verified qualification for distribution binding
+            --output verified-qualified-candidate
+      - name: Preserve the verified byte chain
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: verified-gpu-qualification
-          path: verified-gpu-qualification/
+          name: verified-qualified-candidate
+          path: verified-qualified-candidate/
           if-no-files-found: error
           retention-days: 14
 
   validate-and-test:
-    name: validate metadata and run release gates
-    needs: verify-gpu-qualification
+    name: validate metadata, source and the accepted candidate
+    needs: verify-qualified-candidate
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -56,163 +53,120 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-
-      - name: Install test dependencies
+      - name: Download the accepted same-run pair
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: verified-qualified-candidate
+          path: ${{ runner.temp }}/verified-qualified-candidate
+      - name: Install release-gate dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -e ".[dev,train]"
-
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -e ".[dev,train]"
+          python -m playwright install --with-deps chromium
+          cd "$RUNNER_TEMP"
+          curl -fsSLO https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  actionlint_1.7.12_linux_amd64.tar.gz" | sha256sum --check
+          tar -xzf actionlint_1.7.12_linux_amd64.tar.gz actionlint
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - name: Release metadata and tag must agree
         run: |
           python - <<'PY'
-          import os
-          import pathlib
-          import re
-          import sys
-
+          import os, pathlib, re, sys
           from miniverl import __version__ as version
-
           ref = os.environ.get("GITHUB_REF", "")
           tag = ref.rsplit("/", 1)[-1] if ref.startswith("refs/tags/") else ""
           problems = []
           if tag and tag != f"v{version}":
               problems.append(f"tag {tag} does not match v{version}")
-
-          changelog = pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8")
-          if f"## [{version}]" not in changelog:
-              problems.append(f"CHANGELOG.md has no '## [{version}]' section")
-
+          if f"## [{version}]" not in pathlib.Path("CHANGELOG.md").read_text(encoding="utf-8"):
+              problems.append(f"CHANGELOG.md has no section for {version}")
           citation = pathlib.Path("CITATION.cff").read_text(encoding="utf-8")
           if not re.search(rf"^version:\s*{re.escape(version)}\s*$", citation, re.M):
               problems.append(f"CITATION.cff version is not {version}")
-
           if problems:
-              print("\n".join(problems))
-              sys.exit(1)
-          print(f"release metadata is consistent at {version}")
+              raise SystemExit("\n".join(problems))
           PY
-
       - name: Release checklist must be complete before a tag
         run: |
           python - <<'PY'
           import pathlib
-          import sys
-
           text = pathlib.Path("docs/release-checklist.md").read_text(encoding="utf-8")
           head = text.split("## After the tag", 1)[0]
           unchecked = [line for line in head.splitlines() if line.strip().startswith("- [ ]")]
           if unchecked:
-              print("unchecked release-checklist items:")
-              print("\n".join(unchecked))
-              sys.exit(1)
-          print("release checklist is complete")
+              raise SystemExit("unchecked release-checklist items:\n" + "\n".join(unchecked))
           PY
-
-      - name: Full quality gate
-        env:
-          HF_HUB_OFFLINE: "1"
+      - name: Run the non-publishing gate against the accepted bytes
         run: |
-          ruff check .
-          ruff format --check .
-          mypy src/miniverl
-          python scripts/build_pypi_readme.py --check
-          python scripts/release_state.py --check
-          python scripts/check_known_good_environment.py
-          python scripts/publish_gpu_qualification_schema.py --check
-          python scripts/check_markdown_links.py
+          python scripts/release_gate.py \
+            --candidate-dir "${{ runner.temp }}/verified-qualified-candidate/candidate" \
+            --candidate-manifest "${{ runner.temp }}/verified-qualified-candidate/candidate/candidate-manifest.json" \
+            --qualification "${{ runner.temp }}/verified-qualified-candidate/qualification/qualification.json" \
+            --summary "${{ runner.temp }}/release-gate-summary.json"
           echo "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc  benchmarks/results/gpu-calc-hard-equal-update-v2.json" | sha256sum --check
-          pytest -q -m "not gpu and not network" \
-            --cov=miniverl --cov-report=term-missing --cov-fail-under=80
 
-      - name: Working tree must be clean
-        run: |
-          git status --short
-          test -z "$(git status --porcelain)"
-
-  build-distributions:
-    name: build distributions exactly once
-    needs: validate-and-test
+  prepare-verified-distributions:
+    name: prepare already-qualified distributions without rebuilding
+    needs: [verify-qualified-candidate, validate-and-test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-
-      - name: Download the verified GPU qualification
+      - name: Download the accepted same-run pair
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: verified-gpu-qualification
-          path: verified-gpu-qualification
-
-      - name: Build and inspect wheel and sdist
+          name: verified-qualified-candidate
+          path: accepted
+      - name: Revalidate and copy the identical candidate bytes
         run: |
-          python -m pip install --upgrade pip build twine
-          python -m build
-          python -m twine check dist/*
+          python -m pip install .
+          python scripts/build_release_candidate.py --output accepted/candidate --commit "$GITHUB_SHA" --check
           python - <<'PY'
-          import hashlib
-          import pathlib
-          import sys
-
-          dist = pathlib.Path("dist")
-          files = sorted(path for path in dist.iterdir() if path.is_file())
-          wheels = [path for path in files if path.suffix == ".whl"]
-          sdists = [path for path in files if path.name.endswith(".tar.gz")]
-          if len(wheels) != 1 or len(sdists) != 1 or len(files) != 2:
-              print(f"expected one wheel and one sdist, found {[path.name for path in files]}")
-              sys.exit(1)
-          lines = [
-              f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.as_posix()}"
-              for path in files
-          ]
-          pathlib.Path("SHA256SUMS").write_text("\n".join(lines) + "\n", encoding="ascii")
-          print("\n".join(lines))
+          import hashlib, json, pathlib, shutil
+          root = pathlib.Path("accepted")
+          candidate = root / "candidate"
+          qualification = root / "qualification/qualification.json"
+          manifest_path = candidate / "candidate-manifest.json"
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+          record = json.loads(qualification.read_text(encoding="utf-8"))
+          if record["candidate"]["manifest_sha256"] != manifest_sha:
+              raise SystemExit("qualification candidate-manifest binding changed")
+          if record["wheel"]["sha256"] != manifest["wheel"]["sha256"]:
+              raise SystemExit("qualification wheel binding changed")
+          output = pathlib.Path("release-distributions")
+          (output / "dist").mkdir(parents=True)
+          for key in ("wheel", "sdist"):
+              shutil.copy2(candidate / manifest[key]["filename"], output / "dist")
+          shutil.copy2(candidate / "SHA256SUMS", output / "SHA256SUMS")
+          shutil.copy2(manifest_path, output / "candidate-manifest.json")
+          shutil.copy2(qualification, output / "qualification.json")
+          shutil.copy2(root / "verification.json", output / "verification.json")
+          for key in ("wheel", "sdist"):
+              copied = output / "dist" / manifest[key]["filename"]
+              if hashlib.sha256(copied.read_bytes()).hexdigest() != manifest[key]["sha256"]:
+                  raise SystemExit(f"copy changed {key} bytes")
           PY
-
-      - name: Bind the release wheel to the qualified wheel
-        run: |
-          python - <<'PY'
-          import hashlib
-          import json
-          import pathlib
-
-          qualification = json.loads(
-              pathlib.Path("verified-gpu-qualification/qualification.json").read_text()
-          )
-          wheels = list(pathlib.Path("dist").glob("*.whl"))
-          if len(wheels) != 1:
-              raise SystemExit(f"expected one wheel, found {len(wheels)}")
-          actual = hashlib.sha256(wheels[0].read_bytes()).hexdigest()
-          expected = qualification["wheel"]["sha256"]
-          if actual != expected:
-              raise SystemExit(
-                  f"release wheel {actual} differs from exact-SHA qualified wheel {expected}"
-              )
-          print(f"release wheel matches exact-SHA qualification: {actual}")
-          PY
-
-      - name: Upload immutable release distributions
+          (cd release-distributions/dist && sha256sum --check ../SHA256SUMS)
+      - name: Upload the identical qualified distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-distributions
-          path: |
-            dist/*
-            SHA256SUMS
+          path: release-distributions/
           if-no-files-found: error
           retention-days: 14
 
   publish-pypi:
-    name: publish exact distributions to PyPI with OIDC
-    needs: build-distributions
+    name: publish exact qualified distributions to PyPI with OIDC
+    needs: prepare-verified-distributions
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     environment:
@@ -222,18 +176,13 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - name: Download release distributions
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-distributions
           path: release-artifacts
-
-      - name: Verify downloaded artifact hashes
-        working-directory: release-artifacts
-        run: sha256sum --check SHA256SUMS
-
-      - name: Publish with trusted publishing and attestations
-        uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
+      - name: Verify bytes immediately before publication
+        run: (cd release-artifacts/dist && sha256sum --check ../SHA256SUMS)
+      - uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
         with:
           packages-dir: release-artifacts/dist/
 
@@ -246,32 +195,25 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.12"
-
-      - name: Download the published distributions
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-distributions
           path: release-artifacts
-
-      - name: Verify PyPI metadata, file hashes and trusted-publisher attestations
+      - name: Verify public hashes and trusted-publisher attestations
         env:
           VERSION: ${{ github.ref_name }}
         run: |
+          (cd release-artifacts/dist && sha256sum --check ../SHA256SUMS)
           python -m pip install --upgrade pip pypi-attestations
           python scripts/verify_pypi_release.py \
-            --project miniverl \
-            --version "${VERSION#v}" \
+            --project miniverl --version "${VERSION#v}" \
             --sums release-artifacts/SHA256SUMS \
-            --artifact-root release-artifacts \
+            --artifact-root release-artifacts/dist \
             --repository https://github.com/DaoyuanLi2816/mini-verl \
-            --attempts 12 \
-            --delay 10 \
-            --allow-rendered-page-challenge
-
+            --attempts 12 --delay 10 --allow-rendered-page-challenge
       - name: Install and exercise the exact public version
         env:
           VERSION: ${{ github.ref_name }}
@@ -280,51 +222,39 @@ jobs:
           python -m venv release-verify
           release-verify/bin/python -m pip install --upgrade pip
           for attempt in {1..12}; do
-            if release-verify/bin/python -m pip install \
-              --no-cache-dir --index-url https://pypi.org/simple \
-              "miniverl==$VERSION"; then
-              break
-            fi
-            if [ "$attempt" -eq 12 ]; then
-              echo "public simple index did not expose miniverl==$VERSION"
-              exit 1
-            fi
-            echo "public simple index is still propagating; retrying in 10 seconds"
+            if release-verify/bin/python -m pip install --no-cache-dir --index-url https://pypi.org/simple "miniverl==$VERSION"; then break; fi
+            if [ "$attempt" -eq 12 ]; then exit 1; fi
             sleep 10
           done
           test "$(release-verify/bin/miniverl --version)" = "miniverl $VERSION"
           release-verify/bin/miniverl doctor --json > doctor.json
           release-verify/bin/python - <<'PY'
-          import json
-          import pathlib
-
+          import json, pathlib
           payload = json.loads(pathlib.Path("doctor.json").read_text(encoding="utf-8"))
           assert payload["verdict"]["core_commands"] is True
           PY
 
   create-github-release:
-    name: create GitHub Release from the verified distributions
+    name: create GitHub Release from the verified identical bytes
     needs: verify-pypi
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download the verified distributions
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-distributions
           path: release-artifacts
-
       - name: Recheck hashes and create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          (cd release-artifacts && sha256sum --check SHA256SUMS)
+          (cd release-artifacts/dist && sha256sum --check ../SHA256SUMS)
           gh release create "$GITHUB_REF_NAME" \
             release-artifacts/dist/* \
             release-artifacts/SHA256SUMS \
-            --repo "$GITHUB_REPOSITORY" \
-            --verify-tag \
-            --title "miniVERL $GITHUB_REF_NAME" \
-            --generate-notes
+            release-artifacts/candidate-manifest.json \
+            release-artifacts/qualification.json \
+            --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "miniVERL $GITHUB_REF_NAME" --generate-notes

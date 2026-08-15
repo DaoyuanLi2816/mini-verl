@@ -35,6 +35,31 @@ class WheelEvidence(_Strict):
     sha256: str = Field(pattern=_SHA256)
 
 
+class CandidateBinding(_Strict):
+    manifest_sha256: str = Field(pattern=_SHA256)
+    artifact_name: Literal["candidate-distributions"]
+    workflow_repository: str | None = None
+    workflow_path: str | None = None
+    workflow_run_id: int | None = Field(default=None, gt=0)
+    workflow_run_attempt: int | None = Field(default=None, gt=0)
+    installed_from_candidate: Literal[True]
+    import_origin_verified: Literal[True]
+    cli_origin_verified: Literal[True]
+    import_origin: Literal["qualification_venv_site_packages"]
+
+    @model_validator(mode="after")
+    def _workflow_binding_is_complete_or_local(self) -> CandidateBinding:
+        values = (
+            self.workflow_repository,
+            self.workflow_path,
+            self.workflow_run_id,
+            self.workflow_run_attempt,
+        )
+        if any(value is None for value in values) and any(value is not None for value in values):
+            raise ValueError("candidate workflow identity must be complete or entirely local")
+        return self
+
+
 class ProfileEvidence(_Strict):
     name: str = Field(min_length=1)
     identity_digest: str = Field(pattern=_SHA256)
@@ -62,6 +87,7 @@ class EnvironmentEvidence(_Strict):
             "bitsandbytes",
             "numpy",
             "pyarrow",
+            "safetensors",
         }
         missing = sorted(required - self.packages.keys())
         if missing:
@@ -165,6 +191,7 @@ class GPUQualification(_Strict):
     source_commit: str = Field(pattern=_SHA1)
     miniverl_version: str = Field(min_length=1)
     wheel: WheelEvidence
+    candidate: CandidateBinding
     profile: ProfileEvidence
     environment: EnvironmentEvidence
     models: list[ModelEvidence] = Field(min_length=2, max_length=2)
@@ -189,6 +216,19 @@ class GPUQualification(_Strict):
             if missing:
                 raise ValueError(
                     "full qualification checks were not executed: " + ", ".join(missing)
+                )
+            required_artifacts = {
+                "release_smoke_record",
+                "full_direct_result",
+                "full_pg_k1_result",
+                "full_smollm2_result",
+            }
+            missing_artifacts = sorted(
+                required_artifacts - {artifact.name for artifact in self.artifacts}
+            )
+            if missing_artifacts:
+                raise ValueError(
+                    "full qualification evidence is missing: " + ", ".join(missing_artifacts)
                 )
         return self
 
@@ -221,6 +261,7 @@ def validate_qualification_payload(
     artifact_root: str | Path | None = None,
     expected_commit: str | None = None,
     expected_wheel_sha256: str | None = None,
+    expected_candidate_manifest_sha256: str | None = None,
     expected_known_good_sha256: str | None = None,
     required_gpu_name: str | None = None,
 ) -> list[str]:
@@ -244,6 +285,11 @@ def validate_qualification_payload(
     if expected_wheel_sha256 is not None and record.wheel.sha256 != expected_wheel_sha256:
         problems.append("binding: wheel checksum does not match the expected release wheel")
     if (
+        expected_candidate_manifest_sha256 is not None
+        and record.candidate.manifest_sha256 != expected_candidate_manifest_sha256
+    ):
+        problems.append("binding: candidate manifest checksum does not match")
+    if (
         expected_known_good_sha256 is not None
         and record.environment.known_good_manifest_sha256 != expected_known_good_sha256
     ):
@@ -258,6 +304,7 @@ def validate_qualification_payload(
     candidates = [(record.wheel.filename, record.wheel.sha256)] + [
         (item.path, item.sha256) for item in record.artifacts
     ]
+    referenced = {Path(relative).as_posix() for relative, _ in candidates}
     for relative, expected in candidates:
         path = root / relative
         try:
@@ -274,6 +321,14 @@ def validate_qualification_payload(
             problems.append(
                 f"artifact checksum mismatch for {relative}: expected {expected}, got {actual}"
             )
+    actual_files = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() or path.is_symlink()
+    }
+    unreferenced = sorted(actual_files - referenced - {"qualification.json"})
+    if unreferenced:
+        problems.append("artifact: unreferenced files are not allowed: " + ", ".join(unreferenced))
     return problems
 
 

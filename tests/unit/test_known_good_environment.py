@@ -18,7 +18,8 @@ def test_known_good_environment_is_scoped_to_one_measured_stack() -> None:
     )
     assert payload["schema_version"] == 1
     assert payload["status"] == "maintainer_measured"
-    assert payload["hardware"]["gpu"] == "NVIDIA GeForce RTX 4080"
+    assert payload["required"]["gpu_name"] == "NVIDIA GeForce RTX 4080"
     assert payload["scope"]["other_hardware"] == "unmeasured"
     assert payload["pytorch"]["index_url"].startswith("https://download.pytorch.org/whl/")
-    assert "+cu" in payload["packages"]["torch"]
+    assert "+cu" in payload["required"]["packages"]["torch"]
+    assert payload["observed"]["driver"] == "596.49"

@@ -14,6 +14,7 @@ def main() -> int:
     parser.add_argument("qualification", type=Path)
     parser.add_argument("--commit")
     parser.add_argument("--wheel-sha256")
+    parser.add_argument("--candidate-manifest-sha256")
     parser.add_argument("--known-good-sha256")
     parser.add_argument("--required-gpu-name")
     parser.add_argument("--json", action="store_true")
@@ -22,6 +23,7 @@ def main() -> int:
         args.qualification,
         expected_commit=args.commit,
         expected_wheel_sha256=args.wheel_sha256,
+        expected_candidate_manifest_sha256=args.candidate_manifest_sha256,
         expected_known_good_sha256=args.known_good_sha256,
         required_gpu_name=args.required_gpu_name,
     )

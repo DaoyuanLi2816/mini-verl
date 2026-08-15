@@ -28,9 +28,9 @@ def test_release_gate_lists_the_product_checks_without_publishing(tmp_path: Path
         "cpu_tests_coverage",
         "docs_build",
         "docs_visual",
-        "build",
+        "candidate_artifact",
         "twine",
-        "gpu_qualification",
+        "release_evidence_chain",
     ):
         assert required in names
     text = Path("scripts/release_gate.py").read_text(encoding="utf-8")
@@ -52,7 +52,7 @@ def test_release_gate_list_does_not_require_a_git_checkout(tmp_path: Path) -> No
     )
 
     assert completed.returncode == 0, completed.stderr
-    assert "gpu_qualification" in json.loads(completed.stdout)
+    assert "release_evidence_chain" in json.loads(completed.stdout)
 
 
 def test_release_gate_requires_qualification_when_running() -> None:
@@ -62,4 +62,5 @@ def test_release_gate_requires_qualification_when_running() -> None:
         text=True,
     )
     assert completed.returncode == 2
-    assert "--qualification is required unless --list is used" in completed.stderr
+    assert "--candidate-dir, --candidate-manifest and --qualification" in completed.stderr
+    assert "required unless --list is used" in completed.stderr

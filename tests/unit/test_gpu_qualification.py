@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -30,6 +31,18 @@ def _payload(tmp_path: Path) -> tuple[dict[str, object], Path]:
             "filename": wheel.name,
             "sha256": sha256_file(wheel),
         },
+        "candidate": {
+            "manifest_sha256": "9" * 64,
+            "artifact_name": "candidate-distributions",
+            "workflow_repository": None,
+            "workflow_path": None,
+            "workflow_run_id": None,
+            "workflow_run_attempt": None,
+            "installed_from_candidate": True,
+            "import_origin_verified": True,
+            "cli_origin_verified": True,
+            "import_origin": "qualification_venv_site_packages",
+        },
         "profile": {
             "name": "verl-opd-v0.8-single-gpu-v1",
             "identity_digest": "b" * 64,
@@ -52,6 +65,7 @@ def _payload(tmp_path: Path) -> tuple[dict[str, object], Path]:
                 "bitsandbytes": "0.50.0",
                 "numpy": "2.2.6",
                 "pyarrow": "25.0.0",
+                "safetensors": "0.8.0",
             },
         },
         "models": [
@@ -145,6 +159,13 @@ def test_qualification_rejects_private_paths_and_hash_mismatch(tmp_path: Path) -
         for problem in validate_qualification_payload(payload, artifact_root=root)
     )
 
+    payload, root = _payload(tmp_path / "extra")
+    (root / "unreferenced.bin").write_bytes(b"not declared")
+    assert any(
+        "unreferenced files" in problem
+        for problem in validate_qualification_payload(payload, artifact_root=root)
+    )
+
 
 def _full_result(name: str) -> dict[str, object]:
     kinds = {
@@ -213,6 +234,17 @@ def test_full_qualification_promotion_binds_all_canonical_results(tmp_path: Path
         "full_smollm2_result",
     }
 
+    incomplete = promoted.model_dump(mode="json")
+    incomplete["artifacts"] = [
+        item for item in incomplete["artifacts"] if item["name"] != "full_smollm2_result"
+    ]
+    from miniverl.qualification import validate_qualification_payload
+
+    assert any(
+        "full qualification evidence is missing" in problem
+        for problem in validate_qualification_payload(incomplete, artifact_root=root)
+    )
+
 
 def test_full_qualification_rejects_failed_resume_equivalence(tmp_path: Path) -> None:
     from scripts.promote_full_gpu_qualification import promote
@@ -250,6 +282,43 @@ def test_process_teardown_clears_bnb_and_cublas_caches() -> None:
     assert calls == ["cublas"]
 
 
+def test_qualification_rejects_candidate_manifest_mismatch(tmp_path: Path) -> None:
+    from miniverl.qualification import validate_qualification_payload
+
+    payload, root = _payload(tmp_path)
+    problems = validate_qualification_payload(
+        payload,
+        artifact_root=root,
+        expected_candidate_manifest_sha256="8" * 64,
+    )
+    assert any("candidate manifest" in problem for problem in problems)
+
+
+def test_install_origin_must_be_inside_qualification_venv(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.run_gpu_qualification import _verify_install_origin
+
+    venv = tmp_path / "venv"
+    site = venv / "Lib/site-packages"
+    scripts = venv / "Scripts"
+    site.mkdir(parents=True)
+    scripts.mkdir()
+    imported = site / "miniverl/__init__.py"
+    imported.parent.mkdir()
+    imported.write_text("", encoding="utf-8")
+    cli = scripts / "miniverl.exe"
+    cli.write_bytes(b"exe")
+    monkeypatch.setattr("sys.prefix", str(venv))
+    monkeypatch.setattr("sys.base_prefix", str(tmp_path / "base"))
+    monkeypatch.setattr("sysconfig.get_paths", lambda: {"purelib": str(site)})
+    _verify_install_origin(str(imported), str(cli))
+    outside = tmp_path / "outside.py"
+    outside.write_text("", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="did not originate"):
+        _verify_install_origin(str(outside), str(cli))
+
+
 def test_committed_schema_is_generated_from_the_strict_model() -> None:
     from miniverl.qualification import qualification_json_schema
 
@@ -276,3 +345,294 @@ def test_release_artifact_extraction_rejects_traversal_and_symlinks(tmp_path: Pa
         archive.writestr(info, "target")
     with pytest.raises(ValueError, match="symlink"):
         _safe_extract(symlink, tmp_path / "out-symlink")
+
+    duplicate = tmp_path / "duplicate.zip"
+    with (
+        pytest.warns(UserWarning, match="Duplicate name"),
+        zipfile.ZipFile(duplicate, "w") as archive,
+    ):
+        archive.writestr("qualification.json", "{}")
+        archive.writestr("qualification.json", "{}")
+    with pytest.raises(ValueError, match="duplicate"):
+        _safe_extract(duplicate, tmp_path / "out-duplicate")
+
+
+def _zip_tree(source: Path, destination: Path) -> None:
+    with zipfile.ZipFile(destination, "w") as archive:
+        for path in sorted(source.rglob("*")):
+            if path.is_file():
+                archive.write(path, path.relative_to(source).as_posix())
+
+
+def _remote_pair(tmp_path: Path, *, candidate_run_id: int = 42) -> tuple[Path, Path, Path]:
+    from miniverl.qualification import sha256_file
+    from miniverl.release_candidate import PINNED_BUILD_TOOLS
+
+    candidate = tmp_path / "candidate"
+    candidate.mkdir()
+    wheel = candidate / "miniverl-0.10.1.dev0-py3-none-any.whl"
+    sdist = candidate / "miniverl-0.10.1.dev0.tar.gz"
+    wheel.write_bytes(b"wheel")
+    sdist.write_bytes(b"sdist")
+    manifest = {
+        "schema_version": 1,
+        "kind": "miniverl_release_candidate",
+        "source_commit": "a" * 40,
+        "miniverl_version": "0.10.1.dev0",
+        "created_at": "2026-08-15T12:00:00Z",
+        "artifact_name": "candidate-distributions",
+        "workflow": {
+            "kind": "github_actions",
+            "repository": "DaoyuanLi2816/mini-verl",
+            "workflow_path": ".github/workflows/gpu.yml",
+            "run_id": candidate_run_id,
+            "run_attempt": 1,
+        },
+        "build": {"os": "Linux", "python": "3.12.0", "tools": PINNED_BUILD_TOOLS},
+        "wheel": {
+            "filename": wheel.name,
+            "bytes": wheel.stat().st_size,
+            "sha256": sha256_file(wheel),
+        },
+        "sdist": {
+            "filename": sdist.name,
+            "bytes": sdist.stat().st_size,
+            "sha256": sha256_file(sdist),
+        },
+    }
+    manifest_path = candidate / "candidate-manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    (candidate / "SHA256SUMS").write_text(
+        f"{sha256_file(wheel)}  {wheel.name}\n{sha256_file(sdist)}  {sdist.name}\n",
+        encoding="utf-8",
+    )
+    payload, qualification = _payload(tmp_path / "qualification-source")
+    payload["candidate"] = {
+        "manifest_sha256": sha256_file(manifest_path),
+        "artifact_name": "candidate-distributions",
+        "workflow_repository": "DaoyuanLi2816/mini-verl",
+        "workflow_path": ".github/workflows/gpu.yml",
+        "workflow_run_id": 42,
+        "workflow_run_attempt": 1,
+        "installed_from_candidate": True,
+        "import_origin_verified": True,
+        "cli_origin_verified": True,
+        "import_origin": "qualification_venv_site_packages",
+    }
+    payload["environment"]["known_good_manifest_sha256"] = sha256_file(  # type: ignore[index]
+        tmp_path / "known-good.json"
+    )
+    (qualification / "qualification.json").write_text(json.dumps(payload), encoding="utf-8")
+    candidate_zip = tmp_path / "candidate.zip"
+    qualification_zip = tmp_path / "qualification.zip"
+    _zip_tree(candidate, candidate_zip)
+    _zip_tree(qualification, qualification_zip)
+    return candidate_zip, qualification_zip, tmp_path / "known-good.json"
+
+
+def test_release_verifier_accepts_only_same_run_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    known_good = tmp_path / "known-good.json"
+    known_good.write_text("{}", encoding="utf-8")
+    candidate_zip, qualification_zip, _ = _remote_pair(tmp_path)
+    from scripts import verify_release_qualification as verifier
+
+    run = {
+        "id": 42,
+        "head_sha": "a" * 40,
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "workflow_id": 7,
+        "path": ".github/workflows/gpu.yml",
+        "repository": {"full_name": "DaoyuanLi2816/mini-verl"},
+        "head_repository": {"full_name": "DaoyuanLi2816/mini-verl"},
+        "run_attempt": 1,
+        "created_at": "2026-08-15T12:00:00Z",
+        "html_url": "https://example.invalid/run/42",
+    }
+
+    def request(url: str, token: str):
+        del token
+        if url.endswith("/actions/workflows/gpu.yml"):
+            return {"id": 7, "path": ".github/workflows/gpu.yml"}
+        if "/runs?" in url:
+            return {"workflow_runs": [run]}
+        return {
+            "artifacts": [
+                {
+                    "id": 1,
+                    "name": "candidate-distributions",
+                    "expired": False,
+                    "archive_download_url": "candidate",
+                },
+                {
+                    "id": 2,
+                    "name": "gpu-release-smoke",
+                    "expired": False,
+                    "archive_download_url": "qualification",
+                },
+            ]
+        }
+
+    def download(url: str, token: str, destination: Path) -> None:
+        del token
+        shutil.copy2(candidate_zip if url == "candidate" else qualification_zip, destination)
+
+    monkeypatch.setattr(verifier, "_request_json", request)
+    monkeypatch.setattr(verifier, "_download", download)
+    result = verifier.fetch_and_validate(
+        repository="DaoyuanLi2816/mini-verl",
+        workflow="gpu.yml",
+        commit="a" * 40,
+        qualification_artifact_name="gpu-release-smoke",
+        candidate_artifact_name="candidate-distributions",
+        token="token",
+        required_gpu_name="NVIDIA GeForce RTX 4080",
+        known_good=known_good,
+        output=tmp_path / "accepted",
+    )
+    assert result["workflow_run_id"] == 42
+
+
+def test_release_verifier_rejects_cross_run_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    known_good = tmp_path / "known-good.json"
+    known_good.write_text("{}", encoding="utf-8")
+    candidate_zip, qualification_zip, _ = _remote_pair(tmp_path, candidate_run_id=41)
+    from scripts import verify_release_qualification as verifier
+
+    run = {
+        "id": 42,
+        "head_sha": "a" * 40,
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "workflow_id": 7,
+        "path": ".github/workflows/gpu.yml",
+        "repository": {"full_name": "DaoyuanLi2816/mini-verl"},
+        "head_repository": {"full_name": "DaoyuanLi2816/mini-verl"},
+        "run_attempt": 1,
+        "created_at": "2026-08-15T12:00:00Z",
+        "html_url": "https://example.invalid/run/42",
+    }
+    monkeypatch.setattr(
+        verifier,
+        "_request_json",
+        lambda url, token: (
+            {"id": 7, "path": ".github/workflows/gpu.yml"}
+            if url.endswith("/actions/workflows/gpu.yml")
+            else {"workflow_runs": [run]}
+            if "/runs?" in url
+            else {
+                "artifacts": [
+                    {
+                        "id": 1,
+                        "name": "candidate-distributions",
+                        "expired": False,
+                        "archive_download_url": "candidate",
+                    },
+                    {
+                        "id": 2,
+                        "name": "gpu-release-smoke",
+                        "expired": False,
+                        "archive_download_url": "qualification",
+                    },
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        verifier,
+        "_download",
+        lambda url, token, destination: shutil.copy2(
+            candidate_zip if url == "candidate" else qualification_zip, destination
+        ),
+    )
+    with pytest.raises(RuntimeError, match="same-run"):
+        verifier.fetch_and_validate(
+            repository="DaoyuanLi2816/mini-verl",
+            workflow="gpu.yml",
+            commit="a" * 40,
+            qualification_artifact_name="gpu-release-smoke",
+            candidate_artifact_name="candidate-distributions",
+            token="token",
+            required_gpu_name="NVIDIA GeForce RTX 4080",
+            known_good=known_good,
+            output=tmp_path / "rejected",
+        )
+
+
+def test_release_chain_binds_exact_candidate_bytes(tmp_path: Path) -> None:
+    from miniverl.qualification import sha256_file
+    from miniverl.release_candidate import load_candidate_manifest
+    from miniverl.release_chain import validate_release_chain
+
+    known_good = tmp_path / "known-good.json"
+    known_good.write_text("{}", encoding="utf-8")
+    candidate_zip, qualification_zip, _ = _remote_pair(tmp_path)
+    candidate = tmp_path / "candidate-unpacked"
+    qualification = tmp_path / "qualification-unpacked"
+    with zipfile.ZipFile(candidate_zip) as archive:
+        archive.extractall(candidate)
+    with zipfile.ZipFile(qualification_zip) as archive:
+        archive.extractall(qualification)
+    manifest_path = candidate / "candidate-manifest.json"
+    qualification_path = qualification / "qualification.json"
+    expected = {
+        "expected_commit": "a" * 40,
+        "expected_known_good_sha256": sha256_file(known_good),
+        "required_gpu_name": "NVIDIA GeForce RTX 4080",
+    }
+    assert validate_release_chain(candidate, manifest_path, qualification_path, **expected) == []
+
+    record = load_candidate_manifest(manifest_path)
+    wheel = candidate / record.wheel.filename
+    wheel.write_bytes(b"different wheel from the same source commit")
+    payload = record.model_dump(mode="json")
+    payload["wheel"]["bytes"] = wheel.stat().st_size
+    payload["wheel"]["sha256"] = sha256_file(wheel)
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    (candidate / "SHA256SUMS").write_text(
+        f"{payload['wheel']['sha256']}  {record.wheel.filename}\n"
+        f"{record.sdist.sha256}  {record.sdist.filename}\n",
+        encoding="utf-8",
+    )
+    problems = validate_release_chain(candidate, manifest_path, qualification_path, **expected)
+    assert any("wheel checksum" in problem for problem in problems)
+    assert any("candidate manifest checksum" in problem for problem in problems)
+
+
+def test_release_verifier_rejects_expired_or_wrong_workflow_artifacts() -> None:
+    from scripts.verify_release_qualification import _artifact, _run_is_exact
+
+    with pytest.raises(ValueError, match="expired"):
+        _artifact(
+            [{"name": "candidate-distributions", "expired": True}],
+            "candidate-distributions",
+        )
+    base = {
+        "head_sha": "a" * 40,
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "workflow_id": 7,
+        "path": ".github/workflows/other.yml",
+        "repository": {"full_name": "DaoyuanLi2816/mini-verl"},
+        "head_repository": {"full_name": "DaoyuanLi2816/mini-verl"},
+    }
+    assert not _run_is_exact(
+        base,
+        repository="DaoyuanLi2816/mini-verl",
+        workflow_id=7,
+        workflow_path=".github/workflows/gpu.yml",
+        commit="a" * 40,
+    )
+    base["path"] = ".github/workflows/gpu.yml"
+    base["head_repository"] = {"full_name": "someone/fork"}
+    assert not _run_is_exact(
+        base,
+        repository="DaoyuanLi2816/mini-verl",
+        workflow_id=7,
+        workflow_path=".github/workflows/gpu.yml",
+        commit="a" * 40,
+    )
