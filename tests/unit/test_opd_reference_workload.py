@@ -47,6 +47,23 @@ def test_resume_equivalence_excludes_only_the_run_specific_resolved_digest() -> 
     assert report["excluded_run_identity_field"] == "resolved_config_digest"
 
 
+def test_reference_workload_context_limits_remain_in_sync(tmp_path: Path) -> None:
+    script = _script()
+    overrides = script._overrides(tmp_path / "reference.parquet")
+    total = script.PROMPT_LIMIT + script.RESPONSE_LIMIT
+    assert f"actor_rollout_ref.rollout.max_model_len={total}" in overrides
+    assert f"distillation.teacher_models.teacher_model.inference.max_model_len={total}" in overrides
+
+    from miniverl.bridge.opd_v08 import load_verl_opd_v08_source
+
+    compiled = load_verl_opd_v08_source(
+        script.BUILTIN,
+        overrides=overrides,
+        accept_local_reinterpretations=True,
+    )
+    assert compiled.executable is True
+
+
 def test_measured_reference_workload_is_scoped_complete_and_frozen() -> None:
     path = Path("benchmarks/results/rtx4080-verl-opd-developer-v1.json")
     assert hashlib.sha256(path.read_bytes()).hexdigest() == (
