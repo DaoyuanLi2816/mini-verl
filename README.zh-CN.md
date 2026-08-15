@@ -157,9 +157,10 @@ snapshot 的 scale-out 物化均通过。详见[完整 SmolLM2 系统记录](doc
 这只证明一个运行时与产物路径，不是吞吐 benchmark、对齐质量 endpoint，也不证明 OPD
 优于 SFT、DPO 或 KD。其他 NVIDIA GPU 使用相同的 device-name-agnostic CUDA 路径，但
 能否装下仍取决于显存、上下文、量化与 kernel，并且仍未测量。
-[发布资格契约](docs/release-qualification.md)要求在唯一实测 RTX 4080 上绑定 exact-SHA
-wheel smoke；[上游支持政策](docs/upstream-support-policy.md)保证已发布 profile identity
-不原地漂移。runner 尚未激活时不会被描述成持续 GPU CI。
+[发布资格契约](docs/release-qualification.md)先在 GitHub-hosted runner 上构建唯一 candidate
+wheel，再在实测 RTX 4080 上验证完全相同的字节；发布只能复用这份制品。
+[上游支持政策](docs/upstream-support-policy.md)保证已发布 profile identity 不原地漂移。
+runner 尚未激活时不会被描述成持续 GPU CI。
 
 ### 按硬件条件选择路径，而不是按显卡名称
 

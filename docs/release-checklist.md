@@ -8,8 +8,8 @@ after the exact release commit and its remote checks are green.
 
 - [x] Begin from the verified v0.10.0 release and advance only the canonical
       development state to `0.10.1.dev0`.
-- [x] Add strict release-smoke qualification schema, torch-free validation,
-      exact-SHA artifact lookup and release-wheel hash binding.
+- [x] Build a single hosted-runner candidate and bind the self-hosted RTX 4080
+      qualification, release gate and publisher to those exact bytes.
 - [x] Add the measured RTX 4080 CUDA manifest, exact constraints and drift
       checker without narrowing ordinary dependency ranges.
 - [x] Add v1 readiness, upstream profile lifecycle, runner safety, maintainer
@@ -17,7 +17,8 @@ after the exact release commit and its remote checks are green.
 - [x] Preserve every frozen benchmark and profile identity.
 - [ ] Register the private runner with `[self-hosted, cuda, rtx4080]` and obtain
       a successful release-smoke artifact for the final candidate SHA.
-- [ ] Run `python scripts/release_gate.py --qualification <artifact>/qualification.json`
+- [ ] Run `python scripts/release_gate.py --candidate-dir <candidate> --candidate-manifest
+      <candidate>/candidate-manifest.json --qualification <qualification>/qualification.json`
       on the final clean candidate and retain its passed JSON summary.
 
 ### Maintainer self-review for v0.10.1

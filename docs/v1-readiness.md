@@ -35,12 +35,12 @@ runtimes.
 | stable docs and PyPI quickstart agree with `release-state.yaml` | passed |
 | base wheel install remains torch-free | passed |
 | known-good CUDA environment is machine-readable and installable | passed |
-| release smoke is successful on one RTX 4080 for the exact candidate SHA | passed |
+| hosted-built candidate wheel is the exact wheel qualified on one RTX 4080 | passed |
 | full qualification covers both profiles, SmolLM2 and exact resume | passed for a v1 candidate |
 | public schemas and profile lifecycle policy are documented | passed |
 | pre-release gate, build, Twine, sdist, link, visual and privacy checks | passed |
 | deprecation and supported-version policy are current | passed |
-| working tree, tag target, distributions and attestations share provenance | passed |
+| candidate manifest, same-run qualification, tag, published bytes and attestations share provenance | passed |
 
 The following are explicitly outside v1: arbitrary verl YAML, PPO, GRPO,
 critics, general reward pipelines, Ray, FSDP, Megatron, vLLM/SGLang execution,
@@ -48,8 +48,7 @@ multi-GPU, multi-node, distributed launch, multimodal models, multiple teachers
 and broad cross-hardware qualification. Scale-out artifacts do not prove
 distributed execution.
 
-At present miniVERL is **not a v1 candidate**: the exact-SHA qualification
-workflow is defined, but its private runner registration and first successful
-artifact are an external pending step. No version change follows from this
-document alone.
-
+At present miniVERL is **not a v1 candidate**: the byte-identical candidate
+chain is defined, but private-runner activation and its first successful
+same-run candidate/qualification pair are external pending steps. No version
+change follows from this document alone.

@@ -185,7 +185,8 @@ benchmark, an alignment-quality endpoint, or evidence that OPD beats SFT, DPO
 or KD. Other NVIDIA GPUs use the same device-name-agnostic CUDA path, but model
 fit depends on VRAM, context length, quantization and installed kernels; they
 remain unmeasured. The [release qualification contract](docs/release-qualification.md)
-adds an exact-SHA wheel smoke on the one RTX 4080, while the
+builds one candidate wheel on a hosted runner and qualifies those exact bytes
+on the RTX 4080 before any release can reuse them, while the
 [upstream support policy](docs/upstream-support-policy.md) keeps both published
 profile identities fixed. Runner activation is not described as continuous CI.
 
