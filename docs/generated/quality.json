@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "release": "0.10.1",
-  "status": "candidate",
+  "status": "released",
   "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.10.1",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
@@ -27,26 +27,26 @@
     }
   },
   "release_validation": {
-    "scope": "the exact v0.10.1 release commit after release-PR merge",
-    "commit": "pending",
+    "scope": "the exact published v0.10.1 release commit",
+    "commit": "2364e9b8e8b550f44d1b66a77fc2d407b76b05b5",
     "workflows": {
-      "ci": "pending",
-      "build": "pending",
-      "docs": "pending",
-      "pinned_verl_bridge": "pending",
-      "gpu_full_qualification": "pending",
-      "release_dry_run": "pending",
-      "release": "pending"
+      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31931955082",
+      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31931955074",
+      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31934196386",
+      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31934196366",
+      "gpu_full_qualification": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31932226695",
+      "release_dry_run": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31933844796",
+      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31934196365"
     },
-    "conclusion": "pending",
-    "gpu_coverage": "pending exact-SHA first-attempt full qualification on the ephemeral RTX 4080 runner",
+    "conclusion": "passed",
+    "gpu_coverage": "exact-SHA first-attempt full qualification passed on the ephemeral RTX 4080 runner; runtime correctness only",
     "publication": {
-      "pypi": "pending",
-      "github_release": "pending",
-      "documentation": "pending",
-      "immutable_documentation_build": "pending",
-      "wheel_sha256": "pending",
-      "sdist_sha256": "pending"
+      "pypi": "https://pypi.org/project/miniverl/0.10.1/",
+      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.10.1",
+      "documentation": "https://daoyuanli2816.github.io/mini-verl/",
+      "immutable_documentation_build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31934196386",
+      "wheel_sha256": "fa5cdef1b6d0602ead7e90f6f51a024aa67c2f10d3f6c9d0507c3bbc3f1c82e8",
+      "sdist_sha256": "743cf17f365710bf3ddbe8c5599c6a8daf0afa82779344b449f7f1e93cd2d4f92"
     }
   }
 }
