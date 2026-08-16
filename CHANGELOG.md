@@ -6,6 +6,8 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-16
+
 ### Product maturity and release qualification
 
 - Added a strict, torch-free candidate and GPU qualification chain: a hosted
@@ -14,6 +16,15 @@ All notable changes to miniVERL are recorded here. The format follows
 - Hardened release artifact discovery against expired, fork, wrong-workflow,
   cross-run, duplicate, traversal and symlink inputs. Release publication now
   reuses the qualified candidate bytes and performs no distribution rebuild.
+- Stripped authorization, proxy-authorization and cookie headers on
+  cross-origin artifact redirects; validated declared evidence byte counts in
+  addition to paths, regular-file type and SHA-256.
+- Made GPU qualification dispatches single-attempt, required full
+  qualification rather than diagnostic smoke for formal releases, and retained
+  the complete versioned evidence set with a dedicated checksum inventory.
+- Added fail-closed PyPI idempotency: an existing version skips publication
+  only when its complete wheel/sdist filename and SHA-256 set exactly matches
+  the candidate.
 - Added a machine-readable maintainer-measured CUDA stack with exact top-level
   constraints while preserving flexible package dependency ranges.
 - Extended canonical release-state checks to security support and current
@@ -1030,7 +1041,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.1...HEAD
+[0.10.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.8.1...v0.9.0
