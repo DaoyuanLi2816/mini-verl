@@ -6,6 +6,18 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Release evidence polish
+
+- Corrected the v1-readiness record after the completed v0.10.1 attempt-1 RTX
+  4080 qualification, dry-run and publication while keeping the remaining v1
+  stability gates explicitly unsatisfied.
+- Added a torch-free canonical future release-asset builder with explicit
+  principal-result mapping, deterministic subordinate-evidence archive,
+  separate checksum scopes and fail-closed filename/path validation.
+- Replaced future wildcard evidence uploads and inline filename flattening with
+  one validated, explicit GitHub Release asset list. Existing v0.10.1 assets and
+  all published bytes remain immutable.
+
 ## [0.10.1] - 2026-08-16
 
 ### Product maturity and release qualification

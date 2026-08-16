@@ -8,6 +8,13 @@ after the exact release commit and its remote checks are green.
 
 - [ ] Define and review the next focused release scope before changing product
       behavior or scientific evidence.
+- [x] Correct v1-readiness prose to record the completed v0.10.1 same-run
+      attempt-1 qualification while retaining explicit unsatisfied v1 gates.
+- [x] Prepare future GitHub Release evidence with the torch-free canonical
+      builder: four principal JSON files, one deterministic subordinate archive,
+      one archive manifest and separate distribution/qualification checksums.
+- [x] Require the future publisher to enumerate every release asset explicitly;
+      no raw qualification directory or wildcard evidence upload is accepted.
 
 ## v0.10.1 release
 
@@ -29,7 +36,9 @@ after the exact release commit and its remote checks are green.
       `candidate-distributions` and `gpu-full-qualification`, preserve the
       complete evidence set and perform no distribution rebuild.
 - [x] Require release assets to contain versioned full qualification records
-      and `qualification-full-SHA256SUMS`; release smoke alone is not accepted.
+      and the historical `qualification-full-SHA256SUMS`; release smoke alone
+      is not accepted. These v0.10.1 names remain immutable, while future
+      releases use the canonical layout documented above.
 
 ### Maintainer self-review for v0.10.1
 

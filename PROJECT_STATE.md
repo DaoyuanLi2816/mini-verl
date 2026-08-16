@@ -37,9 +37,12 @@ exports bind an independent identity. The direct-GKD and sampled-k1 vanilla
 policy-loss profiles both have pinned conformance and measured RTX 4080 paths.
 Portable hardware records preserve measured, estimated and unknown states;
 schema-valid community submissions remain unreviewed until maintainer validation.
-The development release chain now builds one hosted-runner candidate and binds
-the private RTX 4080 qualification to that exact manifest and wheel. Release
-jobs may publish only the same verified bytes and never rebuild them.
+The release chain builds one hosted-runner candidate and binds the maintainer's
+RTX 4080 qualification to that exact manifest and wheel. Release jobs may
+publish only the same verified bytes and never rebuild them. Future GitHub
+Releases use a canonical, explicit evidence layout with four principal JSON
+records and one deterministic subordinate-evidence archive; historical v0.10.1
+asset names remain immutable.
 
 Arbitrary verl YAML, other policy-gradient modes, rewards, PPO/GRPO, Ray, FSDP,
 Megatron, multi-GPU and distributed execution remain unsupported. The legacy

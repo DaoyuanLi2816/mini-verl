@@ -39,6 +39,7 @@ Contents:
 - [Resume refused: config digest mismatch](#resume-refused-config-digest-mismatch)
 - [Known-good environment mismatch](#known-good-environment-mismatch)
 - [Release qualification not found](#release-qualification-not-found)
+- [Release asset layout check failed](#release-asset-layout-check-failed)
 
 ## Known-good environment mismatch
 
@@ -70,17 +71,39 @@ no successful gpu.yml workflow_dispatch run exists for <sha>
 whose `head_sha` is the exact release commit. A successful run for a parent,
 another branch or a rebuilt local JSON is intentionally insufficient.
 
-**Fix.** Register the private runner with labels `[self-hosted, cuda,
+**Fix.** For a future release commit, register the private runner with labels `[self-hosted, cuda,
 rtx4080]`, review the candidate SHA, dispatch `gpu.yml` at that SHA, and wait
 for both `candidate-distributions` and `gpu-full-qualification` from that one
 run. Validate the full record with `miniverl qualification validate`.
 `gpu-release-smoke` is diagnostic only. Until the full record exists, the
 correct status is `blocked_external_setup`, not passed GPU CI.
 
+The v0.10.1 release already completed this process in attempt-1 run
+`31932226695`; that evidence is immutable and cannot qualify a later commit.
+
 If the run fails, do not use **Re-run jobs**. Qualification requires
 `GITHUB_RUN_ATTEMPT=1` to prevent cross-attempt artifact reuse. Fix the cause,
 make a fresh ephemeral runner available, then create a new
 `workflow_dispatch` run for the same reviewed SHA.
+
+## Release asset layout check failed
+
+**Symptom**
+
+```text
+unexpected release asset file set
+```
+
+**Cause.** A future release output contains an extra file, a missing principal
+record, a checksum mismatch, an unsafe archive member or a noncanonical name.
+The builder deliberately rejects guessed extensions, case-insensitive filename
+collisions, symlinks and undeclared evidence.
+
+**Fix.** Do not rename or flatten evidence manually. Re-run
+`scripts/prepare_release_assets.py` from the accepted candidate, qualification
+root and verification record, then run the same command with `--check`. Keep
+PyPI publication restricted to `dist/` and enumerate the GitHub Release assets
+explicitly. Historical v0.10.1 filenames are preserved as-is.
 
 ## Missing extras
 
