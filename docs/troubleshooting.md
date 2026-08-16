@@ -72,9 +72,15 @@ another branch or a rebuilt local JSON is intentionally insufficient.
 
 **Fix.** Register the private runner with labels `[self-hosted, cuda,
 rtx4080]`, review the candidate SHA, dispatch `gpu.yml` at that SHA, and wait
-for the `gpu-release-smoke` artifact. Validate it with `miniverl qualification
-validate`. Until then the correct status is `blocked_external_setup`, not
-passed GPU CI.
+for both `candidate-distributions` and `gpu-full-qualification` from that one
+run. Validate the full record with `miniverl qualification validate`.
+`gpu-release-smoke` is diagnostic only. Until the full record exists, the
+correct status is `blocked_external_setup`, not passed GPU CI.
+
+If the run fails, do not use **Re-run jobs**. Qualification requires
+`GITHUB_RUN_ATTEMPT=1` to prevent cross-attempt artifact reuse. Fix the cause,
+make a fresh ephemeral runner available, then create a new
+`workflow_dispatch` run for the same reviewed SHA.
 
 ## Missing extras
 

@@ -62,13 +62,16 @@ jobs:
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          (cd release-artifacts && sha256sum --check SHA256SUMS)
+          (cd release-artifacts/dist && sha256sum --check ../SHA256SUMS)
+          if test -f release-artifacts/qualification-full-SHA256SUMS; then
+            (cd release-artifacts/qualification-evidence && sha256sum --check ../qualification-full-SHA256SUMS)
+          fi
           python -m pip install --upgrade pip pypi-attestations
           python scripts/verify_pypi_release.py \
             --project miniverl \
             --version "$VERSION" \
             --sums release-artifacts/SHA256SUMS \
-            --artifact-root release-artifacts \
+            --artifact-root release-artifacts/dist \
             --repository https://github.com/DaoyuanLi2816/mini-verl \
             --attempts 12 \
             --delay 10 \
@@ -116,14 +119,26 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           TAG="v$VERSION"
-          (cd release-artifacts && sha256sum --check SHA256SUMS)
+          (cd release-artifacts/dist && sha256sum --check ../SHA256SUMS)
+          if test -f release-artifacts/qualification-full-SHA256SUMS; then
+            (cd release-artifacts/qualification-evidence && sha256sum --check ../qualification-full-SHA256SUMS)
+          fi
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "GitHub Release $TAG already exists"
             exit 0
           fi
-          gh release create "$TAG" \
-            release-artifacts/dist/* \
-            release-artifacts/SHA256SUMS \
+          assets=(release-artifacts/dist/* release-artifacts/SHA256SUMS)
+          for path in \
+            release-artifacts/candidate-manifest.json \
+            release-artifacts/qualification.json \
+            release-artifacts/verification.json \
+            release-artifacts/qualification-full-SHA256SUMS; do
+            if test -f "$path"; then assets+=("$path"); fi
+          done
+          if test -d release-artifacts/qualification-evidence; then
+            assets+=(release-artifacts/qualification-evidence/*)
+          fi
+          gh release create "$TAG" "${assets[@]}" \
             --repo "$GITHUB_REPOSITORY" \
             --verify-tag \
             --title "miniVERL $TAG" \

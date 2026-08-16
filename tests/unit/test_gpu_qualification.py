@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import json
 import shutil
+import urllib.error
+import urllib.request
 import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from types import SimpleNamespace
 
 import pytest
@@ -167,6 +171,24 @@ def test_qualification_rejects_private_paths_and_hash_mismatch(tmp_path: Path) -
     )
 
 
+@pytest.mark.parametrize("replacement", [b"run", b'{"status":"completed"}\nextra'])
+def test_qualification_rejects_artifact_size_drift_even_with_updated_hash(
+    tmp_path: Path, replacement: bytes
+) -> None:
+    from miniverl.qualification import sha256_file, validate_qualification_payload
+
+    payload, root = _payload(tmp_path)
+    artifact = root / "run-manifest.json"
+    declared_bytes = payload["artifacts"][0]["bytes"]  # type: ignore[index]
+    artifact.write_bytes(replacement)
+    assert artifact.stat().st_size != declared_bytes
+    payload["artifacts"][0]["sha256"] = sha256_file(artifact)  # type: ignore[index]
+    assert any(
+        "size mismatch" in problem
+        for problem in validate_qualification_payload(payload, artifact_root=root)
+    )
+
+
 def _full_result(name: str) -> dict[str, object]:
     kinds = {
         "direct": ("single_gpu_opd_developer_workload", "measured"),
@@ -206,7 +228,7 @@ def _full_result(name: str) -> dict[str, object]:
 
 
 def test_full_qualification_promotion_binds_all_canonical_results(tmp_path: Path) -> None:
-    from miniverl.qualification import validate_qualification_file
+    from miniverl.qualification import sha256_file, validate_qualification_file
     from scripts.promote_full_gpu_qualification import promote
 
     payload, root = _payload(tmp_path)
@@ -243,6 +265,16 @@ def test_full_qualification_promotion_binds_all_canonical_results(tmp_path: Path
     assert any(
         "full qualification evidence is missing" in problem
         for problem in validate_qualification_payload(incomplete, artifact_root=root)
+    )
+
+    complete = promoted.model_dump(mode="json")
+    full_result = root / "full/direct.json"
+    evidence = next(item for item in complete["artifacts"] if item["path"] == "full/direct.json")
+    full_result.write_bytes(full_result.read_bytes() + b"\n")
+    evidence["sha256"] = sha256_file(full_result)
+    assert any(
+        "size mismatch" in problem
+        for problem in validate_qualification_payload(complete, artifact_root=root)
     )
 
 
@@ -364,7 +396,13 @@ def _zip_tree(source: Path, destination: Path) -> None:
                 archive.write(path, path.relative_to(source).as_posix())
 
 
-def _remote_pair(tmp_path: Path, *, candidate_run_id: int = 42) -> tuple[Path, Path, Path]:
+def _remote_pair(
+    tmp_path: Path,
+    *,
+    candidate_run_id: int = 42,
+    candidate_run_attempt: int = 1,
+    qualification_run_attempt: int = 1,
+) -> tuple[Path, Path, Path]:
     from miniverl.qualification import sha256_file
     from miniverl.release_candidate import PINNED_BUILD_TOOLS
 
@@ -386,7 +424,7 @@ def _remote_pair(tmp_path: Path, *, candidate_run_id: int = 42) -> tuple[Path, P
             "repository": "DaoyuanLi2816/mini-verl",
             "workflow_path": ".github/workflows/gpu.yml",
             "run_id": candidate_run_id,
-            "run_attempt": 1,
+            "run_attempt": candidate_run_attempt,
         },
         "build": {"os": "Linux", "python": "3.12.0", "tools": PINNED_BUILD_TOOLS},
         "wheel": {
@@ -413,7 +451,7 @@ def _remote_pair(tmp_path: Path, *, candidate_run_id: int = 42) -> tuple[Path, P
         "workflow_repository": "DaoyuanLi2816/mini-verl",
         "workflow_path": ".github/workflows/gpu.yml",
         "workflow_run_id": 42,
-        "workflow_run_attempt": 1,
+        "workflow_run_attempt": qualification_run_attempt,
         "installed_from_candidate": True,
         "import_origin_verified": True,
         "cli_origin_verified": True,
@@ -561,6 +599,183 @@ def test_release_verifier_rejects_cross_run_candidate(
             known_good=known_good,
             output=tmp_path / "rejected",
         )
+
+
+def test_release_verifier_rejects_cross_attempt_pair(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    known_good = tmp_path / "known-good.json"
+    known_good.write_text("{}", encoding="utf-8")
+    candidate_zip, qualification_zip, _ = _remote_pair(
+        tmp_path,
+        candidate_run_attempt=1,
+        qualification_run_attempt=2,
+    )
+    from scripts import verify_release_qualification as verifier
+
+    run = {
+        "id": 42,
+        "head_sha": "a" * 40,
+        "conclusion": "success",
+        "event": "workflow_dispatch",
+        "workflow_id": 7,
+        "path": ".github/workflows/gpu.yml",
+        "repository": {"full_name": "DaoyuanLi2816/mini-verl"},
+        "head_repository": {"full_name": "DaoyuanLi2816/mini-verl"},
+        "run_attempt": 2,
+        "created_at": "2026-08-15T12:00:00Z",
+        "html_url": "https://example.invalid/run/42",
+    }
+    monkeypatch.setattr(
+        verifier,
+        "_request_json",
+        lambda url, token: (
+            {"id": 7, "path": ".github/workflows/gpu.yml"}
+            if url.endswith("/actions/workflows/gpu.yml")
+            else {"workflow_runs": [run]}
+            if "/runs?" in url
+            else {
+                "artifacts": [
+                    {
+                        "id": 1,
+                        "name": "candidate-distributions",
+                        "expired": False,
+                        "archive_download_url": "candidate",
+                    },
+                    {
+                        "id": 2,
+                        "name": "gpu-full-qualification",
+                        "expired": False,
+                        "archive_download_url": "qualification",
+                    },
+                ]
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        verifier,
+        "_download",
+        lambda url, token, destination: shutil.copy2(
+            candidate_zip if url == "candidate" else qualification_zip, destination
+        ),
+    )
+    with pytest.raises(RuntimeError, match="same-run"):
+        verifier.fetch_and_validate(
+            repository="DaoyuanLi2816/mini-verl",
+            workflow="gpu.yml",
+            commit="a" * 40,
+            qualification_artifact_name="gpu-full-qualification",
+            candidate_artifact_name="candidate-distributions",
+            token="token",
+            required_gpu_name="NVIDIA GeForce RTX 4080",
+            known_good=known_good,
+            output=tmp_path / "rejected-attempt",
+        )
+
+
+@pytest.mark.parametrize("status", [301, 302, 303, 307, 308])
+def test_cross_origin_redirect_strips_sensitive_headers(status: int) -> None:
+    from scripts.verify_release_qualification import _SafeRedirectHandler
+
+    request = urllib.request.Request(
+        "https://api.github.com/repos/org/repo/actions/artifacts/1/zip",
+        headers={
+            "Authorization": "Bearer top-secret",
+            "Proxy-Authorization": "Basic also-secret",
+            "Cookie": "session=secret",
+            "Accept": "application/octet-stream",
+            "User-Agent": "miniVERL-test",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+    )
+    redirected = _SafeRedirectHandler().redirect_request(
+        request,
+        None,
+        status,
+        "redirect",
+        {},
+        "https://objects.githubusercontent.com/artifact.zip",
+    )
+    assert redirected is not None
+    lowered = {name.lower(): value for name, value in redirected.header_items()}
+    assert "authorization" not in lowered
+    assert "proxy-authorization" not in lowered
+    assert "cookie" not in lowered
+    assert lowered["accept"] == "application/octet-stream"
+    assert lowered["user-agent"] == "miniVERL-test"
+    assert lowered["x-github-api-version"] == "2022-11-28"
+
+
+def test_same_origin_redirect_preserves_authorization() -> None:
+    from scripts.verify_release_qualification import _SafeRedirectHandler
+
+    request = urllib.request.Request(
+        "https://api.github.com/old",
+        headers={"Authorization": "Bearer top-secret"},
+    )
+    redirected = _SafeRedirectHandler().redirect_request(
+        request, None, 302, "redirect", {}, "https://api.github.com/new"
+    )
+    assert redirected is not None
+    assert redirected.get_header("Authorization") == "Bearer top-secret"
+
+
+def test_download_redirect_does_not_send_token_to_another_origin() -> None:
+    from scripts.verify_release_qualification import _request_json
+
+    class TargetHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            payload = json.dumps(dict(self.headers.items())).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, format, *args) -> None:
+            del format, args
+
+    target = ThreadingHTTPServer(("127.0.0.1", 0), TargetHandler)
+
+    class RedirectHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            self.send_response(302)
+            self.send_header("Location", f"http://127.0.0.1:{target.server_port}/artifact")
+            self.end_headers()
+
+        def log_message(self, format, *args) -> None:
+            del format, args
+
+    redirect = ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
+    threads = [Thread(target=server.serve_forever, daemon=True) for server in (target, redirect)]
+    for thread in threads:
+        thread.start()
+    try:
+        received = _request_json(f"http://127.0.0.1:{redirect.server_port}/start", "top-secret")
+    finally:
+        redirect.shutdown()
+        target.shutdown()
+        redirect.server_close()
+        target.server_close()
+    lowered = {name.lower(): value for name, value in received.items()}
+    assert "authorization" not in lowered
+    assert lowered["accept"] == "application/vnd.github+json"
+    assert lowered["user-agent"] == "miniVERL-release-qualification"
+    assert lowered["x-github-api-version"] == "2022-11-28"
+
+
+def test_network_errors_never_expose_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts import verify_release_qualification as verifier
+
+    class BrokenOpener:
+        def open(self, request, timeout):
+            del request, timeout
+            raise urllib.error.URLError("Bearer top-secret")
+
+    monkeypatch.setattr(verifier, "_URL_OPENER", BrokenOpener())
+    with pytest.raises(RuntimeError) as error:
+        verifier._request_json("https://api.github.com/example", "top-secret")
+    assert "top-secret" not in str(error.value)
 
 
 def test_release_chain_binds_exact_candidate_bytes(tmp_path: Path) -> None:

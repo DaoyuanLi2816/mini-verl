@@ -9,13 +9,16 @@ workflow is manual, not continuous GPU CI and not a pull-request required check.
 
 | level | cadence | executed scope |
 | --- | --- | --- |
-| release smoke | every release candidate | install the hosted-runner candidate wheel, verify import/CLI origin, run CLI doctor/plan/dry-run, pinned Qwen actor and teacher, one rollout/score/update, PEFT export/reload and CUDA teardown |
-| full qualification | important minor or v1 candidate | release smoke plus the unchanged direct-GKD, sampled-k1 and SmolLM2 canonical workloads, including interruption/resume and their existing export/materialization checks |
+| release smoke | diagnostic use | install the hosted-runner candidate wheel, verify import/CLI origin, run CLI doctor/plan/dry-run, pinned Qwen actor and teacher, one rollout/score/update, PEFT export/reload and CUDA teardown |
+| full qualification | every formal release | release smoke plus the unchanged direct-GKD, sampled-k1 and SmolLM2 canonical workloads, including interruption/resume and their existing export/materialization checks |
 
 The smoke budget is intentionally small and is never substituted for a frozen
 full workload or a scientific benchmark. Both levels record runtime
 correctness only. Other hardware is unmeasured; distributed verl execution is
 `not_tested`.
+`gpu-release-smoke` is diagnostic and cannot authorize a formal release. The
+release gate requires `candidate-distributions` and `gpu-full-qualification`
+from the same successful run and first attempt.
 
 ## Repository contract
 
@@ -36,12 +39,22 @@ exact resume, resource, PEFT and scale-out fields, then promotes that same
 record to `full_qualification`; three loose result files cannot claim the
 higher level.
 
+Every dispatch is single-use. Both jobs reject `GITHUB_RUN_ATTEMPT` values
+other than `1`; if infrastructure fails, start a new `workflow_dispatch`
+instead of using GitHub's rerun button. This prevents a hosted candidate from
+attempt 1 being combined with GPU evidence created by attempt 2.
+
 The release workflow queries GitHub Actions for one successful manual
 `gpu.yml` run whose repository, workflow identity and `head_sha` equal the
 release target. It accepts only the unexpired candidate and qualification from
 that same run, safely extracts both, and verifies the candidate manifest, API
 artifact digest when provided, wheel byte hash and qualification bindings. It
-publishes the accepted wheel and sdist without rebuilding them. A committed
+also checks each declared evidence file's regular-file type, byte count and
+SHA-256. Cross-origin artifact redirects retain ordinary API headers but strip
+authorization, proxy authorization and cookies. It publishes the accepted
+wheel and sdist without rebuilding them. The workflow and GitHub Release retain
+the full qualification record, declared evidence files and a separate checksum
+inventory under versioned names. A committed
 JSON file, manual upload, fork run, different workflow or cross-run artifact
 pair cannot satisfy this gate.
 
@@ -69,6 +82,9 @@ Do not add `pull_request` or `pull_request_target`: model downloads and training
 execute repository code on the workstation. Keep the runner application and
 GPU driver patched, keep credentials out of the service environment, and
 review the exact SHA before dispatch.
+Prefer an ephemeral runner for one new dispatch. A rerun is not a recovery
+mechanism: let the runner leave, fix the cause, register a fresh runner and
+create a fresh dispatch.
 
 The job deletes and recreates its qualification virtual environment, clears
 `PYTHONPATH` and `PYTHONHOME`, never uses an editable package, uploads only

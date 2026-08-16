@@ -9,6 +9,7 @@ import shutil
 import stat
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -20,6 +21,45 @@ from miniverl.release_chain import validate_release_chain
 
 _MAX_FILES = 128
 _MAX_UNCOMPRESSED_BYTES = 1024 * 1024 * 1024
+_SENSITIVE_REDIRECT_HEADERS = frozenset({"authorization", "proxy-authorization", "cookie"})
+
+
+def _origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urllib.parse.urlsplit(url)
+    port = parsed.port
+    if port is None:
+        port = {"http": 80, "https": 443}.get(parsed.scheme.lower())
+    return parsed.scheme.lower(), (parsed.hostname or "").lower(), port
+
+
+class _SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Follow redirects without forwarding credentials to another origin."""
+
+    http_error_308 = urllib.request.HTTPRedirectHandler.http_error_302
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        redirected = super().redirect_request(
+            req, fp, 307 if code == 308 else code, msg, headers, newurl
+        )
+        if redirected is None or _origin(req.full_url) == _origin(newurl):
+            return redirected
+        for mapping in (redirected.headers, redirected.unredirected_hdrs):
+            for name in list(mapping):
+                if name.lower() in _SENSITIVE_REDIRECT_HEADERS:
+                    del mapping[name]
+        return redirected
+
+
+_URL_OPENER = urllib.request.build_opener(_SafeRedirectHandler())
+
+
+def _open_url(request: urllib.request.Request, *, timeout: int):
+    try:
+        return _URL_OPENER.open(request, timeout=timeout)
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"GitHub artifact request failed with HTTP {exc.code}") from None
+    except urllib.error.URLError:
+        raise RuntimeError("GitHub artifact request failed") from None
 
 
 def _request_json(url: str, token: str) -> dict[str, Any]:
@@ -32,7 +72,7 @@ def _request_json(url: str, token: str) -> dict[str, Any]:
             "User-Agent": "miniVERL-release-qualification",
         },
     )
-    with urllib.request.urlopen(request, timeout=60) as response:
+    with _open_url(request, timeout=60) as response:
         return json.load(response)
 
 
@@ -46,7 +86,7 @@ def _download(url: str, token: str, destination: Path) -> None:
             "User-Agent": "miniVERL-release-qualification",
         },
     )
-    with urllib.request.urlopen(request, timeout=180) as response, destination.open("wb") as out:
+    with _open_url(request, timeout=180) as response, destination.open("wb") as out:
         shutil.copyfileobj(response, out)
 
 
@@ -135,6 +175,7 @@ def fetch_and_validate(
     candidate_artifact_name: str,
     token: str,
     required_gpu_name: str,
+    required_level: str | None = None,
     known_good: Path,
     output: Path,
 ) -> dict[str, Any]:
@@ -216,6 +257,10 @@ def fetch_and_validate(
                 qualification = GPUQualification.model_validate(
                     json.loads(qualification_path.read_text(encoding="utf-8"))
                 )
+                if required_level is not None and qualification.level != required_level:
+                    raise ValueError(
+                        f"qualification level {qualification.level!r} is not {required_level!r}"
+                    )
                 if qualification.miniverl_version != manifest.miniverl_version:
                     raise ValueError("candidate and qualification versions differ")
                 binding = qualification.candidate
@@ -268,6 +313,10 @@ def main() -> int:
     parser.add_argument("--qualification-artifact-name", default="gpu-release-smoke")
     parser.add_argument("--candidate-artifact-name", default="candidate-distributions")
     parser.add_argument("--required-gpu-name", default="NVIDIA GeForce RTX 4080")
+    parser.add_argument(
+        "--required-level",
+        choices=("release_smoke", "full_qualification"),
+    )
     parser.add_argument("--known-good", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--token-env", default="GITHUB_TOKEN")
@@ -284,6 +333,7 @@ def main() -> int:
             candidate_artifact_name=args.candidate_artifact_name,
             token=token,
             required_gpu_name=args.required_gpu_name,
+            required_level=args.required_level,
             known_good=args.known_good,
             output=args.output,
         )

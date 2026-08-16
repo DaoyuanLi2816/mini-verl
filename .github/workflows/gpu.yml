@@ -29,6 +29,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Require a fresh workflow dispatch
+        run: |
+          if [ "$GITHUB_RUN_ATTEMPT" != "1" ]; then
+            echo "::error::GPU qualification cannot use a rerun attempt; start a new workflow_dispatch run."
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -68,6 +74,11 @@ jobs:
       run:
         shell: pwsh
     steps:
+      - name: Require a fresh workflow dispatch
+        run: |
+          if ($env:GITHUB_RUN_ATTEMPT -ne "1") {
+            throw "GPU qualification cannot use a rerun attempt; start a new workflow_dispatch run."
+          }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -130,6 +141,13 @@ jobs:
             --required-gpu-name 'NVIDIA GeForce RTX 4080'
       - name: Run GPU regression tests
         run: '& $env:QUALIFICATION_PYTHON -m pytest -q -m gpu -ra'
+      - name: Upload exact-commit release smoke
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gpu-release-smoke
+          path: qualification/
+          if-no-files-found: error
+          retention-days: 90
       - name: Run full canonical qualification workloads
         if: ${{ inputs.qualification_level == 'full' }}
         run: |
@@ -146,17 +164,9 @@ jobs:
             --direct qualification-full/direct.json `
             --pg-k1 qualification-full/pg-k1.json `
             --smollm2 qualification-full/smollm2.json
-      - name: Upload exact-commit release smoke
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: always()
-        with:
-          name: gpu-release-smoke
-          path: qualification/
-          if-no-files-found: error
-          retention-days: 90
       - name: Upload full qualification records
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: ${{ always() && inputs.qualification_level == 'full' }}
+        if: ${{ success() && inputs.qualification_level == 'full' }}
         with:
           name: gpu-full-qualification
           path: qualification/

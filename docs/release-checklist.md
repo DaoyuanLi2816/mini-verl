@@ -16,10 +16,17 @@ after the exact release commit and its remote checks are green.
       architecture and repository-settings audit documents.
 - [x] Preserve every frozen benchmark and profile identity.
 - [ ] Register the private runner with `[self-hosted, cuda, rtx4080]` and obtain
-      a successful release-smoke artifact for the final candidate SHA.
+      one successful first-attempt full-qualification run for the final
+      candidate SHA. Do not recover with workflow rerun; create a fresh
+      dispatch.
 - [ ] Run `python scripts/release_gate.py --candidate-dir <candidate> --candidate-manifest
       <candidate>/candidate-manifest.json --qualification <qualification>/qualification.json`
       on the final clean candidate and retain its passed JSON summary.
+- [ ] Verify the formal dry run consumes same-run `candidate-distributions`
+      and `gpu-full-qualification`, preserves the complete evidence set and
+      does not rebuild candidate distributions.
+- [ ] Verify release assets contain the versioned full qualification records
+      and `qualification-full-SHA256SUMS`; release smoke alone is not accepted.
 
 ### Maintainer self-review for v0.10.1
 

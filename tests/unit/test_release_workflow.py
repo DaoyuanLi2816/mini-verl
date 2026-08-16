@@ -9,6 +9,9 @@ import pytest
 
 WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "release.yml"
 GPU_WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "gpu.yml"
+EXISTING_RELEASE_WORKFLOW = (
+    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "verify-existing-release.yml"
+)
 
 
 def _workflow_text() -> str:
@@ -55,10 +58,14 @@ def test_release_consumes_qualified_candidate_without_rebuild() -> None:
     assert "copy the identical candidate bytes" in prepare
     assert "candidate-manifest.json" in prepare
     assert "qualification.json" in prepare
+    assert "qualification-full-SHA256SUMS" in prepare
     assert "actions/upload-artifact@" in prepare
     assert "actions/download-artifact@" in publish
     assert "python -m build" not in publish
-    assert "actions/checkout@" not in publish
+    assert "actions/checkout@" in publish
+    assert "scripts/check_pypi_publish_state.py" in publish
+    assert "skip-existing" not in publish
+    assert "steps.pypi-state.outputs.publish_needed == 'true'" in publish
     assert "actions/download-artifact@" in verify
     assert "actions/download-artifact@" in release
     assert text.count("name: release-distributions") == 4
@@ -66,7 +73,11 @@ def test_release_consumes_qualified_candidate_without_rebuild() -> None:
 
 
 def test_every_action_is_pinned_to_a_full_commit_sha() -> None:
-    text = _workflow_text() + GPU_WORKFLOW.read_text(encoding="utf-8")
+    text = (
+        _workflow_text()
+        + GPU_WORKFLOW.read_text(encoding="utf-8")
+        + EXISTING_RELEASE_WORKFLOW.read_text(encoding="utf-8")
+    )
     uses = re.findall(r"^\s*-\s+uses:\s+([^\s#]+)", text, flags=re.MULTILINE)
     assert uses
     for action in uses:
@@ -83,7 +94,8 @@ def test_release_requires_same_run_exact_sha_candidate_and_qualification() -> No
     assert "scripts/verify_release_qualification.py" in qualification
     assert '--commit "$GITHUB_SHA"' in qualification
     assert "--candidate-artifact-name candidate-distributions" in qualification
-    assert "--qualification-artifact-name gpu-release-smoke" in qualification
+    assert "--qualification-artifact-name gpu-full-qualification" in qualification
+    assert "--required-level full_qualification" in qualification
     assert '--required-gpu-name "NVIDIA GeForce RTX 4080"' in qualification
     assert "needs: verify-qualified-candidate" in validation
     assert "needs: [verify-qualified-candidate, validate-and-test]" in prepare
@@ -103,6 +115,17 @@ def test_gpu_workflow_builds_candidate_only_on_hosted_job() -> None:
     assert 'PYTHONPATH: ""' in qualify and 'PYTHONHOME: ""' in qualify
 
 
+def test_gpu_workflow_refuses_rerun_attempts_and_separates_smoke_from_full() -> None:
+    text = GPU_WORKFLOW.read_text(encoding="utf-8")
+    assert text.count("GITHUB_RUN_ATTEMPT") >= 2
+    assert text.count("start a new workflow_dispatch run") == 2
+    smoke_upload = text.index("name: gpu-release-smoke")
+    promotion = text.index("scripts/promote_full_gpu_qualification.py")
+    full_upload = text.index("name: gpu-full-qualification")
+    assert smoke_upload < promotion < full_upload
+    assert "always() && inputs.qualification_level == 'full'" not in text
+
+
 def test_full_gpu_qualification_installs_only_the_exact_pinned_verl_source() -> None:
     text = GPU_WORKFLOW.read_text(encoding="utf-8")
     requirement = (
@@ -112,3 +135,10 @@ def test_full_gpu_qualification_installs_only_the_exact_pinned_verl_source() -> 
     assert "pip install --no-deps" in text
     assert requirement in text
     assert "scripts/promote_full_gpu_qualification.py" in text
+
+
+def test_release_recovery_preserves_full_qualification_evidence() -> None:
+    text = EXISTING_RELEASE_WORKFLOW.read_text(encoding="utf-8")
+    assert "release-artifacts/dist" in text
+    assert text.count("qualification-full-SHA256SUMS") >= 3
+    assert "release-artifacts/qualification-evidence/*" in text

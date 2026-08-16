@@ -301,11 +301,11 @@ def validate_qualification_payload(
     if artifact_root is None:
         return problems
     root = Path(artifact_root).resolve(strict=True)
-    candidates = [(record.wheel.filename, record.wheel.sha256)] + [
-        (item.path, item.sha256) for item in record.artifacts
+    candidates = [(record.wheel.filename, record.wheel.sha256, None)] + [
+        (item.path, item.sha256, item.bytes) for item in record.artifacts
     ]
-    referenced = {Path(relative).as_posix() for relative, _ in candidates}
-    for relative, expected in candidates:
+    referenced = {Path(relative).as_posix() for relative, _, _ in candidates}
+    for relative, expected, expected_bytes in candidates:
         path = root / relative
         try:
             resolved = path.resolve(strict=True)
@@ -316,6 +316,12 @@ def validate_qualification_payload(
         if resolved.is_symlink() or not resolved.is_file():
             problems.append(f"artifact: {relative!r} must be a regular file")
             continue
+        actual_bytes = resolved.stat().st_size
+        if expected_bytes is not None and actual_bytes != expected_bytes:
+            problems.append(
+                f"artifact size mismatch for {relative}: "
+                f"expected {expected_bytes}, got {actual_bytes}"
+            )
         actual = sha256_file(resolved)
         if actual != expected:
             problems.append(

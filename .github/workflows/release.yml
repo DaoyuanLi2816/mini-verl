@@ -31,7 +31,8 @@ jobs:
             --workflow gpu.yml \
             --commit "$GITHUB_SHA" \
             --candidate-artifact-name candidate-distributions \
-            --qualification-artifact-name gpu-release-smoke \
+            --qualification-artifact-name gpu-full-qualification \
+            --required-level full_qualification \
             --required-gpu-name "NVIDIA GeForce RTX 4080" \
             --known-good environments/known-good-rtx4080-cu130.json \
             --output verified-qualified-candidate
@@ -133,7 +134,8 @@ jobs:
           import hashlib, json, pathlib, shutil
           root = pathlib.Path("accepted")
           candidate = root / "candidate"
-          qualification = root / "qualification/qualification.json"
+          qualification_root = root / "qualification"
+          qualification = qualification_root / "qualification.json"
           manifest_path = candidate / "candidate-manifest.json"
           manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
           manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
@@ -150,12 +152,31 @@ jobs:
           shutil.copy2(manifest_path, output / "candidate-manifest.json")
           shutil.copy2(qualification, output / "qualification.json")
           shutil.copy2(root / "verification.json", output / "verification.json")
+          evidence_output = output / "qualification-evidence"
+          evidence_output.mkdir()
+          version = manifest["miniverl_version"]
+          evidence_files = [("full-qualification", qualification)]
+          evidence_files.extend(
+              (item["name"].replace("_", "-"), qualification_root / item["path"])
+              for item in record["artifacts"]
+          )
+          sums = []
+          for label, source in evidence_files:
+              suffix = source.suffix or ".bin"
+              target = evidence_output / f"miniverl-{version}-{label}{suffix}"
+              shutil.copy2(source, target)
+              digest = hashlib.sha256(target.read_bytes()).hexdigest()
+              sums.append(f"{digest}  {target.name}")
+          (output / "qualification-full-SHA256SUMS").write_text(
+              "\n".join(sums) + "\n", encoding="utf-8", newline="\n"
+          )
           for key in ("wheel", "sdist"):
               copied = output / "dist" / manifest[key]["filename"]
               if hashlib.sha256(copied.read_bytes()).hexdigest() != manifest[key]["sha256"]:
                   raise SystemExit(f"copy changed {key} bytes")
           PY
           (cd release-distributions/dist && sha256sum --check ../SHA256SUMS)
+          (cd release-distributions/qualification-evidence && sha256sum --check ../qualification-full-SHA256SUMS)
       - name: Upload the identical qualified distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -176,13 +197,27 @@ jobs:
       id-token: write
       contents: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-distributions
           path: release-artifacts
       - name: Verify bytes immediately before publication
-        run: (cd release-artifacts/dist && sha256sum --check ../SHA256SUMS)
+        run: |
+          (cd release-artifacts/dist && sha256sum --check ../SHA256SUMS)
+          (cd release-artifacts/qualification-evidence && sha256sum --check ../qualification-full-SHA256SUMS)
+      - name: Determine whether exact candidate bytes already exist on PyPI
+        id: pypi-state
+        run: |
+          python scripts/check_pypi_publish_state.py \
+            --manifest release-artifacts/candidate-manifest.json \
+            --project miniverl \
+            --github-output "$GITHUB_OUTPUT"
       - uses: pypa/gh-action-pypi-publish@ba38be9e461d3875417946c167d0b5f3d385a247 # release/v1
+        if: ${{ steps.pypi-state.outputs.publish_needed == 'true' }}
         with:
           packages-dir: release-artifacts/dist/
 
@@ -254,6 +289,8 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             release-artifacts/dist/* \
             release-artifacts/SHA256SUMS \
+            release-artifacts/qualification-full-SHA256SUMS \
+            release-artifacts/qualification-evidence/* \
             release-artifacts/candidate-manifest.json \
             release-artifacts/qualification.json \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
