@@ -6,12 +6,12 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-08-16.
 
-Canonical release state: releasing `v0.10.1`.
+Canonical release state: stable `v0.10.1` (`2364e9b8e8b550f44d1b66a77fc2d407b76b05b5`), development `0.10.2.dev0`.
 
 ## Release state
 
-- Release candidate: `v0.10.1`; the merge commit is assigned by the release PR.
-- Previous stable: `v0.10.0` at `51264f86e8226b1abc6ca1901d379c5e6fabb81e`.
+- Stable release: `v0.10.1` at `2364e9b8e8b550f44d1b66a77fc2d407b76b05b5`.
+- Development release: `0.10.2.dev0`.
 - Stable docs: <https://daoyuanli2816.github.io/mini-verl/>.
 - Development docs: <https://daoyuanli2816.github.io/mini-verl/dev/>.
 - Historical build log: [v0.1-v0.9 archive](docs/history/project-state-v0.1-v0.9.md).
@@ -31,7 +31,7 @@ Executable compatibility claims are mutation-tested and recorded in
 unknown-size quantized roles require proof instead of receiving an executable
 plan.
 
-Release `0.10.1` has a closed typed profile registry and torch-free
+Development `0.10.2.dev0` has a closed typed profile registry and torch-free
 compatibility introspection. Profile-scoped plans, caches, checkpoints and
 exports bind an independent identity. The direct-GKD and sampled-k1 vanilla
 policy-loss profiles both have pinned conformance and measured RTX 4080 paths.

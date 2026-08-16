@@ -4,6 +4,11 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.10.2 development
+
+- [ ] Define and review the next focused release scope before changing product
+      behavior or scientific evidence.
+
 ## v0.10.1 release
 
 - [x] Begin from the verified v0.10.0 release and advance only the canonical
@@ -37,6 +42,21 @@ after the exact release commit and its remote checks are green.
       fail-closed remote gate; release smoke cannot satisfy the full level.
 - [x] README, Chinese README, PyPI text, stable/dev docs and limitations agree.
 - [x] Owner-only authorship and commit trailers audited.
+
+### After the v0.10.1 tag
+
+- [x] Exact-SHA full qualification run
+      [31932226695](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31932226695)
+      passed on attempt 1 on one RTX 4080.
+- [x] Non-publishing release dry-run
+      [31933844796](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31933844796)
+      reused the qualified candidate bytes without rebuilding.
+- [x] Tag release run
+      [31934196365](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31934196365)
+      passed OIDC publication, public hashes and attestations, clean install and
+      GitHub Release creation.
+- [x] Advance subsequent development to `0.10.2.dev0` while stable docs remain
+      bound to immutable `v0.10.1`.
 
 ## v0.10.0 development
 
