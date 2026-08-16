@@ -1,22 +1,22 @@
 {
   "schema_version": 2,
-  "release": "0.10.0",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.10.0",
+  "release": "0.10.1",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.10.1",
   "local_validation": {
     "scope": "the maintainer's workstation, where the GPU and Windows-specific paths actually run",
-    "commit": "b2157301e5d0fd5652d8a1bd02fbf5e87735f9d3",
-    "commit_relationship": "final product head before release-only metadata; merge 0749e58 carries the same tree and passed the full required CI matrix",
-    "measured_at": "2026-08-14T01:32:04-07:00",
+    "commit": "9809209479b44d4c413b71d4ad80fb192d86fa2e",
+    "commit_relationship": "final product PR head before release-only metadata; squash merge 3301b8c carries the same tree and passed the full required CI matrix",
+    "measured_at": "2026-08-16T06:18:00Z",
     "platform": "Windows 11",
     "python": "CPython 3.10 for coverage, local CUDA/network tests and the clean public CUDA install",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2300,
-      "skipped": 7,
+      "passed": 2362,
+      "skipped": 8,
       "deselected": 22,
-      "branch_coverage_percent": 83.70,
-      "skip_reason": "seven Windows platform or privilege skips; pinned-verl and package gates ran separately"
+      "branch_coverage_percent": 83.58,
+      "skip_reason": "eight Windows platform or privilege skips; pinned-verl and package gates ran separately"
     },
     "gpu": {
       "passed": 8,
@@ -27,24 +27,26 @@
     }
   },
   "release_validation": {
-    "scope": "the exact immutable v0.10.0 release commit",
-    "commit": "51264f86e8226b1abc6ca1901d379c5e6fabb81e",
+    "scope": "the exact v0.10.1 release commit after release-PR merge",
+    "commit": "pending",
     "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31784912998",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31785370631",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31785370654",
-      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31785370709",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31785370545"
+      "ci": "pending",
+      "build": "pending",
+      "docs": "pending",
+      "pinned_verl_bridge": "pending",
+      "gpu_full_qualification": "pending",
+      "release_dry_run": "pending",
+      "release": "pending"
     },
-    "conclusion": "success",
-    "gpu_coverage": "none; no GPU runner is configured for this repository, so the GPU counts above exist only from the local measurement",
+    "conclusion": "pending",
+    "gpu_coverage": "pending exact-SHA first-attempt full qualification on the ephemeral RTX 4080 runner",
     "publication": {
-      "pypi": "https://pypi.org/project/miniverl/0.10.0/",
-      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.10.0",
-      "documentation": "https://daoyuanli2816.github.io/mini-verl/",
-      "immutable_documentation_build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31785370654",
-      "wheel_sha256": "ff6bff4169dc5076fb6f3b10c2e38003dd681fb6513b1a0e3719948af16cc560",
-      "sdist_sha256": "13eab0de5f339e125a5a9c2cab707efeee28cc32cbe0f35030943ba0eef01ae2"
+      "pypi": "pending",
+      "github_release": "pending",
+      "documentation": "pending",
+      "immutable_documentation_build": "pending",
+      "wheel_sha256": "pending",
+      "sdist_sha256": "pending"
     }
   }
 }

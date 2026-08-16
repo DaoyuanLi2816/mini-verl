@@ -76,7 +76,8 @@ def test_security_and_current_product_prose_follow_the_canonical_state() -> None
     security = (REPO_ROOT / "SECURITY.md").read_text(encoding="utf-8")
     project = (REPO_ROOT / "PROJECT_STATE.md").read_text(encoding="utf-8")
     assert f"supported stable line is `{state.stable_version}`" in security
-    assert f"Development `{state.development_version}` has a closed typed profile" in project
+    product_prefix = "Release" if state.is_release else "Development"
+    assert f"{product_prefix} `{state.development_version}` has a closed typed profile" in project
 
 
 # --------------------------------------------------------------- validation

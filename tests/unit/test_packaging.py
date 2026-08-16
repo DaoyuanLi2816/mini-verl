@@ -558,8 +558,10 @@ def test_release_quality_has_one_version_bound_machine_readable_record() -> None
         assert re.fullmatch(r"[0-9a-f]{40}", release["commit"])
         assert local["commit"] != release["commit"]
     assert "commit_relationship" in local
-    # No GPU runner exists, so the release commit cannot carry GPU evidence.
-    assert "none" in release["gpu_coverage"]
+    if release["commit"] == "pending":
+        assert "pending" in release["gpu_coverage"]
+    else:
+        assert any(marker in release["gpu_coverage"] for marker in ("none", "full qualification"))
 
     if ".dev" in miniverl.__version__:
         assert record["status"] in {"candidate", "released"}

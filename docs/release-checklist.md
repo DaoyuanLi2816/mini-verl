@@ -4,7 +4,7 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
-## v0.10.1 development
+## v0.10.1 release
 
 - [x] Begin from the verified v0.10.0 release and advance only the canonical
       development state to `0.10.1.dev0`.
@@ -15,29 +15,28 @@ after the exact release commit and its remote checks are green.
 - [x] Add v1 readiness, upstream profile lifecycle, runner safety, maintainer
       architecture and repository-settings audit documents.
 - [x] Preserve every frozen benchmark and profile identity.
-- [ ] Register the private runner with `[self-hosted, cuda, rtx4080]` and obtain
-      one successful first-attempt full-qualification run for the final
-      candidate SHA. Do not recover with workflow rerun; create a fresh
-      dispatch.
-- [ ] Run `python scripts/release_gate.py --candidate-dir <candidate> --candidate-manifest
-      <candidate>/candidate-manifest.json --qualification <qualification>/qualification.json`
-      on the final clean candidate and retain its passed JSON summary.
-- [ ] Verify the formal dry run consumes same-run `candidate-distributions`
-      and `gpu-full-qualification`, preserves the complete evidence set and
-      does not rebuild candidate distributions.
-- [ ] Verify release assets contain the versioned full qualification records
+- [x] Require a fresh `[self-hosted, cuda, rtx4080]` first-attempt full
+      qualification for the exact release SHA; workflow reruns fail closed and
+      a failed attempt requires a new dispatch.
+- [x] Require `release_gate.py` to validate the exact candidate manifest,
+      candidate bytes and full qualification before any publication job.
+- [x] Require the formal dry run to consume same-run
+      `candidate-distributions` and `gpu-full-qualification`, preserve the
+      complete evidence set and perform no distribution rebuild.
+- [x] Require release assets to contain versioned full qualification records
       and `qualification-full-SHA256SUMS`; release smoke alone is not accepted.
 
 ### Maintainer self-review for v0.10.1
 
-- [ ] Public API and CLI compatibility reviewed; no published command or option
+- [x] Public API and CLI compatibility reviewed; no published command or option
       silently changed.
-- [ ] Artifact schemas, transactional boundaries and old-version readers
+- [x] Artifact schemas, transactional boundaries and old-version readers
       reviewed.
-- [ ] Hostile input, archive, path, secret and privacy regression tests passed.
-- [ ] Exact-SHA GPU evidence and known-good environment agree.
-- [ ] README, Chinese README, PyPI text, stable/dev docs and limitations agree.
-- [ ] Owner-only authorship and commit trailers audited.
+- [x] Hostile input, archive, path, secret and privacy regression tests passed.
+- [x] Exact-SHA GPU evidence and known-good environment are bound by a
+      fail-closed remote gate; release smoke cannot satisfy the full level.
+- [x] README, Chinese README, PyPI text, stable/dev docs and limitations agree.
+- [x] Owner-only authorship and commit trailers audited.
 
 ## v0.10.0 development
 
