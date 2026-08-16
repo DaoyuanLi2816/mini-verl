@@ -37,6 +37,50 @@ Contents:
 - [Config validation errors](#config-validation-errors)
 - [Report or eval on a non-run directory](#report-or-eval-on-a-non-run-directory)
 - [Resume refused: config digest mismatch](#resume-refused-config-digest-mismatch)
+- [Known-good environment mismatch](#known-good-environment-mismatch)
+- [Release qualification not found](#release-qualification-not-found)
+
+## Known-good environment mismatch
+
+**Symptom**
+
+```
+installed packages do not match the known-good stack
+```
+
+**Cause.** The qualification smoke is deliberately stricter than the flexible
+library dependency ranges. It requires the exact versions in
+`environments/known-good-rtx4080-cu130.json`; installing the `cuda` extra does
+not select a CUDA PyTorch wheel or pin the rest of the stack.
+
+**Fix.** Install PyTorch from the manifest's explicit index, apply the adjacent
+constraints, then run `python scripts/check_known_good_environment.py`. If you
+choose another stack, it may still be within the supported dependency ranges,
+but it is not the maintainer-measured qualification environment.
+
+## Release qualification not found
+
+**Symptom**
+
+```
+no successful gpu.yml workflow_dispatch run exists for <sha>
+```
+
+**Cause.** The release workflow accepts only a successful manual GPU artifact
+whose `head_sha` is the exact release commit. A successful run for a parent,
+another branch or a rebuilt local JSON is intentionally insufficient.
+
+**Fix.** Register the private runner with labels `[self-hosted, cuda,
+rtx4080]`, review the candidate SHA, dispatch `gpu.yml` at that SHA, and wait
+for both `candidate-distributions` and `gpu-full-qualification` from that one
+run. Validate the full record with `miniverl qualification validate`.
+`gpu-release-smoke` is diagnostic only. Until the full record exists, the
+correct status is `blocked_external_setup`, not passed GPU CI.
+
+If the run fails, do not use **Re-run jobs**. Qualification requires
+`GITHUB_RUN_ATTEMPT=1` to prevent cross-attempt artifact reuse. Fix the cause,
+make a fresh ephemeral runner available, then create a new
+`workflow_dispatch` run for the same reviewed SHA.
 
 ## Missing extras
 

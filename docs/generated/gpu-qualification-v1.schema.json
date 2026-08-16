@@ -1,0 +1,536 @@
+{
+  "$defs": {
+    "ArtifactEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "minimum": 0,
+          "title": "Bytes",
+          "type": "integer"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "path",
+        "sha256",
+        "bytes"
+      ],
+      "title": "ArtifactEvidence",
+      "type": "object"
+    },
+    "CandidateBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_name": {
+          "const": "candidate-distributions",
+          "title": "Artifact Name",
+          "type": "string"
+        },
+        "cli_origin_verified": {
+          "const": true,
+          "title": "Cli Origin Verified",
+          "type": "boolean"
+        },
+        "import_origin": {
+          "const": "qualification_venv_site_packages",
+          "title": "Import Origin",
+          "type": "string"
+        },
+        "import_origin_verified": {
+          "const": true,
+          "title": "Import Origin Verified",
+          "type": "boolean"
+        },
+        "installed_from_candidate": {
+          "const": true,
+          "title": "Installed From Candidate",
+          "type": "boolean"
+        },
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "workflow_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow Path"
+        },
+        "workflow_repository": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow Repository"
+        },
+        "workflow_run_attempt": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow Run Attempt"
+        },
+        "workflow_run_id": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workflow Run Id"
+        }
+      },
+      "required": [
+        "manifest_sha256",
+        "artifact_name",
+        "installed_from_candidate",
+        "import_origin_verified",
+        "cli_origin_verified",
+        "import_origin"
+      ],
+      "title": "CandidateBinding",
+      "type": "object"
+    },
+    "CheckEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "executed": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Executed",
+          "type": "array"
+        },
+        "not_applicable": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Not Applicable",
+          "type": "array"
+        },
+        "skipped": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Skipped",
+          "type": "array"
+        }
+      },
+      "required": [
+        "executed",
+        "skipped",
+        "not_applicable"
+      ],
+      "title": "CheckEvidence",
+      "type": "object"
+    },
+    "EnvironmentEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "cuda_runtime": {
+          "minLength": 1,
+          "title": "Cuda Runtime",
+          "type": "string"
+        },
+        "driver": {
+          "minLength": 1,
+          "title": "Driver",
+          "type": "string"
+        },
+        "gpu_count": {
+          "const": 1,
+          "title": "Gpu Count",
+          "type": "integer"
+        },
+        "gpu_name": {
+          "minLength": 1,
+          "title": "Gpu Name",
+          "type": "string"
+        },
+        "known_good_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Known Good Manifest Sha256",
+          "type": "string"
+        },
+        "packages": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Packages",
+          "type": "object"
+        },
+        "python": {
+          "minLength": 1,
+          "title": "Python",
+          "type": "string"
+        },
+        "vram_gib": {
+          "exclusiveMinimum": 0,
+          "title": "Vram Gib",
+          "type": "number"
+        }
+      },
+      "required": [
+        "known_good_manifest_sha256",
+        "gpu_name",
+        "gpu_count",
+        "vram_gib",
+        "driver",
+        "cuda_runtime",
+        "python",
+        "packages"
+      ],
+      "title": "EnvironmentEvidence",
+      "type": "object"
+    },
+    "ExecutionEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "cuda_allocated_after_teardown_bytes": {
+          "minimum": 0,
+          "title": "Cuda Allocated After Teardown Bytes",
+          "type": "integer"
+        },
+        "cuda_allocated_before_bytes": {
+          "minimum": 0,
+          "title": "Cuda Allocated Before Bytes",
+          "type": "integer"
+        },
+        "cuda_teardown_tolerance_bytes": {
+          "minimum": 0,
+          "title": "Cuda Teardown Tolerance Bytes",
+          "type": "integer"
+        },
+        "optimizer_updates": {
+          "minimum": 1,
+          "title": "Optimizer Updates",
+          "type": "integer"
+        },
+        "peft_adapter_exported": {
+          "const": true,
+          "title": "Peft Adapter Exported",
+          "type": "boolean"
+        },
+        "peft_adapter_reload_verified": {
+          "const": true,
+          "title": "Peft Adapter Reload Verified",
+          "type": "boolean"
+        },
+        "rollout_completed": {
+          "const": true,
+          "title": "Rollout Completed",
+          "type": "boolean"
+        },
+        "teacher_scoring_completed": {
+          "const": true,
+          "title": "Teacher Scoring Completed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "rollout_completed",
+        "teacher_scoring_completed",
+        "optimizer_updates",
+        "peft_adapter_exported",
+        "peft_adapter_reload_verified",
+        "cuda_allocated_before_bytes",
+        "cuda_allocated_after_teardown_bytes",
+        "cuda_teardown_tolerance_bytes"
+      ],
+      "title": "ExecutionEvidence",
+      "type": "object"
+    },
+    "InputEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Sha256",
+          "type": "string"
+        },
+        "parquet_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Parquet Sha256",
+          "type": "string"
+        },
+        "plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Plan Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "config_sha256",
+        "plan_sha256",
+        "parquet_sha256"
+      ],
+      "title": "InputEvidence",
+      "type": "object"
+    },
+    "ModelEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Revision",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "actor",
+            "teacher"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "model_id",
+        "revision"
+      ],
+      "title": "ModelEvidence",
+      "type": "object"
+    },
+    "ProfileEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "identity_digest": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Identity Digest",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "upstream_commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Upstream Commit",
+          "type": "string"
+        },
+        "upstream_tag": {
+          "minLength": 1,
+          "title": "Upstream Tag",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "identity_digest",
+        "upstream_tag",
+        "upstream_commit"
+      ],
+      "title": "ProfileEvidence",
+      "type": "object"
+    },
+    "ScientificScope": {
+      "additionalProperties": false,
+      "properties": {
+        "alignment_quality_evaluated": {
+          "const": false,
+          "title": "Alignment Quality Evaluated",
+          "type": "boolean"
+        },
+        "distributed_execution_tested": {
+          "const": false,
+          "title": "Distributed Execution Tested",
+          "type": "boolean"
+        },
+        "other_hardware_measured": {
+          "const": false,
+          "title": "Other Hardware Measured",
+          "type": "boolean"
+        },
+        "runtime_correctness_only": {
+          "const": true,
+          "title": "Runtime Correctness Only",
+          "type": "boolean"
+        },
+        "task_quality_evaluated": {
+          "const": false,
+          "title": "Task Quality Evaluated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "runtime_correctness_only",
+        "task_quality_evaluated",
+        "alignment_quality_evaluated",
+        "distributed_execution_tested",
+        "other_hardware_measured"
+      ],
+      "title": "ScientificScope",
+      "type": "object"
+    },
+    "WheelEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "filename": {
+          "minLength": 1,
+          "pattern": "^[^/\\\\]+\\.whl$",
+          "title": "Filename",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename",
+        "sha256"
+      ],
+      "title": "WheelEvidence",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Strict version-1 exact-commit qualification record.",
+  "properties": {
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ArtifactEvidence"
+      },
+      "minItems": 1,
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "candidate": {
+      "$ref": "#/$defs/CandidateBinding"
+    },
+    "checks": {
+      "$ref": "#/$defs/CheckEvidence"
+    },
+    "environment": {
+      "$ref": "#/$defs/EnvironmentEvidence"
+    },
+    "execution": {
+      "$ref": "#/$defs/ExecutionEvidence"
+    },
+    "inputs": {
+      "$ref": "#/$defs/InputEvidence"
+    },
+    "kind": {
+      "const": "miniverl_gpu_qualification",
+      "default": "miniverl_gpu_qualification",
+      "title": "Kind",
+      "type": "string"
+    },
+    "level": {
+      "enum": [
+        "release_smoke",
+        "full_qualification"
+      ],
+      "title": "Level",
+      "type": "string"
+    },
+    "measured_at": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$",
+      "title": "Measured At",
+      "type": "string"
+    },
+    "miniverl_version": {
+      "minLength": 1,
+      "title": "Miniverl Version",
+      "type": "string"
+    },
+    "models": {
+      "items": {
+        "$ref": "#/$defs/ModelEvidence"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Models",
+      "type": "array"
+    },
+    "profile": {
+      "$ref": "#/$defs/ProfileEvidence"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "scientific_scope": {
+      "$ref": "#/$defs/ScientificScope"
+    },
+    "source_commit": {
+      "pattern": "^[0-9a-f]{40}$",
+      "title": "Source Commit",
+      "type": "string"
+    },
+    "status": {
+      "const": "passed",
+      "title": "Status",
+      "type": "string"
+    },
+    "wheel": {
+      "$ref": "#/$defs/WheelEvidence"
+    }
+  },
+  "required": [
+    "level",
+    "status",
+    "measured_at",
+    "source_commit",
+    "miniverl_version",
+    "wheel",
+    "candidate",
+    "profile",
+    "environment",
+    "models",
+    "execution",
+    "inputs",
+    "artifacts",
+    "checks",
+    "scientific_scope"
+  ],
+  "title": "GPUQualification",
+  "type": "object"
+}

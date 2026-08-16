@@ -223,6 +223,18 @@ def rules_for(state: ReleaseState) -> tuple[list[Rule], list[Presence]]:
             expected=state.stable_released_at,
         ),
         Rule(
+            path="SECURITY.md",
+            description="supported stable line",
+            pattern=re.compile(r"The current supported stable line is `(?P<value>[^`]+)`"),
+            expected=state.stable_version,
+        ),
+        Rule(
+            path="PROJECT_STATE.md",
+            description="current development product line",
+            pattern=re.compile(r"Development `(?P<value>[^`]+)` has a closed typed profile"),
+            expected=state.development_version,
+        ),
+        Rule(
             path="CHANGELOG.md",
             description="Unreleased comparison link",
             pattern=re.compile(

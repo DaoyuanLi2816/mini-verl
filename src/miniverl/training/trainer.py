@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from miniverl import __version__
 from miniverl.agent.loop import RolloutRunner, RolloutStats
@@ -76,6 +76,7 @@ from miniverl.selection.selectors import (
     aggregate_selection_stats,
     select_positions,
 )
+from miniverl.training.artifacts import ManifestFinalization, RunArtifactRecorder
 from miniverl.training.checkpoint import CheckpointState, load_checkpoint, save_checkpoint
 from miniverl.training.memory import (
     MemoryPlan,
@@ -820,20 +821,7 @@ class OPDTrainer:
 
     def _transition_manifest_to_running(self) -> None:
         """Atomically publish RUNNING immediately before training emits events."""
-        import json
-
-        manifest = json.loads(self.paths.manifest.read_text(encoding="utf-8"))
-        manifest["status"] = "running"
-        manifest["started_at"] = self._started_at
-        for key in (
-            "completed_at",
-            "failed_at",
-            "interrupted_at",
-            "closed_at",
-            "failure",
-        ):
-            manifest.pop(key, None)
-        write_json_atomic(self.paths.manifest, manifest)
+        RunArtifactRecorder(self.paths, started_at=self._started_at).mark_running()
 
     def build_manifest(self) -> dict[str, Any]:
         """Full provenance record for the run."""
@@ -1018,112 +1006,39 @@ class OPDTrainer:
     def _finalize_manifest(
         self,
         *,
-        status: str,
+        status: Literal["completed", "failed", "interrupted"],
         result: TrainResult | None = None,
         error: BaseException | None = None,
     ) -> None:
         """Atomically combine immutable startup provenance with final run state."""
-        import json
-
-        from miniverl.cache.store import sha256_file
-        from miniverl.training.checkpoint import latest_checkpoint, validate_checkpoint
-
-        if self.paths.manifest_start.is_file():
-            manifest = json.loads(self.paths.manifest_start.read_text(encoding="utf-8"))
-            startup_digest = hashlib.sha256(self.paths.manifest_start.read_bytes()).hexdigest()
-        else:
-            # Backward-compatible finalization for a legacy run directory.
-            manifest = self.build_manifest()
-            startup_digest = None
-        now = utc_now()
-        manifest.update(
-            {
-                "status": status,
-                "started_at": self._started_at,
-                "global_step": self.global_step,
-                "global_optimizer_step": self.global_step,
-                "parameter_version": self.parameter_version,
-                "policy_version": self.policy_version,
-                "rollout_iteration": self._cycles_completed,
-                "rollout_policy_version": self._last_rollout_policy_version,
-                "cycles_completed": self._cycles_completed,
-                "actual_optimizer_updates": self.global_step,
-                "final_projection_chunk_size": self.plan.chunk_size,
-                "chunk_size_history": list(self.plan.chunk_size_history),
-                "oom_retries": self.plan.oom_retries_used,
-                "final_memory": self.plan.to_dict(),
-                "offline_dataset": (
-                    {"digest": self.offline_dataset_digest} if self.offline_dataset_digest else None
-                ),
-                "resumed_from": self._resumed_from,
-                "startup_manifest_digest": startup_digest,
-            }
-        )
-        for key in ("completed_at", "failed_at", "interrupted_at", "failure"):
-            manifest.pop(key, None)
-        if status == "completed":
-            manifest["completed_at"] = now
-        elif status == "interrupted":
-            manifest["interrupted_at"] = now
-        else:
-            manifest["failed_at"] = now
-        if error is not None:
-            manifest["failure"] = {
-                "type": type(error).__name__,
-                "message": str(error),
-            }
-
-        checkpoint_payload = None
-        selected = latest_checkpoint(self.paths.checkpoints)
-        if selected is not None:
-            validated = validate_checkpoint(selected)
-            checkpoint_payload = {
-                "directory": selected.name,
-                "global_step": validated.state.global_step,
-                "digest": validated.content_digest,
-                "integrity": validated.integrity,
-            }
-        manifest["final_checkpoint"] = checkpoint_payload
-
-        eval_payload = None
-        if self.paths.eval_json.is_file():
-            digest, size = sha256_file(self.paths.eval_json)
-            eval_payload = {
-                "file": self.paths.eval_json.name,
-                "digest": digest,
-                "bytes": size,
-            }
-        manifest["final_evaluation"] = eval_payload
-
-        required = [
-            self.paths.config_original,
-            self.paths.config_validated,
-            self.paths.config_resolved,
-            self.paths.environment,
-            self.paths.manifest_start,
-        ]
-        if status == "completed":
-            required.extend([self.paths.eval_json])
-            if checkpoint_payload is None:
-                required.append(self.paths.checkpoints / "final")
-            if self.config.run.mode is TrainingMode.OFFLINE_KD and self.config.train.cycles > 0:
-                required.extend(
-                    [
-                        self.paths.offline_dataset_manifest,
-                        self.paths.offline_dataset_trajectories,
-                    ]
-                )
-        manifest["expected_artifacts"] = {path.name: path.exists() for path in required}
-        manifest["all_expected_artifacts_complete"] = (
-            status == "completed"
-            and all(manifest["expected_artifacts"].values())
-            and checkpoint_payload is not None
-        )
+        result_payload = None
         if result is not None:
             result_payload = result.to_dict()
             result_payload["run_dir"] = self.paths.root.name
-            manifest["result"] = result_payload
-        write_json_atomic(self.paths.manifest, manifest)
+        RunArtifactRecorder(self.paths, started_at=self._started_at).finalize(
+            ManifestFinalization(
+                status=status,
+                global_step=self.global_step,
+                parameter_version=self.parameter_version,
+                policy_version=self.policy_version,
+                cycles_completed=self._cycles_completed,
+                rollout_policy_version=self._last_rollout_policy_version,
+                projection_chunk_size=self.plan.chunk_size,
+                chunk_size_history=tuple(self.plan.chunk_size_history),
+                oom_retries=self.plan.oom_retries_used,
+                final_memory=self.plan.to_dict(),
+                offline_dataset_digest=self.offline_dataset_digest,
+                resumed_from=self._resumed_from,
+                require_offline_dataset=(
+                    self.config.run.mode is TrainingMode.OFFLINE_KD and self.config.train.cycles > 0
+                ),
+                result=result_payload,
+                error=error,
+            ),
+            fallback_manifest=(
+                {} if self.paths.manifest_start.is_file() else self.build_manifest()
+            ),
+        )
 
     # -- task sampling --------------------------------------------------------
 

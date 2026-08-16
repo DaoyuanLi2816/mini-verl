@@ -68,6 +68,7 @@ TORCH_FREE_MODULES = (
     "miniverl.bridge.profiles",
     "miniverl.commands",
     "miniverl.commands.compat",
+    "miniverl.commands.qualification",
     "miniverl.cli",
     "miniverl.config",
     "miniverl.config.models",
@@ -111,6 +112,7 @@ TORCH_FREE_MODULES = (
     "miniverl.utils.seeding",
     "miniverl.evaluation.schema",
     "miniverl.models.tokenizers",
+    "miniverl.qualification",
 )
 
 

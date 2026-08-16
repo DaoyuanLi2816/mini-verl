@@ -43,6 +43,8 @@ jobs:
               "CODE_OF_CONDUCT.md",
               "SECURITY.md",
               "PROJECT_STATE.md",
+              "environments/known-good-rtx4080-cu130.json",
+              "environments/known-good-rtx4080-cu130.txt",
               "LICENSE",
               "README.md",
           ):

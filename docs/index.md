@@ -11,7 +11,9 @@ independent; distributed execution and full verl compatibility are not claimed.
 ## Pip-only OPD quickstart
 
 ```bash
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
 python -m pip install "miniverl[train,cuda]"
+miniverl doctor
 miniverl data sample --format verl-parquet --out prompts.parquet
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
   --config builtin:qwen3-0.6b-1.7b-opd \
@@ -24,6 +26,12 @@ miniverl run --profile verl-opd-v0.8-single-gpu-v1 \
 Planning loads no weights. Remove `--dry-run` on one CUDA GPU to execute the
 pinned Qwen3 recipe and export a standard PEFT adapter. Install the matching
 CUDA-enabled PyTorch wheel first; the `[cuda]` extra does not select one.
+For the exact maintainer-measured versions, use the
+[machine-readable known-good stack](single-gpu-guide.md).
+
+After inspection, write `plan.json` with `plan --out`, run it without
+`--dry-run`, then use `inspect`, `cache stats`, `export-verl` and `bridge
+doctor`; the [quickstart](opd-quickstart.md) carries the complete copyable path.
 
 ## Runtime and compatibility boundary
 

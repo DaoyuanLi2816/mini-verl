@@ -35,6 +35,7 @@ TRACKED = (
     "PYPI.md",
     "docs/overrides/main.html",
     "CITATION.cff",
+    "SECURITY.md",
     "CHANGELOG.md",
     "docs/release-checklist.md",
     "PROJECT_STATE.md",
@@ -68,6 +69,14 @@ def test_quality_record_floor_names_its_own_release() -> None:
         (REPO_ROOT / "docs" / "generated" / "quality.json").read_text(encoding="utf-8")
     )
     assert f"v{record['release']}" in record["quality_floor"]
+
+
+def test_security_and_current_product_prose_follow_the_canonical_state() -> None:
+    state = load_release_state(REPO_ROOT)
+    security = (REPO_ROOT / "SECURITY.md").read_text(encoding="utf-8")
+    project = (REPO_ROOT / "PROJECT_STATE.md").read_text(encoding="utf-8")
+    assert f"supported stable line is `{state.stable_version}`" in security
+    assert f"Development `{state.development_version}` has a closed typed profile" in project
 
 
 # --------------------------------------------------------------- validation
@@ -172,7 +181,8 @@ def test_transition_still_demands_the_human_written_sections(tmp_path: Path) -> 
     state_file = root / "PROJECT_STATE.md"
     state_file.write_text(
         "# PROJECT_STATE\n\nCanonical release state: stable `v0.6.4` "
-        f"(`{'b' * 40}`), development `0.6.5.dev0`.\n",
+        f"(`{'b' * 40}`), development `0.6.5.dev0`.\n\n"
+        "Development `0.6.5.dev0` has a closed typed profile registry.\n",
         encoding="utf-8",
     )
     record = root / "docs" / "generated" / "quality.json"

@@ -144,6 +144,7 @@ include = [
   "/docs",
   "/paper",
   "/scripts",
+  "/environments",
   "/.github",
   "/README.md",
   "/README.zh-CN.md",

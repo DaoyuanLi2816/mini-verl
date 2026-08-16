@@ -21,9 +21,7 @@ RTX 4080. Its portable defaults are:
 ## Start here
 
 First use the [PyTorch install selector](https://pytorch.org/get-started/locally/)
-to install the wheel matching your CUDA driver. The measured stack used the
-following channel; choose a different supported channel when your system needs
-one:
+to install the wheel matching your CUDA driver. For a flexible install:
 
 ```bash
 python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
@@ -35,6 +33,25 @@ miniverl train recipes/qwen_consumer_gpu_calc.yaml --dry-run
 
 The `train,cuda` extra adds the training and quantization dependencies; it does
 not select a CUDA-enabled PyTorch build on its own.
+
+For the exact stack measured by the maintainer on one RTX 4080, use the
+machine-readable
+[`environments/known-good-rtx4080-cu130.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/environments/known-good-rtx4080-cu130.json)
+and its constraints:
+
+```bash
+python -m pip install "torch==2.13.0+cu130" \
+  --index-url https://download.pytorch.org/whl/cu130
+python -m pip install "miniverl[train,cuda]" \
+  --constraint environments/known-good-rtx4080-cu130.txt
+python scripts/check_known_good_environment.py
+```
+
+The ordinary dependency ranges remain the library contract. In the manifest,
+Python and package pins are required reproducibility inputs; GPU name, VRAM,
+driver and CUDA runtime are observed audit fields, not install requirements.
+This is one maintainer-measured known-good stack, not a universal lock: other
+GPUs are unmeasured, and other CUDA/PyTorch combinations remain user-selected.
 
 Then watch free memory in another terminal before the real run:
 

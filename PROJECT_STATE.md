@@ -4,7 +4,7 @@ Current maintainer handoff for **miniVERL** (`mini-verl` package, `miniverl`
 CLI). `release-state.yaml` is the canonical version source; this page indexes
 current product and evidence state rather than repeating release history.
 
-Last updated: 2026-08-14.
+Last updated: 2026-08-15.
 
 Canonical release state: stable `v0.10.0` (`51264f86e8226b1abc6ca1901d379c5e6fabb81e`), development `0.10.1.dev0`.
 
@@ -31,12 +31,15 @@ Executable compatibility claims are mutation-tested and recorded in
 unknown-size quantized roles require proof instead of receiving an executable
 plan.
 
-Development `0.10.0.dev0` has a closed typed profile registry and torch-free
+Development `0.10.1.dev0` has a closed typed profile registry and torch-free
 compatibility introspection. Profile-scoped plans, caches, checkpoints and
 exports bind an independent identity. The direct-GKD and sampled-k1 vanilla
 policy-loss profiles both have pinned conformance and measured RTX 4080 paths.
 Portable hardware records preserve measured, estimated and unknown states;
 schema-valid community submissions remain unreviewed until maintainer validation.
+The development release chain now builds one hosted-runner candidate and binds
+the private RTX 4080 qualification to that exact manifest and wheel. Release
+jobs may publish only the same verified bytes and never rebuild them.
 
 Arbitrary verl YAML, other policy-gradient modes, rewards, PPO/GRPO, Ray, FSDP,
 Megatron, multi-GPU and distributed execution remain unsupported. The legacy

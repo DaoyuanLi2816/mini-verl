@@ -49,10 +49,22 @@ and `run --dry-run` validates the native execution contract. On one NVIDIA CUDA
 GPU, remove `--dry-run` to run the pinned Qwen3-0.6B actor and Qwen3-1.7B teacher
 recipe and produce an inspectable PEFT adapter.
 
+After reviewing the plan, the canonical continuation is:
+
+```bash
+miniverl run --profile verl-opd-v0.8-single-gpu-v1 --plan plan.json \
+  --output runs --run-id my-opd
+miniverl inspect runs/my-opd/trajectories.jsonl
+miniverl cache stats runs/my-opd/teacher-cache
+miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
+miniverl bridge doctor scaleout --json
+```
+
 The `train` extra installs the ML runtime, but does not choose the correct CUDA
 PyTorch wheel. The optional `cuda` extra adds bitsandbytes only. Follow the
-[one-GPU installation and memory guide](docs/single-gpu-guide.md) before a real
-run.
+[one-GPU installation and memory guide](docs/single-gpu-guide.md) for both the
+flexible install and the machine-readable RTX 4080 known-good stack. Hardware
+other than that one measured RTX 4080 remains unmeasured.
 
 ## Architecture
 
@@ -171,7 +183,12 @@ materialized successfully. See the [full SmolLM2 systems record](docs/smollm2-op
 This is deliberately a runtime and artifact proof. It is not a throughput
 benchmark, an alignment-quality endpoint, or evidence that OPD beats SFT, DPO
 or KD. Other NVIDIA GPUs use the same device-name-agnostic CUDA path, but model
-fit depends on VRAM, context length, quantization and installed kernels.
+fit depends on VRAM, context length, quantization and installed kernels; they
+remain unmeasured. The [release qualification contract](docs/release-qualification.md)
+builds one candidate wheel on a hosted runner and qualifies those exact bytes
+on the RTX 4080 before any release can reuse them, while the
+[upstream support policy](docs/upstream-support-policy.md) keeps both published
+profile identities fixed. Runner activation is not described as continuous CI.
 
 ### Choose a path by hardware, not GPU branding
 

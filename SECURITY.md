@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-The current supported stable line is `0.2.4`; security fixes land on `main` and
+The current supported stable line is `0.10.0`; security fixes land on `main` and
 in the next patch release. There are no separately maintained older branches.
 
 ## Reporting a vulnerability
@@ -29,6 +29,11 @@ the model weights you load. It does **not** assume you trust:
   anywhere in the project. A corrupted or truncated shard raises
   `CacheCorruptionError`.
 * **A checkpoint.** Checkpoints are safetensors plus JSON, for the same reason.
+* **A qualification workflow artifact.** Release validation downloads it only
+  from a successful manual workflow run bound to the exact source SHA. Archive
+  members are count/size bounded; absolute paths, traversal and symlinks are
+  rejected before extraction, then every declared file hash and portable JSON
+  field is checked without importing Torch.
 * **Text produced by the model.** The tool-call parser uses bounded strict JSON:
   duplicate keys, non-finite/pathological numbers, excessive depth or members,
   invalid Unicode and trailing action blocks are rejected. Rollouts are bounded

@@ -141,6 +141,7 @@ def _overrides(dataset: Path) -> list[str]:
         "actor_rollout_ref.rollout.max_model_len=192",
         "actor_rollout_ref.rollout.max_num_batched_tokens=768",
         "actor_rollout_ref.rollout.max_num_seqs=4",
+        "distillation.teacher_models.teacher_model.inference.max_model_len=192",
         f"distillation.distillation_loss.topk={TOP_K}",
         "trainer.experiment_name=qwen3-opd-developer-workload",
         "trainer.save_freq=4",

@@ -1,0 +1,10 @@
+# miniVERL known-good top-level ML stack; see the adjacent JSON manifest.
+# Install the CUDA PyTorch wheel from its explicit index before using this file.
+torch==2.13.0+cu130
+transformers==5.14.1
+peft==0.18.0
+accelerate==1.14.0
+bitsandbytes==0.50.0; platform_system != "Darwin"
+numpy==2.2.6
+pyarrow==25.0.0
+safetensors==0.8.0
