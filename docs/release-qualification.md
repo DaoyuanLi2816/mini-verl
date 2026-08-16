@@ -52,11 +52,46 @@ artifact digest when provided, wheel byte hash and qualification bindings. It
 also checks each declared evidence file's regular-file type, byte count and
 SHA-256. Cross-origin artifact redirects retain ordinary API headers but strip
 authorization, proxy authorization and cookies. It publishes the accepted
-wheel and sdist without rebuilding them. The workflow and GitHub Release retain
-the full qualification record, declared evidence files and a separate checksum
-inventory under versioned names. A committed
+wheel and sdist without rebuilding them. Future release runs retain the full
+qualification record, four principal workload JSON files and a deterministic
+subordinate-evidence archive in the canonical layout below. A committed
 JSON file, manual upload, fork run, different workflow or cross-run artifact
 pair cannot satisfy this gate.
+
+## Canonical future Release assets
+
+The release-asset builder uses an explicit evidence-role mapping. It never
+derives public filenames from internal paths or appends a guessed extension.
+The top level is exactly:
+
+```text
+dist/<wheel and sdist>
+SHA256SUMS
+candidate-manifest.json
+release-verification.json
+qualification.json
+qualification-SHA256SUMS
+qualification-release-smoke.json
+qualification-direct-gkd.json
+qualification-pg-k1.json
+qualification-smollm2.json
+qualification-evidence.tar.gz
+qualification-evidence-manifest.json
+```
+
+The four principal workload records remain directly inspectable. Adapter
+configuration and safetensors, its miniVERL manifest, input prompts and the run
+summary live once in the deterministic archive; its manifest binds every member
+to its semantic role, byte count and SHA-256. `SHA256SUMS` covers only the wheel
+and sdist. `qualification-SHA256SUMS` covers the nine provenance and evidence
+assets in canonical order. Hashes prove byte integrity, not code signing or
+third-party endorsement.
+
+The historical v0.10.1 assets are immutable and retain the names emitted by the
+original flattening step, including duplicated suffixes on some subordinate
+files. They are not rewritten or re-uploaded. The canonical layout applies to
+future releases only and does not prove distributed verl execution or hardware
+beyond the one measured RTX 4080.
 
 Local validation is torch-free:
 
@@ -92,9 +127,12 @@ portable bounded artifacts, and checks cleanup targets remain under
 `GITHUB_WORKSPACE`. Model caches remain runner-local and are not uploaded.
 Rotate the runner token after suspected exposure.
 
-## Activation state
+## Measured release state
 
-Repository code, schema, validator and workflows can be complete while runner
-registration remains incomplete. Until the first successful exact-commit run
-exists, report `blocked_external_setup`; do not write “exact-commit
-qualification passed” or “continuous GPU CI”.
+The first exact-commit full run completed for v0.10.1 on attempt 1:
+[GPU qualification 31932226695](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31932226695),
+[dry-run 31933844796](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31933844796)
+and [tag publication 31934196365](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/31934196365).
+Future release commits still require their own new exact-SHA, same-run, attempt-1
+full qualification; the v0.10.1 record cannot authorize them. This remains a
+manual maintainer process, not continuous GPU CI.
