@@ -55,10 +55,12 @@ def test_release_consumes_qualified_candidate_without_rebuild() -> None:
     verify = _job(text, "verify-pypi", "create-github-release")
     release = _job(text, "create-github-release", None)
 
-    assert "copy the identical candidate bytes" in prepare
+    assert "scripts/prepare_release_assets.py" in prepare
+    assert "--check" in prepare
+    assert 'item["name"].replace("_", "-")' not in prepare
     assert "candidate-manifest.json" in prepare
     assert "qualification.json" in prepare
-    assert "qualification-full-SHA256SUMS" in prepare
+    assert "qualification-SHA256SUMS" in prepare
     assert "actions/upload-artifact@" in prepare
     assert "actions/download-artifact@" in publish
     assert "python -m build" not in publish
@@ -142,3 +144,19 @@ def test_release_recovery_preserves_full_qualification_evidence() -> None:
     assert "release-artifacts/dist" in text
     assert text.count("qualification-full-SHA256SUMS") >= 3
     assert "release-artifacts/qualification-evidence/*" in text
+
+
+def test_github_release_uses_only_explicit_canonical_assets() -> None:
+    release = _job(_workflow_text(), "create-github-release", None)
+    assert "release-artifacts/dist/*" not in release
+    assert "release-artifacts/qualification-evidence/*" not in release
+    for name in (
+        "qualification-release-smoke.json",
+        "qualification-direct-gkd.json",
+        "qualification-pg-k1.json",
+        "qualification-smollm2.json",
+        "qualification-evidence.tar.gz",
+        "qualification-evidence-manifest.json",
+        "release-verification.json",
+    ):
+        assert f"release-artifacts/{name}" in release

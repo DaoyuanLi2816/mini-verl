@@ -126,57 +126,26 @@ jobs:
         with:
           name: verified-qualified-candidate
           path: accepted
-      - name: Revalidate and copy the identical candidate bytes
+      - name: Revalidate and prepare canonical identical assets
         run: |
           python -m pip install .
           python scripts/build_release_candidate.py --output accepted/candidate --commit "$GITHUB_SHA" --check
-          python - <<'PY'
-          import hashlib, json, pathlib, shutil
-          root = pathlib.Path("accepted")
-          candidate = root / "candidate"
-          qualification_root = root / "qualification"
-          qualification = qualification_root / "qualification.json"
-          manifest_path = candidate / "candidate-manifest.json"
-          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-          manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
-          record = json.loads(qualification.read_text(encoding="utf-8"))
-          if record["candidate"]["manifest_sha256"] != manifest_sha:
-              raise SystemExit("qualification candidate-manifest binding changed")
-          if record["wheel"]["sha256"] != manifest["wheel"]["sha256"]:
-              raise SystemExit("qualification wheel binding changed")
-          output = pathlib.Path("release-distributions")
-          (output / "dist").mkdir(parents=True)
-          for key in ("wheel", "sdist"):
-              shutil.copy2(candidate / manifest[key]["filename"], output / "dist")
-          shutil.copy2(candidate / "SHA256SUMS", output / "SHA256SUMS")
-          shutil.copy2(manifest_path, output / "candidate-manifest.json")
-          shutil.copy2(qualification, output / "qualification.json")
-          shutil.copy2(root / "verification.json", output / "verification.json")
-          evidence_output = output / "qualification-evidence"
-          evidence_output.mkdir()
-          version = manifest["miniverl_version"]
-          evidence_files = [("full-qualification", qualification)]
-          evidence_files.extend(
-              (item["name"].replace("_", "-"), qualification_root / item["path"])
-              for item in record["artifacts"]
-          )
-          sums = []
-          for label, source in evidence_files:
-              suffix = source.suffix or ".bin"
-              target = evidence_output / f"miniverl-{version}-{label}{suffix}"
-              shutil.copy2(source, target)
-              digest = hashlib.sha256(target.read_bytes()).hexdigest()
-              sums.append(f"{digest}  {target.name}")
-          (output / "qualification-full-SHA256SUMS").write_text(
-              "\n".join(sums) + "\n", encoding="utf-8", newline="\n"
-          )
-          for key in ("wheel", "sdist"):
-              copied = output / "dist" / manifest[key]["filename"]
-              if hashlib.sha256(copied.read_bytes()).hexdigest() != manifest[key]["sha256"]:
-                  raise SystemExit(f"copy changed {key} bytes")
-          PY
+          python scripts/prepare_release_assets.py \
+            --candidate-dir accepted/candidate \
+            --candidate-manifest accepted/candidate/candidate-manifest.json \
+            --qualification-root accepted/qualification \
+            --qualification accepted/qualification/qualification.json \
+            --verification accepted/verification.json \
+            --output release-distributions
+          python scripts/prepare_release_assets.py \
+            --candidate-dir accepted/candidate \
+            --candidate-manifest accepted/candidate/candidate-manifest.json \
+            --qualification-root accepted/qualification \
+            --qualification accepted/qualification/qualification.json \
+            --verification accepted/verification.json \
+            --output release-distributions --check
           (cd release-distributions/dist && sha256sum --check ../SHA256SUMS)
-          (cd release-distributions/qualification-evidence && sha256sum --check ../qualification-full-SHA256SUMS)
+          (cd release-distributions && sha256sum --check qualification-SHA256SUMS)
       - name: Upload the identical qualified distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -208,7 +177,7 @@ jobs:
       - name: Verify bytes immediately before publication
         run: |
           (cd release-artifacts/dist && sha256sum --check ../SHA256SUMS)
-          (cd release-artifacts/qualification-evidence && sha256sum --check ../qualification-full-SHA256SUMS)
+          (cd release-artifacts && sha256sum --check qualification-SHA256SUMS)
       - name: Determine whether exact candidate bytes already exist on PyPI
         id: pypi-state
         run: |
@@ -286,12 +255,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           (cd release-artifacts/dist && sha256sum --check ../SHA256SUMS)
+          WHEEL=$(python -c 'import json; print(json.load(open("release-artifacts/candidate-manifest.json"))["wheel"]["filename"])')
+          SDIST=$(python -c 'import json; print(json.load(open("release-artifacts/candidate-manifest.json"))["sdist"]["filename"])')
           gh release create "$GITHUB_REF_NAME" \
-            release-artifacts/dist/* \
+            "release-artifacts/dist/$WHEEL" \
+            "release-artifacts/dist/$SDIST" \
             release-artifacts/SHA256SUMS \
-            release-artifacts/qualification-full-SHA256SUMS \
-            release-artifacts/qualification-evidence/* \
             release-artifacts/candidate-manifest.json \
+            release-artifacts/release-verification.json \
             release-artifacts/qualification.json \
+            release-artifacts/qualification-SHA256SUMS \
+            release-artifacts/qualification-release-smoke.json \
+            release-artifacts/qualification-direct-gkd.json \
+            release-artifacts/qualification-pg-k1.json \
+            release-artifacts/qualification-smollm2.json \
+            release-artifacts/qualification-evidence.tar.gz \
+            release-artifacts/qualification-evidence-manifest.json \
             --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "miniVERL $GITHUB_REF_NAME" --generate-notes
