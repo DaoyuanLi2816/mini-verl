@@ -49,8 +49,10 @@ ROOT = Path(__file__).resolve().parents[1]
 PREREGISTRATION = ROOT / "benchmarks/preregistration/rollout-runtime-v2.yaml"
 FROZEN_CALCULATOR = ROOT / "benchmarks/results/gpu-calc-hard-equal-update-v2.json"
 FROZEN_CALCULATOR_SHA256 = "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc"
-PROFILE_IDENTITY = hashlib.sha256(b"rollout-runtime-v2-selected-backends-v1").hexdigest()
-EXECUTION_PLAN_DIGEST = hashlib.sha256(b"rollout-runtime-v2-measurement-plan-v1").hexdigest()
+PROFILE_IDENTITY = hashlib.sha256(b"rollout-runtime-v2-v0.11.0-candidate-backends-v2").hexdigest()
+EXECUTION_PLAN_DIGEST = hashlib.sha256(
+    b"rollout-runtime-v2-v0.11.0-candidate-measurement-plan-v2"
+).hexdigest()
 
 
 def _sha256(path: Path) -> str:
@@ -182,6 +184,7 @@ def _requests(
     logical_prompts: int,
     run_seed: int,
     sampling_name: str,
+    need_sampled_token_logprobs: bool = False,
 ) -> list[GenerationRequest]:
     if sampling_name == "greedy":
         sampling = SamplingParameters(temperature=0.0, top_p=1.0, top_k=0)
@@ -214,7 +217,7 @@ def _requests(
                     prompt_token_ids=prompt,
                     max_new_tokens=response_bound,
                     sampling=sampling,
-                    need_sampled_token_logprobs=False,
+                    need_sampled_token_logprobs=need_sampled_token_logprobs,
                     expected_policy_identity=identity,
                 )
             )
@@ -257,9 +260,11 @@ def _cell(
         run_seed=run_seed,
         sampling_name=sampling_name,
     )
+    warmup_started = time.perf_counter()
     for _ in range(warmups):
         _generate_partitioned(backend, requests)
     torch.cuda.synchronize()
+    warmup_seconds = time.perf_counter() - warmup_started
     durations: list[float] = []
     digests: list[str] = []
     final: list[Any] = []
@@ -287,6 +292,7 @@ def _cell(
         "generated_tokens": generated_tokens,
         "physical_concurrency": 4,
         "warmup_repetitions": warmups,
+        "warmup_seconds": warmup_seconds,
         "measured_repetitions": repetitions,
         "rollout_seconds": durations,
         "median_rollout_seconds": median,
@@ -361,12 +367,73 @@ def _conformance_probe(
     }
 
 
+def _hf_cached_conformance_probe(
+    actor: HFBackend, backend: HFCachedGenerationBackend, tokenizer: Any
+) -> dict[str, Any]:
+    identity = backend._active_identity
+    if identity is None:
+        raise RuntimeError("hf_cached backend is not synchronized for conformance")
+    prompt = _fixed_prompt(tokenizer, length=128, index=0)
+    local = actor.generate(
+        list(prompt),
+        max_new_tokens=32,
+        temperature=0.0,
+        top_p=1.0,
+        top_k=0,
+        seed=20260829,
+        record_logprobs=True,
+    )
+    request = _requests(
+        tokenizer,
+        identity=identity,
+        prompt_length=128,
+        response_bound=32,
+        samples_per_prompt=1,
+        logical_prompts=1,
+        run_seed=20260829,
+        sampling_name="greedy",
+        need_sampled_token_logprobs=True,
+    )[0]
+    cached = backend.generate([request]).results[0]
+    if len(local.token_ids) != len(cached.output_token_ids):
+        raise RuntimeError("hf_cached conformance outputs have different lengths")
+    differences = [
+        abs(left - right)
+        for left, right in zip(local.logprobs, cached.sampled_token_logprobs, strict=True)
+    ]
+    tokens_equal = tuple(local.token_ids) == cached.output_token_ids
+    maximum = max(differences) if differences else None
+    return {
+        "prompt_token_ids_sha256": hashlib.sha256(
+            canonical_json(prompt).encode("utf-8")
+        ).hexdigest(),
+        "compared_output_tokens": len(local.token_ids),
+        "tokens_equal": tokens_equal,
+        "local_output_token_ids_sha256": hashlib.sha256(
+            canonical_json(local.token_ids).encode("utf-8")
+        ).hexdigest(),
+        "cached_output_token_ids_sha256": hashlib.sha256(
+            canonical_json(cached.output_token_ids).encode("utf-8")
+        ).hexdigest(),
+        "sampled_logprob_max_abs_difference": maximum,
+        "sampled_logprob_mean_abs_difference": (
+            statistics.fmean(differences) if differences else None
+        ),
+        "nf4_threshold": 0.01,
+        "threshold_passed": bool(differences)
+        and tokens_equal
+        and maximum is not None
+        and maximum <= 0.01,
+    }
+
+
 def _refresh_probe(
     actor: HFBackend,
-    backend: VLLMGenerationBackend,
+    backend: HFCachedGenerationBackend | VLLMGenerationBackend,
     tokenizer: Any,
     *,
     run_seed: int,
+    kind: RolloutBackendKind = RolloutBackendKind.VLLM,
 ) -> dict[str, Any]:
     trainable = [parameter for parameter in actor.model.parameters() if parameter.requires_grad]
     if not trainable:
@@ -378,7 +445,7 @@ def _refresh_probe(
         identity = build_rollout_policy_identity(
             backend=actor,
             parameter_version=version,
-            generation_backend=RolloutBackendKind.VLLM,
+            generation_backend=kind,
             backend_version=backend.backend_version,
             profile_identity=PROFILE_IDENTITY,
             execution_plan_digest=EXECUTION_PLAN_DIGEST,
@@ -479,8 +546,9 @@ def run(
     actor.model_revision = spec.revision
     torch.cuda.synchronize()
     actor_load_seconds = time.perf_counter() - load_started
+    backend_construction_started = time.perf_counter()
     if backend_name == "hf_cached":
-        backend: Any = HFCachedGenerationBackend(actor)
+        backend: Any = HFCachedGenerationBackend(actor, compile_backend=True)
         kind = RolloutBackendKind.HF_CACHED
     elif backend_name == "vllm":
         backend = VLLMGenerationBackend(
@@ -497,6 +565,8 @@ def run(
         kind = RolloutBackendKind.VLLM
     else:
         raise ValueError(f"unsupported backend {backend_name!r}")
+    torch.cuda.synchronize()
+    backend_construction_seconds = time.perf_counter() - backend_construction_started
 
     identity = build_rollout_policy_identity(
         backend=actor,
@@ -528,18 +598,28 @@ def run(
         for samples_per_prompt in (1, 4)
         for sampling_name in ("greedy", "seeded_stochastic")
     ]
-    conformance = _conformance_probe(actor, backend, tokenizer) if backend_name == "vllm" else None
-    refresh = (
-        _refresh_probe(
-            actor,
-            backend,
-            tokenizer,
-            run_seed=int(prereg["workload"]["run_seed"]),
-        )
+    conformance = (
+        _conformance_probe(actor, backend, tokenizer)
         if backend_name == "vllm"
-        else None
+        else _hf_cached_conformance_probe(actor, backend, tokenizer)
+    )
+    refresh = _refresh_probe(
+        actor,
+        backend,
+        tokenizer,
+        run_seed=int(prereg["workload"]["run_seed"]),
+        kind=kind,
     )
     lifecycle = backend.lifecycle_metrics() if backend_name == "vllm" else {}
+    backend_metadata = {
+        "name": backend_name,
+        "version": backend.backend_version,
+        "capabilities": backend.inspect().to_dict(),
+        "policy_source_quantization": actor.capabilities.quantization,
+        "generation_execution_quantization": getattr(
+            backend.model_backend.capabilities, "quantization", None
+        ),
+    }
     port = getattr(getattr(backend, "manager", None), "port", None)
     teardown_started = time.perf_counter()
     backend.close()
@@ -560,7 +640,7 @@ def run(
 
     payload = {
         "schema_version": 1,
-        "name": f"rollout-runtime-v2-{backend_name}-rtx4080-raw",
+        "name": f"rollout-runtime-v2-{backend_name}-v0.11.0-candidate-rtx4080-raw",
         "measurement_status": "completed",
         "source": {
             "commit": expected_commit,
@@ -572,11 +652,7 @@ def run(
         "frozen_calculator_sha256": FROZEN_CALCULATOR_SHA256,
         "environment": _environment(),
         "models": prereg["models"],
-        "backend": {
-            "name": backend_name,
-            "version": backend.backend_version,
-            "capabilities": backend.inspect().to_dict(),
-        },
+        "backend": backend_metadata,
         "policy_identity": {
             "parameter_version": identity.parameter_version,
             "adapter_tensor_digest": identity.adapter_tensor_digest,
@@ -594,6 +670,7 @@ def run(
         },
         "timing": {
             "actor_load_seconds": actor_load_seconds,
+            "backend_construction_seconds": backend_construction_seconds,
             "initial_sync_seconds": initial_sync_seconds,
             "engine_lifecycle": lifecycle,
             "teardown_seconds": teardown_seconds,

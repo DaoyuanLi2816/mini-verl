@@ -192,6 +192,38 @@ def test_generation_with_a_cache_matches_a_cacheless_reference(tiny_model, tiny_
     assert cached.token_ids == manual
 
 
+def test_static_cached_batch_matches_isolated_greedy_rows_with_padding(tiny_model, tiny_tokenizer):
+    backend = _backend(tiny_model, tiny_tokenizer)
+    prefixes = [
+        tiny_tokenizer.encode("short"),
+        tiny_tokenizer.encode("a much longer prompt row"),
+    ]
+    expected = [
+        backend.generate(
+            row,
+            max_new_tokens=6,
+            temperature=0.0,
+            seed=seed,
+            record_logprobs=True,
+        )
+        for row, seed in zip(prefixes, (11, 29), strict=True)
+    ]
+
+    actual = backend.generate_batch_cached(
+        prefixes,
+        max_new_tokens=6,
+        temperature=0.0,
+        seeds=[11, 29],
+        record_logprobs=True,
+    )
+
+    assert [row.token_ids for row in actual] == [row.token_ids for row in expected]
+    for left, right in zip(actual, expected, strict=True):
+        assert left.stop_reason == right.stop_reason
+        assert left.matched_stop == right.matched_stop
+        assert left.logprobs == pytest.approx(right.logprobs, abs=1e-5)
+
+
 @requires_peft
 def test_qlora_style_training_step_updates_only_the_adapters(tiny_model, tiny_tokenizer):
     import peft

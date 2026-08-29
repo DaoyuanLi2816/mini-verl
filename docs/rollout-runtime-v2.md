@@ -21,10 +21,11 @@ sample owns its CPU generator, so OOM bisection and physical repartitioning do
 not enter the seed derivation. Greedy and stochastic requests retain EOS, text
 stop, maximum-token and sampled-token-log-probability provenance.
 
-`compile_backend: true` uses a generation-only Inductor decoder with CUDA
-graphs disabled. It has a substantial first-run compilation cost, so it is
-explicit rather than a legacy default. Set it to `false` for the eager cached
-path or on hosts without a working CUDA compiler toolchain.
+`compile_backend: true` uses a generation-only Inductor decoder. With an NF4
+training actor, the runtime owns a BF16 rollout mirror and copies the exact live
+LoRA tensors into it at every policy version. The first run compiles and warms
+the decoder; set it to `false` for the eager cached path or on hosts without a
+working CUDA compiler toolchain.
 
 ## Policy binding
 
@@ -83,7 +84,7 @@ miniverl plan \
 miniverl run --plan plan.json
 ```
 
-miniVERL starts the pinned vLLM server on an ephemeral localhost port, exports
+miniVERL starts the pinned vLLM server with CUDA Graph execution on an ephemeral localhost port, exports
 the live PEFT adapter under a policy-version-and-digest name, generates raw
 token IDs, and terminates the complete process group before teacher scoring or
 the actor update. Prefix caching is disabled, and a failed policy refresh
@@ -100,25 +101,18 @@ The exact `0.11.0.dev0` wheel ran the frozen 24-cell workload on WSL2 with
 Qwen3-0.6B NF4/BF16, Transformers 5.14.1 and vLLM 0.28.0. Each cell has one
 warmup and three measured repetitions.
 
-| Response | Sampling | `hf_cached` / `hf_reference` | vLLM / `hf_cached` | vLLM tokens/s |
-| ---: | --- | ---: | ---: | ---: |
-| 64 | greedy | 0.65–0.76× | 1.73–1.80× | 112.7–114.9 |
-| 64 | seeded stochastic | 1.83–1.87× | 1.94–2.06× | 109.3–114.2 |
-| 256 | greedy | 0.71–0.85× | 1.71–1.77× | 111.8–117.4 |
-| 256 | seeded stochastic | 0.84–1.85× | 2.04–4.55× | 113.1–114.5 |
-| 512 | greedy | 0.67–1.05× | 1.65–1.87× | 114.8–117.7 |
-| 512 | seeded stochastic | 1.84–1.90× | 1.90–2.05× | 108.5–114.4 |
+| Response | `hf_cached` / `hf_reference` | vLLM / `hf_cached` | `hf_cached` tokens/s | vLLM tokens/s |
+| ---: | ---: | ---: | ---: | ---: |
+| 64 | 2.39–4.30× | 2.99–5.71× | 124.2–242.5 | 626.6–806.0 |
+| 256 | 2.38–4.30× | 3.19–5.97× | 125.9–240.8 | 685.6–836.4 |
+| 512 | 2.54–4.23× | 3.08–5.88× | 124.3–248.7 | 693.4–821.2 |
 
-vLLM peaked at 11,820 MiB of total GPU memory, confirmed eight unique policy
-refreshes without monotonic growth, and closed its localhost port. Initial
-managed synchronization, including server startup and first adapter load, took
-17.57 seconds. The isolated startup field was overwritten by later no-op start
-checks in this measurement, so no standalone startup number is reported.
-
-The external-engine value gate passed in every 256/512-token cell. The separate
-`hf_cached >= 2× hf_reference` gate did not: the best seeded-stochastic cells
-reached about 1.9× and the greedy path was usually slower than the legacy
-oracle. That failed gate blocks v0.11.0 publication while `hf_cached` is
-profiled and optimized. The [benchmark report](benchmarks/rollout-runtime-v2.md)
-and [machine-readable result](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/rollout-runtime-v2-rtx4080.json)
-contain every cell and raw artifact hash.
+Both preregistered speed gates passed in every required 256/512-token cell.
+`hf_cached` peaked at 6,504 MiB and vLLM at 11,931 MiB of total GPU memory.
+Both backends confirmed eight unique policy refreshes without monotonic growth
+and closed cleanly. The local NF4/mirror probe passed; vLLM's sampled-token
+log-probabilities remained outside the PG-k1 tolerance, which keeps its scope
+to direct GKD. The [benchmark report](benchmarks/rollout-runtime-v2.md) and
+[machine-readable result](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/rollout-runtime-v2-v0.11.0-candidate-rtx4080.json)
+contain every cell and raw artifact hash. The earlier failed candidate remains
+available beside it as preserved negative evidence.

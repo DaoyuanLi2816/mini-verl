@@ -130,15 +130,15 @@ group advantage 组合；目前不对任务质量作结论。
 ## 实测系统证据
 
 Rollout Runtime v2 已在 RTX 4080 上完成 24-cell 测量，覆盖 64/256/512-token
-response、`n=1/4`、greedy 与 seeded sampling。Managed vLLM 0.28.0 达到
-108.5–117.7 output tokens/s；在 256/512-token cell 中比 `hf_cached` 快
-1.65–4.55×，peak total GPU memory 为 11.54 GiB，并通过 8 次 policy refresh 与
-完整 teardown。它是实测的 direct-GKD engine；engine log-probability probe 超出数值
-门槛，因此 PG-k1 继续使用 `hf_cached`。
+response、`n=1/4`、greedy 与 seeded sampling。编译后的 `hf_cached` 达到
+124.2–248.7 output tokens/s，并在所有必需 cell 中通过预注册的 2× gate。训练仍以
+NF4 actor 为准，每个 policy version 都会精确同步到独立的 BF16 rollout mirror。
 
-同一份证据也给出了下一步优化目标：`hf_cached` 在多数 seeded 256/512-token cell 中
-约为旧路径的 1.8–1.9×，没有达到预注册的 2× gate；greedy 路径通常比旧 oracle 更慢。
-因此开发线保持 `0.11.0.dev0`，尚未发布 v0.11.0。每个 cell 与 artifact hash 见
+启用 CUDA Graph 的 managed vLLM 0.28.0 达到 626.6–836.4 output tokens/s；在
+256/512-token cell 中比 `hf_cached` 快 3.08–5.97×。两个 backend 都通过显存、8 次
+policy refresh 与 teardown gate。vLLM 是实测的 direct-GKD engine；其 engine
+log-probability probe 超出数值门槛，因此 PG-k1 继续使用 `hf_cached`。每个 cell、保留的
+第一版失败候选与 artifact hash 见
 [完整 runtime 结果](docs/benchmarks/rollout-runtime-v2.md)。
 
 Qwen3-0.6B/1.7B developer workload 消费 **32 个不同 prompt**，response 上限为 64 token，

@@ -71,12 +71,16 @@ All notable changes to miniVERL are recorded here. The format follows
 - Published the exact-wheel 24-cell RTX 4080 comparison for `hf_reference`,
   `hf_cached` and managed vLLM across prompt lengths 128/512, response bounds
   64/256/512, `n=1/4`, greedy and seeded sampling.
-- Selected vLLM 0.28.0 for the direct-GKD development path after a measured
-  1.65–4.55× advantage over `hf_cached` at 256/512 tokens, eight confirmed
-  policy refreshes, 11,820 MiB peak total GPU memory and clean teardown.
-- Recorded the blocking negative result: `hf_cached` did not reach the
-  preregistered 2× speedup over `hf_reference`. v0.11.0 remains unpublished
-  until the local backend is optimized and the frozen workload is rerun.
+- Added an owned BF16 rollout mirror for NF4 training actors, exact live-LoRA
+  synchronization and StaticCache compilation. The final exact-wheel candidate
+  passed the `hf_cached >= 2× hf_reference` gate in every required cell.
+- Selected CUDA Graph vLLM 0.28.0 for the direct-GKD development path after a
+  measured 3.08–5.97× advantage over `hf_cached` at 256/512 tokens, eight
+  confirmed policy refreshes, 11,931 MiB peak total GPU memory and clean
+  teardown.
+- Preserved the first failed candidate as negative evidence and published the
+  qualified rerun as a separate identity-bound aggregate. PG-k1 remains on
+  `hf_cached` because vLLM did not pass log-probability conformance.
 
 ### Documentation narrative
 

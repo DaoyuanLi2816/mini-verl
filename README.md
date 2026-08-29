@@ -140,20 +140,20 @@ rewards and explicit group advantage composition; it has no task-quality claim.
 
 ## Measured systems evidence
 
-Rollout Runtime v2 now has a complete 24-cell RTX 4080 measurement across
-64/256/512-token responses, `n=1/4`, greedy and seeded sampling. Managed vLLM
-0.28.0 delivered 108.5–117.7 output tokens/s and was 1.65–4.55× faster than
-`hf_cached` in the 256/512-token cells, with 11.54 GiB peak total GPU memory,
-eight confirmed policy refreshes and clean teardown. It is the measured
-direct-GKD engine; PG-k1 stays on `hf_cached` because the engine log-probability
-probe exceeded its numerical threshold.
+Rollout Runtime v2 has a complete 24-cell RTX 4080 measurement across
+64/256/512-token responses, `n=1/4`, greedy and seeded sampling. The compiled
+`hf_cached` path reached 124.2–248.7 output tokens/s and passed the
+preregistered 2× gate in every required cell. It keeps the NF4 actor for
+training and synchronizes each policy version into an owned BF16 rollout
+mirror.
 
-The same evidence found the next optimization target: `hf_cached` reached
-about 1.8–1.9× on most seeded 256/512-token cells but did not meet the
-preregistered 2× gate, while the greedy path was usually slower than the legacy
-oracle. The development line therefore remains `0.11.0.dev0` rather than a
-published v0.11.0 release. See the [full runtime result](docs/benchmarks/rollout-runtime-v2.md)
-for every cell and artifact hash.
+Managed vLLM 0.28.0 with CUDA Graph execution reached 626.6–836.4 output
+tokens/s and was 3.08–5.97× faster than `hf_cached` in the 256/512-token cells.
+Both backends passed memory, eight-refresh and teardown gates. vLLM is the
+measured direct-GKD engine; PG-k1 stays on `hf_cached` because its engine
+log-probability probe exceeded the numerical threshold. See the
+[full runtime result](docs/benchmarks/rollout-runtime-v2.md) for every cell,
+the preserved first candidate and artifact hashes.
 
 The Qwen3-0.6B/1.7B developer workload consumed **32 distinct prompts**, used a
 64-token response bound, and completed **8 current-policy updates** at

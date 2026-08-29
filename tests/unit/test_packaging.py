@@ -307,6 +307,7 @@ def test_every_published_benchmark_result_validates_against_the_schema():
             "alignment-external-v1.json",
             "rollout-runtime-v2-hf-reference.json",
             "rollout-runtime-v2-rtx4080.json",
+            "rollout-runtime-v2-v0.11.0-candidate-rtx4080.json",
             "rtx4080-verl-opd-runtime-v1.json",
             "rtx4080-verl-opd-developer-v1.json",
             "rtx4080-smollm2-opd-family-smoke-v1.json",

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daoyuanli2816.github.io/mini-verl/schemas/rollout-runtime-v2-candidate-result.schema.json",
+  "title": "Rollout Runtime v2 v0.11.0 candidate qualification",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "name",
+    "measurement_status",
+    "source",
+    "artifacts",
+    "gates",
+    "backend_selection",
+    "release_progress",
+    "cells"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "name": {"const": "rollout-runtime-v2-v0.11.0-candidate-rtx4080"},
+    "measurement_status": {"const": "completed_runtime_gate_passed"},
+    "source": {
+      "type": "object",
+      "required": ["commit", "dirty", "miniverl_version", "wheel_sha256"],
+      "properties": {
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "dirty": {"const": false},
+        "miniverl_version": {"const": "0.11.0.dev0"},
+        "wheel_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "gates": {
+      "type": "object",
+      "required": [
+        "hf_cached_speedup_over_hf_reference",
+        "vllm_speedup_over_hf_cached",
+        "hf_cached_nf4_conformance",
+        "hf_cached_policy_refresh",
+        "vllm_policy_refresh",
+        "peak_total_gpu_memory",
+        "backend_teardown",
+        "vllm_pg_logprob_conformance"
+      ],
+      "properties": {
+        "hf_cached_speedup_over_hf_reference": {
+          "type": "object",
+          "properties": {"passed": {"const": true}},
+          "required": ["passed", "responses"]
+        },
+        "vllm_speedup_over_hf_cached": {
+          "type": "object",
+          "properties": {"passed": {"const": true}},
+          "required": ["passed"]
+        },
+        "hf_cached_nf4_conformance": {
+          "type": "object",
+          "properties": {"passed": {"const": true}, "tokens_equal": {"const": true}},
+          "required": ["passed", "tokens_equal"]
+        },
+        "hf_cached_policy_refresh": {
+          "type": "object",
+          "properties": {"passed": {"const": true}, "cycles": {"const": 8}},
+          "required": ["passed", "cycles"]
+        },
+        "vllm_policy_refresh": {
+          "type": "object",
+          "properties": {"passed": {"const": true}, "cycles": {"const": 8}},
+          "required": ["passed", "cycles"]
+        },
+        "peak_total_gpu_memory": {
+          "type": "object",
+          "properties": {"passed": {"const": true}},
+          "required": ["passed", "limit_mib", "hf_cached_peak_mib", "vllm_peak_mib"]
+        },
+        "backend_teardown": {
+          "type": "object",
+          "properties": {"passed": {"const": true}},
+          "required": ["passed"]
+        },
+        "vllm_pg_logprob_conformance": {
+          "type": "object",
+          "properties": {"passed": {"const": false}},
+          "required": ["passed", "effect"]
+        }
+      }
+    },
+    "release_progress": {
+      "type": "object",
+      "required": ["rollout_runtime_v2_gate_passed", "v0_11_0_published", "next_action"],
+      "properties": {
+        "rollout_runtime_v2_gate_passed": {"const": true},
+        "v0_11_0_published": {"const": false}
+      }
+    },
+    "cells": {"type": "array", "minItems": 24, "maxItems": 24}
+  }
+}
