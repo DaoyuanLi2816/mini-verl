@@ -27,6 +27,7 @@ from miniverl.alignment.schema import (
     TeacherMode,
 )
 from miniverl.errors import ConfigError
+from miniverl.rewards import ADVANTAGE_COMPOSER_VERSION, AdvantageMode
 from miniverl.runtime.generation import RolloutBackendKind
 from miniverl.utils.runs import write_text
 
@@ -46,6 +47,8 @@ __all__ = [
     "Quantization",
     "TeacherContextMode",
     "LossMode",
+    "RewardConfig",
+    "RewardProviderKind",
     "LossAggregation",
     "Divergence",
     "SelectorName",
@@ -158,6 +161,7 @@ class LossMode(str, Enum):
     BUCKETED_TOPK_TAIL = "bucketed_topk_tail"
     VERL_FORWARD_KL_TOPK = "forward_kl_topk"
     VERL_PG_K1 = "verl_pg_k1"
+    VERL_PG_K1_REWARDED = "verl_pg_k1_rewarded"
 
 
 class LossAggregation(str, Enum):
@@ -486,6 +490,10 @@ class LossConfig(_Base):
     clip_ratio_high: float = Field(default=0.2, ge=0.0, lt=1.0)
     clip_ratio_c: float = Field(default=3.0, gt=1.0)
     estimator_implementation_version: str | None = None
+    advantage_composer_version: str | None = None
+    advantage_mode: AdvantageMode = AdvantageMode.NONE
+    distillation_coef: float = Field(default=1.0, ge=0.0)
+    task_reward_coef: float = Field(default=0.0, ge=0.0)
 
     @model_validator(mode="before")
     @classmethod
@@ -771,6 +779,22 @@ class ReportConfig(_Base):
     max_tokens_per_trajectory: int = Field(default=400, ge=0, le=8192)
 
 
+class RewardProviderKind(str, Enum):
+    """Built-in reward-provider registry; no artifact-driven imports."""
+
+    ENVIRONMENT_VERIFIER = "environment_verifier"
+    EXACT_ANSWER = "exact_answer"
+    PYTHON_API = "python_api"
+
+
+class RewardConfig(_Base):
+    """Fail-closed deterministic task-reward configuration."""
+
+    enabled: bool = False
+    provider: RewardProviderKind | None = None
+    error_policy: Literal["fail"] = "fail"
+
+
 class RunMeta(_Base):
     """Identity and reproducibility settings for the run."""
 
@@ -809,6 +833,7 @@ class RunConfig(_Base):
     offline_kd: OfflineKDConfig = Field(default_factory=OfflineKDConfig)
     eval: EvalConfig = Field(default_factory=EvalConfig)
     report: ReportConfig = Field(default_factory=ReportConfig)
+    reward: RewardConfig = Field(default_factory=RewardConfig)
     alignment: AlignmentConfig | None = None
 
     # -- cross-field validation ----------------------------------------
@@ -875,10 +900,10 @@ class RunConfig(_Base):
                     "source.kind=verl_parquet requires the actor and teacher to score the "
                     "same rendered prompt; privileged_context is outside the v0.8 profile"
                 )
-            if self.source.use_task_rewards:
+            if self.source.use_task_rewards and self.loss.mode is not LossMode.VERL_PG_K1_REWARDED:
                 raise ValueError(
-                    "source.use_task_rewards=true is not implemented for the pure OPD prompt "
-                    "runtime; refusing to ignore row reward_model metadata"
+                    "existing PG-k1 profile is reward-free; source.use_task_rewards=true "
+                    "requires the explicit rewarded PG profile"
                 )
         if mode is TrainingMode.OPD and self.cache.reuse_across_policy_versions:
             raise ValueError(
@@ -949,7 +974,8 @@ class RunConfig(_Base):
                     "supported verl v0.8 profile"
                 )
 
-        if self.loss.mode is LossMode.VERL_PG_K1:
+        pg_modes = {LossMode.VERL_PG_K1, LossMode.VERL_PG_K1_REWARDED}
+        if self.loss.mode in pg_modes:
             from miniverl.bridge.opd_pg_contract import VERL_PG_K1_IMPLEMENTATION_VERSION
 
             if mode is not TrainingMode.OPD:
@@ -1000,6 +1026,66 @@ class RunConfig(_Base):
                 raise ValueError(
                     "loss.mode=verl_pg_k1 requires every response token with unit response-mask weight"
                 )
+            if self.loss.mode is LossMode.VERL_PG_K1:
+                if self.source.use_task_rewards or self.reward.enabled:
+                    raise ValueError(
+                        "existing PG-k1 profile is reward-free; select the explicit rewarded mode"
+                    )
+                if (
+                    self.loss.advantage_composer_version is not None
+                    or self.loss.advantage_mode is not AdvantageMode.NONE
+                    or self.loss.distillation_coef != 1.0
+                    or self.loss.task_reward_coef != 0.0
+                ):
+                    raise ValueError(
+                        "existing PG-k1 profile cannot enable reward advantage composition"
+                    )
+            else:
+                if not self.source.use_task_rewards:
+                    raise ValueError(
+                        "loss.mode=verl_pg_k1_rewarded requires source.use_task_rewards=true"
+                    )
+                if not self.reward.enabled:
+                    raise ValueError("loss.mode=verl_pg_k1_rewarded requires reward.enabled=true")
+                if self.reward.provider not in {
+                    RewardProviderKind.EXACT_ANSWER,
+                    RewardProviderKind.PYTHON_API,
+                }:
+                    raise ValueError(
+                        "rewarded PG requires exact_answer or an injected python_api provider"
+                    )
+                if self.loss.advantage_composer_version != ADVANTAGE_COMPOSER_VERSION:
+                    raise ValueError(
+                        "rewarded PG requires advantage_composer_version="
+                        f"{ADVANTAGE_COMPOSER_VERSION}"
+                    )
+                if self.loss.task_reward_coef <= 0.0:
+                    raise ValueError("rewarded PG requires task_reward_coef > 0")
+                if self.loss.advantage_mode is AdvantageMode.NONE:
+                    raise ValueError("rewarded PG requires an active task advantage_mode")
+                if (
+                    self.loss.advantage_mode
+                    in {
+                        AdvantageMode.GROUP_CENTER,
+                        AdvantageMode.GROUP_STANDARDIZE,
+                        AdvantageMode.LEAVE_ONE_OUT,
+                    }
+                    and self.rollout.samples_per_prompt == 1
+                ):
+                    raise ValueError(
+                        f"advantage_mode={self.loss.advantage_mode.value} requires "
+                        "samples_per_prompt > 1"
+                    )
+        elif (
+            self.reward != RewardConfig()
+            or self.loss.advantage_composer_version is not None
+            or self.loss.advantage_mode is not AdvantageMode.NONE
+            or self.loss.distillation_coef != 1.0
+            or self.loss.task_reward_coef != 0.0
+        ):
+            raise ValueError(
+                "reward and advantage settings apply only to the explicit rewarded PG profile"
+            )
         if mode is TrainingMode.SFT and self.loss.sampled_token_nll_weight not in (0.0, 1.0):
             raise ValueError(
                 "run.mode=sft trains with oracle cross-entropy only; "

@@ -188,6 +188,8 @@ class TeacherCache:
         target_representation: str = "topk_distribution",
         score_implementation_version: str | None = None,
         estimator_implementation_version: str | None = None,
+        reward_provider_identity_digest: str | None = None,
+        advantage_composer_version: str | None = None,
         execution_plan_digest: str | None = None,
         profile_identity: dict[str, Any] | None = None,
         samples_per_prompt: int = 1,
@@ -235,6 +237,8 @@ class TeacherCache:
             target_representation=target_representation,
             score_implementation_version=score_implementation_version,
             estimator_implementation_version=estimator_implementation_version,
+            reward_provider_identity_digest=reward_provider_identity_digest,
+            advantage_composer_version=advantage_composer_version,
             execution_plan_digest=execution_plan_digest,
             profile_identity=dict(profile_identity or {}),
             samples_per_prompt=samples_per_prompt,
@@ -294,6 +298,8 @@ class TeacherCache:
         target_representation: str = "topk_distribution",
         score_implementation_version: str | None = None,
         estimator_implementation_version: str | None = None,
+        reward_provider_identity_digest: str | None = None,
+        advantage_composer_version: str | None = None,
         execution_plan_digest: str | None = None,
         profile_identity: dict[str, Any] | None = None,
         samples_per_prompt: int = 1,
@@ -325,6 +331,13 @@ class TeacherCache:
                 "legacy teacher cache cannot verify grouped rollout identity",
                 hint="re-score the cache with trajectory schema v3 and grouped provenance",
             )
+        if self.index.schema_version < 5 and (
+            reward_provider_identity_digest is not None or advantage_composer_version is not None
+        ):
+            raise StaleCacheError(
+                "legacy teacher cache cannot verify reward-provider/composer identity",
+                hint="re-score the cache with the rewarded profile identity recorded",
+            )
         expected: dict[str, Any] = {
             "teacher_model_id": teacher_model_id,
             "teacher_model_revision": teacher_model_revision,
@@ -340,6 +353,9 @@ class TeacherCache:
             expected["score_implementation_version"] = score_implementation_version
         if estimator_implementation_version is not None:
             expected["estimator_implementation_version"] = estimator_implementation_version
+        if self.index.schema_version >= 5:
+            expected["reward_provider_identity_digest"] = reward_provider_identity_digest
+            expected["advantage_composer_version"] = advantage_composer_version
         if self.index.schema_version >= 2:
             expected["tokenizer_identity"] = dict(tokenizer_identity or {})
             expected["teacher_adapter_provenance"] = (

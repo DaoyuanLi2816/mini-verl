@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 import torch
 
@@ -187,11 +187,15 @@ class VerlPGK1TargetProvider:
     clip_ratio_high: float = 0.2
     clip_ratio_c: float = 3.0
     loss_max_clamp: float | None = None
+    rewarded: bool = False
+    task_advantage: float = 0.0
+    distillation_coef: float = 1.0
+    task_reward_coef: float = 0.0
     kind: str = "verl_pg_k1"
     diagnostics: list[dict[str, torch.Tensor | float]] = field(default_factory=list)
 
     def divergence(self, start: int, end: int, student_logits: torch.Tensor) -> torch.Tensor:
-        from miniverl.losses.verl_pg import verl_pg_k1_loss
+        from miniverl.losses.verl_pg import rewarded_pg_k1_loss, verl_pg_k1_loss
 
         targets = self.target_token_ids[start:end].to(student_logits.device)
         current = (
@@ -199,24 +203,49 @@ class VerlPGK1TargetProvider:
             .gather(-1, targets.unsqueeze(-1))
             .squeeze(-1)
         )
-        output = verl_pg_k1_loss(
-            current_log_probs=current,
-            old_log_probs=self.old_actor_log_probs[start:end].to(student_logits.device),
-            teacher_log_probs=self.teacher_sampled_token_log_probs[start:end].to(
-                student_logits.device
-            ),
-            weights=torch.ones(end - start, device=student_logits.device),
-            clip_ratio=self.clip_ratio,
-            clip_ratio_low=self.clip_ratio_low,
-            clip_ratio_high=self.clip_ratio_high,
-            clip_ratio_c=self.clip_ratio_c,
-            loss_max_clamp=self.loss_max_clamp,
-        )
+        old = self.old_actor_log_probs[start:end].to(student_logits.device)
+        teacher = self.teacher_sampled_token_log_probs[start:end].to(student_logits.device)
+        weights = torch.ones(end - start, device=student_logits.device)
+        output: Any
+        if self.rewarded:
+            output = rewarded_pg_k1_loss(
+                current_log_probs=current,
+                old_log_probs=old,
+                teacher_log_probs=teacher,
+                weights=weights,
+                task_advantage=self.task_advantage,
+                distillation_coef=self.distillation_coef,
+                task_reward_coef=self.task_reward_coef,
+                clip_ratio=self.clip_ratio,
+                clip_ratio_low=self.clip_ratio_low,
+                clip_ratio_high=self.clip_ratio_high,
+                clip_ratio_c=self.clip_ratio_c,
+                loss_max_clamp=self.loss_max_clamp,
+            )
+            rewarded_output = output
+            extra = {
+                "distillation_advantages": rewarded_output.distillation_advantages.detach().cpu(),
+                "task_advantages": rewarded_output.task_advantages.detach().cpu(),
+            }
+        else:
+            output = verl_pg_k1_loss(
+                current_log_probs=current,
+                old_log_probs=old,
+                teacher_log_probs=teacher,
+                weights=weights,
+                clip_ratio=self.clip_ratio,
+                clip_ratio_low=self.clip_ratio_low,
+                clip_ratio_high=self.clip_ratio_high,
+                clip_ratio_c=self.clip_ratio_c,
+                loss_max_clamp=self.loss_max_clamp,
+            )
+            extra = {}
         self.diagnostics.append(
             {
                 "estimator": output.estimator.detach().cpu(),
                 "advantages": output.advantages.detach().cpu(),
                 "ratio": output.ratio.detach().cpu(),
+                **extra,
                 **output.metrics,
             }
         )

@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import yaml
 from pydantic import BaseModel, Field, ValidationError, model_validator
@@ -37,9 +37,15 @@ __all__ = [
     "load_verl_pg_k1_v08_source",
     "pg_compatibility_rule",
     "pg_field_rules_digest",
+    "VERL_OPD_PG_K1_REWARDED_V08_PROFILE",
+    "rewarded_pg_compatibility_rule",
+    "rewarded_pg_field_rules_digest",
+    "VerlRewardedPGK1V08Profile",
+    "VerlRewardedPGK1LossConfig",
 ]
 
 VERL_OPD_PG_K1_V08_PROFILE = "verl-opd-v0.8-single-gpu-pg-k1-v1"
+VERL_OPD_PG_K1_REWARDED_V08_PROFILE = "verl-opd-v0.8-single-gpu-pg-k1-rewarded-v1"
 
 
 class VerlPGK1LossConfig(VerlOPDLossConfig):
@@ -67,6 +73,22 @@ class VerlPGK1DistillationConfig(VerlOPDDistillationConfig):
 
 class VerlPGK1V08Profile(VerlOPDV08Profile):
     distillation: VerlPGK1DistillationConfig
+
+
+class VerlRewardedPGK1LossConfig(VerlPGK1LossConfig):
+    """Reward fields owned only by the rewarded profile."""
+
+    task_reward_coef: float = Field(gt=0)
+    task_advantage_mode: Literal["raw", "group_center", "group_standardize", "leave_one_out"]
+    reward_provider: Literal["exact_answer"]
+
+
+class VerlRewardedPGK1DistillationConfig(VerlOPDDistillationConfig):
+    distillation_loss: VerlRewardedPGK1LossConfig
+
+
+class VerlRewardedPGK1V08Profile(VerlOPDV08Profile):
+    distillation: VerlRewardedPGK1DistillationConfig
 
 
 _PG_FIELD_RULES: dict[str, _Rule] = dict(_FIELD_RULES)
@@ -103,6 +125,24 @@ _PG_FIELD_RULES.update(
     }
 )
 
+_REWARDED_PG_FIELD_RULES = dict(_PG_FIELD_RULES)
+_REWARDED_PG_FIELD_RULES.update(
+    {
+        "distillation.distillation_loss.use_task_rewards": _rule(
+            "source.use_task_rewards", "exact", "enabled only by the rewarded profile"
+        ),
+        "distillation.distillation_loss.task_reward_coef": _rule(
+            "loss.task_reward_coef", "exact", "explicit task-advantage coefficient"
+        ),
+        "distillation.distillation_loss.task_advantage_mode": _rule(
+            "loss.advantage_mode", "exact", "versioned group reward transformation"
+        ),
+        "distillation.distillation_loss.reward_provider": _rule(
+            "reward.provider", "semantically_conformant", "closed built-in provider registry"
+        ),
+    }
+)
+
 
 def pg_compatibility_rule(field: str) -> dict[str, Any]:
     """Return one immutable PG-profile field rule."""
@@ -125,6 +165,29 @@ def pg_compatibility_rule(field: str) -> dict[str, Any]:
 def pg_field_rules_digest() -> str:
     """Bind the PG profile identity to its complete field-rule table."""
     return _canonical_digest([pg_compatibility_rule(field) for field in sorted(_PG_FIELD_RULES)])
+
+
+def rewarded_pg_compatibility_rule(field: str) -> dict[str, Any]:
+    try:
+        rule = _REWARDED_PG_FIELD_RULES[field]
+    except KeyError as exc:
+        raise ConfigError(
+            f"field {field!r} is not part of profile {VERL_OPD_PG_K1_REWARDED_V08_PROFILE!r}"
+        ) from exc
+    return {
+        "upstream_field": field,
+        "local_target": rule.target,
+        "classification": rule.classification,
+        "reason": rule.reason,
+        "semantic_risk": rule.risk,
+        "user_confirmation_required": rule.confirmation,
+    }
+
+
+def rewarded_pg_field_rules_digest() -> str:
+    return _canonical_digest(
+        [rewarded_pg_compatibility_rule(field) for field in sorted(_REWARDED_PG_FIELD_RULES)]
+    )
 
 
 def _pg_semantic_blocker(
@@ -234,6 +297,7 @@ def compile_verl_pg_k1_v08(
     require_executable: bool = True,
     allow_grouped_samples: bool = False,
     profile_name: str = VERL_OPD_PG_K1_V08_PROFILE,
+    rewarded: bool = False,
 ) -> CompiledLocalExecutionPlan:
     """Compile the closed sampled-k1 profile into a deterministic local plan."""
     merged = copy.deepcopy(dict(payload))
@@ -259,14 +323,19 @@ def compile_verl_pg_k1_v08(
 
     flat = _flatten(merged)
     _reject_non_finite_source_numbers(flat)
-    unknown = sorted(path for path in flat if path not in _PG_FIELD_RULES)
+    rules = _REWARDED_PG_FIELD_RULES if rewarded else _PG_FIELD_RULES
+    unknown = sorted(path for path in flat if path not in rules)
     if unknown:
         raise ConfigError(
             f"verl PG-k1 OPD config is not executable: unsupported field {unknown[0]!r}",
             hint="the profile accepts only its documented resolved verl v0.8 subset",
         )
     try:
-        source = VerlPGK1V08Profile.model_validate(merged)
+        source = (
+            VerlRewardedPGK1V08Profile.model_validate(merged)
+            if rewarded
+            else VerlPGK1V08Profile.model_validate(merged)
+        )
     except ValidationError as exc:
         finite = any("finite" in error.get("msg", "").lower() for error in exc.errors())
         message = "verl PG-k1 numeric fields must be finite" if finite else "invalid PG-k1 profile"
@@ -275,12 +344,27 @@ def compile_verl_pg_k1_v08(
     compatibility: list[CompatibilityEntry] = []
     blockers: list[str] = []
     for path, value in sorted(flat.items()):
-        rule = _PG_FIELD_RULES[path]
+        rule = rules[path]
         blocker = _pg_semantic_blocker(
             path,
             value,
             allow_grouped_samples=allow_grouped_samples,
         )
+        if rewarded:
+            if path == "distillation.distillation_loss.use_task_rewards":
+                blocker = None if value is True else "the rewarded profile requires task rewards"
+            elif (
+                path == "distillation.distillation_loss.reward_provider" and value != "exact_answer"
+            ):
+                blocker = "only the built-in exact_answer provider is supported"
+            elif (
+                path == "distillation.distillation_loss.task_advantage_mode"
+                and value in {"group_center", "group_standardize", "leave_one_out"}
+                and source.actor_rollout_ref.rollout.n == 1
+            ):
+                blocker = "group reward transformations require actor_rollout_ref.rollout.n > 1"
+        elif path == "distillation.distillation_loss.use_task_rewards" and value is not False:
+            blocker = "task-reward mixtures are unsupported"
         if blocker:
             blockers.append(path)
             classification: FieldClassification = "unsupported"
@@ -323,6 +407,7 @@ def compile_verl_pg_k1_v08(
         )
 
     executable = not blockers
+    rewarded_source = cast(VerlRewardedPGK1V08Profile, source)
     local_execution = {
         "device_count": 1,
         "distributed_execution": False,
@@ -334,16 +419,37 @@ def compile_verl_pg_k1_v08(
         "teacher_model": source.distillation.teacher_models.teacher_model.model_path,
         "loss_mode": "k1",
         "loss_reduction": "token-mean",
-        "task_rewards": False,
+        "task_rewards": rewarded,
         "policy_gradient": True,
         "policy_loss_mode": "vanilla",
         "teacher_target": "sampled_token_log_probability",
         "samples_per_prompt": source.actor_rollout_ref.rollout.n,
         "group_semantics": "independent_current_policy_trajectories",
         "trajectory_schema_version": 3 if allow_grouped_samples else 2,
+        **(
+            {
+                "reward_provider": rewarded_source.distillation.distillation_loss.reward_provider,
+                "task_advantage_mode": (
+                    rewarded_source.distillation.distillation_loss.task_advantage_mode
+                ),
+                "distillation_coef": (
+                    rewarded_source.distillation.distillation_loss.distillation_loss_coef
+                ),
+                "task_reward_coef": (
+                    rewarded_source.distillation.distillation_loss.task_reward_coef
+                ),
+                "advantage_composer_version": "miniverl-task-distill-advantage-v1",
+                "critic": False,
+                "value_model": False,
+                "global_advantage_normalization": False,
+                "grpo": False,
+            }
+            if rewarded
+            else {}
+        ),
     }
     high_risk = [item.upstream_field for item in compatibility if item.user_confirmation_required]
-    common = {
+    common: dict[str, Any] = {
         "profile": profile_name,
         "upstream": {"repository": VERL_REPOSITORY, "tag": VERL_TAG, "commit": VERL_COMMIT},
         "source_digest": _canonical_digest(merged),
@@ -387,6 +493,7 @@ def load_verl_pg_k1_v08(
     require_executable: bool = True,
     allow_grouped_samples: bool = False,
     profile_name: str = VERL_OPD_PG_K1_V08_PROFILE,
+    rewarded: bool = False,
 ) -> CompiledLocalExecutionPlan:
     """Load one resolved YAML document without executing interpolation."""
     if path.suffix.lower() in {".sh", ".bash", ".ps1", ".cmd", ".bat"}:
@@ -407,6 +514,7 @@ def load_verl_pg_k1_v08(
         require_executable=require_executable,
         allow_grouped_samples=allow_grouped_samples,
         profile_name=profile_name,
+        rewarded=rewarded,
     )
 
 
@@ -420,6 +528,7 @@ def load_verl_pg_k1_v08_source(
     require_executable: bool = True,
     allow_grouped_samples: bool = False,
     profile_name: str = VERL_OPD_PG_K1_V08_PROFILE,
+    rewarded: bool = False,
 ) -> CompiledLocalExecutionPlan:
     """Load the PG profile from an explicit resolved YAML path."""
     return load_verl_pg_k1_v08(
@@ -431,4 +540,5 @@ def load_verl_pg_k1_v08_source(
         require_executable=require_executable,
         allow_grouped_samples=allow_grouped_samples,
         profile_name=profile_name,
+        rewarded=rewarded,
     )

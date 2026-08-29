@@ -30,7 +30,7 @@ import time
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from miniverl import __version__
 from miniverl.agent.loop import RolloutRunner, RolloutStats
@@ -45,6 +45,7 @@ from miniverl.config.models import (
     OfflineKDTrajectorySource,
     OPDFreshness,
     Quantization,
+    RewardProviderKind,
     RunConfig,
     SourceKind,
     TeacherContextMode,
@@ -69,7 +70,12 @@ from miniverl.models.factory import (
     resolve_device,
 )
 from miniverl.schemas.alignment import AlignmentMap
-from miniverl.schemas.trajectory import TRAJECTORY_SCHEMA_VERSION, Trajectory
+from miniverl.schemas.trajectory import (
+    TRAJECTORY_SCHEMA_VERSION,
+    SpanType,
+    Trajectory,
+    VerificationRecord,
+)
 from miniverl.selection.selectors import (
     SelectionResult,
     SelectionStats,
@@ -197,6 +203,7 @@ class OPDTrainer:
         plan: MemoryPlan,
         run_lock: RunLock,
         evaluation_only: bool = False,
+        reward_provider: Any | None = None,
     ) -> None:
         self._closed = False
         self._state = TrainerState.READY
@@ -253,13 +260,33 @@ class OPDTrainer:
         from miniverl.runtime.roles import LocalArtifactBridge, LocalRoleGraph
 
         self.reference = reference
+        self.reward_provider: Any | None = reward_provider
+        if config.loss.mode is LossMode.VERL_PG_K1_REWARDED:
+            from miniverl.rewards.providers import (
+                ExactAnswerRewardProvider,
+                RewardProvider,
+            )
+
+            if config.reward.provider is RewardProviderKind.EXACT_ANSWER:
+                if reward_provider is not None:
+                    raise ConfigError("an injected provider requires reward.provider=python_api")
+                self.reward_provider = ExactAnswerRewardProvider()
+            elif reward_provider is None or not isinstance(reward_provider, RewardProvider):
+                raise ConfigError(
+                    "reward.provider=python_api requires a RewardProvider object passed to "
+                    "OPDTrainer.from_config(..., reward_provider=...)"
+                )
+        elif reward_provider is not None:
+            raise ConfigError("an injected reward provider requires the rewarded PG profile")
+        self.reward_log = JsonlWriter(paths.root / "rewards.jsonl")
+        self.advantage_log = JsonlWriter(paths.root / "advantages.jsonl")
         self.artifact_bridge = LocalArtifactBridge(paths.root)
         self.role_graph = LocalRoleGraph(
             actor_policy=self.student,
             rollout_runtime=self.rollout_runtime,
             teacher_policy=self.teacher,
             reference_policy=self.reference,
-            reward_or_verifier=self.environment,
+            reward_or_verifier=cast(Any, self.reward_provider or self.environment),
             target_builder=self.scorer,
             update_runtime=self,
             evaluation_runtime=self,
@@ -389,6 +416,7 @@ class OPDTrainer:
         for_evaluation: bool = False,
         lock_timeout: float = 0.0,
         already_acquired_lock: RunLock | None = None,
+        reward_provider: Any | None = None,
     ) -> OPDTrainer:
         """Validate, seed, load models and create the run directory.
 
@@ -672,6 +700,7 @@ class OPDTrainer:
                 plan=plan,
                 run_lock=run_lock,
                 evaluation_only=for_evaluation,
+                reward_provider=reward_provider,
             )
             if write_artifacts and resume_options == 0:
                 trainer._write_startup_artifacts()
@@ -1286,7 +1315,10 @@ class OPDTrainer:
             from miniverl.losses.verl_topk import VERL_TOPK_SCORE_IMPLEMENTATION
 
             assert self.teacher is not None
-            pg_k1 = self.config.loss.mode is LossMode.VERL_PG_K1
+            pg_k1 = self.config.loss.mode in {
+                LossMode.VERL_PG_K1,
+                LossMode.VERL_PG_K1_REWARDED,
+            }
             top_k = (
                 1
                 if pg_k1
@@ -1321,6 +1353,16 @@ class OPDTrainer:
                 ),
                 "estimator_implementation_version": (
                     VERL_PG_K1_IMPLEMENTATION_VERSION if pg_k1 else None
+                ),
+                "reward_provider_identity_digest": (
+                    self.reward_provider.identity.digest
+                    if self.reward_provider is not None
+                    else None
+                ),
+                "advantage_composer_version": (
+                    self.config.loss.advantage_composer_version
+                    if self.config.loss.mode is LossMode.VERL_PG_K1_REWARDED
+                    else None
                 ),
                 "execution_plan_digest": self.config.run.execution_plan_digest,
                 "profile_identity": self.config.run.profile_identity,
@@ -1697,6 +1739,100 @@ class OPDTrainer:
                 )
         cache.flush()
         return samples
+
+    def _score_task_rewards(self, trajectories: list[Trajectory]) -> None:
+        """Score one complete rollout group and attach explicit task advantages."""
+        if self.config.loss.mode is not LossMode.VERL_PG_K1_REWARDED:
+            return
+        if self.reward_provider is None:
+            raise ConfigError("rewarded PG requires a configured reward provider")
+        from miniverl.rewards import AdvantageComposer, AdvantageMode, RewardRequest, RewardStatus
+
+        groups: dict[str, list[tuple[Trajectory, Any]]] = {}
+        for trajectory in trajectories:
+            if (
+                trajectory.prompt_group_id is None
+                or trajectory.sample_index is None
+                or trajectory.samples_per_prompt is None
+            ):
+                raise ConfigError("rewarded PG requires schema-v3 grouped trajectories")
+            metadata = trajectory.metadata
+            row_digest = metadata.get("row_digest")
+            data_source = metadata.get("data_source")
+            if (
+                not isinstance(row_digest, str)
+                or not isinstance(data_source, str)
+                or not data_source
+            ):
+                raise ConfigError("rewarded PG trajectory is missing bound row/data provenance")
+            extra = metadata.get("extra_info")
+            ground_truth = extra.get("ground_truth") if isinstance(extra, dict) else None
+            response = "".join(
+                span.text
+                for span in trajectory.spans
+                if span.span_type in {SpanType.ASSISTANT_TEXT, SpanType.ASSISTANT_FINAL}
+            )
+            request = RewardRequest.create(
+                trajectory_id=trajectory.trajectory_id,
+                prompt_group_id=trajectory.prompt_group_id,
+                sample_index=trajectory.sample_index,
+                samples_per_prompt=trajectory.samples_per_prompt,
+                row_digest=row_digest,
+                response_text=response,
+                reward_model=metadata.get("reward_model"),
+                ground_truth=ground_truth,
+                data_source=data_source,
+            )
+            result = self.reward_provider.score(request)
+            self.reward_log.write(result.model_dump(mode="json"))
+            if result.status is not RewardStatus.OK or result.raw_reward is None:
+                raise ConfigError(
+                    f"reward provider failed closed for {trajectory.trajectory_id}: "
+                    f"{result.failure_category or result.status.value}: {result.detail or ''}"
+                )
+            groups.setdefault(trajectory.prompt_group_id, []).append((trajectory, result))
+
+        composer = AdvantageComposer(
+            mode=AdvantageMode(self.config.loss.advantage_mode),
+            distillation_coef=self.config.loss.distillation_coef,
+            task_reward_coef=self.config.loss.task_reward_coef,
+        )
+        for group_id, members in groups.items():
+            members.sort(key=lambda item: int(item[0].sample_index or 0))
+            expected = members[0][0].samples_per_prompt
+            if len(members) != expected:
+                raise ConfigError(f"reward group {group_id!r} is incomplete")
+            composition = composer.compose_group([float(item[1].raw_reward) for item in members])
+            for (trajectory, result), advantage in zip(
+                members, composition.task_advantages, strict=True
+            ):
+                trajectory.metadata["task_reward"] = result.model_dump(mode="json")
+                trajectory.metadata["task_advantage"] = advantage
+                trajectory.metadata["advantage_composition"] = {
+                    "implementation_version": composition.implementation_version,
+                    "mode": composition.mode.value,
+                    "distillation_coef": composition.distillation_coef,
+                    "task_reward_coef": composition.task_reward_coef,
+                    "zero_variance": composition.zero_variance,
+                }
+                self.advantage_log.write(
+                    {
+                        "trajectory_id": trajectory.trajectory_id,
+                        "prompt_group_id": group_id,
+                        "sample_index": trajectory.sample_index,
+                        "reward_input_digest": result.input_digest,
+                        "reward_provider_identity_digest": result.provider.digest,
+                        "raw_task_reward": result.raw_reward,
+                        "task_advantage": advantage,
+                        **trajectory.metadata["advantage_composition"],
+                    }
+                )
+                trajectory.verification = VerificationRecord(
+                    solved=bool(result.raw_reward > 0.0),
+                    reward=float(result.raw_reward),
+                    failure_category=result.failure_category,
+                    detail=result.detail,
+                )
 
     # -- optimization --------------------------------------------------------------
 
@@ -2427,6 +2563,7 @@ class OPDTrainer:
                     else None
                 ),
             )
+            self._score_task_rewards(trajectories)
             if trajectories:
                 rollout_policy_version = trajectories[0].policy_version
             rollout_seconds = max(time.perf_counter() - rollout_started, 1e-9)
@@ -2726,7 +2863,7 @@ class OPDTrainer:
                 ],
                 device=self.plan.device,
             )
-            if config.loss.mode is LossMode.VERL_PG_K1:
+            if config.loss.mode in {LossMode.VERL_PG_K1, LossMode.VERL_PG_K1_REWARDED}:
                 if (
                     batch.old_actor_log_probs is None
                     or batch.teacher_sampled_token_log_probs is None
@@ -2741,6 +2878,10 @@ class OPDTrainer:
                     clip_ratio_high=config.loss.clip_ratio_high,
                     clip_ratio_c=config.loss.clip_ratio_c,
                     loss_max_clamp=config.loss.loss_max_clamp,
+                    rewarded=config.loss.mode is LossMode.VERL_PG_K1_REWARDED,
+                    task_advantage=float(sample.trajectory.metadata.get("task_advantage", 0.0)),
+                    distillation_coef=config.loss.distillation_coef,
+                    task_reward_coef=config.loss.task_reward_coef,
                 )
             elif config.loss.mode is LossMode.VERL_FORWARD_KL_TOPK:
                 sample.teacher.provider = VerlTopKTargetProvider(
@@ -3105,6 +3246,14 @@ class OPDTrainer:
             pending_group_identity=list(self._pending_group_identity),
             committed_group_identity=list(self._committed_group_identity),
             backend_sync_identity=self._backend_sync_identity,
+            reward_provider_identity_digest=(
+                self.reward_provider.identity.digest if self.reward_provider is not None else None
+            ),
+            advantage_composer_version=(
+                self.config.loss.advantage_composer_version
+                if self.config.loss.mode is LossMode.VERL_PG_K1_REWARDED
+                else None
+            ),
             scheduler=self.schedule.state_dict(),
             config_digest=self._config_digest(),
             resolved_config_digest=self._resolved_config_digest(),
@@ -3163,6 +3312,20 @@ class OPDTrainer:
             )
         if validated.state.group_generation_seed_version != "miniverl-rollout-seed-v1":
             raise ConfigError("checkpoint uses an unsupported group generation seed version")
+        expected_reward_digest = (
+            self.reward_provider.identity.digest if self.reward_provider is not None else None
+        )
+        if validated.state.reward_provider_identity_digest != expected_reward_digest:
+            raise ConfigError("checkpoint reward provider identity does not match the current run")
+        expected_composer = (
+            self.config.loss.advantage_composer_version
+            if self.config.loss.mode is LossMode.VERL_PG_K1_REWARDED
+            else None
+        )
+        if validated.state.advantage_composer_version != expected_composer:
+            raise ConfigError(
+                "checkpoint advantage composer version does not match the current run"
+            )
         if validated.state.pending_group_identity:
             raise ConfigError(
                 "checkpoint contains a pending partial rollout group",

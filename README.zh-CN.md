@@ -124,6 +124,8 @@ distillation:
 [兼容 profile](docs/profiles/index.md)说明 profile identity 如何跟随 plan、cache、checkpoint
 与 export。另有两个仅完成一致性验证的 grouped profile，为 Parquet prompt 提供事务化
 `n>1` 独立样本；它们不改变两个实测 `n=1` profile，也不引入 GRPO 语义。
+另有一个仅完成一致性验证的 rewarded profile，加入确定性的 exact-answer reward 与显式
+group advantage 组合；目前不对任务质量作结论。
 
 ## 实测系统证据
 

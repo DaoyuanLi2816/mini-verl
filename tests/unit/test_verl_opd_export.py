@@ -181,6 +181,16 @@ def _opd_run(
         }
     if "grouped" in profile:
         source["actor_rollout_ref"]["rollout"]["n"] = 4
+    if "rewarded" in profile:
+        source["actor_rollout_ref"]["rollout"]["n"] = 4
+        source["distillation"]["distillation_loss"].update(
+            {
+                "use_task_rewards": True,
+                "task_reward_coef": 1.0,
+                "task_advantage_mode": "group_center",
+                "reward_provider": "exact_answer",
+            }
+        )
     (run / "verl-source-config.json").write_text(json.dumps(source), encoding="utf-8")
     (run / "verl-compatibility-report.json").write_text(
         json.dumps(
@@ -254,6 +264,29 @@ def test_grouped_export_binds_independent_sample_semantics(
         "group_baseline": False,
         "grpo": False,
     }
+
+
+def test_rewarded_export_records_fail_closed_semantic_boundary(tmp_path: Path) -> None:
+    from miniverl.bridge.contract import VERL_TAG
+    from miniverl.bridge.export import export_verl_bundle
+
+    profile = "verl-opd-v0.8-single-gpu-pg-k1-rewarded-v1"
+    run, _, _ = _opd_run(tmp_path, profile=profile)
+    report = export_verl_bundle(run, target_verl=VERL_TAG, out=tmp_path / "rewarded-bundle")
+
+    assert report["reward_required"] is True
+    assert report["reward_provider"] == "exact_answer"
+    assert report["launchable"] is False
+    assert report["grouped_rollout_semantics"] == {
+        "samples_per_prompt": 4,
+        "trajectory_schema_version": 3,
+        "sample_semantics": "independent_current_policy_trajectory",
+        "group_baseline": "group_center",
+        "grpo": False,
+        "critic": False,
+        "value_model": False,
+    }
+    assert any("no claimed distributed verl parity" in item for item in report["launch_blockers"])
 
 
 def test_pure_opd_export_is_reward_free_and_preserves_data_bytes(tmp_path: Path) -> None:

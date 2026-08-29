@@ -17,11 +17,15 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from miniverl.bridge.contract import VERL_COMMIT, VERL_REPOSITORY, VERL_TAG
 from miniverl.bridge.opd_pg_v08 import (
+    VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
     VERL_OPD_PG_K1_V08_PROFILE,
     VerlPGK1V08Profile,
+    VerlRewardedPGK1V08Profile,
     load_verl_pg_k1_v08_source,
     pg_compatibility_rule,
     pg_field_rules_digest,
+    rewarded_pg_compatibility_rule,
+    rewarded_pg_field_rules_digest,
 )
 from miniverl.bridge.opd_v08 import (
     VERL_OPD_V08_PROFILE,
@@ -45,6 +49,7 @@ __all__ = [
     "load_profile_source",
     "VERL_OPD_GROUPED_V08_PROFILE",
     "VERL_OPD_PG_K1_GROUPED_V08_PROFILE",
+    "VERL_OPD_PG_K1_REWARDED_V08_PROFILE",
 ]
 
 VERL_OPD_GROUPED_V08_PROFILE = "verl-opd-v0.8-single-gpu-grouped-v1"
@@ -284,6 +289,7 @@ class _DirectGKDProfile(CompatibilityProfile):
 class _PGK1Profile(CompatibilityProfile):
     name: str = VERL_OPD_PG_K1_V08_PROFILE
     grouped: bool = False
+    rewarded: bool = False
 
     @property
     def identity(self) -> ProfileIdentity:
@@ -293,29 +299,49 @@ class _PGK1Profile(CompatibilityProfile):
             upstream_repository=VERL_REPOSITORY,
             upstream_tag=VERL_TAG,
             upstream_commit=VERL_COMMIT,
-            field_rule_digest=pg_field_rules_digest(),
-            native_compiler_version=(
-                "pg-k1-native-grouped-v1" if self.grouped else "pg-k1-native-v1"
+            field_rule_digest=(
+                rewarded_pg_field_rules_digest() if self.rewarded else pg_field_rules_digest()
             ),
-            loss_conformance_version="pg-k1-verl-v0.8-v1",
-            export_version="verl-opd-pg-k1-export-v1",
+            native_compiler_version=(
+                "pg-k1-rewarded-native-v1"
+                if self.rewarded
+                else "pg-k1-native-grouped-v1"
+                if self.grouped
+                else "pg-k1-native-v1"
+            ),
+            loss_conformance_version=(
+                "pg-k1-task-distill-composer-v1" if self.rewarded else "pg-k1-verl-v0.8-v1"
+            ),
+            export_version=(
+                "verl-opd-pg-k1-rewarded-export-v1" if self.rewarded else "verl-opd-pg-k1-export-v1"
+            ),
         )
 
     @property
     def summary(self) -> ProfileSummary:
         return ProfileSummary(
             name=self.name,
-            objective="k1 + vanilla policy loss",
+            objective=(
+                "task reward + k1 distillation through vanilla policy loss"
+                if self.rewarded
+                else "k1 + vanilla policy loss"
+            ),
             teacher_target="sampled-token teacher log-probability",
-            status="conformance_only" if self.grouped else "measured",
+            status="conformance_only" if self.grouped or self.rewarded else "measured",
             identity=self.identity,
         )
 
     def config_schema(self) -> dict[str, Any]:
-        return VerlPGK1V08Profile.model_json_schema()
+        return (
+            VerlRewardedPGK1V08Profile.model_json_schema()
+            if self.rewarded
+            else VerlPGK1V08Profile.model_json_schema()
+        )
 
     def explain(self, field: str) -> CompatibilityExplanation:
-        rule = pg_compatibility_rule(field)
+        rule = (
+            rewarded_pg_compatibility_rule(field) if self.rewarded else pg_compatibility_rule(field)
+        )
         classification = str(rule["classification"])
         unsupported = classification == "unsupported"
         informational = classification == "informational_only"
@@ -347,6 +373,7 @@ class _PGK1Profile(CompatibilityProfile):
             require_executable=False,
             allow_grouped_samples=self.grouped,
             profile_name=self.name,
+            rewarded=self.rewarded,
         )
         fields = [item.model_dump(mode="json") for item in compiled.compatibility]
         unsupported = sum(not item.executable for item in compiled.compatibility)
@@ -414,15 +441,29 @@ class _PGK1Profile(CompatibilityProfile):
         payload["algorithm"]["adv_estimator"] = None
         if self.grouped:
             payload["actor_rollout_ref"]["rollout"]["n"] = 4
+        if self.rewarded:
+            payload["actor_rollout_ref"]["rollout"]["n"] = 4
+            payload["distillation"]["distillation_loss"].update(
+                {
+                    "use_task_rewards": True,
+                    "task_reward_coef": 1.0,
+                    "task_advantage_mode": "group_center",
+                    "reward_provider": "exact_answer",
+                }
+            )
         return {
             **self.summary.model_dump(mode="json"),
             "identity": self.identity.model_dump(mode="json"),
             "algorithm_contract": {
                 "actor_count": 1,
                 "teacher_count": 1,
-                "generations_per_prompt": 4 if self.grouped else 1,
-                "objective": "sampled k1 through vanilla policy loss",
-                "task_rewards": False,
+                "generations_per_prompt": 4 if self.grouped or self.rewarded else 1,
+                "objective": (
+                    "explicit task plus distillation advantages through vanilla policy loss"
+                    if self.rewarded
+                    else "sampled k1 through vanilla policy loss"
+                ),
+                "task_rewards": self.rewarded,
                 "distributed_execution": False,
                 "device": "one local CUDA GPU",
             },
@@ -444,6 +485,11 @@ _REGISTRY: dict[str, CompatibilityProfile] = {
     VERL_OPD_PG_K1_GROUPED_V08_PROFILE: _PGK1Profile(
         name=VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
         grouped=True,
+    ),
+    VERL_OPD_PG_K1_REWARDED_V08_PROFILE: _PGK1Profile(
+        name=VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
+        grouped=True,
+        rewarded=True,
     ),
 }
 
@@ -500,6 +546,7 @@ def load_profile_source(
     if name in {
         VERL_OPD_PG_K1_V08_PROFILE,
         VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+        VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
     }:
         return load_verl_pg_k1_v08_source(
             source,
@@ -508,7 +555,12 @@ def load_profile_source(
             trailing_overrides=trailing_overrides,
             accept_local_reinterpretations=accept_local_reinterpretations,
             require_executable=require_executable,
-            allow_grouped_samples=name == VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+            allow_grouped_samples=name
+            in {
+                VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+                VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
+            },
             profile_name=name,
+            rewarded=name == VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
         )
     raise AssertionError(f"registered profile {name!r} has no compiler dispatch")

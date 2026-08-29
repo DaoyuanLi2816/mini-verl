@@ -34,6 +34,14 @@
       "upstream_commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
       "objective": "sampled_k1_grouped_independent_samples",
       "distributed_execution_tested": false
+    },
+    {
+      "name": "verl-opd-v0.8-single-gpu-pg-k1-rewarded-v1",
+      "status": "active",
+      "upstream_tag": "v0.8.0",
+      "upstream_commit": "7aed6b230776f963fa09509c10d9c3a767d1102c",
+      "objective": "task_reward_plus_sampled_k1_vanilla_policy_loss",
+      "distributed_execution_tested": false
     }
   ],
   "unprofiled_versions": "unsupported"

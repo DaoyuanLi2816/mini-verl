@@ -94,6 +94,43 @@ def test_task_rewards_require_reward_model_but_pure_opd_does_not(tmp_path) -> No
         list(rewarded.iter_split("train"))
 
 
+@pytest.mark.parametrize(
+    ("patch", "message"),
+    [
+        ({"data_source": ""}, "data_source"),
+        ({"reward_model": {"style": "python", "module": "evil"}}, "unsupported"),
+        ({"reward_model": {"style": "exact"}}, "ground_truth"),
+        (
+            {
+                "reward_model": {"style": "exact", "ground_truth": "1"},
+                "extra_info": {"ground_truth": "2"},
+            },
+            "disagree",
+        ),
+    ],
+)
+def test_task_reward_rows_fail_closed_on_ambiguous_metadata(
+    tmp_path, patch: dict[str, object], message: str
+) -> None:
+    row = _row(0)
+    row.update(patch)
+    row["reward_model"] = row.get("reward_model", {"style": "exact", "ground_truth": "answer"})
+    path = tmp_path / "rewarded.parquet"
+    _write(path, [row])
+    config = VerlParquetSourceConfig(train_files=[str(path)], use_task_rewards=True)
+    with pytest.raises(ConfigError, match=message):
+        list(VerlParquetDataset(config).iter_split("train"))
+
+
+def test_task_reward_row_accepts_bound_exact_ground_truth(tmp_path) -> None:
+    row = _row(0)
+    row["reward_model"] = {"style": "exact", "ground_truth": "answer"}
+    path = tmp_path / "rewarded.parquet"
+    _write(path, [row])
+    config = VerlParquetSourceConfig(train_files=[str(path)], use_task_rewards=True)
+    assert next(VerlParquetDataset(config).iter_split("train")).reward_model == row["reward_model"]
+
+
 def test_chat_template_is_applied_once_and_records_provenance(tmp_path) -> None:
     train = _write(tmp_path / "train.parquet", [_row(1)])
     source = VerlParquetSourceConfig(train_files=[str(train)], max_prompt_length=200)

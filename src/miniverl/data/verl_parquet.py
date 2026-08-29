@@ -15,6 +15,8 @@ from miniverl.errors import ConfigError, MissingDependencyError
 
 SplitName = Literal["train", "val"]
 _PRESERVED_FIELDS = ("data_source", "ability", "reward_model", "extra_info")
+_REWARD_MODEL_FIELDS = frozenset({"style", "ground_truth"})
+_REWARD_SCALARS = (str, int, float, bool)
 
 
 def _canonical(value: Any) -> str:
@@ -37,6 +39,35 @@ def _parquet() -> Any:
     except ImportError as exc:  # pragma: no cover - dependency gate
         raise MissingDependencyError("pyarrow", "train", "verl Parquet prompt loading") from exc
     return pq
+
+
+def _validate_task_reward_metadata(preserved: dict[str, Any], *, location: str) -> None:
+    reward_model = preserved["reward_model"]
+    if not isinstance(reward_model, dict):
+        raise ConfigError(f"{location} reward_model must be an object")
+    data_source = preserved["data_source"]
+    if not isinstance(data_source, str) or not data_source:
+        raise ConfigError(f"{location} requires a non-empty string data_source for task rewards")
+    unknown = sorted(set(reward_model).difference(_REWARD_MODEL_FIELDS))
+    if unknown:
+        raise ConfigError(
+            f"{location} reward_model contains unsupported fields: {', '.join(unknown)}",
+            hint="only deterministic exact/rule metadata is accepted; Python modules and code are not",
+        )
+    if reward_model.get("style") not in {"exact", "rule"}:
+        raise ConfigError(f"{location} reward_model.style must be exact/rule")
+    extra = preserved["extra_info"]
+    if extra is not None and not isinstance(extra, dict):
+        raise ConfigError(f"{location} extra_info must be an object or null")
+    primary = reward_model.get("ground_truth")
+    secondary = extra.get("ground_truth") if isinstance(extra, dict) else None
+    if primary is None and secondary is None:
+        raise ConfigError(f"{location} task reward metadata requires a scalar ground_truth")
+    if primary is not None and secondary is not None and primary != secondary:
+        raise ConfigError(f"{location} reward_model and extra_info ground_truth values disagree")
+    ground_truth = primary if primary is not None else secondary
+    if not isinstance(ground_truth, _REWARD_SCALARS):
+        raise ConfigError(f"{location} ground_truth must be a JSON scalar")
 
 
 @dataclass(frozen=True)
@@ -160,11 +191,8 @@ class VerlParquetDataset:
                 " or an explicitly enabled plain string"
             )
         preserved = {name: row.get(name) for name in _PRESERVED_FIELDS}
-        if self.config.use_task_rewards and preserved["reward_model"] is None:
-            raise ConfigError(
-                f"{location} has no reward_model but source.use_task_rewards=true",
-                hint="provide reward_model per row or disable task rewards for pure OPD",
-            )
+        if self.config.use_task_rewards:
+            _validate_task_reward_metadata(preserved, location=location)
         payload = {"prompt": validated, **preserved}
         canonical = _canonical(payload)
         return PromptRecord(

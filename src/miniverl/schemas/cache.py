@@ -22,8 +22,8 @@ __all__ = [
     "CacheCompressionStats",
 ]
 
-CACHE_SCHEMA_VERSION = 4
-READABLE_CACHE_SCHEMA_VERSIONS = frozenset({1, 2, 3, CACHE_SCHEMA_VERSION})
+CACHE_SCHEMA_VERSION = 5
+READABLE_CACHE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, CACHE_SCHEMA_VERSION})
 
 
 class CacheEntryMeta(BaseModel):
@@ -82,6 +82,8 @@ class CacheIndex(BaseModel):
     )
     score_implementation_version: str | None = None
     estimator_implementation_version: str | None = None
+    reward_provider_identity_digest: str | None = None
+    advantage_composer_version: str | None = None
     execution_plan_digest: str | None = None
     profile_identity: dict[str, Any] = Field(default_factory=dict)
     samples_per_prompt: int = Field(default=1, ge=1)

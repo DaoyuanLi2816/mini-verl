@@ -45,13 +45,19 @@ name.
 | `verl-opd-v0.8-single-gpu-pg-k1-v1` | sampled `k1` + vanilla policy loss | sampled-token teacher log-probability | sampled-token signal; smaller target artifact | measured |
 | `verl-opd-v0.8-single-gpu-grouped-v1` | direct GKD over independent grouped samples | top-k token IDs and log-probabilities | configurable `n>1`; no group baseline | conformance only |
 | `verl-opd-v0.8-single-gpu-pg-k1-grouped-v1` | sampled `k1` over independent grouped samples | sampled-token teacher log-probability | configurable `n>1`; no GRPO estimator | conformance only |
+| `verl-opd-v0.8-single-gpu-pg-k1-rewarded-v1` | task reward + sampled `k1` through vanilla policy loss | sampled-token teacher log-probability + deterministic exact-answer reward | explicit group transform; no critic or value model | conformance only |
 
-All four are reward-free, strict current-policy, one-actor/one-teacher profiles
-on one CUDA GPU. The PG profiles use a detached distillation-derived advantage
-with the pinned vanilla policy-loss form. The measured records compare runtime
-and semantic conformance; task-quality questions belong to a declared benchmark.
-The two grouped profiles add transactional Parquet prompt groups while leaving
-the published `n=1` identities unchanged; each sample is optimized independently.
+The first four profiles are reward-free. The rewarded profile is a separate,
+strict current-policy contract with a closed deterministic provider and
+versioned task/distillation advantage composition. All five use one actor and
+one teacher on one CUDA GPU. The PG profiles retain the pinned vanilla
+policy-loss form. The measured records compare runtime and semantic
+conformance; the rewarded profile has no task-quality result yet.
+Library callers may inject an object implementing `RewardProvider` with
+`reward.provider: python_api`; YAML and run artifacts never name or load Python
+modules. The built-in verl-shaped profile remains fixed to `exact_answer`.
+The group-capable profiles use transactional Parquet prompt groups while
+leaving the published `n=1` identities unchanged.
 See [For verl users](../for-verl-users.md), the
 [PG-k1 ADR](../adr/0010-verl-v0.8-pg-k1-contract.md), and the runtime evidence
 for the measured boundary.

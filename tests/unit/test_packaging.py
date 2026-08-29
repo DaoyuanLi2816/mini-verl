@@ -47,6 +47,7 @@ REQUIRED_SUBPACKAGES = (
     "losses",
     "models",
     "reporting",
+    "rewards",
     "runtime",
     "schemas",
     "selection",

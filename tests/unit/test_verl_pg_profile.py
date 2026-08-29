@@ -8,6 +8,7 @@ import yaml
 from miniverl.errors import ConfigError
 
 PG_PROFILE = "verl-opd-v0.8-single-gpu-pg-k1-v1"
+REWARDED_PROFILE = "verl-opd-v0.8-single-gpu-pg-k1-rewarded-v1"
 
 
 def _payload() -> dict[str, object]:
@@ -37,6 +38,21 @@ def _set(payload: dict[str, object], path: str, value: object) -> None:
     for part in parts[:-1]:
         current = current[part]  # type: ignore[assignment]
     current[parts[-1]] = value
+
+
+def _rewarded_payload() -> dict[str, object]:
+    payload = _payload()
+    loss = payload["distillation"]["distillation_loss"]  # type: ignore[index]
+    loss.update(  # type: ignore[union-attr]
+        {
+            "use_task_rewards": True,
+            "task_reward_coef": 1.0,
+            "task_advantage_mode": "group_center",
+            "reward_provider": "exact_answer",
+        }
+    )
+    payload["actor_rollout_ref"]["rollout"]["n"] = 4  # type: ignore[index]
+    return payload
 
 
 def test_pg_profile_compiles_as_a_separate_executable_contract() -> None:
@@ -95,6 +111,7 @@ def test_registry_lists_pg_profile_with_independent_identity() -> None:
         PG_PROFILE,
         "verl-opd-v0.8-single-gpu-grouped-v1",
         "verl-opd-v0.8-single-gpu-pg-k1-grouped-v1",
+        REWARDED_PROFILE,
     ]
     direct = get_profile(names[0])
     pg = get_profile(PG_PROFILE)
@@ -102,3 +119,36 @@ def test_registry_lists_pg_profile_with_independent_identity() -> None:
     assert pg.identity.loss_conformance_version == "pg-k1-verl-v0.8-v1"
     assert pg.summary.objective == "k1 + vanilla policy loss"
     assert pg.summary.teacher_target == "sampled-token teacher log-probability"
+
+
+def test_rewarded_pg_profile_compiles_to_explicit_reward_contract() -> None:
+    from miniverl.bridge.opd_pg_v08 import compile_verl_pg_k1_v08
+    from miniverl.bridge.opd_runtime import build_system_plan, compile_native_run_config
+
+    plan = compile_verl_pg_k1_v08(
+        _rewarded_payload(),
+        profile_name=REWARDED_PROFILE,
+        allow_grouped_samples=True,
+        rewarded=True,
+    )
+    native = compile_native_run_config(plan, system_plan=build_system_plan(plan))
+    assert native.loss.mode.value == "verl_pg_k1_rewarded"
+    assert native.loss.advantage_mode.value == "group_center"
+    assert native.loss.task_reward_coef == pytest.approx(1.0)
+    assert native.source.use_task_rewards is True
+    assert native.reward.enabled is True
+    assert native.reward.provider.value == "exact_answer"
+
+
+def test_rewarded_profile_rejects_n1_group_normalization() -> None:
+    from miniverl.bridge.opd_pg_v08 import compile_verl_pg_k1_v08
+
+    payload = _rewarded_payload()
+    payload["actor_rollout_ref"]["rollout"]["n"] = 1  # type: ignore[index]
+    with pytest.raises(ConfigError, match="task_advantage_mode"):
+        compile_verl_pg_k1_v08(
+            payload,
+            profile_name=REWARDED_PROFILE,
+            allow_grouped_samples=True,
+            rewarded=True,
+        )

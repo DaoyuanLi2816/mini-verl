@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict
 
 from miniverl.bridge.opd_capabilities import decide_placement
-from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
+from miniverl.bridge.opd_pg_v08 import (
+    VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
+    VERL_OPD_PG_K1_V08_PROFILE,
+    VerlRewardedPGK1LossConfig,
+)
 from miniverl.bridge.opd_v08 import CompiledLocalExecutionPlan
 from miniverl.bridge.profiles import (
     VERL_OPD_GROUPED_V08_PROFILE,
@@ -106,6 +110,7 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
     pg_k1 = compiled.profile in {
         VERL_OPD_PG_K1_V08_PROFILE,
         VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+        VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
     }
     if pg_k1:
         # token id + position + actor/teacher log-probs + response-mask weight
@@ -202,7 +207,7 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
                 "teacher_target": "sampled_token_log_probability",
                 "policy_gradient": True,
                 "policy_loss_mode": "vanilla",
-                "task_rewards": False,
+                "task_rewards": compiled.profile == VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
             }
             if pg_k1
             else {
@@ -331,10 +336,13 @@ def compile_native_run_config(
     pg_k1 = compiled.profile in {
         VERL_OPD_PG_K1_V08_PROFILE,
         VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+        VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
     }
+    rewarded = compiled.profile == VERL_OPD_PG_K1_REWARDED_V08_PROFILE
+    rewarded_loss = cast(VerlRewardedPGK1LossConfig, source.distillation.distillation_loss)
     loss_payload = (
         {
-            "mode": "verl_pg_k1",
+            "mode": "verl_pg_k1_rewarded" if rewarded else "verl_pg_k1",
             "aggregation": "token-mean",
             "divergence": "reverse_kl",
             "temperature": 1.0,
@@ -348,6 +356,18 @@ def compile_native_run_config(
             "clip_ratio_high": 0.2,
             "clip_ratio_c": 3.0,
             "estimator_implementation_version": "verl-v0.8-pg-k1-v1",
+            **(
+                {
+                    "advantage_composer_version": "miniverl-task-distill-advantage-v1",
+                    "advantage_mode": rewarded_loss.task_advantage_mode,
+                    "distillation_coef": (
+                        source.distillation.distillation_loss.distillation_loss_coef
+                    ),
+                    "task_reward_coef": rewarded_loss.task_reward_coef,
+                }
+                if rewarded
+                else {}
+            ),
         }
         if pg_k1
         else {
@@ -373,7 +393,7 @@ def compile_native_run_config(
             "tags": [
                 compiled.profile,
                 "verl-v0.8.0",
-                "pure-opd",
+                "rewarded-opd" if rewarded else "pure-opd",
                 "pg-k1" if pg_k1 else "direct-gkd",
             ],
             "profile_identity": profile_identity,
@@ -418,7 +438,7 @@ def compile_native_run_config(
             "val_files": source.data.val_files,
             "prompt_key": source.data.prompt_key,
             "allow_plain_string_prompts": False,
-            "use_task_rewards": False,
+            "use_task_rewards": rewarded,
             "max_prompt_length": source.data.max_prompt_length,
             "max_response_length": source.data.max_response_length,
             "truncation": source.data.truncation,
@@ -430,6 +450,7 @@ def compile_native_run_config(
                 "hf_cached"
                 if compiled.profile
                 in {VERL_OPD_GROUPED_V08_PROFILE, VERL_OPD_PG_K1_GROUPED_V08_PROFILE}
+                or rewarded
                 else "hf_reference"
             ),
             "samples_per_prompt": source.actor_rollout_ref.rollout.n,
@@ -449,6 +470,11 @@ def compile_native_run_config(
         },
         "selection": {"selector": "all_model_tokens"},
         "loss": loss_payload,
+        "reward": {
+            "enabled": rewarded,
+            "provider": "exact_answer" if rewarded else None,
+            "error_policy": "fail",
+        },
         "train": {
             "cycles": total_steps,
             "rollouts_per_cycle": logical_batch,

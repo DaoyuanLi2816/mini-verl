@@ -36,6 +36,21 @@ All notable changes to miniVERL are recorded here. The format follows
   prompt/group cursors, trajectory counts, backend synchronization, cache
   identity and export provenance to exact interruption/resume state.
 
+### Rewarded OPD profile
+
+- Added the separate conformance-only
+  `verl-opd-v0.8-single-gpu-pg-k1-rewarded-v1` profile. It combines an
+  explicit deterministic task-reward advantage with the existing sampled-k1
+  distillation advantage; the direct-GKD and reward-free PG profiles retain
+  their original contracts and identities.
+- Added torch-free reward request/result/provider types, a closed exact-answer
+  provider, versioned group transformations, fail-closed Parquet validation,
+  and provider/composer identity binding across reward logs, teacher caches,
+  checkpoints and exports.
+- Kept the objective local and critic-free: there is no value model, global
+  normalization, arbitrary reward code, GRPO claim or distributed execution
+  claim. No task-quality benchmark was run for this profile.
+
 ### Documentation narrative
 
 - Rebuilt the English, Chinese and PyPI landing narratives around the local

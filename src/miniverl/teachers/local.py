@@ -107,8 +107,12 @@ class LocalTeacherScorer(TeacherScorer):
                         old_actor_log_probs=empty,
                         teacher_sampled_token_log_probs=empty,
                         loss_max_clamp=self.loss.loss_max_clamp,
+                        rewarded=self.loss.mode is LossMode.VERL_PG_K1_REWARDED,
+                        task_advantage=float(student.metadata.get("task_advantage", 0.0)),
+                        distillation_coef=self.loss.distillation_coef,
+                        task_reward_coef=self.loss.task_reward_coef,
                     )
-                    if self.loss.mode is LossMode.VERL_PG_K1
+                    if self.loss.mode in {LossMode.VERL_PG_K1, LossMode.VERL_PG_K1_REWARDED}
                     else VerlTopKTargetProvider(
                         topk_indices=torch.zeros(0, 1, dtype=torch.long),
                         topk_log_probs=torch.zeros(0, 1),
@@ -143,7 +147,7 @@ class LocalTeacherScorer(TeacherScorer):
         with role_context, torch.no_grad():
             hidden = self.backend.hidden_states_at(source.token_ids, positions, with_grad=False)
 
-            if self.loss.mode is LossMode.VERL_PG_K1:
+            if self.loss.mode in {LossMode.VERL_PG_K1, LossMode.VERL_PG_K1_REWARDED}:
                 if teacher_view is not None:
                     raise AlignmentError("PG-k1 supports only a standard same-prompt teacher")
                 response_ids = [
@@ -196,6 +200,10 @@ class LocalTeacherScorer(TeacherScorer):
                     clip_ratio_high=self.loss.clip_ratio_high,
                     clip_ratio_c=self.loss.clip_ratio_c,
                     loss_max_clamp=self.loss.loss_max_clamp,
+                    rewarded=self.loss.mode is LossMode.VERL_PG_K1_REWARDED,
+                    task_advantage=float(student.metadata.get("task_advantage", 0.0)),
+                    distillation_coef=self.loss.distillation_coef,
+                    task_reward_coef=self.loss.task_reward_coef,
                 )
                 from miniverl.bridge.opd_pg_contract import VERL_PG_K1_IMPLEMENTATION_VERSION
 
@@ -369,10 +377,14 @@ class LocalTeacherScorer(TeacherScorer):
                 if self.loss.mode is LossMode.VERL_FORWARD_KL_TOPK
                 else (
                     "verl-v0.8-pg-k1-v1"
-                    if self.loss.mode is LossMode.VERL_PG_K1
+                    if self.loss.mode in {LossMode.VERL_PG_K1, LossMode.VERL_PG_K1_REWARDED}
                     else "miniverl-native-v1"
                 )
             ),
-            "top_k": None if self.loss.mode is LossMode.VERL_PG_K1 else self._effective_top_k(),
+            "top_k": (
+                None
+                if self.loss.mode in {LossMode.VERL_PG_K1, LossMode.VERL_PG_K1_REWARDED}
+                else self._effective_top_k()
+            ),
             "temperature": self.loss.temperature,
         }
