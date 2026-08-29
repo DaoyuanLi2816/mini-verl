@@ -8,13 +8,20 @@ from miniverl.errors import ConfigError
 
 DIRECT_PROFILE = "verl-opd-v0.8-single-gpu-v1"
 PG_PROFILE = "verl-opd-v0.8-single-gpu-pg-k1-v1"
+GROUPED_PROFILE = "verl-opd-v0.8-single-gpu-grouped-v1"
+GROUPED_PG_PROFILE = "verl-opd-v0.8-single-gpu-pg-k1-grouped-v1"
 
 
 def test_registry_exposes_immutable_direct_gkd_identity() -> None:
     from miniverl.bridge.profiles import get_profile, list_profiles
 
     profiles = list_profiles()
-    assert [item.name for item in profiles] == [DIRECT_PROFILE, PG_PROFILE]
+    assert [item.name for item in profiles] == [
+        DIRECT_PROFILE,
+        PG_PROFILE,
+        GROUPED_PROFILE,
+        GROUPED_PG_PROFILE,
+    ]
 
     profile = get_profile(DIRECT_PROFILE)
     identity = profile.identity
@@ -90,3 +97,38 @@ def test_unknown_profile_fails_closed_without_plugin_loading() -> None:
 
     with pytest.raises(ConfigError, match="unknown compatibility profile"):
         get_profile("third-party:anything")
+
+
+def test_grouped_profile_makes_rollout_n_effective_without_changing_legacy_profile() -> None:
+    from miniverl.bridge.opd_runtime import build_system_plan, compile_native_run_config
+    from miniverl.bridge.profiles import load_profile_source
+
+    config = Path(__file__).resolve().parents[2] / "examples/verl-opd-v0.8-single-gpu.yaml"
+    grouped = load_profile_source(
+        GROUPED_PROFILE,
+        config,
+        overrides=["actor_rollout_ref.rollout.n=4"],
+        accept_local_reinterpretations=True,
+    )
+    mapping = next(
+        item
+        for item in grouped.compatibility
+        if item.upstream_field == "actor_rollout_ref.rollout.n"
+    )
+    native = compile_native_run_config(grouped, system_plan=build_system_plan(grouped))
+
+    assert grouped.profile == GROUPED_PROFILE
+    assert mapping.classification == "exact"
+    assert mapping.local_target == "rollout.n"
+    assert mapping.executable is True
+    assert native.rollout.samples_per_prompt == 4
+    assert native.rollout.backend.value == "hf_cached"
+    assert native.train.gradient_accumulation_steps == native.train.rollouts_per_cycle * 4
+
+    with pytest.raises(ConfigError, match="not executable"):
+        load_profile_source(
+            DIRECT_PROFILE,
+            config,
+            overrides=["actor_rollout_ref.rollout.n=4"],
+            accept_local_reinterpretations=True,
+        )

@@ -69,7 +69,7 @@ from miniverl.models.factory import (
     resolve_device,
 )
 from miniverl.schemas.alignment import AlignmentMap
-from miniverl.schemas.trajectory import Trajectory
+from miniverl.schemas.trajectory import TRAJECTORY_SCHEMA_VERSION, Trajectory
 from miniverl.selection.selectors import (
     SelectionResult,
     SelectionStats,
@@ -86,7 +86,7 @@ from miniverl.training.memory import (
 )
 from miniverl.training.optim import LearningRateSchedule, build_optimizer
 from miniverl.trajectory.alignment import build_alignment_map
-from miniverl.trajectory.io import append_trajectories
+from miniverl.trajectory.io import append_trajectories, append_trajectory_groups
 from miniverl.utils import gpu
 from miniverl.utils.env import collect_environment
 from miniverl.utils.locking import RunLock
@@ -301,6 +301,12 @@ class OPDTrainer:
         self._last_cycle_metrics: dict[str, Any] = {}
         self._last_selection_stats: list[SelectionStats] = []
         self._last_rollout_execution: dict[str, Any] | None = None
+        self._rollout_group_cursor = 0
+        self._trajectory_count = 0
+        self._committed_task_cursor = 0
+        self._pending_group_identity: list[str] = []
+        self._committed_group_identity: list[str] = []
+        self._backend_sync_identity = ""
 
     # -- construction --------------------------------------------------------
 
@@ -309,7 +315,12 @@ class OPDTrainer:
         """Optimizer steps performed per training cycle."""
         accum = self.config.train.gradient_accumulation_steps
         rollouts = self.config.train.rollouts_per_cycle
-        return max(1, (rollouts + accum - 1) // accum)
+        trajectories = (
+            rollouts * self.config.rollout.samples_per_prompt
+            if self.config.source.kind is SourceKind.VERL_PARQUET
+            else rollouts
+        )
+        return max(1, (trajectories + accum - 1) // accum)
 
     @property
     def state(self) -> TrainerState:
@@ -351,6 +362,14 @@ class OPDTrainer:
             else state.rollout_policy_version
         )
         self.task_cursor = state.task_cursor
+        self._committed_task_cursor = (
+            state.task_cursor if state.prompt_cursor is None else state.prompt_cursor
+        )
+        self._rollout_group_cursor = state.rollout_group_cursor
+        self._trajectory_count = state.trajectory_count
+        self._pending_group_identity = list(state.pending_group_identity)
+        self._committed_group_identity = list(state.committed_group_identity)
+        self._backend_sync_identity = state.backend_sync_identity
         self._cycles_completed = (
             max(state.cycle + 1, 0) if state.rollout_iteration is None else state.rollout_iteration
         )
@@ -1171,30 +1190,68 @@ class OPDTrainer:
         if self.prompt_dataset is not None:
             if oracle:
                 raise ConfigError("Parquet prompt rollouts have no oracle trajectory source")
+            prompt_cursor_before = self.task_cursor - len(tasks)
+            group_cursor_before = self._rollout_group_cursor
             seed = (
                 rollout_seed_base
                 if rollout_seed_base is not None
                 else self.config.run.seed + self.global_step * 1013
             )
-            prepared = self.rollout_runtime.prepare_batch(tasks)
-            generated = self.rollout_runtime.generate(
-                prepared,
-                policy_version=self.policy_version,
-                seed=seed,
-            )
-            self._last_rollout_execution = {
-                "physical_batch_sizes": list(generated.physical_batch_sizes),
-                "oom_downshifts": generated.oom_downshifts,
-            }
-            trajectories = self.rollout_runtime.to_trajectories(
-                prepared,
-                generated,
-                policy_version=self.policy_version,
-            )
-            for offset, trajectory in enumerate(trajectories):
-                trajectory.metadata["generation_seed"] = seed * 1_000_003 + offset
+            try:
+                prepared = self.rollout_runtime.prepare_batch(
+                    tasks,
+                    group_cursor=group_cursor_before,
+                )
+                self._pending_group_identity = sorted(
+                    {group.prompt_group_id for group in prepared.groups}
+                )
+                generated = self.rollout_runtime.generate(
+                    prepared,
+                    policy_version=self.policy_version,
+                    seed=seed,
+                )
+                self._backend_sync_identity = generated.rollout_policy_identity_digest
+                self._last_rollout_execution = {
+                    "physical_batch_sizes": list(generated.physical_batch_sizes),
+                    "physical_generation_batches": len(generated.physical_batch_sizes),
+                    "oom_downshifts": generated.oom_downshifts,
+                }
+                trajectories = self.rollout_runtime.to_trajectories(
+                    prepared,
+                    generated,
+                    policy_version=self.policy_version,
+                )
+                transaction_id = hashlib.sha256(
+                    (
+                        f"{self.run_id}:{self.cycle}:{group_cursor_before}:"
+                        f"{generated.rollout_policy_identity_digest}"
+                    ).encode()
+                ).hexdigest()
+                append_trajectory_groups(
+                    self.paths.trajectories,
+                    trajectories,
+                    transaction_id=transaction_id,
+                )
+            except BaseException as exc:
+                self.task_cursor = prompt_cursor_before
+                self._prompt_train_iterator = None
+                self._pending_group_identity = []
+                if isinstance(exc, KeyboardInterrupt):
+                    try:
+                        self._save_checkpoint_impl(name="interrupted-group")
+                    except BaseException as checkpoint_error:
+                        logger.warning(
+                            "could not save the rolled-back interruption checkpoint: %s",
+                            checkpoint_error,
+                        )
+                raise
+            self._committed_group_identity = list(self._pending_group_identity)
+            self._pending_group_identity = []
+            self._rollout_group_cursor += len(tasks)
+            self._trajectory_count += len(trajectories)
+            self._committed_task_cursor = self.task_cursor
+            for trajectory in trajectories:
                 stats.observe(trajectory)
-            append_trajectories(self.paths.trajectories, trajectories)
             return trajectories, stats
         assert self.runner is not None
         for offset, task in enumerate(tasks):
@@ -1219,6 +1276,8 @@ class OPDTrainer:
             trajectories.append(traj)
             stats.observe(traj)
         append_trajectories(self.paths.trajectories, trajectories)
+        self._trajectory_count += len(trajectories)
+        self._committed_task_cursor = self.task_cursor
         return trajectories, stats
 
     def _open_cache(self) -> TeacherCache:
@@ -1265,6 +1324,11 @@ class OPDTrainer:
                 ),
                 "execution_plan_digest": self.config.run.execution_plan_digest,
                 "profile_identity": self.config.run.profile_identity,
+                "samples_per_prompt": self.config.rollout.samples_per_prompt,
+                "trajectory_schema_version": (
+                    TRAJECTORY_SCHEMA_VERSION if self.prompt_dataset is not None else 2
+                ),
+                "group_generation_seed_version": "miniverl-rollout-seed-v1",
                 "dtype": self.config.cache.dtype,
             }
             if (path / "index.json").is_file():
@@ -2329,6 +2393,7 @@ class OPDTrainer:
         self._last_rollout_execution = None
         rollout_seconds = 0.0
         teacher_scoring_seconds = 0.0
+        trajectories: list[Trajectory] = []
 
         if mode is TrainingMode.OFFLINE_KD and self._offline_samples is not None:
             samples = self._offline_batch_for_cycle()
@@ -2407,6 +2472,7 @@ class OPDTrainer:
                 rollout_tokens_per_second=round(stats.generated_tokens / rollout_seconds, 2),
                 rollout_seconds=round(rollout_seconds, 4),
                 teacher_scoring_seconds=round(teacher_scoring_seconds, 4),
+                grouped_rollouts=self._group_rollout_metrics(trajectories),
             )
             if mode is TrainingMode.OFFLINE_KD:
                 self._offline_samples = samples
@@ -2481,6 +2547,7 @@ class OPDTrainer:
                         else None
                     ),
                     "rollout_execution": self._last_rollout_execution,
+                    "grouped_rollouts": self._group_rollout_metrics(trajectories),
                 }
             )
         if self._cache is not None:
@@ -2501,6 +2568,39 @@ class OPDTrainer:
         # train() calls resume at the next iteration.
         self._cycles_completed = max(self._cycles_completed, self.cycle + 1)
         return records
+
+    def _group_rollout_metrics(self, trajectories: list[Trajectory]) -> dict[str, Any]:
+        """Describe logical prompt groups separately from physical batches."""
+
+        grouped: dict[str, list[Trajectory]] = {}
+        for trajectory in trajectories:
+            group_id = trajectory.prompt_group_id or trajectory.task_id
+            grouped.setdefault(group_id, []).append(trajectory)
+        reward_variances: dict[str, float] = {}
+        for group_id, members in grouped.items():
+            rewards = [
+                float(member.verification.reward)
+                for member in members
+                if member.verification is not None
+            ]
+            if len(rewards) == len(members) and rewards:
+                mean = sum(rewards) / len(rewards)
+                reward_variances[group_id] = sum((value - mean) ** 2 for value in rewards) / len(
+                    rewards
+                )
+        execution = self._last_rollout_execution or {}
+        return {
+            "unique_prompts": len(grouped),
+            "groups": len(grouped),
+            "samples_per_prompt": self.config.rollout.samples_per_prompt,
+            "trajectories": len(trajectories),
+            "generated_tokens": sum(item.generated_token_count for item in trajectories),
+            "per_group_reward_variance": {
+                "status": "measured" if reward_variances else "not_applicable",
+                "values": reward_variances,
+            },
+            "physical_generation_batches": int(execution.get("physical_generation_batches", 0)),
+        }
 
     def _write_token_analysis(self, samples: list[TrainSample]) -> int:
         """Persist per-token divergence data for the report's token view.
@@ -2871,7 +2971,7 @@ class OPDTrainer:
             backend=self.student,
             source_config=config.source,
             rollout_config=config.rollout.model_copy(
-                update={"temperature": config.eval.temperature}
+                update={"temperature": config.eval.temperature, "samples_per_prompt": 1}
             ),
             profile_identity=config.run.profile_identity,
             execution_plan_digest=config.run.execution_plan_digest,
@@ -2992,7 +3092,19 @@ class OPDTrainer:
             cycle=self.cycle,
             rollout_iteration=self._cycles_completed,
             rollout_policy_version=self._last_rollout_policy_version,
-            task_cursor=self.task_cursor,
+            task_cursor=(
+                self._committed_task_cursor if self.prompt_dataset is not None else self.task_cursor
+            ),
+            prompt_cursor=(
+                self._committed_task_cursor if self.prompt_dataset is not None else self.task_cursor
+            ),
+            rollout_group_cursor=self._rollout_group_cursor,
+            trajectory_count=self._trajectory_count,
+            samples_per_prompt=self.config.rollout.samples_per_prompt,
+            group_generation_seed_version="miniverl-rollout-seed-v1",
+            pending_group_identity=list(self._pending_group_identity),
+            committed_group_identity=list(self._committed_group_identity),
+            backend_sync_identity=self._backend_sync_identity,
             scheduler=self.schedule.state_dict(),
             config_digest=self._config_digest(),
             resolved_config_digest=self._resolved_config_digest(),
@@ -3044,6 +3156,17 @@ class OPDTrainer:
                 "the checkpoint was written by a different configuration",
                 hint="resume with the run's config.original.yaml compatibility layer, "
                 "not config.resolved.yaml or a modified recipe",
+            )
+        if validated.state.samples_per_prompt != self.config.rollout.samples_per_prompt:
+            raise ConfigError(
+                "checkpoint samples_per_prompt does not match the current rollout plan"
+            )
+        if validated.state.group_generation_seed_version != "miniverl-rollout-seed-v1":
+            raise ConfigError("checkpoint uses an unsupported group generation seed version")
+        if validated.state.pending_group_identity:
+            raise ConfigError(
+                "checkpoint contains a pending partial rollout group",
+                hint="recover the trajectory transaction before resuming training",
             )
         identity = self._checkpoint_identity()
         if validated.identity:

@@ -190,6 +190,9 @@ class TeacherCache:
         estimator_implementation_version: str | None = None,
         execution_plan_digest: str | None = None,
         profile_identity: dict[str, Any] | None = None,
+        samples_per_prompt: int = 1,
+        trajectory_schema_version: int = 2,
+        group_generation_seed_version: str = "miniverl-rollout-seed-v1",
         dtype: str = "float32",
         entries_per_shard: int = 32,
         overwrite: bool = False,
@@ -234,6 +237,9 @@ class TeacherCache:
             estimator_implementation_version=estimator_implementation_version,
             execution_plan_digest=execution_plan_digest,
             profile_identity=dict(profile_identity or {}),
+            samples_per_prompt=samples_per_prompt,
+            trajectory_schema_version=trajectory_schema_version,
+            group_generation_seed_version=group_generation_seed_version,
             dtype=dtype,
             entries_per_shard=entries_per_shard,
         )
@@ -290,6 +296,9 @@ class TeacherCache:
         estimator_implementation_version: str | None = None,
         execution_plan_digest: str | None = None,
         profile_identity: dict[str, Any] | None = None,
+        samples_per_prompt: int = 1,
+        trajectory_schema_version: int = 2,
+        group_generation_seed_version: str = "miniverl-rollout-seed-v1",
         dtype: str,
     ) -> None:
         """Reject reuse when any objective or teacher identity component changed."""
@@ -309,6 +318,13 @@ class TeacherCache:
                     hint="re-score the legacy cache so its index records the current "
                     "tokenizer and adapter provenance",
                 )
+        if self.index.schema_version < 4 and (
+            samples_per_prompt != 1 or trajectory_schema_version > 2
+        ):
+            raise StaleCacheError(
+                "legacy teacher cache cannot verify grouped rollout identity",
+                hint="re-score the cache with trajectory schema v3 and grouped provenance",
+            )
         expected: dict[str, Any] = {
             "teacher_model_id": teacher_model_id,
             "teacher_model_revision": teacher_model_revision,
@@ -331,6 +347,10 @@ class TeacherCache:
             )
             expected["execution_plan_digest"] = execution_plan_digest
             expected["profile_identity"] = dict(profile_identity or {})
+        if self.index.schema_version >= 4:
+            expected["samples_per_prompt"] = samples_per_prompt
+            expected["trajectory_schema_version"] = trajectory_schema_version
+            expected["group_generation_seed_version"] = group_generation_seed_version
         mismatches = {
             key: (getattr(self.index, key), value)
             for key, value in expected.items()

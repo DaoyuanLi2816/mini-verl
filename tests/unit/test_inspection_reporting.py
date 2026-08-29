@@ -45,7 +45,7 @@ from miniverl.schemas.trajectory import (
     Turn,
     VerificationRecord,
 )
-from miniverl.trajectory.io import write_trajectories
+from miniverl.trajectory.io import read_trajectories, write_trajectories
 from miniverl.trajectory.masks import build_masks
 from miniverl.utils.runs import RunPaths, write_json
 
@@ -422,15 +422,30 @@ def synthetic_run(tmp_path: Path) -> Path:
     )
     _write_jsonl(root / "metrics.jsonl", _metrics())
     _write_jsonl(root / "events.jsonl", _events())
-    _write_jsonl(root / "token_analysis.jsonl", _token_analysis())
-    written = write_trajectories(root / "trajectories.jsonl", _trajectories())
+    trajectories = _trajectories()
+    written = write_trajectories(root / "trajectories.jsonl", trajectories)
     assert written == 3
+    ids = {
+        str(trajectory.metadata["legacy_trajectory_id"]): trajectory.trajectory_id
+        for trajectory in trajectories
+    }
+    token_analysis = _token_analysis()
+    for record in token_analysis:
+        record["trajectory_id"] = ids[str(record["trajectory_id"])]
+    _write_jsonl(root / "token_analysis.jsonl", token_analysis)
     return root
 
 
 @pytest.fixture
 def trajectory_file(synthetic_run: Path) -> Path:
     return synthetic_run / "trajectories.jsonl"
+
+
+def _stored_ids(path: Path) -> dict[str, str]:
+    return {
+        str(trajectory.metadata["legacy_trajectory_id"]): trajectory.trajectory_id
+        for trajectory in read_trajectories(path)
+    }
 
 
 @pytest.fixture
@@ -496,9 +511,11 @@ def test_summarize_file_tools_used_excludes_invalid_calls(trajectory_file: Path)
     # traj-1's only call is a parse failure, so "search" was never really used.
     assert summary.tools_used == {"calculator": 2}
     invalid = [s for s in summary.samples if s.invalid_tool_calls]
-    assert [s.trajectory_id for s in invalid] == ["traj-1"]
+    ids = _stored_ids(trajectory_file)
+    assert [s.trajectory_id for s in invalid] == [ids["traj-1"]]
     assert all(
-        s.valid_tool_calls == (0 if s.trajectory_id == "traj-1" else 1) for s in summary.samples
+        s.valid_tool_calls == (0 if s.trajectory_id == ids["traj-1"] else 1)
+        for s in summary.samples
     )
 
 
@@ -519,10 +536,11 @@ def test_provenance_check_never_calls_context_spans_trainable(trajectory_file: P
 
 
 def test_summarize_file_filters_by_trajectory_id(trajectory_file: Path) -> None:
-    summary = summarize_file(trajectory_file, trajectory_id="traj-1")
+    trajectory_id = _stored_ids(trajectory_file)["traj-1"]
+    summary = summarize_file(trajectory_file, trajectory_id=trajectory_id)
 
     assert summary.trajectories == 1
-    assert [s.trajectory_id for s in summary.samples] == ["traj-1"]
+    assert [s.trajectory_id for s in summary.samples] == [trajectory_id]
     assert summary.tokens == SEQ_LEN
     assert summary.termination_reasons == {"max_turns": 1}
     assert summary.tools_used == {}
@@ -607,7 +625,7 @@ def test_missing_trajectory_file_is_reported_as_schema_error(tmp_path: Path) -> 
 def test_iter_spans_for_display_marks_only_assistant_spans_in_loss(
     trajectory_file: Path,
 ) -> None:
-    rows = list(iter_spans_for_display(trajectory_file, "traj-0"))
+    rows = list(iter_spans_for_display(trajectory_file, _stored_ids(trajectory_file)["traj-0"]))
 
     assert [row["span_type"] for row in rows] == [t.value for t, _, _, _ in SPAN_LAYOUT]
     assert [row["in_loss"] for row in rows] == [False, False, True, False, True]
@@ -725,13 +743,14 @@ def test_report_data_prefers_trajectories_with_token_analysis(
     report_data: ReportData,
 ) -> None:
     ids = [view.trajectory_id for view in report_data.trajectories]
+    stored = _stored_ids(report_data.run_dir / "trajectories.jsonl")
 
     # The two trajectories with token analysis come first; the remaining display
     # budget is then filled rather than wasted.
-    assert ids[:2] == ["traj-0", "traj-1"]
-    assert set(ids) == {"traj-0", "traj-1", "traj-2"}
-    assert set(report_data.token_analysis) == {"traj-0", "traj-1"}
-    assert len(report_data.token_analysis["traj-0"]) == 3
+    assert ids[:2] == [stored["traj-0"], stored["traj-1"]]
+    assert set(ids) == set(stored.values())
+    assert set(report_data.token_analysis) == {stored["traj-0"], stored["traj-1"]}
+    assert len(report_data.token_analysis[stored["traj-0"]]) == 3
 
     first = report_data.trajectories[0]
     assert first.tokens == SEQ_LEN
@@ -767,7 +786,12 @@ def test_stored_rollouts_are_displayed_without_token_analysis(synthetic_run: Pat
     assert not (synthetic_run / "eval_trajectories.jsonl").exists()
 
     data = ReportData.from_run(synthetic_run, max_trajectories=5)
-    assert [view.trajectory_id for view in data.trajectories] == ["traj-0", "traj-1", "traj-2"]
+    stored = _stored_ids(synthetic_run / "trajectories.jsonl")
+    assert [view.trajectory_id for view in data.trajectories] == [
+        stored["traj-0"],
+        stored["traj-1"],
+        stored["traj-2"],
+    ]
 
 
 def test_view_of_annotations_resolve() -> None:
@@ -876,7 +900,7 @@ def test_render_html_shows_context_spans_as_not_in_loss(report_data: ReportData)
 
     assert "no (context)" in html
     assert "tool_result" in html
-    assert "traj-0" in html
+    assert report_data.trajectories[0].trajectory_id in html
 
 
 def test_render_html_rejects_an_empty_manifest(synthetic_run: Path) -> None:

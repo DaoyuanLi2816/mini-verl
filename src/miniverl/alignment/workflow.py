@@ -201,7 +201,12 @@ def _sha256(path: Path) -> str:
 
 def _tagged(rows: list[Any], tag: str) -> list[Any]:
     marker = f":{tag}:v"
-    return [row for row in rows if marker in row.trajectory_id]
+    return [
+        row
+        for row in rows
+        if marker in row.trajectory_id
+        or marker in str(row.metadata.get("legacy_trajectory_id", ""))
+    ]
 
 
 def _decision_distribution(rows: list[Any]) -> dict[str, float]:

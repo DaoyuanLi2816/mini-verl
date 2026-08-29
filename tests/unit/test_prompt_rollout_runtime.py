@@ -12,6 +12,7 @@ from miniverl.data.verl_parquet import PromptRecord, RenderedPrompt
 from miniverl.models.tokenizers import ToyTokenizer
 from miniverl.models.toy import ToyBackend
 from miniverl.runtime.rollout import PromptDatasetRolloutRuntime
+from miniverl.schemas.trajectory import TRAJECTORY_SCHEMA_VERSION, validate_trajectory_groups
 
 
 def _record(index: int) -> PromptRecord:
@@ -262,3 +263,63 @@ def test_oom_downshift_changes_only_physical_batching(monkeypatch) -> None:
     assert generated.oom_downshifts == 1
     assert rollout_config.prompt_batch_size == 2
     assert generated.policy_version == 3
+
+
+def test_n4_group_identity_and_outputs_are_partition_invariant() -> None:
+    tokenizer = ToyTokenizer()
+    rendered = [
+        RenderedPrompt(
+            record=_record(index),
+            text=f"prompt {index}",
+            token_ids=tuple(tokenizer.encode(f"prompt {index}")),
+            tokenizer_identity=tokenizer.identity,
+            rendered_prompt_digest=f"{index + 50:064x}",
+            prompt_token_count=len(tokenizer.encode(f"prompt {index}")),
+            truncation_decision="not_needed",
+            original_prompt_token_count=len(tokenizer.encode(f"prompt {index}")),
+        )
+        for index in range(2)
+    ]
+
+    def run(batch_size: int):  # type: ignore[no-untyped-def]
+        backend = ToyBackend(tokenizer=tokenizer, model_id="toy", seed=31, trainable=False)
+        runtime = PromptDatasetRolloutRuntime(
+            backend=backend,
+            source_config=VerlParquetSourceConfig(
+                train_files=["unused.parquet"], allow_plain_string_prompts=True
+            ),
+            rollout_config=RolloutConfig(
+                backend="hf_cached",
+                samples_per_prompt=4,
+                max_new_tokens_per_turn=4,
+                max_total_tokens=32,
+                temperature=0.8,
+                prompt_batch_size=batch_size,
+                max_padded_tokens=256,
+                record_logprobs=True,
+            ),
+        )
+        batch = runtime.prepare_batch(rendered, group_cursor=9)
+        generated = runtime.generate(batch, policy_version=2, seed=123)
+        return generated, runtime.to_trajectories(batch, generated, policy_version=2)
+
+    whole, trajectories = run(8)
+    partitioned, partitioned_trajectories = run(2)
+
+    assert len(trajectories) == 8
+    assert [row.token_ids for row in whole.outputs] == [
+        row.token_ids for row in partitioned.outputs
+    ]
+    assert [row.logprobs for row in whole.outputs] == [row.logprobs for row in partitioned.outputs]
+    assert [row.trajectory_id for row in trajectories] == [
+        row.trajectory_id for row in partitioned_trajectories
+    ]
+    assert {row.schema_version for row in trajectories} == {TRAJECTORY_SCHEMA_VERSION}
+    assert {row.prompt_group_id for row in trajectories} == {
+        f"g{index:012d}-{rendered[index - 9].record.row_digest[:12]}" for index in (9, 10)
+    }
+    assert [row.sample_index for row in trajectories] == [0, 1, 2, 3, 0, 1, 2, 3]
+    assert {row.samples_per_prompt for row in trajectories} == {4}
+    assert len({row.generation_seed for row in trajectories}) == 8
+    assert len({row.trajectory_id for row in trajectories}) == 8
+    validate_trajectory_groups(trajectories)

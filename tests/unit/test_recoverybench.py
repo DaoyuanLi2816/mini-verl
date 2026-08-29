@@ -292,6 +292,16 @@ def test_structured_recovery_provenance_round_trips_and_reads_v1(tmp_path: Path)
 
     payload = trajectory.model_dump(mode="json")
     payload["schema_version"] = 1
+    for key in (
+        "prompt_group_id",
+        "prompt_digest",
+        "sample_index",
+        "samples_per_prompt",
+        "generation_seed",
+        "rollout_backend",
+        "rollout_policy_identity_digest",
+    ):
+        payload.pop(key)
     for turn in payload["turns"]:
         if turn["tool_result"] is not None:
             for key in ("error_code", "retryable", "intervention", "tool_result_metadata"):

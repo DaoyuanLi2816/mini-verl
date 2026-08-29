@@ -25,6 +25,17 @@ All notable changes to miniVERL are recorded here. The format follows
 - Bound prompt-generation manifests and every v2 request to the live actor
   parameter version, base/tokenizer/adapter identity, backend and execution plan.
 
+### Transactional grouped rollouts
+
+- Added trajectory schema v3 with typed prompt-group, sample, seed, backend and
+  rollout-policy identity; v1 and v2 artifacts remain readable.
+- Added two conformance-only grouped profiles for Parquet prompt sources. They
+  train `n>1` current-policy samples independently through the existing direct
+  GKD or sampled-k1 objective, without a group baseline or GRPO semantics.
+- Made complete group publication journaled and replay-idempotent, and bound
+  prompt/group cursors, trajectory counts, backend synchronization, cache
+  identity and export provenance to exact interruption/resume state.
+
 ### Documentation narrative
 
 - Rebuilt the English, Chinese and PyPI landing narratives around the local

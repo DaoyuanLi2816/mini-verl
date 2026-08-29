@@ -35,6 +35,33 @@ profile identity and execution plan. A request for any other identity fails
 before model execution. Lifecycle transitions are explicit: `new` →
 `synchronized` → `quiesced` or `closed`.
 
+## Grouped prompt rollouts
+
+The grouped profiles accept `actor_rollout_ref.rollout.n > 1` for Parquet
+prompt sources. Each prompt receives a stable group identity and `n` independent
+current-policy trajectories. The direct-GKD and sampled-k1 objectives train
+those trajectories independently; there is no group baseline, GRPO estimator
+or reward normalization hidden behind `n`.
+
+Trajectory schema v3 binds the prompt digest, group and sample indices,
+generation seed, backend and policy identity into every record. A complete
+group is journaled and appended as one transaction. Checkpoints retain the
+prompt cursor, group cursor, trajectory count, policy version and backend sync
+identity, so an interrupted group is regenerated without skipping prompts;
+replaying an already committed identical group is a no-op rather than a
+duplicate append. Cache and export identities carry the same `n`, schema and
+seed-derivation versions.
+
+The runtime reports unique prompts, groups, trajectories, generated tokens,
+physical generation batches and per-group reward variance when rewards exist.
+Logical `n` stays separate from physical batch partitioning.
+
+Use `verl-opd-v0.8-single-gpu-grouped-v1` or
+`verl-opd-v0.8-single-gpu-pg-k1-grouped-v1`. The original measured profiles
+remain fixed at `n=1`; the grouped profiles are conformance-only until a later
+evidence stage measures them. Grouped rollouts currently require a Parquet
+prompt source. Environment-backed recipes remain `n=1`.
+
 The v0.11 baseline result remains the pre-change `hf_reference` measurement.
-It is not evidence for `hf_cached` performance. Grouped `n>1` publication and
-external-engine support are separate release-chain stages.
+It is not evidence for `hf_cached` or grouped-rollout performance. External
+engine support is a separate release-chain stage.

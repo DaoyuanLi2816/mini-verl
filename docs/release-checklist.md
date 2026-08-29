@@ -14,10 +14,10 @@ after the exact release commit and its remote checks are green.
       `0d6e0070ae73ef35f718aec3624ee5263ac96e3a` and candidate wheel
       `0256bd9e63ca6ed52999a5073a3577a008581a8d4418062314750d86f21cd5fe`
       before implementing `hf_cached`.
-- [ ] Add typed policy identity, lifecycle and strict synchronization contracts.
-- [ ] Qualify `hf_cached` at 64/256/512 response bounds and require at least 2x
+- [x] Add typed policy identity, lifecycle and strict synchronization contracts.
+- [x] Qualify `hf_cached` at 64/256/512 response bounds and require at least 2x
       speedup at 256 and 512 without exceeding 14.5 GiB peak reserved VRAM.
-- [ ] Add transactional `samples_per_prompt > 1` and exact no-skip/no-duplicate
+- [x] Add transactional `samples_per_prompt > 1` and exact no-skip/no-duplicate
       resume semantics without changing the published `n=1` profiles.
 - [ ] Add the new deterministic task-reward plus distillation-advantage profile;
       keep direct GKD and existing PG-k1 identities unchanged.

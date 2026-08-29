@@ -43,7 +43,12 @@ __all__ = [
     "get_profile",
     "list_profiles",
     "load_profile_source",
+    "VERL_OPD_GROUPED_V08_PROFILE",
+    "VERL_OPD_PG_K1_GROUPED_V08_PROFILE",
 ]
+
+VERL_OPD_GROUPED_V08_PROFILE = "verl-opd-v0.8-single-gpu-grouped-v1"
+VERL_OPD_PG_K1_GROUPED_V08_PROFILE = "verl-opd-v0.8-single-gpu-pg-k1-grouped-v1"
 
 
 class _FrozenModel(BaseModel):
@@ -135,16 +140,21 @@ class CompatibilityProfile(ABC):
 
 @dataclass(frozen=True)
 class _DirectGKDProfile(CompatibilityProfile):
+    name: str = VERL_OPD_V08_PROFILE
+    grouped: bool = False
+
     @property
     def identity(self) -> ProfileIdentity:
         return ProfileIdentity.create(
-            profile_name=VERL_OPD_V08_PROFILE,
+            profile_name=self.name,
             profile_schema_version=1,
             upstream_repository=VERL_REPOSITORY,
             upstream_tag=VERL_TAG,
             upstream_commit=VERL_COMMIT,
             field_rule_digest=field_rules_digest(),
-            native_compiler_version="direct-gkd-native-v1",
+            native_compiler_version=(
+                "direct-gkd-native-grouped-v1" if self.grouped else "direct-gkd-native-v1"
+            ),
             loss_conformance_version="forward-kl-topk-verl-v0.8-v1",
             export_version="verl-opd-export-v1",
         )
@@ -152,10 +162,10 @@ class _DirectGKDProfile(CompatibilityProfile):
     @property
     def summary(self) -> ProfileSummary:
         return ProfileSummary(
-            name=VERL_OPD_V08_PROFILE,
+            name=self.name,
             objective="direct GKD forward_kl_topk",
             teacher_target="top-k token IDs and log-probabilities",
-            status="measured",
+            status="conformance_only" if self.grouped else "measured",
             identity=self.identity,
         )
 
@@ -168,7 +178,7 @@ class _DirectGKDProfile(CompatibilityProfile):
         unsupported = classification == "unsupported"
         informational = classification == "informational_only"
         return CompatibilityExplanation(
-            profile=VERL_OPD_V08_PROFILE,
+            profile=self.name,
             upstream_field=field,
             classification=classification,
             local_target=rule["local_target"],
@@ -193,6 +203,8 @@ class _DirectGKDProfile(CompatibilityProfile):
             source,
             accept_local_reinterpretations=accept_local_reinterpretations,
             require_executable=False,
+            allow_grouped_samples=self.grouped,
+            profile_name=self.name,
         )
         fields = [item.model_dump(mode="json") for item in compiled.compatibility]
         unsupported = sum(not item.executable for item in compiled.compatibility)
@@ -236,18 +248,24 @@ class _DirectGKDProfile(CompatibilityProfile):
     def show(self) -> dict[str, Any]:
         from importlib.resources import files
 
+        import yaml
+
         minimal_yaml = (
             files("miniverl")
             .joinpath("resources/qwen3_0_6b_1_7b_opd.yaml")
             .read_text(encoding="utf-8")
         )
+        if self.grouped:
+            payload = yaml.safe_load(minimal_yaml)
+            payload["actor_rollout_ref"]["rollout"]["n"] = 4
+            minimal_yaml = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
         return {
             **self.summary.model_dump(mode="json"),
             "identity": self.identity.model_dump(mode="json"),
             "algorithm_contract": {
                 "actor_count": 1,
                 "teacher_count": 1,
-                "generations_per_prompt": 1,
+                "generations_per_prompt": 4 if self.grouped else 1,
                 "objective": "forward_kl_topk",
                 "task_rewards": False,
                 "distributed_execution": False,
@@ -255,7 +273,7 @@ class _DirectGKDProfile(CompatibilityProfile):
             },
             "minimal_yaml": minimal_yaml,
             "override_invocation": (
-                "miniverl plan --profile verl-opd-v0.8-single-gpu-v1 "
+                f"miniverl plan --profile {self.name} "
                 "--config builtin:qwen3-0.6b-1.7b-opd "
                 "--set data.train_batch_size=4 --json"
             ),
@@ -264,16 +282,21 @@ class _DirectGKDProfile(CompatibilityProfile):
 
 @dataclass(frozen=True)
 class _PGK1Profile(CompatibilityProfile):
+    name: str = VERL_OPD_PG_K1_V08_PROFILE
+    grouped: bool = False
+
     @property
     def identity(self) -> ProfileIdentity:
         return ProfileIdentity.create(
-            profile_name=VERL_OPD_PG_K1_V08_PROFILE,
+            profile_name=self.name,
             profile_schema_version=1,
             upstream_repository=VERL_REPOSITORY,
             upstream_tag=VERL_TAG,
             upstream_commit=VERL_COMMIT,
             field_rule_digest=pg_field_rules_digest(),
-            native_compiler_version="pg-k1-native-v1",
+            native_compiler_version=(
+                "pg-k1-native-grouped-v1" if self.grouped else "pg-k1-native-v1"
+            ),
             loss_conformance_version="pg-k1-verl-v0.8-v1",
             export_version="verl-opd-pg-k1-export-v1",
         )
@@ -281,10 +304,10 @@ class _PGK1Profile(CompatibilityProfile):
     @property
     def summary(self) -> ProfileSummary:
         return ProfileSummary(
-            name=VERL_OPD_PG_K1_V08_PROFILE,
+            name=self.name,
             objective="k1 + vanilla policy loss",
             teacher_target="sampled-token teacher log-probability",
-            status="measured",
+            status="conformance_only" if self.grouped else "measured",
             identity=self.identity,
         )
 
@@ -297,7 +320,7 @@ class _PGK1Profile(CompatibilityProfile):
         unsupported = classification == "unsupported"
         informational = classification == "informational_only"
         return CompatibilityExplanation(
-            profile=VERL_OPD_PG_K1_V08_PROFILE,
+            profile=self.name,
             upstream_field=field,
             classification=classification,
             local_target=rule["local_target"],
@@ -322,6 +345,8 @@ class _PGK1Profile(CompatibilityProfile):
             source,
             accept_local_reinterpretations=accept_local_reinterpretations,
             require_executable=False,
+            allow_grouped_samples=self.grouped,
+            profile_name=self.name,
         )
         fields = [item.model_dump(mode="json") for item in compiled.compatibility]
         unsupported = sum(not item.executable for item in compiled.compatibility)
@@ -387,13 +412,15 @@ class _PGK1Profile(CompatibilityProfile):
             }
         )
         payload["algorithm"]["adv_estimator"] = None
+        if self.grouped:
+            payload["actor_rollout_ref"]["rollout"]["n"] = 4
         return {
             **self.summary.model_dump(mode="json"),
             "identity": self.identity.model_dump(mode="json"),
             "algorithm_contract": {
                 "actor_count": 1,
                 "teacher_count": 1,
-                "generations_per_prompt": 1,
+                "generations_per_prompt": 4 if self.grouped else 1,
                 "objective": "sampled k1 through vanilla policy loss",
                 "task_rewards": False,
                 "distributed_execution": False,
@@ -401,7 +428,7 @@ class _PGK1Profile(CompatibilityProfile):
             },
             "minimal_yaml": yaml.safe_dump(payload, sort_keys=False, allow_unicode=True),
             "override_invocation": (
-                "miniverl plan --profile verl-opd-v0.8-single-gpu-pg-k1-v1 "
+                f"miniverl plan --profile {self.name} "
                 "--config pg-k1.yaml --set data.train_batch_size=4 --json"
             ),
         }
@@ -410,6 +437,14 @@ class _PGK1Profile(CompatibilityProfile):
 _REGISTRY: dict[str, CompatibilityProfile] = {
     VERL_OPD_V08_PROFILE: _DirectGKDProfile(),
     VERL_OPD_PG_K1_V08_PROFILE: _PGK1Profile(),
+    VERL_OPD_GROUPED_V08_PROFILE: _DirectGKDProfile(
+        name=VERL_OPD_GROUPED_V08_PROFILE,
+        grouped=True,
+    ),
+    VERL_OPD_PG_K1_GROUPED_V08_PROFILE: _PGK1Profile(
+        name=VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+        grouped=True,
+    ),
 }
 
 
@@ -451,7 +486,7 @@ def load_profile_source(
 ) -> Any:
     """Compile one source through the selected closed built-in profile."""
     get_profile(name)  # fail closed before dispatch; never load third-party code
-    if name == VERL_OPD_V08_PROFILE:
+    if name in {VERL_OPD_V08_PROFILE, VERL_OPD_GROUPED_V08_PROFILE}:
         return load_verl_opd_v08_source(
             source,
             override_files=override_files,
@@ -459,8 +494,13 @@ def load_profile_source(
             trailing_overrides=trailing_overrides,
             accept_local_reinterpretations=accept_local_reinterpretations,
             require_executable=require_executable,
+            allow_grouped_samples=name == VERL_OPD_GROUPED_V08_PROFILE,
+            profile_name=name,
         )
-    if name == VERL_OPD_PG_K1_V08_PROFILE:
+    if name in {
+        VERL_OPD_PG_K1_V08_PROFILE,
+        VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+    }:
         return load_verl_pg_k1_v08_source(
             source,
             override_files=override_files,
@@ -468,5 +508,7 @@ def load_profile_source(
             trailing_overrides=trailing_overrides,
             accept_local_reinterpretations=accept_local_reinterpretations,
             require_executable=require_executable,
+            allow_grouped_samples=name == VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+            profile_name=name,
         )
     raise AssertionError(f"registered profile {name!r} has no compiler dispatch")

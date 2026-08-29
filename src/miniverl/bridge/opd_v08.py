@@ -994,7 +994,7 @@ def _resolve_overrides(
     return records
 
 
-def _semantic_blocker(path: str, value: Any) -> str | None:
+def _semantic_blocker(path: str, value: Any, *, allow_grouped_samples: bool = False) -> str | None:
     required = {
         "distillation.enabled": (True, "distillation must be enabled"),
         "distillation.distillation_loss.loss_mode": (
@@ -1018,7 +1018,6 @@ def _semantic_blocker(path: str, value: Any) -> str | None:
             "token-mean",
             "only token-mean aggregation is supported",
         ),
-        "actor_rollout_ref.rollout.n": (1, "one generation per prompt is required"),
         "actor_rollout_ref.rollout.tensor_model_parallel_size": (
             1,
             "tensor parallelism greater than one is unsupported",
@@ -1037,6 +1036,11 @@ def _semantic_blocker(path: str, value: Any) -> str | None:
         ),
         "trainer.nnodes": (1, "multi-node execution is unsupported"),
     }
+    if path == "actor_rollout_ref.rollout.n":
+        if allow_grouped_samples and isinstance(value, int) and value >= 1:
+            return None
+        if value != 1:
+            return "one generation per prompt is required by this legacy profile"
     expected = required.get(path)
     if expected is not None and value != expected[0]:
         return expected[1]
@@ -1072,6 +1076,8 @@ def compile_verl_opd_v08(
     reinterpretations_accepted: bool = True,
     acceptance_source: str = "library_call",
     require_executable: bool = True,
+    allow_grouped_samples: bool = False,
+    profile_name: str = VERL_OPD_V08_PROFILE,
 ) -> CompiledLocalExecutionPlan:
     """Compile one resolved documented profile into a deterministic local plan."""
     merged = copy.deepcopy(dict(payload))
@@ -1114,7 +1120,11 @@ def compile_verl_opd_v08(
     blockers: list[str] = []
     for path, value in sorted(flat.items()):
         rule = _FIELD_RULES[path]
-        blocker = _semantic_blocker(path, value)
+        blocker = _semantic_blocker(
+            path,
+            value,
+            allow_grouped_samples=allow_grouped_samples,
+        )
         if blocker:
             blockers.append(path)
             classification: FieldClassification = "unsupported"
@@ -1170,9 +1180,13 @@ def compile_verl_opd_v08(
         "loss_reduction": source.actor_rollout_ref.actor.loss_agg_mode,
         "task_rewards": False,
         "policy_gradient": False,
+        "samples_per_prompt": source.actor_rollout_ref.rollout.n,
+        "group_semantics": "independent_current_policy_trajectories",
+        "trajectory_schema_version": 3 if allow_grouped_samples else 2,
     }
     high_risk = [item.upstream_field for item in compatibility if item.user_confirmation_required]
     common = {
+        "profile": profile_name,
         "upstream": {"repository": VERL_REPOSITORY, "tag": VERL_TAG, "commit": VERL_COMMIT},
         "source_digest": _canonical_digest(merged),
         "source_leaf_fields": sorted(flat),
@@ -1212,6 +1226,8 @@ def load_verl_opd_v08(
     trailing_overrides: Sequence[str] = (),
     accept_local_reinterpretations: bool = False,
     require_executable: bool = True,
+    allow_grouped_samples: bool = False,
+    profile_name: str = VERL_OPD_V08_PROFILE,
 ) -> CompiledLocalExecutionPlan:
     """Load a resolved YAML mapping; scripts and interpolations are never evaluated."""
     if path.suffix.lower() in {".sh", ".bash", ".ps1", ".cmd", ".bat"}:
@@ -1230,6 +1246,8 @@ def load_verl_opd_v08(
         reinterpretations_accepted=accept_local_reinterpretations,
         acceptance_source="cli_flag" if accept_local_reinterpretations else "not_accepted",
         require_executable=require_executable,
+        allow_grouped_samples=allow_grouped_samples,
+        profile_name=profile_name,
     )
 
 
@@ -1241,6 +1259,8 @@ def load_verl_opd_v08_source(
     trailing_overrides: Sequence[str] = (),
     accept_local_reinterpretations: bool = False,
     require_executable: bool = True,
+    allow_grouped_samples: bool = False,
+    profile_name: str = VERL_OPD_V08_PROFILE,
 ) -> CompiledLocalExecutionPlan:
     """Load a path or the packaged Qwen3 quickstart profile."""
     source_text = str(source)
@@ -1252,6 +1272,8 @@ def load_verl_opd_v08_source(
             trailing_overrides=trailing_overrides,
             accept_local_reinterpretations=accept_local_reinterpretations,
             require_executable=require_executable,
+            allow_grouped_samples=allow_grouped_samples,
+            profile_name=profile_name,
         )
     from importlib.resources import files
 
@@ -1271,6 +1293,8 @@ def load_verl_opd_v08_source(
         reinterpretations_accepted=False,
         acceptance_source="packaged_approval_mismatch",
         require_executable=require_executable,
+        allow_grouped_samples=allow_grouped_samples,
+        profile_name=profile_name,
     )
     try:
         approval = json.loads(approval_resource.read_text(encoding="utf-8"))
@@ -1299,6 +1323,8 @@ def load_verl_opd_v08_source(
             "cli_flag" if accept_local_reinterpretations else "packaged_approval_manifest"
         ),
         require_executable=require_executable,
+        allow_grouped_samples=allow_grouped_samples,
+        profile_name=profile_name,
     )
 
 
