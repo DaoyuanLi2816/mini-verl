@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -94,10 +95,9 @@ def test_vllm_snapshot_resolution_preserves_hub_snapshot_symlink_parent(
     except OSError:
         pytest.skip("symlinks are unavailable")
 
-    with patch(
-        "huggingface_hub.try_to_load_from_cache",
-        return_value=str(config),
-    ):
+    hub = ModuleType("huggingface_hub")
+    hub.try_to_load_from_cache = lambda *_args, **_kwargs: str(config)  # type: ignore[attr-defined]
+    with patch.dict(sys.modules, {"huggingface_hub": hub}):
         assert _resolve_model_snapshot("org/model", "a" * 40) == snapshot.resolve()
 
 
