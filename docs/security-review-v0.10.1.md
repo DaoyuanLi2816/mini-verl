@@ -1,8 +1,8 @@
 # v0.10.1 focused security review
 
 This review covers input and artifact boundaries touched by the current local
-runtime and release qualification. It does not claim sandboxing of model code
-or third-party libraries.
+runtime and release qualification. Model-code and third-party-library isolation
+remain in the consolidated [execution limitations](limitations.md#execution-boundary).
 
 | surface | enforced boundary | regression evidence |
 | --- | --- | --- |

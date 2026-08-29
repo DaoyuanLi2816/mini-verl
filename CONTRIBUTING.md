@@ -1,15 +1,14 @@
 # Contributing to miniVERL
 
-Thank you for considering it. This document is short and specific, because the
-project has a small number of rules that matter a lot and very few that do not.
+Thank you for helping make one-GPU distillation easier to inspect, reproduce
+and extend. This guide covers the checks that keep code and published evidence
+aligned.
 
-## The one rule
+## Measurement provenance
 
-**Never state a number you did not measure.** Not in code, not in a docstring,
-not in the README, not in a pull-request description. If something was not run,
-write "not run" and leave the exact command that would run it. A missing number
-is fine; an invented one is not, and it is the fastest way to make a
-distillation project worthless.
+**Every reported number needs a measurement artifact or command.** When a check
+was unavailable, write "not run" and include the exact command for a future
+run. This convention keeps reviews useful across different hardware.
 
 ## Setup
 
@@ -76,6 +75,16 @@ required hardware or credentials are unavailable.
   that miniVERL is first, fastest or best at anything.
 * Silent behaviour: truncating a sequence, changing a model, reusing a stale
   cache, or swallowing an exception. Fail loudly with a hint instead.
+
+## Documentation voice
+
+Lead with what the workflow does, who it helps and which artifact it produces.
+State a local constraint where it changes the reader's next action; link to
+the [compatibility policy](docs/compatibility.md) or
+[limitations](docs/limitations.md) for complete exclusion lists and scientific
+boundaries. Avoid repeating a catalogue of absent features after every product
+capability. Research reports and security contracts should keep their precise
+caveats close to the evidence or decision they qualify.
 
 ## Adding an environment
 

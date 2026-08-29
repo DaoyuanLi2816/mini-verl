@@ -1,9 +1,8 @@
 # miniVERL design
 
-This document explains what miniVERL is for, how it is layered, what happens
-during one on-policy distillation (OPD) cycle, and which invariants are checked
-where. Every module, function, field name and file name below was read out of
-the source tree; every number was produced by a command that was run.
+This document explains miniVERL's layers, one on-policy distillation (OPD)
+cycle, and the invariants checked at each boundary. Module, function and field
+names follow the source tree; measured numbers link to their result artifacts.
 
 For the mathematics of the objectives see [math.md](math.md).
 

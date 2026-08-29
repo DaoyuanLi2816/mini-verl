@@ -1,9 +1,9 @@
 # Materialize a pinned verl handoff
 
-`export-verl` intentionally starts with identity-only student and teacher base
-models. Its PEFT adapter, Parquet data, pure-OPD override and provenance are
-complete, but `launchable` remains `false` until the exact model snapshots and
-the pinned upstream validation are present.
+`export-verl` first publishes the PEFT adapter, Parquet data, pure-OPD override,
+provenance and exact student/teacher identities. Materialization then resolves
+the model snapshots and runs the pinned upstream validation required for
+`launchable: true`.
 
 ## Offline-first workflow
 

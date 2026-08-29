@@ -58,6 +58,6 @@
       <rect x="258" y="550" width="190" height="34" rx="17" fill="#60a5fa" fill-opacity=".12" stroke="#93c5fd" stroke-opacity=".42"/><text x="353" y="573" text-anchor="middle" fill="#dbeafe">Parquet round trip</text>
       <rect x="464" y="550" width="212" height="34" rx="17" fill="#a78bfa" fill-opacity=".13" stroke="#c4b5fd" stroke-opacity=".42"/><text x="570" y="573" text-anchor="middle" fill="#ede9fe">checksummed bundle</text>
     </g>
-    <text x="1212" y="573" text-anchor="end" fill="#94a3b8" font-size="16">independent project · no endorsement implied</text>
+    <text x="1212" y="573" text-anchor="end" fill="#94a3b8" font-size="16">typed profiles · portable artifacts · explicit readiness</text>
   </g>
 </svg>

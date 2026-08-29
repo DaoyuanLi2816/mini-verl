@@ -6,6 +6,18 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+### Documentation narrative
+
+- Rebuilt the English, Chinese and PyPI landing narratives around the local
+  workflow, concrete artifacts, user paths and measured systems evidence.
+- Reframed the documentation home, stack-selection guide, verl migration,
+  hardware planning and OPD guides around supported workflows, with complete
+  execution and scientific boundaries consolidated in compatibility and
+  limitations.
+- Updated the main runtime diagram and contributor guidance so product pages
+  lead with capabilities while research, security and operational caveats stay
+  next to the decisions they qualify.
+
 ### Release evidence polish
 
 - Corrected the v1-readiness record after the completed v0.10.1 attempt-1 RTX

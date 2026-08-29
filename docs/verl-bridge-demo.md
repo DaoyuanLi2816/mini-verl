@@ -1,7 +1,7 @@
 # Verified-bridge demo recording script
 
-This recording is an artifact-only CPU demo. It needs the `bridge` extra but
-does not need CUDA, model downloads, Ray or a verl installation.
+This CPU recording follows the artifact path with the `bridge` extra. It runs
+from local fixtures and produces the same reports without a training setup.
 
 ## Before recording
 

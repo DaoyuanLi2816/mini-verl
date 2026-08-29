@@ -1,6 +1,6 @@
 # Maintainer architecture
 
-This page describes change boundaries, not product marketing.
+This page maps the change boundaries maintainers use for review.
 
 ## Config to runtime
 
@@ -70,4 +70,3 @@ python scripts/release_gate.py --qualification path/to/qualification.json
 The first command is CPU CI. Network tests verify pinned remote resources. GPU
 tests exercise local CUDA behavior. The qualification workflow additionally
 uses a built wheel and the exact-SHA release contract.
-

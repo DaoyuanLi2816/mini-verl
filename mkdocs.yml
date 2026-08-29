@@ -1,5 +1,5 @@
 site_name: miniVERL
-site_description: Run a documented subset of verl-style OPD on one consumer GPU
+site_description: Inspectable verl-style on-policy distillation on one NVIDIA GPU
 site_url: https://daoyuanli2816.github.io/mini-verl/
 repo_url: https://github.com/DaoyuanLi2816/mini-verl
 repo_name: DaoyuanLi2816/mini-verl
@@ -41,6 +41,7 @@ plugins:
   - search
 nav:
   - Home: index.md
+  - Choose a stack: comparisons.md
   - For verl users: for-verl-users.md
   - Compatibility profiles: profiles/index.md
   - PG-k1 semantic ADR: adr/0010-verl-v0.8-pg-k1-contract.md
@@ -95,4 +96,4 @@ extra_css:
   - assets/stylesheets/extra.css
 extra_javascript:
   - assets/javascripts/versioning.js
-copyright: miniVERL is an independent project; no endorsement by upstream projects is implied.
+copyright: miniVERL · inspectable single-GPU post-training · Apache-2.0

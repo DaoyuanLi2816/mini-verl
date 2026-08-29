@@ -1,9 +1,9 @@
 # Config overrides
 
 miniVERL accepts one resolved YAML mapping plus familiar dotted `key=value`
-tokens. It does not execute a verl launcher, shell command, Hydra resolver or
-OmegaConf interpolation. Resolve composition inside the trusted verl workflow,
-then pass either the YAML, an argv JSON array, or a plain override file.
+tokens. Resolve Hydra/OmegaConf composition inside the trusted verl workflow,
+then pass either the YAML, an argv JSON array, or a plain override file to the
+local compiler.
 
 ```bash
 miniverl plan \

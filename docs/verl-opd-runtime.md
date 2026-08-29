@@ -1,9 +1,8 @@
 # Current verl-style OPD runtime
 
-This is miniVERL's current executable path: two documented, resolved subsets of
-official verl `v0.8.0`, pinned at `7aed6b23`, compiled into local phases on one
-NVIDIA CUDA GPU. It is not a distributed verl runtime and does not accept
-arbitrary Hydra YAML.
+This is miniVERL's current executable path: two documented, resolved profiles
+from official verl `v0.8.0`, pinned at `7aed6b23`, compiled into local phases
+on one NVIDIA CUDA GPU.
 
 ## Start from the pinned profile
 
@@ -35,26 +34,27 @@ reinterpretations; the built-in profile has a value-bound approval manifest.
 | `lora_adapter_path` plus pinned metadata | validated trainable student initialization |
 
 `forward_kl_topk` consumes teacher top-k token IDs and log-probabilities and
-reports top-k mass/overlap diagnostics. It does not create the explicit K+1
-tail bucket used by miniVERL's separate native `bucketed_topk_tail` objective.
+reports top-k mass/overlap diagnostics. miniVERL's separate native
+`bucketed_topk_tail` objective adds an explicit K+1 tail bucket.
 
 The second profile, `verl-opd-v0.8-single-gpu-pg-k1-v1`, records the sampled
 token, rollout-time actor log-probability and teacher log-probability, then
 recomputes the current actor log-probability for pinned `k1` + vanilla
-policy-loss semantics. It exports no top-k requirement. See [Which profile
-should I use?](profiles/index.md) for the neutral choice boundary.
+policy-loss semantics. Its export carries sampled-token signals in place of a
+top-k target requirement. See [Which profile should I use?](profiles/index.md)
+for the choice guide.
 
-## Placement is fail-closed
+## Placement strategy
 
-- NF4/int8 roles use resident local phases; bitsandbytes parameters cannot swap.
+- NF4/int8 roles use resident local phases.
 - Swap is available only for movable unquantized LoRA roles.
 - Shared backbone requires compatible same-base roles.
-- Unknown-size quantized roles report `requires_probe` and are not executable
-  until feasibility is proven.
+- Unknown-size quantized roles use `requires_probe` until a bounded measurement
+  establishes feasibility.
 
 Normal planning is weight-free. `plan --probe` is a bounded, cached CUDA
-calibration that performs zero optimizer updates. An executable plan must not
-select a placement the native runtime rejects for a known static reason.
+calibration with zero optimizer updates. The finalized plan therefore contains
+either a statically valid placement or the measurement needed to validate it.
 
 The generated [compatibility matrix](generated/verl-opd-v0.8-compatibility.json)
 and [field-effect evidence](generated/verl-opd-v0.8-field-effects.json) are

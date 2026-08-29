@@ -1,10 +1,9 @@
 # Compatibility policy
 
-miniVERL is a `0.x` research package: a minor release may add validated fields
-or tighten unsafe input, but it must not silently reinterpret a supported
-artifact. Release notes identify migrations, and the current reader either
-loads an older artifact with its historical semantics or rejects it with a
-regeneration hint.
+miniVERL versions its executable profiles and artifact schemas independently.
+A minor release may add validated fields or tighten input validation while
+preserving the historical meaning of existing artifacts. Release notes identify
+migrations, and readers retain the schema-specific behavior needed to load them.
 
 ## Stable surfaces through v0.9
 
@@ -21,7 +20,7 @@ regeneration hint.
   commit `7aed6b230776f963fa09509c10d9c3a767d1102c`; every bundle carries that
   exact contract in `REQUIRED_VERL.txt`.
 
-## Pinned bridge, not generic compatibility
+## Pinned OPD profiles
 
 v0.8 adds the separately versioned `verl-opd-v0.8-single-gpu-v1` executable
 profile: one local actor, one teacher, one generation, pure GKD
@@ -50,12 +49,13 @@ bundle, reward scaffold, hashes and an exact-source smoke. Unknown,
 algorithm-changing or distributed-only verl fields are rejected instead of
 guessed.
 
-These miniVERL-defined levels do not make miniVERL a verl runtime. Optimizer state, distributed
-RNG, FSDP/Megatron native checkpoints, Ray runtime state and teacher-cache to
-PPO-reference-cache conversion are unsupported. The release smoke validates
-artifacts and configuration; distributed execution is recorded as not tested.
-Current bundles contain a fail-closed reward scaffold and an absent base
-snapshot, so they use `launch.template.sh` and report `launchable: false`.
+These miniVERL-defined levels describe artifact and configuration exchange.
+Optimizer state, distributed RNG, FSDP/Megatron native checkpoints, Ray runtime
+state and teacher-cache conversion sit beyond that exchange contract. The
+release smoke records artifact/config validation and distributed execution as
+separate evidence fields. Legacy reward-scaffold bundles use
+`launch.template.sh`; current pure-OPD bundles become launchable through the
+documented materialization checks.
 See the [current local runtime](verl-opd-runtime.md), [current scale-out
 contract](verl-opd-scaleout.md), and [legacy bridge](legacy-verl-bridge.md).
 

@@ -4,9 +4,8 @@
 > online policy update.
 
 v0.4 adds padded multi-trajectory update batches and a shared-backbone adapter
-runtime. It does not add a batched rollout server, distributed workers or a new
-training objective. The default remains the compatible `dual_model` runtime
-with `train.trajectory_batch_size: 1`.
+runtime while keeping the existing objective and rollout semantics. The default
+remains `dual_model` with `train.trajectory_batch_size: 1`.
 
 ## Measured result
 

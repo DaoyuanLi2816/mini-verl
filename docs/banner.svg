@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 250" width="880" height="250"
      role="img" aria-labelledby="banner-title banner-desc">
   <title id="banner-title">miniVERL</title>
-  <desc id="banner-desc">A bounded local runtime for verl-style on-policy distillation on one CUDA GPU.</desc>
+  <desc id="banner-desc">A local runtime for inspectable verl-style on-policy distillation on one CUDA GPU.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#030711"/>
