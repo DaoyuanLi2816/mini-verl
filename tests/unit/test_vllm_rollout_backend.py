@@ -77,6 +77,30 @@ def test_vllm_launch_is_local_managed_and_disables_persistent_prefix_cache() -> 
     assert environment["VLLM_USE_FLASHINFER_SAMPLER"] == "0"
 
 
+def test_vllm_snapshot_resolution_preserves_hub_snapshot_symlink_parent(
+    tmp_path: Path,
+) -> None:
+    from miniverl.runtime.backends.vllm import _resolve_model_snapshot
+
+    snapshot = tmp_path / "models--org--model" / "snapshots" / ("a" * 40)
+    blobs = tmp_path / "models--org--model" / "blobs"
+    snapshot.mkdir(parents=True)
+    blobs.mkdir(parents=True)
+    config_blob = blobs / "config-digest"
+    config_blob.write_text("{}", encoding="utf-8")
+    config = snapshot / "config.json"
+    try:
+        config.symlink_to(config_blob)
+    except OSError:
+        pytest.skip("symlinks are unavailable")
+
+    with patch(
+        "huggingface_hub.try_to_load_from_cache",
+        return_value=str(config),
+    ):
+        assert _resolve_model_snapshot("org/model", "a" * 40) == snapshot.resolve()
+
+
 def test_vllm_completion_parser_requires_raw_ids_and_aligned_logprobs() -> None:
     from miniverl.runtime.backends.vllm import parse_vllm_completion
 

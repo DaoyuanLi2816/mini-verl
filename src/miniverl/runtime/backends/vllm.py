@@ -217,7 +217,9 @@ def _resolve_model_snapshot(model_id: str, revision: str | None) -> Path:
             f"base snapshot {model_id!r} is not cached; run `hf download {model_id}"
             f"{revision_hint}` before using rollout.backend=vllm"
         )
-    snapshot = Path(cached).resolve().parent
+    # Hub snapshot entries are commonly symlinks into ``blobs/``. Resolve the
+    # containing snapshot directory, not the config symlink target.
+    snapshot = Path(cached).parent.resolve()
     if not (snapshot / "config.json").is_file():
         raise RuntimeError("resolved vLLM base snapshot has no config.json")
     return snapshot

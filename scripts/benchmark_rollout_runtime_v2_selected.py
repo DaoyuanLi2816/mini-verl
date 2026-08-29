@@ -78,7 +78,7 @@ def _cached_snapshot(model_id: str, revision: str) -> Path:
     config = try_to_load_from_cache(model_id, "config.json", revision=revision)
     if not isinstance(config, str):
         raise RuntimeError(f"cached model {model_id}@{revision} has no config.json")
-    snapshot = Path(config).resolve().parent
+    snapshot = Path(config).parent.resolve()
     if not any(snapshot.glob("*.safetensors")):
         raise RuntimeError(f"cached model {model_id}@{revision} has no safetensors weights")
     return snapshot
