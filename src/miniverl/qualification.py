@@ -230,6 +230,35 @@ class GPUQualification(_Strict):
                 raise ValueError(
                     "full qualification evidence is missing: " + ", ".join(missing_artifacts)
                 )
+            version_parts = self.miniverl_version.split(".", 2)
+            try:
+                requires_v011 = (int(version_parts[0]), int(version_parts[1])) >= (0, 11)
+            except (IndexError, ValueError):
+                requires_v011 = False
+            if requires_v011:
+                v011_checks = {
+                    "v011_hf_cached_direct_n1",
+                    "v011_hf_cached_pg_n4",
+                    "v011_rewarded_pg_n4",
+                    "v011_exact_wheel_runtime_gate",
+                    "v011_vllm_direct_gkd_n4_r256",
+                    "v011_policy_refresh_cache_invalidation",
+                    "v011_external_engine_teardown",
+                }
+                missing_v011_checks = sorted(v011_checks - set(self.checks.executed))
+                v011_artifacts = {
+                    "full_v011_profiles_result",
+                    "full_hf_cached_runtime_result",
+                    "full_vllm_runtime_result",
+                }
+                missing_v011_artifacts = sorted(
+                    v011_artifacts - {artifact.name for artifact in self.artifacts}
+                )
+                if missing_v011_checks or missing_v011_artifacts:
+                    details = missing_v011_checks + missing_v011_artifacts
+                    raise ValueError(
+                        "v0.11 full qualification evidence is missing: " + ", ".join(details)
+                    )
         return self
 
 

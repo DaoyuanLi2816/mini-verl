@@ -34,7 +34,7 @@ jobs:
             --qualification-artifact-name gpu-full-qualification \
             --required-level full_qualification \
             --required-gpu-name "NVIDIA GeForce RTX 4080" \
-            --known-good environments/known-good-rtx4080-cu130.json \
+            --known-good environments/known-good-rtx4080-wsl2-cu130.json \
             --output verified-qualified-candidate
       - name: Preserve the verified byte chain
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

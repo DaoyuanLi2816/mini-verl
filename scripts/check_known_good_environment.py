@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-MANIFEST = Path("environments/known-good-rtx4080-cu130.json")
+MANIFEST = Path("environments/known-good-rtx4080-wsl2-cu130.json")
 REQUIRED_PACKAGES = {
     "torch",
     "transformers",

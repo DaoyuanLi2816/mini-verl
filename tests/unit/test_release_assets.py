@@ -71,6 +71,18 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
         "full_direct_result": ("full/direct.json", b'{"kind":"direct"}\n'),
         "full_pg_k1_result": ("full/pg_k1.json", b'{"kind":"pg-k1"}\n'),
         "full_smollm2_result": ("full/smollm2.json", b'{"kind":"smollm2"}\n'),
+        "full_v011_profiles_result": (
+            "full/v011-profiles.json",
+            b'{"kind":"v011-profiles"}\n',
+        ),
+        "full_hf_cached_runtime_result": (
+            "full/hf-cached-runtime.json",
+            b'{"kind":"hf-cached-runtime"}\n',
+        ),
+        "full_vllm_runtime_result": (
+            "full/vllm-runtime.json",
+            b'{"kind":"vllm-runtime"}\n',
+        ),
     }
     artifacts = []
     for name, (relative, content) in evidence.items():
@@ -164,6 +176,13 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
                 "sampled_k1_resume_equivalence",
                 "smollm2_resume_equivalence",
                 "export_materialize_doctor",
+                "v011_hf_cached_direct_n1",
+                "v011_hf_cached_pg_n4",
+                "v011_rewarded_pg_n4",
+                "v011_exact_wheel_runtime_gate",
+                "v011_vllm_direct_gkd_n4_r256",
+                "v011_policy_refresh_cache_invalidation",
+                "v011_external_engine_teardown",
             ],
             "skipped": [],
             "not_applicable": ["distributed_verl_execution"],
@@ -245,6 +264,19 @@ def test_builds_exact_canonical_layout_and_checks_it(tmp_path: Path) -> None:
     )
 
 
+def test_release_evidence_mapping_is_versioned_for_historical_records() -> None:
+    from miniverl.release_assets import _archive_evidence_for_version
+
+    historical = _archive_evidence_for_version("0.10.1")
+    current = _archive_evidence_for_version("0.11.0")
+    assert "full_v011_profiles_result" not in historical
+    assert set(current) - set(historical) == {
+        "full_v011_profiles_result",
+        "full_hf_cached_runtime_result",
+        "full_vllm_runtime_result",
+    }
+
+
 def test_archive_and_manifest_are_reproducible_and_explicit(tmp_path: Path) -> None:
     first = _build(tmp_path / "first")
     second = _build(tmp_path / "second")
@@ -261,6 +293,9 @@ def test_archive_and_manifest_are_reproducible_and_explicit(tmp_path: Path) -> N
         "adapter_manifest",
         "input_prompts",
         "run_summary",
+        "v011_hf_cached_runtime",
+        "v011_profiles",
+        "v011_vllm_runtime",
     ]
     with tarfile.open(first / "qualification-evidence.tar.gz", "r:gz") as archive:
         members = archive.getmembers()

@@ -1,0 +1,11 @@
+# miniVERL v0.11 WSL2 RTX 4080 qualification stack.
+# Install the CUDA PyTorch wheel from its explicit index before this file.
+torch==2.13.0+cu130
+transformers==5.14.1
+peft==0.20.0
+accelerate==1.14.0
+bitsandbytes==0.50.2
+numpy==2.3.5
+pyarrow==25.0.1
+safetensors==0.8.0
+vllm==0.28.0

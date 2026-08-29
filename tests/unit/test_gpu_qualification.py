@@ -227,6 +227,221 @@ def _full_result(name: str) -> dict[str, object]:
     return payload
 
 
+def _v011_profile_result() -> dict[str, object]:
+    profiles: dict[str, object] = {}
+    for name, samples in (
+        ("direct_n1", 1),
+        ("grouped_pg_n4", 4),
+        ("rewarded_pg_n4", 4),
+    ):
+        profiles[name] = {
+            "rollout_backend": "hf_cached",
+            "samples_per_prompt": samples,
+            "prompt_groups": 2,
+            "trajectories": 2 * samples,
+            "optimizer_updates": 1,
+            "policy_version": 1,
+            "selected_positions": 8,
+            "loss_finite": True,
+            "peak_reserved_gib": 12.0,
+            "reward": {"status": "completed" if name == "rewarded_pg_n4" else "not_applicable"},
+        }
+    return {
+        "schema_version": 1,
+        "kind": "miniverl_v011_profile_qualification",
+        "status": "passed",
+        "source_commit": "a" * 40,
+        "miniverl_version": "0.11.0",
+        "wheel_sha256": "4" * 64,
+        "hardware": {
+            "gpu": "NVIDIA GeForce RTX 4080",
+            "gpu_count": 1,
+            "platform": "Linux-microsoft-standard-WSL2",
+            "python": "3.12.13",
+            "cuda_runtime": "13.0",
+            "driver": "596.49",
+            "packages": {
+                "torch": "2.13.0+cu130",
+                "transformers": "5.14.1",
+                "peft": "0.20.0",
+                "accelerate": "1.14.0",
+                "bitsandbytes": "0.50.2",
+                "numpy": "2.2.6",
+                "pyarrow": "25.0.0",
+                "safetensors": "0.8.0",
+            },
+        },
+        "profiles": profiles,
+        "cuda_teardown": {"passed": True},
+        "scientific_scope": {
+            "runtime_correctness_only": True,
+            "task_quality_evaluated": False,
+            "distributed_execution_tested": False,
+        },
+    }
+
+
+def _v011_runtime_result(name: str) -> dict[str, object]:
+    source = Path(
+        "benchmarks/evidence/rollout-runtime-v2/"
+        + (
+            "hf-cached-v2-rtx4080-candidate-raw.json"
+            if name == "hf_cached"
+            else "vllm-cudagraph-rtx4080-candidate-raw.json"
+        )
+    )
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    payload["source"] = {
+        "commit": "a" * 40,
+        "dirty": False,
+        "miniverl_version": "0.11.0",
+        "wheel_sha256": "4" * 64,
+    }
+    return payload
+
+
+def _promote_v011(tmp_path: Path, *, mutate=None):
+    from scripts.promote_full_gpu_qualification import promote
+
+    payload, root = _payload(tmp_path)
+    payload["miniverl_version"] = "0.11.0"
+    payload["environment"]["python"] = "3.12.13"  # type: ignore[index]
+    payload["environment"]["packages"].update(  # type: ignore[index,union-attr]
+        {
+            "peft": "0.20.0",
+            "bitsandbytes": "0.50.2",
+        }
+    )
+    wheel_sha256 = payload["wheel"]["sha256"]  # type: ignore[index]
+    qualification = root / "qualification.json"
+    qualification.write_text(json.dumps(payload), encoding="utf-8")
+    paths: dict[str, Path] = {}
+    results: dict[str, dict[str, object]] = {
+        name: _full_result(name) for name in ("direct", "pg_k1", "smollm2")
+    }
+    for result in results.values():
+        result["miniverl_version"] = "0.11.0"
+    results["v011_profiles"] = _v011_profile_result()
+    results["hf_cached_runtime"] = _v011_runtime_result("hf_cached")
+    results["vllm_runtime"] = _v011_runtime_result("vllm")
+    results["v011_profiles"]["wheel_sha256"] = wheel_sha256
+    results["hf_cached_runtime"]["source"]["wheel_sha256"] = wheel_sha256  # type: ignore[index]
+    results["vllm_runtime"]["source"]["wheel_sha256"] = wheel_sha256  # type: ignore[index]
+    if mutate is not None:
+        mutate(results)
+    for name, result in results.items():
+        path = tmp_path / f"{name}.json"
+        path.write_text(json.dumps(result), encoding="utf-8")
+        paths[name] = path
+    return promote(
+        qualification,
+        direct=paths["direct"],
+        pg_k1=paths["pg_k1"],
+        smollm2=paths["smollm2"],
+        v011_profiles=paths["v011_profiles"],
+        hf_cached_runtime=paths["hf_cached_runtime"],
+        vllm_runtime=paths["vllm_runtime"],
+        hf_reference=Path("benchmarks/results/rollout-runtime-v2-hf-reference.json"),
+    )
+
+
+def test_v011_full_qualification_binds_profile_and_runtime_evidence(tmp_path: Path) -> None:
+    promoted = _promote_v011(tmp_path)
+    assert {artifact.name for artifact in promoted.artifacts} >= {
+        "full_v011_profiles_result",
+        "full_hf_cached_runtime_result",
+        "full_vllm_runtime_result",
+    }
+    assert set(promoted.checks.executed) >= {
+        "v011_hf_cached_direct_n1",
+        "v011_hf_cached_pg_n4",
+        "v011_rewarded_pg_n4",
+        "v011_exact_wheel_runtime_gate",
+        "v011_vllm_direct_gkd_n4_r256",
+        "v011_policy_refresh_cache_invalidation",
+        "v011_external_engine_teardown",
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda r: r["v011_profiles"]["profiles"]["grouped_pg_n4"].update(  # type: ignore[index,union-attr]
+                optimizer_updates=0
+            ),
+            "optimizer update",
+        ),
+        (
+            lambda r: r["hf_cached_runtime"]["source"].update(wheel_sha256="5" * 64),  # type: ignore[index,union-attr]
+            "wheel",
+        ),
+        (
+            lambda r: next(
+                cell
+                for cell in r["hf_cached_runtime"]["cells"]  # type: ignore[index,union-attr]
+                if cell["response_bound"] == 256
+            ).update(output_tokens_per_second=0.01),
+            "2.0x",
+        ),
+        (
+            lambda r: r["hf_cached_runtime"]["refresh_probe"].update(  # type: ignore[index,union-attr]
+                all_syncs_confirmed=False
+            ),
+            "refresh",
+        ),
+        (
+            lambda r: r["vllm_runtime"]["conformance"].update(pg_threshold_passed=True),  # type: ignore[index,union-attr]
+            "fail closed",
+        ),
+        (
+            lambda r: r["vllm_runtime"]["teardown"].update(port_closed=False),  # type: ignore[index,union-attr]
+            "teardown",
+        ),
+    ],
+)
+def test_v011_full_qualification_rejects_incomplete_evidence(
+    tmp_path: Path, mutate, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        _promote_v011(tmp_path, mutate=mutate)
+
+
+def test_v011_full_schema_does_not_weaken_historical_full_record(tmp_path: Path) -> None:
+    from miniverl.qualification import GPUQualification
+
+    historical, _ = _payload(tmp_path)
+    historical["level"] = "full_qualification"
+    historical["artifacts"].extend(  # type: ignore[union-attr]
+        {
+            "name": name,
+            "path": "run-manifest.json",
+            "sha256": historical["artifacts"][0]["sha256"],  # type: ignore[index]
+            "bytes": historical["artifacts"][0]["bytes"],  # type: ignore[index]
+        }
+        for name in (
+            "release_smoke_record",
+            "full_direct_result",
+            "full_pg_k1_result",
+            "full_smollm2_result",
+        )
+    )
+    historical["checks"]["executed"].extend(  # type: ignore[index,union-attr]
+        [
+            "direct_gkd_resume_equivalence",
+            "sampled_k1_resume_equivalence",
+            "smollm2_resume_equivalence",
+            "export_materialize_doctor",
+        ]
+    )
+    GPUQualification.model_validate(historical)
+
+    current = dict(historical)
+    current["miniverl_version"] = "0.11.0"
+    with pytest.raises(ValueError, match=r"v0\.11 full qualification"):
+        GPUQualification.model_validate(current)
+
+
 def test_full_qualification_promotion_binds_all_canonical_results(tmp_path: Path) -> None:
     from miniverl.qualification import sha256_file, validate_qualification_file
     from scripts.promote_full_gpu_qualification import promote

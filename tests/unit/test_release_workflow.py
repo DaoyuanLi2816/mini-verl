@@ -115,6 +115,9 @@ def test_gpu_workflow_builds_candidate_only_on_hosted_job() -> None:
     assert "python -m build" not in qualify
     assert "--candidate-manifest candidate/candidate-manifest.json" in qualify
     assert 'PYTHONPATH: ""' in qualify and 'PYTHONHOME: ""' in qualify
+    assert "runs-on: [self-hosted, cuda, rtx4080, wsl2]" in qualify
+    assert "shell: pwsh" not in qualify
+    assert 'uv" venv --seed --python 3.12.13' in qualify
 
 
 def test_gpu_workflow_refuses_rerun_attempts_and_separates_smoke_from_full() -> None:
@@ -137,6 +140,22 @@ def test_full_gpu_qualification_installs_only_the_exact_pinned_verl_source() -> 
     assert "pip install --no-deps" in text
     assert requirement in text
     assert "scripts/promote_full_gpu_qualification.py" in text
+    for required in (
+        "scripts/run_v011_profile_qualification.py",
+        "--backend hf_cached",
+        "--backend vllm",
+        "--v011-profiles",
+        "--hf-cached-runtime",
+        "--vllm-runtime",
+        "known-good-rtx4080-wsl2-cu130.txt",
+    ):
+        assert required in text
+
+
+def test_release_accepts_only_the_v011_wsl2_known_good_stack() -> None:
+    qualification = _job(_workflow_text(), "verify-qualified-candidate", "validate-and-test")
+    assert "known-good-rtx4080-wsl2-cu130.json" in qualification
+    assert "known-good-rtx4080-cu130.json" not in qualification
 
 
 def test_release_recovery_preserves_full_qualification_evidence() -> None:

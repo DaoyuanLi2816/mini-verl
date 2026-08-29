@@ -10,7 +10,7 @@ workflow is manual, not continuous GPU CI and not a pull-request required check.
 | level | cadence | executed scope |
 | --- | --- | --- |
 | release smoke | diagnostic use | install the hosted-runner candidate wheel, verify import/CLI origin, run CLI doctor/plan/dry-run, pinned Qwen actor and teacher, one rollout/score/update, PEFT export/reload and CUDA teardown |
-| full qualification | every formal release | release smoke plus the unchanged direct-GKD, sampled-k1 and SmolLM2 canonical workloads, including interruption/resume and their existing export/materialization checks |
+| full qualification | every formal release | release smoke, the three canonical resume workloads, and the v0.11 direct n=1, grouped PG n=4, rewarded PG n=4, `hf_cached` and vLLM runtime gates |
 
 The smoke budget is intentionally small and is never substituted for a frozen
 full workload or a scientific benchmark. Both levels record runtime
@@ -26,7 +26,7 @@ from the same successful run and first attempt.
 GitHub-hosted `build-candidate` job creates exactly one wheel and one sdist with
 the pinned build toolchain, validates them with Twine, and uploads
 `candidate-distributions` with canonical checksums and a strict manifest. The
-dependent `[self-hosted, cuda, rtx4080]` job downloads that same-run artifact,
+dependent `[self-hosted, cuda, rtx4080, wsl2]` job downloads that same-run artifact,
 validates it before installation, then installs the candidate wheel in a fresh
 virtual environment using the [known-good stack](single-gpu-guide.md). It does
 not build a distribution. `qualification.json` binds the candidate manifest,
@@ -34,9 +34,12 @@ full source SHA, exact wheel hash, workflow run, profile identity, model
 revisions, inputs, measured environment and output hashes. It also proves that
 both the imported package and `miniverl` executable came from the qualification
 environment rather than a checkout or user site.
-For a full run, the workflow additionally validates each canonical result's
-exact resume, resource, PEFT and scale-out fields, then promotes that same
-record to `full_qualification`; three loose result files cannot claim the
+For a v0.11 full run, the workflow additionally performs three real one-update
+profiles, all 24 preregistered cells on each rollout backend, eight policy
+refreshes per backend, conformance and teardown. Promotion verifies the exact
+source, wheel and environment bindings; speed and memory thresholds; grouped
+trajectory identity; reward/advantage completion; and vLLM's
+policy-gradient fail-closed boundary. Loose result files cannot claim the
 higher level.
 
 Every dispatch is single-use. Both jobs reject `GITHUB_RUN_ATTEMPT` values
@@ -54,7 +57,8 @@ SHA-256. Cross-origin artifact redirects retain ordinary API headers but strip
 authorization, proxy authorization and cookies. It publishes the accepted
 wheel and sdist without rebuilding them. Future release runs retain the full
 qualification record, four principal workload JSON files and a deterministic
-subordinate-evidence archive in the canonical layout below. A committed
+subordinate-evidence archive. For v0.11, that archive also contains the three
+profile/backend qualification records. A committed
 JSON file, manual upload, fork run, different workflow or cross-run artifact
 pair cannot satisfy this gate.
 
@@ -80,9 +84,10 @@ qualification-evidence-manifest.json
 ```
 
 The four principal workload records remain directly inspectable. Adapter
-configuration and safetensors, its miniVERL manifest, input prompts and the run
-summary live once in the deterministic archive; its manifest binds every member
-to its semantic role, byte count and SHA-256. `SHA256SUMS` covers only the wheel
+configuration and safetensors, its miniVERL manifest, input prompts, run
+summary and version-specific qualification records live once in the
+deterministic archive; its manifest binds every member to its semantic role,
+byte count and SHA-256. `SHA256SUMS` covers only the wheel
 and sdist. `qualification-SHA256SUMS` covers the nine provenance and evidence
 assets in canonical order. Hashes prove byte integrity, not code signing or
 third-party endorsement.
@@ -126,6 +131,10 @@ The job deletes and recreates its qualification virtual environment, clears
 portable bounded artifacts, and checks cleanup targets remain under
 `GITHUB_WORKSPACE`. Model caches remain runner-local and are not uploaded.
 Rotate the runner token after suspected exposure.
+
+The v0.11 release runner is Ubuntu under WSL2 with Python 3.12.13 and the
+checked `known-good-rtx4080-wsl2-cu130` stack. The older Windows qualification
+record remains historical and cannot authorize v0.11.
 
 ## Measured release state
 

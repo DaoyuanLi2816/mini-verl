@@ -46,6 +46,14 @@ ARCHIVE_EVIDENCE = {
     "inputs_prompts.parquet": ("input_prompts", "inputs/prompts.parquet"),
     "run_summary": ("run_summary", "run-summary.json"),
 }
+V011_ARCHIVE_EVIDENCE = {
+    "full_v011_profiles_result": ("v011_profiles", "v011/profiles.json"),
+    "full_hf_cached_runtime_result": (
+        "v011_hf_cached_runtime",
+        "v011/hf-cached-runtime.json",
+    ),
+    "full_vllm_runtime_result": ("v011_vllm_runtime", "v011/vllm-runtime.json"),
+}
 _SPECIAL_EVIDENCE = {"candidate-manifest.json"}
 QUALIFICATION_SUM_FILES = (
     "candidate-manifest.json",
@@ -123,7 +131,10 @@ def validate_canonical_names(names: list[str] | tuple[str, ...]) -> None:
 def _validate_archive_mapping() -> None:
     seen_paths: set[str] = set()
     seen_roles: set[str] = set()
-    for original_name, (semantic_role, archive_path) in ARCHIVE_EVIDENCE.items():
+    for original_name, (semantic_role, archive_path) in {
+        **ARCHIVE_EVIDENCE,
+        **V011_ARCHIVE_EVIDENCE,
+    }.items():
         if (
             not original_name
             or not semantic_role.isascii()
@@ -140,6 +151,18 @@ def _validate_archive_mapping() -> None:
             raise ValueError("archive evidence mapping contains a collision")
         seen_paths.add(folded_path)
         seen_roles.add(semantic_role)
+
+
+def _archive_evidence_for_version(version: str) -> dict[str, tuple[str, str]]:
+    mapping = dict(ARCHIVE_EVIDENCE)
+    version_parts = version.split(".", 2)
+    try:
+        is_v011 = (int(version_parts[0]), int(version_parts[1])) >= (0, 11)
+    except (IndexError, ValueError):
+        is_v011 = False
+    if is_v011:
+        mapping.update(V011_ARCHIVE_EVIDENCE)
+    return mapping
 
 
 def _safe_source(root: Path, relative: str) -> Path:
@@ -268,7 +291,8 @@ def prepare_release_assets(
         )
 
     artifacts = {item.name: item for item in record.artifacts}
-    expected_roles = set(PRIMARY_EVIDENCE) | set(ARCHIVE_EVIDENCE) | _SPECIAL_EVIDENCE
+    archive_evidence = _archive_evidence_for_version(record.miniverl_version)
+    expected_roles = set(PRIMARY_EVIDENCE) | set(archive_evidence) | _SPECIAL_EVIDENCE
     unknown = sorted(set(artifacts) - expected_roles)
     missing = sorted(expected_roles - set(artifacts))
     if unknown:
@@ -314,7 +338,7 @@ def prepare_release_assets(
             _copy(_safe_source(evidence_root, artifact.path), staging / destination)
 
         archive_members: list[tuple[str, str, str, Path, str, int]] = []
-        for original_name, (semantic_role, member_path) in ARCHIVE_EVIDENCE.items():
+        for original_name, (semantic_role, member_path) in archive_evidence.items():
             artifact = artifacts[original_name]
             source = _safe_source(evidence_root, artifact.path)
             archive_members.append(
@@ -471,7 +495,8 @@ def check_release_assets(output: str | Path) -> list[str]:
         qualification_artifacts = {
             artifact.name: artifact for artifact in qualification_record.artifacts
         }
-        expected_roles = set(PRIMARY_EVIDENCE) | set(ARCHIVE_EVIDENCE) | _SPECIAL_EVIDENCE
+        archive_evidence = _archive_evidence_for_version(qualification_record.miniverl_version)
+        expected_roles = set(PRIMARY_EVIDENCE) | set(archive_evidence) | _SPECIAL_EVIDENCE
         if set(qualification_artifacts) != expected_roles or len(qualification_artifacts) != len(
             qualification_record.artifacts
         ):
@@ -575,7 +600,8 @@ def check_release_assets(output: str | Path) -> list[str]:
             ):
                 problems.append("archive manifest release-chain binding mismatch")
             expected_member_rows = []
-            for original_name, (semantic_role, member_path) in ARCHIVE_EVIDENCE.items():
+            archive_evidence = _archive_evidence_for_version(qualification_record.miniverl_version)
+            for original_name, (semantic_role, member_path) in archive_evidence.items():
                 artifact = qualification_artifacts.get(original_name)
                 if artifact is not None:
                     expected_member_rows.append(
