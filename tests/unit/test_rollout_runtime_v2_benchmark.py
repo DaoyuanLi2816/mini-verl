@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import jsonschema
@@ -13,6 +15,11 @@ ROOT = Path(__file__).resolve().parents[2]
 PREREGISTRATION = ROOT / "benchmarks/preregistration/rollout-runtime-v2.yaml"
 SCHEMA = ROOT / "benchmarks/schema/rollout-runtime-v2.schema.json"
 FROZEN = ROOT / "benchmarks/results/gpu-calc-hard-equal-update-v2.json"
+SELECTED_SCHEMA = ROOT / "benchmarks/schema/rollout-runtime-v2-selected.schema.json"
+RESULT_SCHEMA = ROOT / "benchmarks/schema/rollout-runtime-v2-result.schema.json"
+HF_CACHED = ROOT / "benchmarks/evidence/rollout-runtime-v2/hf-cached-rtx4080-raw.json"
+VLLM = ROOT / "benchmarks/evidence/rollout-runtime-v2/vllm-rtx4080-raw.json"
+SELECTED_RESULT = ROOT / "benchmarks/results/rollout-runtime-v2-rtx4080.json"
 
 
 def test_rollout_runtime_v2_workload_is_preregistered_before_baseline() -> None:
@@ -199,3 +206,55 @@ def test_rollout_runtime_v2_schema_keeps_unavailable_phases_distinct_from_zero()
     jsonschema.validate(result, schema)
     for name in ("prefill", "decode", "teacher_scoring", "actor_update", "full_cycle"):
         assert "median_seconds" not in phases[name]
+
+
+def test_selected_backend_evidence_is_exact_private_path_free_and_schema_valid() -> None:
+    expected = {
+        HF_CACHED: "a9f8f0b0275d940f30497a0d88d76da0e112ffbe2bc1b37a42c6ed313b852242",
+        VLLM: "abf14d73a7289f9619515943b4c8d7dafe7cd187fefe928655739ac7ed1ab16c",
+        SELECTED_RESULT: "32be86856263ccdf787986c4ec54570d323af8c238dc1664e00a9ce41ca393c4",
+    }
+    raw_schema = json.loads(SELECTED_SCHEMA.read_text(encoding="utf-8"))
+    result_schema = json.loads(RESULT_SCHEMA.read_text(encoding="utf-8"))
+    for path, digest in expected.items():
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
+        text = path.read_text(encoding="utf-8")
+        for private_fragment in (
+            "14191",
+            "daoyuanli/.venvs",
+            "OneDrive",
+            "AppData",
+            "C:\\\\Users",
+        ):
+            assert private_fragment not in text
+    for path in (HF_CACHED, VLLM):
+        jsonschema.validate(json.loads(path.read_text(encoding="utf-8")), raw_schema)
+    jsonschema.validate(json.loads(SELECTED_RESULT.read_text(encoding="utf-8")), result_schema)
+
+
+def test_selected_backend_result_preserves_failed_release_gate() -> None:
+    result = json.loads(SELECTED_RESULT.read_text(encoding="utf-8"))
+    assert len(result["cells"]) == 24
+    assert result["source"] == {
+        "commit": "690db9b079bfecfec14dc3bedc3aa0308cbacf60",
+        "dirty": False,
+        "miniverl_version": "0.11.0.dev0",
+        "wheel_sha256": "266fcd59bb3e85b02974a92b26c9a4e59c7c9b9205853d17baadcfffdb898e27",
+    }
+    assert result["gates"]["hf_cached_speedup_over_hf_reference"]["passed"] is False
+    assert result["gates"]["selected_external_engine_advantage_over_hf_cached"]["passed"] is True
+    assert result["gates"]["vllm_policy_refresh"]["passed"] is True
+    assert result["gates"]["vllm_pg_logprob_conformance"]["passed"] is False
+    assert result["release_decision"] == {
+        "action": "publish evidence, optimize hf_cached, rerun the frozen workload",
+        "blocking_gate": "hf_cached_speedup_over_hf_reference",
+        "v0_11_0_publishable": False,
+    }
+
+
+def test_selected_backend_aggregate_is_reproducible() -> None:
+    subprocess.run(
+        [sys.executable, "scripts/publish_rollout_runtime_v2_evidence.py", "--check"],
+        cwd=ROOT,
+        check=True,
+    )

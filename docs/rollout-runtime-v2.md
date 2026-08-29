@@ -89,8 +89,36 @@ token IDs, and terminates the complete process group before teacher scoring or
 the actor update. Prefix caching is disabled, and a failed policy refresh
 closes the server before another request can run.
 
-This backend is qualified for direct GKD. Use `hf_cached` for PG-k1: vLLM's
-BF16 rollout and the NF4 training actor are a recorded numerical-equivalence
-class, not sampled-logprob identity. The release-chain qualification measured
-throughput separately from the conformance probes; the frozen pre-change
-`hf_reference` result remains the compatibility baseline.
+The development-line evidence supports this backend for direct GKD. Use
+`hf_cached` for PG-k1: vLLM's BF16 rollout and the NF4 training actor agreed on
+all 32 greedy probe tokens, but the maximum sampled-token log-probability
+difference was 0.0194 against the preregistered 0.01 limit.
+
+## Measured RTX 4080 envelope
+
+The exact `0.11.0.dev0` wheel ran the frozen 24-cell workload on WSL2 with
+Qwen3-0.6B NF4/BF16, Transformers 5.14.1 and vLLM 0.28.0. Each cell has one
+warmup and three measured repetitions.
+
+| Response | Sampling | `hf_cached` / `hf_reference` | vLLM / `hf_cached` | vLLM tokens/s |
+| ---: | --- | ---: | ---: | ---: |
+| 64 | greedy | 0.65–0.76× | 1.73–1.80× | 112.7–114.9 |
+| 64 | seeded stochastic | 1.83–1.87× | 1.94–2.06× | 109.3–114.2 |
+| 256 | greedy | 0.71–0.85× | 1.71–1.77× | 111.8–117.4 |
+| 256 | seeded stochastic | 0.84–1.85× | 2.04–4.55× | 113.1–114.5 |
+| 512 | greedy | 0.67–1.05× | 1.65–1.87× | 114.8–117.7 |
+| 512 | seeded stochastic | 1.84–1.90× | 1.90–2.05× | 108.5–114.4 |
+
+vLLM peaked at 11,820 MiB of total GPU memory, confirmed eight unique policy
+refreshes without monotonic growth, and closed its localhost port. Initial
+managed synchronization, including server startup and first adapter load, took
+17.57 seconds. The isolated startup field was overwritten by later no-op start
+checks in this measurement, so no standalone startup number is reported.
+
+The external-engine value gate passed in every 256/512-token cell. The separate
+`hf_cached >= 2× hf_reference` gate did not: the best seeded-stochastic cells
+reached about 1.9× and the greedy path was usually slower than the legacy
+oracle. That failed gate blocks v0.11.0 publication while `hf_cached` is
+profiled and optimized. The [benchmark report](benchmarks/rollout-runtime-v2.md)
+and [machine-readable result](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/rollout-runtime-v2-rtx4080.json)
+contain every cell and raw artifact hash.

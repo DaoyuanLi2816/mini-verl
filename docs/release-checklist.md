@@ -15,16 +15,22 @@ after the exact release commit and its remote checks are green.
       `0256bd9e63ca6ed52999a5073a3577a008581a8d4418062314750d86f21cd5fe`
       before implementing `hf_cached`.
 - [x] Add typed policy identity, lifecycle and strict synchronization contracts.
-- [x] Qualify `hf_cached` at 64/256/512 response bounds and require at least 2x
+- [ ] Qualify `hf_cached` at 64/256/512 response bounds and require at least 2x
       speedup at 256 and 512 without exceeding 14.5 GiB peak reserved VRAM.
+      The exact 24-cell run at `690db9b` stayed below the memory limit but
+      failed the speed gate: greedy ranged from 0.67–1.05× and most seeded
+      256/512-token cells reached about 1.8–1.9×.
 - [x] Add transactional `samples_per_prompt > 1` and exact no-skip/no-duplicate
       resume semantics without changing the published `n=1` profiles.
-- [ ] Add the new deterministic task-reward plus distillation-advantage profile;
+- [x] Add the new deterministic task-reward plus distillation-advantage profile;
       keep direct GKD and existing PG-k1 identities unchanged.
-- [ ] Measure SGLang and vLLM on the same WSL2 RTX 4080 workload and support at
-      most one external engine after policy-sync, cache and teardown gates pass.
+- [x] Attempt SGLang and measure vLLM on the WSL2 RTX 4080 workload. SGLang
+      stopped at CUDA-toolchain compatibility before throughput measurement;
+      vLLM 0.28.0 passed the direct-GKD value, sync, memory and teardown gates
+      and remains fail-closed for PG log-probabilities.
 - [ ] Run exact-candidate-wheel full qualification, dry-run and publication
-      only after every v0.11 acceptance gate passes.
+      only after every v0.11 acceptance gate passes. Publication is blocked on
+      the failed `hf_cached` performance gate.
 
 ## v0.10.2 development (superseded by v0.11 scope)
 

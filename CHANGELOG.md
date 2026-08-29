@@ -63,6 +63,20 @@ All notable changes to miniVERL are recorded here. The format follows
 - Kept PG-k1 on `hf_cached`: the BF16 external engine and NF4 actor agreed on
   greedy tokens in the qualification probe, but their sampled-token
   log-probabilities did not satisfy the preregistered numerical threshold.
+- Preserved the initial managed-server startup timing across later adapter
+  refreshes instead of overwriting it with no-op start checks.
+
+### Measured rollout evidence
+
+- Published the exact-wheel 24-cell RTX 4080 comparison for `hf_reference`,
+  `hf_cached` and managed vLLM across prompt lengths 128/512, response bounds
+  64/256/512, `n=1/4`, greedy and seeded sampling.
+- Selected vLLM 0.28.0 for the direct-GKD development path after a measured
+  1.65–4.55× advantage over `hf_cached` at 256/512 tokens, eight confirmed
+  policy refreshes, 11,820 MiB peak total GPU memory and clean teardown.
+- Recorded the blocking negative result: `hf_cached` did not reach the
+  preregistered 2× speedup over `hf_reference`. v0.11.0 remains unpublished
+  until the local backend is optimized and the frozen workload is rerun.
 
 ### Documentation narrative
 

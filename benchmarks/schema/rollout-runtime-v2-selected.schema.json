@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daoyuanli2816.github.io/mini-verl/schemas/rollout-runtime-v2-selected.schema.json",
+  "title": "Rollout Runtime v2 selected-backend raw evidence",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "measurement_status",
+    "source",
+    "environment",
+    "backend",
+    "workload",
+    "cells",
+    "memory",
+    "teardown",
+    "sync_confirmed"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "measurement_status": {"const": "completed"},
+    "source": {
+      "type": "object",
+      "required": ["commit", "dirty", "miniverl_version", "wheel_sha256"],
+      "properties": {
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "dirty": {"const": false},
+        "miniverl_version": {"const": "0.11.0.dev0"},
+        "wheel_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 24,
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "required": [
+          "cell_id",
+          "prompt_length",
+          "response_bound",
+          "samples_per_prompt",
+          "sampling",
+          "rollout_seconds",
+          "output_tokens_per_second",
+          "output_token_ids_sha256",
+          "peak_total_gpu_memory_mib"
+        ],
+        "properties": {
+          "cell_id": {"type": "string"},
+          "prompt_length": {"enum": [128, 512]},
+          "response_bound": {"enum": [64, 256, 512]},
+          "samples_per_prompt": {"enum": [1, 4]},
+          "sampling": {"enum": ["greedy", "seeded_stochastic"]},
+          "rollout_seconds": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {"type": "number", "exclusiveMinimum": 0}
+          },
+          "output_tokens_per_second": {"type": "number", "exclusiveMinimum": 0},
+          "output_token_ids_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "peak_total_gpu_memory_mib": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "sync_confirmed": {"const": true}
+  }
+}

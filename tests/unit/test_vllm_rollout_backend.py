@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -75,6 +76,29 @@ def test_vllm_launch_is_local_managed_and_disables_persistent_prefix_cache() -> 
     assert environment["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] == "True"
     assert environment["VLLM_USE_V2_MODEL_RUNNER"] == "0"
     assert environment["VLLM_USE_FLASHINFER_SAMPLER"] == "0"
+
+
+def test_vllm_snapshot_resolution_preserves_hub_snapshot_symlink_parent(
+    tmp_path: Path,
+) -> None:
+    from miniverl.runtime.backends.vllm import _resolve_model_snapshot
+
+    snapshot = tmp_path / "models--org--model" / "snapshots" / ("a" * 40)
+    blobs = tmp_path / "models--org--model" / "blobs"
+    snapshot.mkdir(parents=True)
+    blobs.mkdir(parents=True)
+    config_blob = blobs / "config-digest"
+    config_blob.write_text("{}", encoding="utf-8")
+    config = snapshot / "config.json"
+    try:
+        config.symlink_to(config_blob)
+    except OSError:
+        pytest.skip("symlinks are unavailable")
+
+    hub = ModuleType("huggingface_hub")
+    hub.try_to_load_from_cache = lambda *_args, **_kwargs: str(config)  # type: ignore[attr-defined]
+    with patch.dict(sys.modules, {"huggingface_hub": hub}):
+        assert _resolve_model_snapshot("org/model", "a" * 40) == snapshot.resolve()
 
 
 def test_vllm_completion_parser_requires_raw_ids_and_aligned_logprobs() -> None:
@@ -189,6 +213,7 @@ def test_vllm_backend_uses_unique_content_bound_adapter_names_and_tears_down(
     second = _identity(2)
 
     backend.synchronize(PolicySnapshot(first))
+    first_lifecycle = backend.lifecycle_metrics()
     first_name = manager.loaded[-1][0]
     assert "p00000001" in first_name
     assert first.adapter_tensor_digest[:12] in first_name
@@ -205,6 +230,9 @@ def test_vllm_backend_uses_unique_content_bound_adapter_names_and_tears_down(
     assert lifecycle["adapter_name"] == second_name
     assert lifecycle["prefix_cache_enabled"] is False
     assert lifecycle["numerical_equivalence_class"] == "bf16-external-vs-nf4-actor-direct-gkd"
+    assert lifecycle["startup_seconds"] == first_lifecycle["startup_seconds"]
+    assert lifecycle["initial_startup_seconds"] == first_lifecycle["startup_seconds"]
+    assert lifecycle["latest_start_check_seconds"] >= 0.0
 
     backend.quiesce()
     backend.release_generation_memory()
