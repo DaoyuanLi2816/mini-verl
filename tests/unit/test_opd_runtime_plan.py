@@ -54,6 +54,20 @@ def test_native_compilation_preserves_pure_opd_semantics() -> None:
     assert native.eval.enabled is False
 
 
+def test_direct_gkd_can_bind_the_measured_vllm_runtime_without_changing_profile_identity() -> None:
+    compiled = load_verl_opd_v08_source("builtin:qwen3-0.6b-1.7b-opd")
+    default = compile_native_run_config(compiled)
+    external = compile_native_run_config(compiled, rollout_backend="vllm")
+
+    assert default.run.profile_identity == external.run.profile_identity
+    assert default.rollout.backend.value == "hf_reference"
+    assert external.rollout.backend.value == "vllm"
+    assert external.rollout.record_logprobs is False
+    assert external.rollout.engine.managed is True
+    assert external.rollout.engine.host == "127.0.0.1"
+    assert external.rollout.engine.memory_fraction == 0.5
+
+
 def test_runtime_critical_model_settings_are_explicit_and_effective() -> None:
     source = load_verl_opd_v08_source("builtin:qwen3-0.6b-1.7b-opd").source.model_dump(mode="json")
     source["miniverl"]["actor_runtime"]["dtype"] = "float16"

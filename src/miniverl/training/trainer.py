@@ -1240,6 +1240,20 @@ class OPDTrainer:
                     seed=seed,
                 )
                 self._backend_sync_identity = generated.rollout_policy_identity_digest
+                if self.config.rollout.backend.value == "vllm":
+                    lifecycle = getattr(
+                        self.rollout_runtime.generation_backend,
+                        "lifecycle_metrics",
+                        None,
+                    )
+                    self.events.emit(
+                        "rollout_policy_synchronized",
+                        cycle=self.cycle,
+                        policy_version=self.policy_version,
+                        rollout_backend="vllm",
+                        policy_identity_digest=generated.rollout_policy_identity_digest,
+                        lifecycle=(lifecycle() if callable(lifecycle) else {}),
+                    )
                 self._last_rollout_execution = {
                     "physical_batch_sizes": list(generated.physical_batch_sizes),
                     "physical_generation_batches": len(generated.physical_batch_sizes),

@@ -50,6 +50,54 @@ def test_run_dry_compiles_a_valid_native_recipe() -> None:
     assert payload["resolved_native_config"]["loss"]["mode"] == "forward_kl_topk"
 
 
+def test_run_dry_binds_vllm_as_an_explicit_execution_choice() -> None:
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--profile",
+            "verl-opd-v0.8-single-gpu-v1",
+            "--config",
+            "builtin:qwen3-0.6b-1.7b-opd",
+            "--rollout-backend",
+            "vllm",
+            "--dry-run",
+            "--offline",
+            "--json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    native = payload["resolved_native_config"]
+    assert native["rollout"]["backend"] == "vllm"
+    assert native["rollout"]["record_logprobs"] is False
+
+
+def test_pg_profile_refuses_the_nonconformant_vllm_logprob_path(tmp_path: Path) -> None:
+    from miniverl.bridge.profiles import get_profile
+
+    profile = "verl-opd-v0.8-single-gpu-pg-k1-v1"
+    config = tmp_path / "pg-k1.yaml"
+    config.write_text(get_profile(profile).show()["minimal_yaml"], encoding="utf-8")
+    result = runner.invoke(
+        app,
+        [
+            "run",
+            "--profile",
+            profile,
+            "--config",
+            str(config),
+            "--accept-local-reinterpretations",
+            "--rollout-backend",
+            "vllm",
+            "--dry-run",
+            "--offline",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "direct GKD" in result.output
+
+
 def test_pg_profile_plans_and_dry_runs_through_public_cli(tmp_path: Path) -> None:
     from miniverl.bridge.profiles import get_profile
 

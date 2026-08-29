@@ -90,6 +90,34 @@ def test_v2_rollout_config_accepts_cached_backend_and_managed_engine_bounds() ->
     assert rollout.compile_backend is True
 
 
+def test_vllm_rollout_requires_managed_localhost_and_direct_gkd_logprob_policy() -> None:
+    rollout = RolloutConfig.model_validate(
+        {
+            "backend": "vllm",
+            "record_logprobs": False,
+            "engine": {"managed": True, "host": "127.0.0.1"},
+        }
+    )
+    assert rollout.backend is RolloutBackendKind.VLLM
+
+    with pytest.raises(ValidationError, match="managed localhost"):
+        RolloutConfig.model_validate(
+            {"backend": "vllm", "engine": {"managed": False, "host": "127.0.0.1"}}
+        )
+    with pytest.raises(ValidationError, match="managed localhost"):
+        RolloutConfig.model_validate(
+            {"backend": "vllm", "engine": {"managed": True, "host": "0.0.0.0"}}
+        )
+    with pytest.raises(ValidationError, match="direct GKD"):
+        RolloutConfig.model_validate(
+            {
+                "backend": "vllm",
+                "record_logprobs": True,
+                "engine": {"managed": True, "host": "127.0.0.1"},
+            }
+        )
+
+
 def _read_raw(path: Path) -> Any:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 

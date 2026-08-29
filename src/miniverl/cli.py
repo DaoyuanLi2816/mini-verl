@@ -928,6 +928,11 @@ def plan_command(
     profile: str = typer.Option(
         "verl-opd-v0.8-single-gpu-v1", "--profile", help="Pinned compatibility profile."
     ),
+    rollout_backend: Optional[str] = typer.Option(
+        None,
+        "--rollout-backend",
+        help="Local execution backend: hf_reference, hf_cached, or vllm.",
+    ),
     overrides: list[str] = typer.Option([], "--set", help="Repeatable dotted key=value override."),
     override_files: list[Path] = typer.Option(
         [],
@@ -971,6 +976,14 @@ def plan_command(
         )
         plan = build_system_plan(compiled)
         payload = plan.model_dump(mode="json")
+        if rollout_backend is not None:
+            from miniverl.bridge.opd_runtime import compile_native_run_config
+
+            payload["resolved_native_config"] = compile_native_run_config(
+                compiled,
+                system_plan=plan,
+                rollout_backend=rollout_backend,
+            ).model_dump(mode="json")
         artifact = None
         if out is not None or probe:
             from miniverl.bridge.opd_plan import (
@@ -979,7 +992,12 @@ def plan_command(
                 write_immutable_opd_plan,
             )
 
-            artifact = build_immutable_opd_plan(compiled, source=config, system_plan=plan)
+            artifact = build_immutable_opd_plan(
+                compiled,
+                source=config,
+                system_plan=plan,
+                rollout_backend=rollout_backend,
+            )
             if probe:
                 _require_training_stack("miniverl plan --probe")
                 from miniverl.bridge.opd_probe import run_hardware_probe
@@ -1051,6 +1069,11 @@ def verl_run_command(
     profile: str = typer.Option(
         "verl-opd-v0.8-single-gpu-v1", "--profile", help="Pinned compatibility profile."
     ),
+    rollout_backend: Optional[str] = typer.Option(
+        None,
+        "--rollout-backend",
+        help="Local execution backend: hf_reference, hf_cached, or vllm.",
+    ),
     overrides: list[str] = typer.Option([], "--set", help="Repeatable dotted key=value override."),
     override_files: list[Path] = typer.Option(
         [],
@@ -1077,7 +1100,11 @@ def verl_run_command(
         if plan_path is not None and config is not None:
             raise ConfigError("--plan and --config are mutually exclusive")
         if plan_path is not None and (
-            overrides or override_files or ctx.args or accept_local_reinterpretations
+            overrides
+            or override_files
+            or ctx.args
+            or accept_local_reinterpretations
+            or rollout_backend is not None
         ):
             raise ConfigError(
                 "--plan cannot be combined with config overrides or reinterpretation flags",
@@ -1116,7 +1143,11 @@ def verl_run_command(
                     ),
                 )
             system_plan = build_system_plan(compiled)
-            native = compile_native_run_config(compiled, system_plan=system_plan)
+            native = compile_native_run_config(
+                compiled,
+                system_plan=system_plan,
+                rollout_backend=rollout_backend,
+            )
         from miniverl.config.models import VerlParquetSourceConfig
 
         if not isinstance(native.source, VerlParquetSourceConfig):  # pragma: no cover
@@ -1145,7 +1176,8 @@ def verl_run_command(
             console.print(f"  data       {_esc(', '.join(native.source.train_files))}")
             console.print(f"  actor      {_esc(native.models.student.model_id)}")
             console.print(
-                f"  rollout    local HF, n=1, max response "
+                f"  rollout    {_esc(native.rollout.backend.value)}, "
+                f"n={native.rollout.samples_per_prompt}, max response "
                 f"{_esc(native.source.max_response_length)}"
             )
             console.print(f"  teacher    {_esc(native.models.teacher.model_id)}")

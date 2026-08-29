@@ -297,6 +297,7 @@ def compile_native_run_config(
     compiled: CompiledLocalExecutionPlan,
     *,
     system_plan: OPDSystemPlan | None = None,
+    rollout_backend: str | None = None,
 ) -> RunConfig:
     """Translate the supported profile into an executable, validated RunConfig."""
     source = compiled.source
@@ -339,6 +340,16 @@ def compile_native_run_config(
         VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
     }
     rewarded = compiled.profile == VERL_OPD_PG_K1_REWARDED_V08_PROFILE
+    if rollout_backend not in {None, "hf_reference", "hf_cached", "vllm"}:
+        raise ConfigError(
+            f"unsupported local rollout backend {rollout_backend!r}",
+            hint="choose hf_reference, hf_cached, or vllm",
+        )
+    if rollout_backend == "vllm" and pg_k1:
+        raise ConfigError(
+            "the measured vLLM backend is qualified for direct GKD only",
+            hint="use hf_cached for PG-k1 sampled-token log-probabilities",
+        )
     rewarded_loss = cast(VerlRewardedPGK1LossConfig, source.distillation.distillation_loss)
     loss_payload = (
         {
@@ -447,11 +458,14 @@ def compile_native_run_config(
         },
         "rollout": {
             "backend": (
-                "hf_cached"
-                if compiled.profile
-                in {VERL_OPD_GROUPED_V08_PROFILE, VERL_OPD_PG_K1_GROUPED_V08_PROFILE}
-                or rewarded
-                else "hf_reference"
+                rollout_backend
+                or (
+                    "hf_cached"
+                    if compiled.profile
+                    in {VERL_OPD_GROUPED_V08_PROFILE, VERL_OPD_PG_K1_GROUPED_V08_PROFILE}
+                    or rewarded
+                    else "hf_reference"
+                )
             ),
             "samples_per_prompt": source.actor_rollout_ref.rollout.n,
             "max_turns": 1,
@@ -467,6 +481,19 @@ def compile_native_run_config(
             "max_padded_tokens": source.actor_rollout_ref.rollout.max_num_batched_tokens
             or (source.data.max_prompt_length + source.data.max_response_length)
             * source.miniverl.batching.rollout_batch_size,
+            **(
+                {
+                    "engine": {
+                        "managed": True,
+                        "host": "127.0.0.1",
+                        "memory_fraction": (
+                            source.actor_rollout_ref.rollout.gpu_memory_utilization
+                        ),
+                    }
+                }
+                if rollout_backend == "vllm"
+                else {}
+            ),
         },
         "selection": {"selector": "all_model_tokens"},
         "loss": loss_payload,
