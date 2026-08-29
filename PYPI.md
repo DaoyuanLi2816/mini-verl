@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — run verl-style OPD on one consumer GPU" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.11.0/docs/banner.svg" alt="miniVERL — run verl-style OPD on one consumer GPU" width="880">
 </p>
 
 <div align="center">
@@ -8,7 +8,7 @@
 [![Build](https://github.com/DaoyuanLi2816/mini-verl/actions/workflows/build.yml/badge.svg)](https://github.com/DaoyuanLi2816/mini-verl/actions/workflows/build.yml)
 [![PyPI](https://img.shields.io/pypi/v/miniverl.svg)](https://pypi.org/project/miniverl/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://www.python.org)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/LICENSE)
 
 </div>
 
@@ -16,7 +16,7 @@
   <a href="https://pypi.org/project/miniverl/"><strong>PyPI</strong></a> ·
   <a href="https://daoyuanli2816.github.io/mini-verl/"><strong>Stable docs</strong></a> ·
   <a href="https://daoyuanli2816.github.io/mini-verl/dev/">Development docs</a> ·
-  <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/main/README.zh-CN.md">中文</a>
+  <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/README.zh-CN.md">中文</a>
 </p>
 
 **Run verl-style on-policy distillation on one NVIDIA GPU, with every config
@@ -25,7 +25,7 @@ miniVERL turns typed YAML and structured Parquet prompts into a local actor
 rollout → teacher scoring → actor update loop, then exports standard PEFT,
 Parquet and config artifacts for scale-out work.
 
-PyPI `v0.10.1` is stable; `main` is development.
+PyPI `v0.11.0` is stable; `main` is development.
 
 ## Start in 60 seconds
 
@@ -49,7 +49,7 @@ run the pinned Qwen3-0.6B actor and Qwen3-1.7B teacher recipe.
 The `[train,cuda]` extra installs the ML and quantization dependencies. Select
 the matching CUDA PyTorch wheel separately with the
 [PyTorch installer](https://pytorch.org/get-started/locally/). The
-[single-GPU guide](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/single-gpu-guide.md) covers memory planning from 8 GiB
+[single-GPU guide](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/single-gpu-guide.md) covers memory planning from 8 GiB
 cards upward and includes the maintainer-measured RTX 4080 stack.
 
 ## What a run gives you
@@ -77,8 +77,8 @@ miniverl bridge doctor scaleout --json
 ## How it works
 
 <picture>
-  <source media="(max-width: 640px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime-mobile.svg">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime.svg" alt="Typed verl-style configuration and Parquet prompts compile into sequential actor rollout, teacher scoring and actor update phases on one CUDA GPU, producing inspectable local artifacts and a pinned scale-out bundle.">
+  <source media="(max-width: 640px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.11.0/docs/verl-local-runtime-mobile.svg">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/v0.11.0/docs/verl-local-runtime.svg" alt="Typed verl-style configuration and Parquet prompts compile into sequential actor rollout, teacher scoring and actor update phases on one CUDA GPU, producing inspectable local artifacts and a pinned scale-out bundle.">
 </picture>
 
 miniVERL schedules actor, teacher and optional reference roles in phases inside
@@ -97,10 +97,10 @@ reconstructing intent from console logs.
 
 | Goal | First command | Primary artifact | Next step |
 | --- | --- | --- | --- |
-| **Run local OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml` | immutable execution plan | [OPD quickstart](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/opd-quickstart.md) |
-| **Bring a verl profile** | `miniverl compat check --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml` | field-by-field compatibility report | [For verl users](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/for-verl-users.md) |
-| **Fit your GPU** | `miniverl plan --config verl-opd.yaml --probe` | measured placement plan | [Hardware planning](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/hardware-planning.md) |
-| **Hand off for scale-out** | `miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout` | PEFT + Parquet + config bundle | [Scale-out contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-opd-scaleout.md) |
+| **Run local OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml` | immutable execution plan | [OPD quickstart](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/opd-quickstart.md) |
+| **Bring a verl profile** | `miniverl compat check --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml` | field-by-field compatibility report | [For verl users](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/for-verl-users.md) |
+| **Fit your GPU** | `miniverl plan --config verl-opd.yaml --probe` | measured placement plan | [Hardware planning](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/hardware-planning.md) |
+| **Hand off for scale-out** | `miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout` | PEFT + Parquet + config bundle | [Scale-out contract](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/verl-opd-scaleout.md) |
 
 The native recipe system also supports SFT, DPO, offline KD and tool-aware OPD
 over calculator, JSON navigation, read-only SQLite and custom environments.
@@ -131,7 +131,7 @@ profiles are available:
 | `verl-opd-v0.8-single-gpu-pg-k1-v1` | sampled `k1` + vanilla policy loss | sampled-token teacher log-probability |
 
 Use `miniverl profiles show`, `compat explain` and `compat check` to inspect
-the complete mapping. [Compatibility profiles](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/profiles/index.md) explains
+the complete mapping. [Compatibility profiles](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/profiles/index.md) explains
 how profile identity follows plans, caches, checkpoints and exports. Separate
 conformance-only grouped profiles add transactional Parquet `n>1` samples
 without changing either measured `n=1` profile or introducing GRPO semantics.
@@ -152,7 +152,7 @@ tokens/s and was 3.08–5.97× faster than `hf_cached` in the 256/512-token cell
 Both backends passed memory, eight-refresh and teardown gates. vLLM is the
 measured direct-GKD engine; PG-k1 stays on `hf_cached` because its engine
 log-probability probe exceeded the numerical threshold. See the
-[full runtime result](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/benchmarks/rollout-runtime-v2.md) for every cell,
+[full runtime result](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/benchmarks/rollout-runtime-v2.md) for every cell,
 the preserved first candidate and artifact hashes.
 
 The Qwen3-0.6B/1.7B developer workload consumed **32 distinct prompts**, used a
@@ -165,8 +165,8 @@ adapter and optimizer tensors.
 A second SmolLM2-360M/1.7B workload completed the same 32-prompt, 8-update
 shape at 1.4961 GiB peak reserved VRAM, including exact resume, PEFT reload and
 scale-out materialization. Read the
-[Qwen3](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-opd-reference-workload.md) and
-[SmolLM2](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/smollm2-opd-workload.md) systems records for configs, hashes and
+[Qwen3](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/verl-opd-reference-workload.md) and
+[SmolLM2](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/smollm2-opd-workload.md) systems records for configs, hashes and
 phase-level measurements.
 
 Other NVIDIA GPUs use the same device-name-agnostic CUDA path. Model fit and
@@ -184,13 +184,13 @@ utility regressions that two sandbox safety checks missed. The preregistered
 External Alignment Gate stopped before continuation because every candidate
 failed the retained-utility threshold.
 
-- [Calculator protocol study](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/benchmarking.md)
-- [RecoveryBench](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/recoverybench/recoverybench-v1.md)
-- [Alignment Lab](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/alignment-lab-v1.md)
-- [External Alignment Gate](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-external/alignment-external-v1.md)
+- [Calculator protocol study](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/benchmarking.md)
+- [RecoveryBench](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/recoverybench/recoverybench-v1.md)
+- [Alignment Lab](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/alignment-lab/alignment-lab-v1.md)
+- [External Alignment Gate](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/alignment-external/alignment-external-v1.md)
 
 These reports answer scoped experimental questions; the
-[limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/limitations.md) page collects the measurement, architecture,
+[limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/limitations.md) page collects the measurement, architecture,
 security and generalization boundaries in one place.
 
 ## Scope
@@ -198,8 +198,8 @@ security and generalization boundaries in one place.
 miniVERL is designed for one local process, one NVIDIA CUDA GPU and the
 documented OPD profiles above. Scale-out support produces and validates a
 portable bundle against the pinned upstream source. The
-[compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md) lists supported fields, profile
-semantics and handoff readiness states; [limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/limitations.md)
+[compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/compatibility.md) lists supported fields, profile
+semantics and handoff readiness states; [limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/limitations.md)
 covers the broader execution and scientific boundaries. miniVERL is an
 independent Apache-2.0 project.
 
@@ -212,7 +212,7 @@ python -m pip install -e ".[dev]"
 pytest -q -m "not gpu and not network"
 ```
 
-See [CONTRIBUTING.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CONTRIBUTING.md), [CHANGELOG.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md),
-[CITATION.cff](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CITATION.cff), the
-[reproducibility guide](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/reproducibility.md), [SECURITY.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/SECURITY.md)
-and the [Apache-2.0 license](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE).
+See [CONTRIBUTING.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/CONTRIBUTING.md), [CHANGELOG.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/CHANGELOG.md),
+[CITATION.cff](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/CITATION.cff), the
+[reproducibility guide](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/docs/reproducibility.md), [SECURITY.md](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/SECURITY.md)
+and the [Apache-2.0 license](https://github.com/DaoyuanLi2816/mini-verl/blob/v0.11.0/LICENSE).

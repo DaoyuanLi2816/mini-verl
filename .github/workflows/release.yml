@@ -96,7 +96,7 @@ jobs:
           python - <<'PY'
           import pathlib
           text = pathlib.Path("docs/release-checklist.md").read_text(encoding="utf-8")
-          head = text.split("## After the tag", 1)[0]
+          head = text.split("## Publication record", 1)[0]
           unchecked = [line for line in head.splitlines() if line.strip().startswith("- [ ]")]
           if unchecked:
               raise SystemExit("unchecked release-checklist items:\n" + "\n".join(unchecked))

@@ -28,14 +28,23 @@ after the exact release commit and its remote checks are green.
       stopped at CUDA-toolchain compatibility before throughput measurement;
       vLLM 0.28.0 passed the direct-GKD value, sync, memory and teardown gates
       and remains fail-closed for PG log-probabilities.
-- [ ] Run exact-candidate-wheel full qualification, dry-run and publication
-      after the completed runtime gate and only publish when the release checks
-      are green.
+- [x] Bind v0.11 publication to an attempt-1 exact-candidate WSL2 full
+      qualification, non-publishing release dry run and the existing OIDC
+      workflow; release smoke alone cannot authorize publication.
+
+## Publication record
+
+- [ ] Exact-release-SHA WSL2 full qualification passes on attempt 1.
+- [ ] The non-publishing release dry run accepts the same candidate and full
+      qualification without rebuilding distributions.
+- [ ] The annotated tag workflow verifies PyPI hashes, attestations and clean
+      installation before creating the GitHub Release.
+- [ ] Main advances to `0.11.1.dev0` through a green state-sync PR.
 
 ## v0.10.2 development (superseded by v0.11 scope)
 
-- [ ] Define and review the next focused release scope before changing product
-      behavior or scientific evidence.
+- [x] Superseded by the reviewed v0.11 rollout-runtime scope before any v0.10.2
+      release was cut.
 - [x] Correct v1-readiness prose to record the completed v0.10.1 same-run
       attempt-1 qualification while retaining explicit unsatisfied v1 gates.
 - [x] Prepare future GitHub Release evidence with the torch-free canonical
