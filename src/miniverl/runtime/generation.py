@@ -35,6 +35,7 @@ class RolloutBackendKind(str, Enum):
 
     HF_REFERENCE = "hf_reference"
     HF_CACHED = "hf_cached"
+    VLLM = "vllm"
 
 
 class BackendLifecycleState(str, Enum):

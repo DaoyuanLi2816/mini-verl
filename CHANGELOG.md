@@ -51,6 +51,19 @@ All notable changes to miniVERL are recorded here. The format follows
   normalization, arbitrary reward code, GRPO claim or distributed execution
   claim. No task-quality benchmark was run for this profile.
 
+### Managed vLLM rollout
+
+- Added an optional, miniVERL-managed vLLM 0.28 backend for direct GKD on the
+  qualified Linux/WSL2 CUDA path. It owns localhost startup, unique
+  content-bound LoRA identities, raw output IDs, bounded requests and complete
+  process-group teardown between rollout and training phases.
+- Disabled persistent prefix caching and made every failed adapter refresh
+  quiesce and close the server, so a stale policy cannot serve after a failed
+  synchronization.
+- Kept PG-k1 on `hf_cached`: the BF16 external engine and NF4 actor agreed on
+  greedy tokens in the qualification probe, but their sampled-token
+  log-probabilities did not satisfy the preregistered numerical threshold.
+
 ### Documentation narrative
 
 - Rebuilt the English, Chinese and PyPI landing narratives around the local

@@ -62,6 +62,35 @@ remain fixed at `n=1`; the grouped profiles are conformance-only until a later
 evidence stage measures them. Grouped rollouts currently require a Parquet
 prompt source. Environment-backed recipes remain `n=1`.
 
-The v0.11 baseline result remains the pre-change `hf_reference` measurement.
-It is not evidence for `hf_cached` or grouped-rollout performance. External
-engine support is a separate release-chain stage.
+## Managed vLLM for direct GKD
+
+Install the optional engine in the same Linux or WSL2 environment as the
+training stack:
+
+```bash
+pip install "miniverl[train,rollout-vllm]"
+```
+
+Bind it into the immutable execution plan for the grouped direct-GKD profile:
+
+```bash
+miniverl plan \
+  --profile verl-opd-v0.8-single-gpu-grouped-v1 \
+  --config verl-opd.yaml \
+  --accept-local-reinterpretations \
+  --rollout-backend vllm \
+  --out plan.json
+miniverl run --plan plan.json
+```
+
+miniVERL starts the pinned vLLM server on an ephemeral localhost port, exports
+the live PEFT adapter under a policy-version-and-digest name, generates raw
+token IDs, and terminates the complete process group before teacher scoring or
+the actor update. Prefix caching is disabled, and a failed policy refresh
+closes the server before another request can run.
+
+This backend is qualified for direct GKD. Use `hf_cached` for PG-k1: vLLM's
+BF16 rollout and the NF4 training actor are a recorded numerical-equivalence
+class, not sampled-logprob identity. The release-chain qualification measured
+throughput separately from the conformance probes; the frozen pre-change
+`hf_reference` result remains the compatibility baseline.

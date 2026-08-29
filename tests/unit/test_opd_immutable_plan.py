@@ -97,6 +97,53 @@ def test_plan_bytes_are_deterministic_for_unchanged_inputs(tmp_path: Path) -> No
     assert first.read_bytes() == second.read_bytes()
 
 
+def test_vllm_execution_choice_is_bound_into_the_immutable_plan(tmp_path: Path) -> None:
+    default_plan, profile, _, default_payload = _write_plan(tmp_path)
+    external_plan = tmp_path / "vllm-plan.json"
+    planned = runner.invoke(
+        app,
+        [
+            "plan",
+            "--config",
+            str(profile),
+            "--accept-local-reinterpretations",
+            "--rollout-backend",
+            "vllm",
+            "--out",
+            str(external_plan),
+            "--offline",
+            "--json",
+        ],
+    )
+    assert planned.exit_code == 0, planned.output
+    external_payload = json.loads(external_plan.read_text(encoding="utf-8"))
+    assert external_payload["resolved_native_config"]["rollout"]["backend"] == "vllm"
+    assert external_payload["plan_digest"] != default_payload["plan_digest"]
+    assert external_plan.read_bytes() != default_plan.read_bytes()
+
+    dry = runner.invoke(
+        app,
+        ["run", "--plan", str(external_plan), "--dry-run", "--offline", "--json"],
+    )
+    assert dry.exit_code == 0, dry.output
+    assert json.loads(dry.stdout)["resolved_native_config"]["rollout"]["backend"] == "vllm"
+
+    refused_override = runner.invoke(
+        app,
+        [
+            "run",
+            "--plan",
+            str(external_plan),
+            "--rollout-backend",
+            "hf_cached",
+            "--dry-run",
+            "--offline",
+        ],
+    )
+    assert refused_override.exit_code == 1
+    assert "cannot be combined" in refused_override.output
+
+
 def test_run_from_plan_does_not_recompile_and_rejects_plan_tampering(tmp_path: Path) -> None:
     plan, _, _, payload = _write_plan(tmp_path)
     accepted = runner.invoke(

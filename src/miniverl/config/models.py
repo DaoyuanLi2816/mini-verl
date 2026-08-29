@@ -570,6 +570,21 @@ class RolloutConfig(_Base):
     compile_backend: bool = False
     engine: RolloutEngineConfig = Field(default_factory=RolloutEngineConfig)
 
+    @model_validator(mode="after")
+    def _external_engine_is_fail_closed(self) -> RolloutConfig:
+        if self.backend is not RolloutBackendKind.VLLM:
+            return self
+        if not self.engine.managed or self.engine.host != "127.0.0.1":
+            raise ValueError("rollout.backend=vllm requires a managed localhost engine")
+        if self.record_logprobs:
+            raise ValueError(
+                "rollout.backend=vllm is qualified for direct GKD only; its sampled-token "
+                "log-probabilities did not pass the PG numerical-conformance gate"
+            )
+        if self.compile_backend:
+            raise ValueError("rollout.compile_backend applies only to hf_cached")
+        return self
+
 
 class SourceKind(str, Enum):
     """Where rollout inputs originate."""
@@ -875,7 +890,7 @@ class RunConfig(_Base):
             and self.rollout.backend is not RolloutBackendKind.HF_REFERENCE
         ):
             raise ValueError(
-                "rollout.backend=hf_cached currently requires source.kind=verl_parquet; "
+                "non-reference rollout backends currently require source.kind=verl_parquet; "
                 "tool-environment episodes retain the hf_reference path"
             )
         if self.source.kind is SourceKind.VERL_PARQUET and self.environment is not None:

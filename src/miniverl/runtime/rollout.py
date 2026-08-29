@@ -11,8 +11,14 @@ from miniverl.config.models import RolloutConfig, VerlParquetSourceConfig
 from miniverl.data.verl_parquet import RenderedPrompt
 from miniverl.errors import GpuMemoryError
 from miniverl.models.base import GenerationOutput
-from miniverl.runtime.backends import HFCachedGenerationBackend, HFReferenceGenerationBackend
+from miniverl.runtime.backends import (
+    HFCachedGenerationBackend,
+    HFReferenceGenerationBackend,
+    VLLMGenerationBackend,
+)
 from miniverl.runtime.generation import (
+    BackendLifecycleState,
+    GenerationBackend,
     GenerationRequest,
     GenerationResult,
     PolicySnapshot,
@@ -104,11 +110,19 @@ class PromptDatasetRolloutRuntime:
         self.config = rollout_config
         self.profile_identity = profile_identity
         self.execution_plan_digest = execution_plan_digest
-        self.generation_backend = (
-            HFCachedGenerationBackend(backend, compile_backend=rollout_config.compile_backend)
-            if rollout_config.backend is RolloutBackendKind.HF_CACHED
-            else HFReferenceGenerationBackend(backend)
-        )
+        self.generation_backend: GenerationBackend
+        if rollout_config.backend is RolloutBackendKind.HF_CACHED:
+            self.generation_backend = HFCachedGenerationBackend(
+                backend, compile_backend=rollout_config.compile_backend
+            )
+        elif rollout_config.backend is RolloutBackendKind.VLLM:
+            self.generation_backend = VLLMGenerationBackend(
+                backend,
+                engine_config=rollout_config.engine,
+                max_model_len=rollout_config.max_total_tokens,
+            )
+        else:
+            self.generation_backend = HFReferenceGenerationBackend(backend)
         self._closed = False
 
     @property
@@ -276,54 +290,64 @@ class PromptDatasetRolloutRuntime:
             profile_identity=self.profile_identity,
             execution_plan_digest=self.execution_plan_digest,
         )
-        self.generation_backend.synchronize(PolicySnapshot(policy_identity))
-        indexed: list[tuple[int, GenerationResult]] = []
-        physical_sizes: list[int] = []
-        downshifts = 0
-        for group in batch.physical_batches:
-            rows, sizes, count = self._generate_group(
-                batch,
-                group,
-                base_seed=seed,
-                policy_version=policy_version,
-                policy_identity=policy_identity,
-            )
-            indexed.extend(rows)
-            physical_sizes.extend(sizes)
-            downshifts += count
-        indexed.sort(key=lambda item: item[0])
-        results = tuple(result for _, result in indexed)
-        return GeneratedPromptBatch(
-            outputs=tuple(
-                GenerationOutput(
-                    token_ids=list(result.output_token_ids),
-                    text=result.decoded_text,
-                    stop_reason=result.stop_reason,
-                    matched_stop=result.matched_stop,
-                    logprobs=list(result.sampled_token_logprobs),
+        try:
+            self.generation_backend.synchronize(PolicySnapshot(policy_identity))
+            indexed: list[tuple[int, GenerationResult]] = []
+            physical_sizes: list[int] = []
+            downshifts = 0
+            for group in batch.physical_batches:
+                rows, sizes, count = self._generate_group(
+                    batch,
+                    group,
+                    base_seed=seed,
+                    policy_version=policy_version,
+                    policy_identity=policy_identity,
                 )
-                for result in results
-            ),
-            groups=tuple(result.group for result in results),
-            generation_seeds=tuple(
-                (
-                    seed * 1_000_003 + index
-                    if self.config.backend is RolloutBackendKind.HF_REFERENCE
-                    and self.config.samples_per_prompt == 1
-                    else derive_sample_seed(
-                        run_seed=seed,
-                        prompt_digest=result.group.prompt_digest,
-                        policy_version=policy_version,
-                        sample_index=result.group.sample_index,
+                indexed.extend(rows)
+                physical_sizes.extend(sizes)
+                downshifts += count
+            indexed.sort(key=lambda item: item[0])
+            results = tuple(result for _, result in indexed)
+            return GeneratedPromptBatch(
+                outputs=tuple(
+                    GenerationOutput(
+                        token_ids=list(result.output_token_ids),
+                        text=result.decoded_text,
+                        stop_reason=result.stop_reason,
+                        matched_stop=result.matched_stop,
+                        logprobs=list(result.sampled_token_logprobs),
                     )
-                )
-                for index, result in enumerate(results)
-            ),
-            rollout_policy_identity_digest=policy_identity.digest,
-            policy_version=policy_version,
-            physical_batch_sizes=tuple(physical_sizes),
-            oom_downshifts=downshifts,
-        )
+                    for result in results
+                ),
+                groups=tuple(result.group for result in results),
+                generation_seeds=tuple(
+                    (
+                        seed * 1_000_003 + index
+                        if self.config.backend is RolloutBackendKind.HF_REFERENCE
+                        and self.config.samples_per_prompt == 1
+                        else derive_sample_seed(
+                            run_seed=seed,
+                            prompt_digest=result.group.prompt_digest,
+                            policy_version=policy_version,
+                            sample_index=result.group.sample_index,
+                        )
+                    )
+                    for index, result in enumerate(results)
+                ),
+                rollout_policy_identity_digest=policy_identity.digest,
+                policy_version=policy_version,
+                physical_batch_sizes=tuple(physical_sizes),
+                oom_downshifts=downshifts,
+            )
+        finally:
+            if self.config.backend is RolloutBackendKind.VLLM:
+                # The actor, teacher and optimizer reuse the same consumer GPU.
+                # Always end the managed process group—even when generation or
+                # synchronization fails—before control returns to the trainer.
+                if self.generation_backend.state is BackendLifecycleState.SYNCHRONIZED:
+                    self.generation_backend.quiesce()
+                if self.generation_backend.state is not BackendLifecycleState.CLOSED:
+                    self.generation_backend.release_generation_memory()
 
     def to_trajectories(
         self,

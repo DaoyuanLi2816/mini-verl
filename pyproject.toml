@@ -71,6 +71,9 @@ dpo = [
 # `bridge doctor --require-adapter-payload` can never be satisfied, so the extra
 # that exists for bridge work has to carry it.
 bridge = ["pyarrow>=15", "numpy>=1.24"]
+rollout-vllm = [
+  "vllm==0.28.0; platform_system == 'Linux'",
+]
 # External alignment benchmarks. Deliberately separate from the core and from
 # [train]: a plain `pip install miniverl` must not pull in dataset tooling,
 # judge models or a network client. The judge models themselves are ordinary

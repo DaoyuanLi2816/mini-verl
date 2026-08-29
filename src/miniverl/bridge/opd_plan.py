@@ -158,6 +158,7 @@ def build_immutable_opd_plan(
     *,
     source: str | Path,
     system_plan: OPDSystemPlan | None = None,
+    rollout_backend: str | None = None,
 ) -> ImmutableOPDPlan:
     """Scan local inputs and build a deterministic, weight-free execution artifact."""
     acceptance = compiled.reinterpretation_acceptance
@@ -168,7 +169,11 @@ def build_immutable_opd_plan(
         )
     source_identity, base = _source_identity(source)
     system = system_plan or build_system_plan(compiled)
-    native = compile_native_run_config(compiled, system_plan=system)
+    native = compile_native_run_config(
+        compiled,
+        system_plan=system,
+        rollout_backend=rollout_backend,
+    )
     _resolve_data_paths(native, base)
     student = _revision(
         native.models.student.model_id,

@@ -108,6 +108,7 @@ TORCH_FREE_MODULES = (
     "miniverl.runtime.backends",
     "miniverl.runtime.backends.hf_reference",
     "miniverl.runtime.backends.hf_cached",
+    "miniverl.runtime.backends.vllm",
     "miniverl.runtime.roles",
     "miniverl.utils",
     "miniverl.utils.env",
