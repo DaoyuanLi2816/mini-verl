@@ -184,6 +184,7 @@ def _requests(
     logical_prompts: int,
     run_seed: int,
     sampling_name: str,
+    need_sampled_token_logprobs: bool = False,
 ) -> list[GenerationRequest]:
     if sampling_name == "greedy":
         sampling = SamplingParameters(temperature=0.0, top_p=1.0, top_k=0)
@@ -216,7 +217,7 @@ def _requests(
                     prompt_token_ids=prompt,
                     max_new_tokens=response_bound,
                     sampling=sampling,
-                    need_sampled_token_logprobs=False,
+                    need_sampled_token_logprobs=need_sampled_token_logprobs,
                     expected_policy_identity=identity,
                 )
             )
@@ -391,6 +392,7 @@ def _hf_cached_conformance_probe(
         logical_prompts=1,
         run_seed=20260829,
         sampling_name="greedy",
+        need_sampled_token_logprobs=True,
     )[0]
     cached = backend.generate([request]).results[0]
     if len(local.token_ids) != len(cached.output_token_ids):

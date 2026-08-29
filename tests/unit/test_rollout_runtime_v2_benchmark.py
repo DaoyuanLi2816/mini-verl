@@ -7,9 +7,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import jsonschema
 import yaml
+
+from scripts import benchmark_rollout_runtime_v2_selected as selected_benchmark
 
 ROOT = Path(__file__).resolve().parents[2]
 PREREGISTRATION = ROOT / "benchmarks/preregistration/rollout-runtime-v2.yaml"
@@ -20,6 +23,26 @@ RESULT_SCHEMA = ROOT / "benchmarks/schema/rollout-runtime-v2-result.schema.json"
 HF_CACHED = ROOT / "benchmarks/evidence/rollout-runtime-v2/hf-cached-rtx4080-raw.json"
 VLLM = ROOT / "benchmarks/evidence/rollout-runtime-v2/vllm-rtx4080-raw.json"
 SELECTED_RESULT = ROOT / "benchmarks/results/rollout-runtime-v2-rtx4080.json"
+
+
+def test_hf_cached_conformance_request_explicitly_collects_logprobs() -> None:
+    tokenizer = SimpleNamespace(
+        eos_token_id=99,
+        encode=lambda _text: [7],
+    )
+    requests = selected_benchmark._requests(
+        tokenizer,
+        identity=SimpleNamespace(parameter_version=0),
+        prompt_length=4,
+        response_bound=3,
+        samples_per_prompt=1,
+        logical_prompts=1,
+        run_seed=20260829,
+        sampling_name="greedy",
+        need_sampled_token_logprobs=True,
+    )
+
+    assert requests[0].need_sampled_token_logprobs is True
 
 
 def test_rollout_runtime_v2_workload_is_preregistered_before_baseline() -> None:
