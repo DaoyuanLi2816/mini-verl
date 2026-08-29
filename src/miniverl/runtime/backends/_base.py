@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from time import perf_counter
 from typing import Any
@@ -22,7 +23,7 @@ from miniverl.runtime.generation import (
 )
 
 
-class LocalGenerationBackend:
+class LocalGenerationBackend(ABC):
     """Policy-bound adapter around an in-process causal-LM backend."""
 
     kind: RolloutBackendKind
@@ -121,10 +122,12 @@ class LocalGenerationBackend:
             backend_metrics=cls._metrics(request, output, elapsed, divisor),
         )
 
+    @abstractmethod
     def _generate_outputs(
         self, requests: Sequence[GenerationRequest]
     ) -> tuple[list[GenerationOutput], tuple[int, ...], float]:
-        raise NotImplementedError
+        """Generate aligned outputs and report physical batch sizes and elapsed time."""
+        ...
 
     def generate(self, requests: Sequence[GenerationRequest]) -> GenerationBatch:
         identity = self._validate_requests(requests)
