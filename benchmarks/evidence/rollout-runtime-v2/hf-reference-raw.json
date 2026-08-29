@@ -1,0 +1,1802 @@
+{
+  "backend": {
+    "name": "hf_reference",
+    "reproducibility_class": "same_process_seeded_reference",
+    "version": "5.14.1"
+  },
+  "cells": [
+    {
+      "cell_id": "p128-r64-n1-greedy",
+      "counts": {
+        "generated_tokens": 256,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 512
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 572068864,
+        "peak_reserved_bytes": 1109393408,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "cd9f13d9e943573baeb2d4e1dd04b122c4faceda6069544c4a48df4a673d8643",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 2.682791788000003,
+          "minimum_seconds": 2.658286367999999,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 95.42298479705937,
+        "prompt_tokens_per_second": 190.84596959411874,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 64,
+      "sampled_logprobs_sha256": "1e08a89c7b3790ce57c3f26d242c0cc91c11df1eeec95b2a2a00ad2afd17d746",
+      "samples_per_prompt": 1,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r64-n1-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 256,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 512
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 576205312,
+        "peak_reserved_bytes": 1130364928,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "cd9f13d9e943573baeb2d4e1dd04b122c4faceda6069544c4a48df4a673d8643",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 8.552983923,
+          "minimum_seconds": 8.483651064,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 29.931074617314,
+        "prompt_tokens_per_second": 59.862149234628,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 64,
+      "sampled_logprobs_sha256": "ba2f11193cd4eecb8e13f902cb1f94be663a23fa8604436173c7e8ac96885339",
+      "samples_per_prompt": 1,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r64-n4-greedy",
+      "counts": {
+        "generated_tokens": 1024,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 572068864,
+        "peak_reserved_bytes": 1130364928,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "3b4b83de35b1d649fe3f49cf2489de7a434a97304abb50ee7ef985da4ea3b328",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 10.549273207999988,
+          "minimum_seconds": 10.186481839999999,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 97.06829843248867,
+        "prompt_tokens_per_second": 194.13659686497735,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 64,
+      "sampled_logprobs_sha256": "ac873b82dc6266f08d49daa8851ae5ff969a9502fc09d0c46f0f11ef3fc7a983",
+      "samples_per_prompt": 4,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r64-n4-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 1024,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 576205312,
+        "peak_reserved_bytes": 1130364928,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "3b4b83de35b1d649fe3f49cf2489de7a434a97304abb50ee7ef985da4ea3b328",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 34.194360034,
+          "minimum_seconds": 33.98181499500001,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 29.94645897691375,
+        "prompt_tokens_per_second": 59.8929179538275,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 64,
+      "sampled_logprobs_sha256": "791ccbc8d12dd8173081df20a215540d059386148e537b585a9d189b1753880b",
+      "samples_per_prompt": 4,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r256-n1-greedy",
+      "counts": {
+        "generated_tokens": 1024,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 512
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 590592000,
+        "peak_reserved_bytes": 1130364928,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "711427fff6e3d357944a8bc254ed4cae8b33627122172a8d8e0d7724dc22c321",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 10.681579509000017,
+          "minimum_seconds": 10.601817451000045,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 95.86597180100608,
+        "prompt_tokens_per_second": 47.93298590050304,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 256,
+      "sampled_logprobs_sha256": "f0934e8f8a655f7db7a6c5fe450685ae02a92becbe1a11963b3178b5f991921b",
+      "samples_per_prompt": 1,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r256-n1-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 1024,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 512
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 598225408,
+        "peak_reserved_bytes": 1163919360,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "711427fff6e3d357944a8bc254ed4cae8b33627122172a8d8e0d7724dc22c321",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 34.191396914999984,
+          "minimum_seconds": 34.07746694100001,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 29.949054218102585,
+        "prompt_tokens_per_second": 14.974527109051293,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 256,
+      "sampled_logprobs_sha256": "103374fb70459e305d3e95b24cede77ebe45c02c5f6235ee07972ccbe164c934",
+      "samples_per_prompt": 1,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r256-n4-greedy",
+      "counts": {
+        "generated_tokens": 4096,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 590592000,
+        "peak_reserved_bytes": 1163919360,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "eef961f1441414411acf4c676a6720a72986f1a635f4c62431adf91b9b288d13",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 44.35223904600002,
+          "minimum_seconds": 41.96331140099994,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 92.3515946004851,
+        "prompt_tokens_per_second": 46.17579730024255,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 256,
+      "sampled_logprobs_sha256": "e5c0366e55822136810646af6f6a2ec1de385daf66816217678c76dc09145d88",
+      "samples_per_prompt": 4,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r256-n4-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 4096,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 598225408,
+        "peak_reserved_bytes": 1163919360,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "eef961f1441414411acf4c676a6720a72986f1a635f4c62431adf91b9b288d13",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 136.20863945600013,
+          "minimum_seconds": 136.123254523,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 30.07151393890211,
+        "prompt_tokens_per_second": 15.035756969451056,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 256,
+      "sampled_logprobs_sha256": "facbbe2eb781282a5e9dc8b3667f98828457f64d3e222c6aec076a88ec5ff1d1",
+      "samples_per_prompt": 4,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r512-n1-greedy",
+      "counts": {
+        "generated_tokens": 2048,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 512
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 618349568,
+        "peak_reserved_bytes": 1163919360,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "fdf6053d6a62183ea73d5a3e6da66538b71bcae75835bd826ecf81ddefa4a1b5",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 21.984175283000013,
+          "minimum_seconds": 21.751613103999944,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 93.15791807681244,
+        "prompt_tokens_per_second": 23.28947951920311,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 512,
+      "sampled_logprobs_sha256": "044bcce426878c05d803111ef04848dc025b84d1f46a0001838fecad8ace7792",
+      "samples_per_prompt": 1,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r512-n1-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 2048,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 512
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 641536512,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "fdf6053d6a62183ea73d5a3e6da66538b71bcae75835bd826ecf81ddefa4a1b5",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 67.754382588,
+          "minimum_seconds": 67.33902477300012,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 30.226826985546495,
+        "prompt_tokens_per_second": 7.556706746386624,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 512,
+      "sampled_logprobs_sha256": "d68a712f6a3a96e323d054d7918943fc9397399a6a0cc18628947a4749034719",
+      "samples_per_prompt": 1,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r512-n4-greedy",
+      "counts": {
+        "generated_tokens": 8192,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 618349568,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "9d36364e8c8bb02886b0de3de5708858843f570413918901df1afe2fcebaf47d",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 88.1730873009999,
+          "minimum_seconds": 86.93808670099997,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 92.90816790881611,
+        "prompt_tokens_per_second": 23.227041977204028,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 512,
+      "sampled_logprobs_sha256": "fa8462caa7158d8ca5322eabd4df3c9a82db7be5f87a2952a93af96572a23606",
+      "samples_per_prompt": 4,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p128-r512-n4-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 8192,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 641536512,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "9d36364e8c8bb02886b0de3de5708858843f570413918901df1afe2fcebaf47d",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 270.3976930829999,
+          "minimum_seconds": 270.2917211260001,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 128,
+      "rates": {
+        "output_tokens_per_second": 30.296116459416037,
+        "prompt_tokens_per_second": 7.574029114854009,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 512,
+      "sampled_logprobs_sha256": "269cef51deb330312a1e377689cd9d4c40a7a3af3f494cf5712c49e14026fa82",
+      "samples_per_prompt": 4,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r64-n1-greedy",
+      "counts": {
+        "generated_tokens": 256,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 611695104,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "cd9f13d9e943573baeb2d4e1dd04b122c4faceda6069544c4a48df4a673d8643",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 2.7622460959996715,
+          "minimum_seconds": 2.755931521000093,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 92.67820139948546,
+        "prompt_tokens_per_second": 741.4256111958837,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 64,
+      "sampled_logprobs_sha256": "1295404c7e252083aaad1026b97935061f37c40d2cad4675a1fc154e5a4fbba9",
+      "samples_per_prompt": 1,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r64-n1-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 256,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 641536512,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "cd9f13d9e943573baeb2d4e1dd04b122c4faceda6069544c4a48df4a673d8643",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 8.455835185000069,
+          "minimum_seconds": 8.422462780999922,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 30.27495148606044,
+        "prompt_tokens_per_second": 242.19961188848353,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 64,
+      "sampled_logprobs_sha256": "b9ea95432739b2d0767f01ff6803048228f69992364297066cfcd4133000db3e",
+      "samples_per_prompt": 1,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r64-n4-greedy",
+      "counts": {
+        "generated_tokens": 1024,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 8192
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 611695104,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "3b4b83de35b1d649fe3f49cf2489de7a434a97304abb50ee7ef985da4ea3b328",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 12.218045545999757,
+          "minimum_seconds": 11.155840058000194,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 83.81045856677643,
+        "prompt_tokens_per_second": 670.4836685342115,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 64,
+      "sampled_logprobs_sha256": "57edec6395dd88abd24e70047e0adca43f8a58876781092fa51c3c00e7518b36",
+      "samples_per_prompt": 4,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r64-n4-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 1024,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 8192
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 641536512,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "3b4b83de35b1d649fe3f49cf2489de7a434a97304abb50ee7ef985da4ea3b328",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 33.8932466629999,
+          "minimum_seconds": 33.6279644719998,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 30.212508414482045,
+        "prompt_tokens_per_second": 241.70006731585636,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 64,
+      "sampled_logprobs_sha256": "b75bb614200673299c50f5478413793e3ae9f1ddf2f427c5b12d8dd78500af8d",
+      "samples_per_prompt": 4,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r256-n1-greedy",
+      "counts": {
+        "generated_tokens": 1024,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 631888384,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "711427fff6e3d357944a8bc254ed4cae8b33627122172a8d8e0d7724dc22c321",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 12.784149807999711,
+          "minimum_seconds": 12.757599734999985,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 80.09918652230043,
+        "prompt_tokens_per_second": 160.19837304460086,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 256,
+      "sampled_logprobs_sha256": "a57f17956fe28fce722be3d3848cc15a065c03f9eb250f204ec2c421f9faeb77",
+      "samples_per_prompt": 1,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r256-n1-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 1024,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 643374592,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "711427fff6e3d357944a8bc254ed4cae8b33627122172a8d8e0d7724dc22c321",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 33.78232267999965,
+          "minimum_seconds": 33.667141740999796,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 30.31171094124457,
+        "prompt_tokens_per_second": 60.62342188248914,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 256,
+      "sampled_logprobs_sha256": "3a7abb1408460217b6ce6cf4fd0621da14eeeead1407e00d1b44822d01bcec68",
+      "samples_per_prompt": 1,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r256-n4-greedy",
+      "counts": {
+        "generated_tokens": 4096,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 8192
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 631888384,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "eef961f1441414411acf4c676a6720a72986f1a635f4c62431adf91b9b288d13",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 53.027317352999944,
+          "minimum_seconds": 51.61795949599991,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 77.24320603912795,
+        "prompt_tokens_per_second": 154.4864120782559,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 256,
+      "sampled_logprobs_sha256": "bb3fdbcfde4e043322d0706454f7b8fa31ca65df6ae80ce5065875624d3af8ff",
+      "samples_per_prompt": 4,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r256-n4-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 4096,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 8192
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 643374592,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "eef961f1441414411acf4c676a6720a72986f1a635f4c62431adf91b9b288d13",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 136.25704416500002,
+          "minimum_seconds": 135.77568775700001,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 30.060831167304364,
+        "prompt_tokens_per_second": 60.12166233460873,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 256,
+      "sampled_logprobs_sha256": "ed2ba774a231432d735974874af89dfbab5b9929ab5cc7caa8f455be5b18743f",
+      "samples_per_prompt": 4,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r512-n1-greedy",
+      "counts": {
+        "generated_tokens": 2048,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 659321344,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "fdf6053d6a62183ea73d5a3e6da66538b71bcae75835bd826ecf81ddefa4a1b5",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 30.89718044900019,
+          "minimum_seconds": 30.822854752999774,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 66.28436544171045,
+        "prompt_tokens_per_second": 66.28436544171045,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 512,
+      "sampled_logprobs_sha256": "6859cbfc45117100cd52c0ef371e004ee43bf3b5fa0e3e84d763936648f0b84b",
+      "samples_per_prompt": 1,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r512-n1-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 2048,
+        "generated_trajectories": 4,
+        "logical_prompts": 4,
+        "physical_batches": 1,
+        "prompt_tokens": 2048
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 671865344,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "fdf6053d6a62183ea73d5a3e6da66538b71bcae75835bd826ecf81ddefa4a1b5",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 68.44970350299991,
+          "minimum_seconds": 67.86870040000031,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 29.919778979177657,
+        "prompt_tokens_per_second": 29.919778979177657,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 512,
+      "sampled_logprobs_sha256": "7429ca8d21a239f77f986b028f5bf6b43aa75b7300aedbc644be9b3d65dda822",
+      "samples_per_prompt": 1,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r512-n4-greedy",
+      "counts": {
+        "generated_tokens": 8192,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 8192
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 659321344,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "9d36364e8c8bb02886b0de3de5708858843f570413918901df1afe2fcebaf47d",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 123.62770391200047,
+          "minimum_seconds": 122.53081656099948,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 66.26346474760345,
+        "prompt_tokens_per_second": 66.26346474760345,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 512,
+      "sampled_logprobs_sha256": "d9059ffe4d8ef9786d3889a6873903ffef715882fd97f1a574c1e79b417f048d",
+      "samples_per_prompt": 4,
+      "sampling": "greedy",
+      "status": "completed"
+    },
+    {
+      "cell_id": "p512-r512-n4-seeded_stochastic",
+      "counts": {
+        "generated_tokens": 8192,
+        "generated_trajectories": 16,
+        "logical_prompts": 4,
+        "physical_batches": 4,
+        "prompt_tokens": 8192
+      },
+      "error": null,
+      "memory": {
+        "peak_allocated_bytes": 671865344,
+        "peak_reserved_bytes": 1166016512,
+        "process_rss_bytes": 2620805120,
+        "teardown_residual_allocated_bytes": 8520704
+      },
+      "oom_downshifts": 0,
+      "output_token_ids_sha256": "9d36364e8c8bb02886b0de3de5708858843f570413918901df1afe2fcebaf47d",
+      "phases": {
+        "actor_update": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "cold_start": {
+          "median_seconds": 8.762755541000004,
+          "minimum_seconds": 8.762755541000004,
+          "note": "shared actor/tokenizer load measurement repeated on each cell",
+          "status": "measured"
+        },
+        "decode": {
+          "note": "the pre-v0.11 public backend does not expose a decode boundary",
+          "status": "not_measured"
+        },
+        "full_cycle": {
+          "note": "rollout-only baseline cell; no phase is represented as zero",
+          "status": "not_measured"
+        },
+        "policy_sync": {
+          "note": "hf_reference uses the actor already loaded in the trainer process",
+          "status": "not_applicable"
+        },
+        "prefill": {
+          "note": "the pre-v0.11 public backend does not expose a prefill boundary",
+          "status": "not_measured"
+        },
+        "rollout_total": {
+          "median_seconds": 270.23090325500016,
+          "minimum_seconds": 270.1274789749996,
+          "status": "measured"
+        },
+        "teacher_scoring": {
+          "note": "rollout-only baseline cell; full-cycle measurement is a separate gate",
+          "status": "not_measured"
+        },
+        "teardown": {
+          "median_seconds": 0.2742385410001589,
+          "minimum_seconds": 0.2742385410001589,
+          "note": "shared backend teardown measurement repeated on each cell",
+          "status": "measured"
+        }
+      },
+      "prompt_length": 512,
+      "rates": {
+        "output_tokens_per_second": 30.31481559409109,
+        "prompt_tokens_per_second": 30.31481559409109,
+        "time_to_first_token_seconds": null
+      },
+      "response_bound": 512,
+      "sampled_logprobs_sha256": "23fa6e0641892260aabc0d17d8ff67d0d90d2a13bf1159d03b7b8ca5b773d024",
+      "samples_per_prompt": 4,
+      "sampling": "seeded_stochastic",
+      "status": "completed"
+    }
+  ],
+  "environment": {
+    "cuda_runtime": "13.0",
+    "gpu": "NVIDIA GeForce RTX 4080",
+    "gpu_total_memory_bytes": 17170956288,
+    "packages": {
+      "accelerate": "1.14.0",
+      "bitsandbytes": "0.50.0",
+      "peft": "0.18.0",
+      "torch": "2.13.0+cu130",
+      "transformers": "5.14.1"
+    },
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+    "python": "3.12.13"
+  },
+  "failures": [],
+  "frozen_calculator_sha256": "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc",
+  "measurement_status": "measured_baseline",
+  "models": {
+    "actor": {
+      "id": "Qwen/Qwen3-0.6B",
+      "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "tokenizer_revision": "c1899de289a04d12100db370d81485cdf75e47ca"
+    },
+    "dtype": "bfloat16",
+    "quantization": "nf4",
+    "teacher": {
+      "id": "Qwen/Qwen3-1.7B",
+      "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+      "tokenizer_revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e"
+    }
+  },
+  "name": "rollout-runtime-v2-hf-reference",
+  "preregistration_sha256": "8cc3ba738c69b59ed19c22c1de874fd00249404198a3e05983477dc8899bb7e5",
+  "schema_version": 1,
+  "source": {
+    "commit": "0d6e0070ae73ef35f718aec3624ee5263ac96e3a",
+    "dirty": false,
+    "miniverl_version": "0.11.0.dev0",
+    "wheel_sha256": "0256bd9e63ca6ed52999a5073a3577a008581a8d4418062314750d86f21cd5fe"
+  },
+  "workload_manifest_sha256": "9157dcdc84545d4c4e55b97084c2a93b5bc0f55d7188f36b77389b4356c09c68"
+}

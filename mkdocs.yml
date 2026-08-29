@@ -71,6 +71,10 @@ nav:
       - Demo recording script: verl-bridge-demo.md
       - Legacy environment/PPO bridge: legacy-verl-bridge.md
   - Community benchmarks: community-benchmarks.md
+  - Rollout Runtime v2:
+      - Competitive landscape: competitive-landscape.md
+      - Benchmark method: benchmarks/rollout-runtime-v2-method.md
+      - Frozen HF baseline: benchmarks/rollout-runtime-v2.md
   - Maintainer:
       - Architecture: maintainer-architecture.md
       - Upstream support policy: upstream-support-policy.md

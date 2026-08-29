@@ -24,7 +24,7 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     qualification = tmp_path / "qualification"
     candidate.mkdir(parents=True)
     qualification.mkdir(parents=True)
-    version = "0.10.2.dev0"
+    version = "0.11.0.dev0"
     commit = "a" * 40
     wheel = candidate / f"miniverl-{version}-py3-none-any.whl"
     sdist = candidate / f"miniverl-{version}.tar.gz"
@@ -219,8 +219,8 @@ def test_builds_exact_canonical_layout_and_checks_it(tmp_path: Path) -> None:
 
     output = _build(tmp_path)
     expected = {
-        "dist/miniverl-0.10.2.dev0-py3-none-any.whl",
-        "dist/miniverl-0.10.2.dev0.tar.gz",
+        "dist/miniverl-0.11.0.dev0-py3-none-any.whl",
+        "dist/miniverl-0.11.0.dev0.tar.gz",
         "SHA256SUMS",
         "candidate-manifest.json",
         "release-verification.json",

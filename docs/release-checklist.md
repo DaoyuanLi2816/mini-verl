@@ -4,7 +4,29 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
-## v0.10.2 development
+## v0.11.0 development
+
+- [x] Advance the canonical development line to `0.11.0.dev0` while stable
+      release and documentation remain at immutable `v0.10.1`.
+- [x] Preregister the RTX 4080 Rollout Runtime v2 workload before measuring
+      the pre-v0.11 `hf_reference` baseline.
+- [x] Freeze the 24-cell `hf_reference` result from exact source commit
+      `0d6e0070ae73ef35f718aec3624ee5263ac96e3a` and candidate wheel
+      `0256bd9e63ca6ed52999a5073a3577a008581a8d4418062314750d86f21cd5fe`
+      before implementing `hf_cached`.
+- [ ] Add typed policy identity, lifecycle and strict synchronization contracts.
+- [ ] Qualify `hf_cached` at 64/256/512 response bounds and require at least 2x
+      speedup at 256 and 512 without exceeding 14.5 GiB peak reserved VRAM.
+- [ ] Add transactional `samples_per_prompt > 1` and exact no-skip/no-duplicate
+      resume semantics without changing the published `n=1` profiles.
+- [ ] Add the new deterministic task-reward plus distillation-advantage profile;
+      keep direct GKD and existing PG-k1 identities unchanged.
+- [ ] Measure SGLang and vLLM on the same WSL2 RTX 4080 workload and support at
+      most one external engine after policy-sync, cache and teardown gates pass.
+- [ ] Run exact-candidate-wheel full qualification, dry-run and publication
+      only after every v0.11 acceptance gate passes.
+
+## v0.10.2 development (superseded by v0.11 scope)
 
 - [ ] Define and review the next focused release scope before changing product
       behavior or scientific evidence.
