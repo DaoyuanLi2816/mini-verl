@@ -117,10 +117,13 @@ jobs:
           from pathlib import Path
           manifest = json.loads(Path("candidate/candidate-manifest.json").read_text())
           wheel = (Path("candidate") / manifest["wheel"]["filename"]).resolve()
+          qualification_python = Path.cwd() / ".gpu-qualification-venv/bin/python"
+          if not qualification_python.is_file():
+              raise SystemExit(f"missing qualification interpreter: {qualification_python}")
           with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as handle:
               handle.write(f"QUALIFICATION_WHEEL={wheel}\n")
               handle.write(f"QUALIFICATION_WHEEL_SHA256={manifest['wheel']['sha256']}\n")
-              handle.write(f"QUALIFICATION_PYTHON={Path('.gpu-qualification-venv/bin/python').resolve()}\n")
+              handle.write(f"QUALIFICATION_PYTHON={qualification_python}\n")
           PY
       - name: Install the exact candidate wheel
         run: |
