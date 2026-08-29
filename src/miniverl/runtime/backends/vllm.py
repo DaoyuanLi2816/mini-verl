@@ -509,6 +509,9 @@ class VLLMGenerationBackend:
             self.manager.close()
             raise
         old_active_name = self._active_adapter_name
+        initial_startup_seconds = self._lifecycle.get("initial_startup_seconds")
+        if initial_startup_seconds is None:
+            initial_startup_seconds = startup_seconds
         self._active_identity = identity
         self._active_adapter_name = name
         self._state = BackendLifecycleState.SYNCHRONIZED
@@ -518,7 +521,12 @@ class VLLMGenerationBackend:
             "policy_identity_digest": identity.digest,
             "policy_version": identity.parameter_version,
             "adapter_name": name,
-            "startup_seconds": startup_seconds,
+            # Keep the first managed-server startup separate from later no-op
+            # health checks. Replacing it on every adapter refresh made the
+            # reported startup time collapse to a few microseconds.
+            "startup_seconds": initial_startup_seconds,
+            "initial_startup_seconds": initial_startup_seconds,
+            "latest_start_check_seconds": startup_seconds,
             "adapter_sync_seconds": adapter_sync_seconds,
             "sync_total_seconds": time.perf_counter() - sync_started,
             "prefix_cache_enabled": False,

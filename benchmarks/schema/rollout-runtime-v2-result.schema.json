@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://daoyuanli2816.github.io/mini-verl/schemas/rollout-runtime-v2-result.schema.json",
+  "title": "Rollout Runtime v2 RTX 4080 aggregate",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "name",
+    "measurement_status",
+    "source",
+    "artifacts",
+    "gates",
+    "backend_selection",
+    "release_decision",
+    "cells"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "name": {"const": "rollout-runtime-v2-rtx4080"},
+    "measurement_status": {"const": "completed_release_blocked"},
+    "cells": {"type": "array", "minItems": 24, "maxItems": 24},
+    "release_decision": {
+      "type": "object",
+      "required": ["v0_11_0_publishable", "blocking_gate", "action"],
+      "properties": {
+        "v0_11_0_publishable": {"const": false},
+        "blocking_gate": {"const": "hf_cached_speedup_over_hf_reference"}
+      }
+    }
+  }
+}

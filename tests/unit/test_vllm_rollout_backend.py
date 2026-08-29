@@ -213,6 +213,7 @@ def test_vllm_backend_uses_unique_content_bound_adapter_names_and_tears_down(
     second = _identity(2)
 
     backend.synchronize(PolicySnapshot(first))
+    first_lifecycle = backend.lifecycle_metrics()
     first_name = manager.loaded[-1][0]
     assert "p00000001" in first_name
     assert first.adapter_tensor_digest[:12] in first_name
@@ -229,6 +230,9 @@ def test_vllm_backend_uses_unique_content_bound_adapter_names_and_tears_down(
     assert lifecycle["adapter_name"] == second_name
     assert lifecycle["prefix_cache_enabled"] is False
     assert lifecycle["numerical_equivalence_class"] == "bf16-external-vs-nf4-actor-direct-gkd"
+    assert lifecycle["startup_seconds"] == first_lifecycle["startup_seconds"]
+    assert lifecycle["initial_startup_seconds"] == first_lifecycle["startup_seconds"]
+    assert lifecycle["latest_start_check_seconds"] >= 0.0
 
     backend.quiesce()
     backend.release_generation_memory()

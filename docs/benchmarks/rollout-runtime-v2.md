@@ -1,4 +1,4 @@
-# Rollout Runtime v2: frozen HF reference baseline
+# Rollout Runtime v2: baseline and selected-backend evidence
 
 The pre-v0.11 Hugging Face path is now frozen as the compatibility and
 performance baseline for Rollout Runtime v2. All 24 preregistered cells
@@ -70,3 +70,57 @@ baseline and cannot be inferred from it.
 See the [method](rollout-runtime-v2-method.md) for timing and invalidation
 rules. The next backend must use this workload unchanged and pass the
 preregistered correctness, memory and 256/512-token speedup gates.
+
+## Development-line backend measurement
+
+The exact `0.11.0.dev0` wheel at source `690db9b079bfecfec14dc3bedc3aa0308cbacf60`
+ran the same 24 cells with `hf_cached` and managed vLLM 0.28.0. Both runs used
+wheel SHA-256 `266fcd59bb3e85b02974a92b26c9a4e59c7c9b9205853d17baadcfffdb898e27`
+and the baseline software stack: Python 3.12.13, Torch 2.13.0+cu130,
+Transformers 5.14.1, PEFT 0.20.0 and bitsandbytes 0.50.2.
+
+| Response | Sampling | `hf_cached` / reference | vLLM / `hf_cached` | vLLM tokens/s |
+| ---: | --- | ---: | ---: | ---: |
+| 64 | greedy | 0.65–0.76× | 1.73–1.80× | 112.7–114.9 |
+| 64 | seeded stochastic | 1.83–1.87× | 1.94–2.06× | 109.3–114.2 |
+| 256 | greedy | 0.71–0.85× | 1.71–1.77× | 111.8–117.4 |
+| 256 | seeded stochastic | 0.84–1.85× | 2.04–4.55× | 113.1–114.5 |
+| 512 | greedy | 0.67–1.05× | 1.65–1.87× | 114.8–117.7 |
+| 512 | seeded stochastic | 1.84–1.90× | 1.90–2.05× | 108.5–114.4 |
+
+Ranges contain both prompt lengths and both `n` values. One `hf_cached`
+p512/r256/n4 stochastic cell had measured runs of 118.807, 267.930 and
+162.641 seconds; the median and resulting 0.84× speedup remain in the result.
+
+### Gate outcome
+
+- `hf_cached >= 2× hf_reference` at response 256 and 512: **failed**. The
+  conservative preregistration interpretation requires every paired cell to
+  reach the threshold.
+- vLLM `>= 1.2× hf_cached` at response 256 and 512: **passed** in every cell;
+  the observed range was 1.65–4.55×.
+- Peak total GPU memory below 14.5 GiB: **passed**. `hf_cached` peaked at
+  4,598 MiB and vLLM at 11,820 MiB.
+- Eight vLLM refreshes: **passed**. Every sync and identity was unique, with no
+  monotonic memory growth; the localhost port closed at teardown.
+- vLLM PG-k1 log-probability conformance: **failed**. Greedy token agreement
+  was 32/32, while maximum absolute log-probability difference was 0.0194
+  against the 0.01 NF4 threshold. Direct GKD remains the supported scope.
+
+The failed local-backend speed gate blocks v0.11.0 publication. It does not
+invalidate the completed runtime, grouped-sample, reward or managed-engine
+implementation; it requires profiling `hf_cached` and rerunning this frozen
+workload before release.
+
+## Candidate artifact integrity
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `hf_cached` raw | `a9f8f0b0275d940f30497a0d88d76da0e112ffbe2bc1b37a42c6ed313b852242` |
+| vLLM raw | `abf14d73a7289f9619515943b4c8d7dafe7cd187fefe928655739ac7ed1ab16c` |
+| Aggregate result | `32be86856263ccdf787986c4ec54570d323af8c238dc1664e00a9ce41ca393c4` |
+| Frozen calculator | `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
+
+The [aggregate JSON](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/rollout-runtime-v2-rtx4080.json)
+contains every cell, exact raw hashes, gate calculation and backend-selection
+state. `scripts/publish_rollout_runtime_v2_evidence.py --check` reproduces it.
