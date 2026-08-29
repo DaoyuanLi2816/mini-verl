@@ -181,7 +181,14 @@ def _requests(
     samples_per_prompt: int,
     logical_prompts: int,
     run_seed: int,
+    sampling_name: str,
 ) -> list[GenerationRequest]:
+    if sampling_name == "greedy":
+        sampling = SamplingParameters(temperature=0.0, top_p=1.0, top_k=0)
+    elif sampling_name == "seeded_stochastic":
+        sampling = SamplingParameters(temperature=0.8, top_p=0.95, top_k=50)
+    else:
+        raise ValueError(f"unsupported sampling mode {sampling_name!r}")
     requests: list[GenerationRequest] = []
     for prompt_index in range(logical_prompts):
         prompt = _fixed_prompt(tokenizer, length=prompt_length, index=prompt_index)
@@ -206,7 +213,7 @@ def _requests(
                     ),
                     prompt_token_ids=prompt,
                     max_new_tokens=response_bound,
-                    sampling=SamplingParameters(temperature=0.0, top_p=1.0, top_k=0),
+                    sampling=sampling,
                     need_sampled_token_logprobs=False,
                     expected_policy_identity=identity,
                 )
@@ -236,6 +243,7 @@ def _cell(
     samples_per_prompt: int,
     logical_prompts: int,
     run_seed: int,
+    sampling_name: str,
     warmups: int,
     repetitions: int,
 ) -> dict[str, Any]:
@@ -247,6 +255,7 @@ def _cell(
         samples_per_prompt=samples_per_prompt,
         logical_prompts=logical_prompts,
         run_seed=run_seed,
+        sampling_name=sampling_name,
     )
     for _ in range(warmups):
         _generate_partitioned(backend, requests)
@@ -262,16 +271,16 @@ def _cell(
             durations.append(time.perf_counter() - started)
             digests.append(_digest_results(final))
     if len(set(digests)) != 1:
-        raise RuntimeError("backend output changed across greedy repetitions")
+        raise RuntimeError(f"backend output changed across {sampling_name} repetitions")
     generated_tokens = sum(len(result.output_token_ids) for result in final)
     prompt_tokens = sum(len(request.prompt_token_ids) for request in requests)
     median = float(statistics.median(durations))
     return {
-        "cell_id": f"p{prompt_length}-r{response_bound}-n{samples_per_prompt}-greedy",
+        "cell_id": (f"p{prompt_length}-r{response_bound}-n{samples_per_prompt}-{sampling_name}"),
         "prompt_length": prompt_length,
         "response_bound": response_bound,
         "samples_per_prompt": samples_per_prompt,
-        "sampling": "greedy",
+        "sampling": sampling_name,
         "logical_prompts": logical_prompts,
         "generated_trajectories": len(final),
         "prompt_tokens": prompt_tokens,
@@ -385,6 +394,7 @@ def _refresh_probe(
             samples_per_prompt=1,
             logical_prompts=1,
             run_seed=run_seed,
+            sampling_name="greedy",
         )
         result = backend.generate(request).results[0]
         rows.append(
@@ -504,16 +514,19 @@ def run(
             backend,
             tokenizer,
             identity=identity,
-            prompt_length=128,
+            prompt_length=prompt_length,
             response_bound=response_bound,
             samples_per_prompt=samples_per_prompt,
             logical_prompts=4,
             run_seed=int(prereg["workload"]["run_seed"]),
+            sampling_name=sampling_name,
             warmups=1,
             repetitions=repetitions,
         )
+        for prompt_length in (128, 512)
         for response_bound in (64, 256, 512)
         for samples_per_prompt in (1, 4)
+        for sampling_name in ("greedy", "seeded_stochastic")
     ]
     conformance = _conformance_probe(actor, backend, tokenizer) if backend_name == "vllm" else None
     refresh = (
@@ -573,10 +586,10 @@ def run(
             "manifest_version": prereg["workload"]["manifest_version"],
             "run_seed": prereg["workload"]["run_seed"],
             "logical_prompts": 4,
-            "prompt_length": 128,
+            "prompt_lengths": [128, 512],
             "response_bounds": [64, 256, 512],
             "samples_per_prompt": [1, 4],
-            "sampling": "greedy",
+            "sampling": ["greedy", "seeded_stochastic"],
             "physical_concurrency": 4,
         },
         "timing": {
