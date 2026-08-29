@@ -203,7 +203,9 @@ def run_greedy_padded_generation(
 def run_cached_padded_generation(
     *,
     prefill: Callable[[list[list[int]]], tuple[torch.Tensor, Any]],
-    decode_step: Callable[[list[int], list[bool], Any], tuple[torch.Tensor, Any]],
+    decode_step: Callable[
+        [Sequence[int] | torch.Tensor, list[bool], Any], tuple[torch.Tensor, Any]
+    ],
     prefix_token_ids: Sequence[Sequence[int]],
     decode: Callable[[Sequence[int]], str],
     eos_token_id: int,
@@ -245,14 +247,15 @@ def run_cached_padded_generation(
 
     for step_index in range(max_new_tokens):
         chosen = [0] * len(rows)
+        device_tokens: torch.Tensor | None = None
         greedy_tokens: list[int] | None = None
         greedy_logprobs: list[float] | None = None
         if temperature <= 0.0:
-            token_tensor = torch.argmax(logits.detach().to(torch.float32), dim=-1)
-            greedy_tokens = [int(value) for value in token_tensor.cpu().tolist()]
+            device_tokens = torch.argmax(logits.detach(), dim=-1)
+            greedy_tokens = [int(value) for value in device_tokens.cpu().tolist()]
             if record_logprobs:
                 row_log_probs = torch.log_softmax(logits.detach().to(torch.float32), dim=-1)
-                selected = row_log_probs.gather(1, token_tensor.unsqueeze(1)).squeeze(1)
+                selected = row_log_probs.gather(1, device_tokens.unsqueeze(1)).squeeze(1)
                 greedy_logprobs = [float(value) for value in selected.cpu().tolist()]
         for index, is_active in enumerate(active):
             if not is_active:
@@ -292,7 +295,11 @@ def run_cached_padded_generation(
 
         if not any(active) or step_index + 1 == max_new_tokens:
             break
-        logits, state = decode_step(chosen, active, state)
+        logits, state = decode_step(
+            device_tokens if device_tokens is not None else chosen,
+            active,
+            state,
+        )
         if tuple(logits.shape[:1]) != (len(rows),):
             raise ValueError(
                 f"cached decode returned {tuple(logits.shape)}, expected [batch, vocab]"

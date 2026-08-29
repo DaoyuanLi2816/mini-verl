@@ -60,6 +60,35 @@ class _FakeModelBackend:
         ]
 
 
+class _FakeNF4MirrorBackend(_FakeModelBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.capabilities.quantization = "none"
+        self.synced_digests: list[str] = []
+        self.discard_calls = 0
+
+    def discard_cached_generation_mirror(self) -> None:
+        self.discard_calls += 1
+
+
+class _FakeNF4SourceBackend(_FakeModelBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.capabilities.quantization = "nf4"
+        self.mirror = _FakeNF4MirrorBackend()
+        self.build_calls = 0
+
+    def build_cached_generation_mirror(self) -> _FakeNF4MirrorBackend:
+        self.build_calls += 1
+        return self.mirror
+
+    def synchronize_cached_generation_mirror(
+        self, mirror: _FakeNF4MirrorBackend, *, expected_adapter_digest: str
+    ) -> None:
+        assert mirror is self.mirror
+        mirror.synced_digests.append(expected_adapter_digest)
+
+
 def _identity(kind: RolloutBackendKind, *, version: int = 1) -> RolloutPolicyIdentity:
     return RolloutPolicyIdentity(
         parameter_version=version,
@@ -165,6 +194,64 @@ def test_cached_compilation_is_explicit_and_changes_backend_identity() -> None:
 
     assert model.compile_calls == 1
     assert backend.inspect().backend_version == "hf_cached-v1+inductor-no-cudagraph"
+
+
+def test_compiled_nf4_backend_owns_and_synchronizes_bf16_mirror() -> None:
+    source = _FakeNF4SourceBackend()
+    backend = HFCachedGenerationBackend(source, compile_backend=True)
+
+    assert source.build_calls == 1
+    assert source.compile_calls == 0
+    assert source.mirror.compile_calls == 1
+    assert backend.model_backend is source.mirror
+    assert backend.inspect().backend_version == "hf_cached-v2+nf4-bf16-mirror+inductor"
+
+    first = replace(
+        _identity(RolloutBackendKind.HF_CACHED),
+        backend_version=backend.backend_version,
+        adapter_tensor_digest="a" * 64,
+    )
+    second = replace(first, parameter_version=2, adapter_tensor_digest="b" * 64)
+    backend.synchronize(PolicySnapshot(first))
+    backend.synchronize(PolicySnapshot(second))
+
+    assert source.mirror.synced_digests == ["a" * 64, "b" * 64]
+    backend.close()
+    assert source.mirror.discard_calls == 1
+
+
+def test_compiled_nf4_mirror_sync_failure_does_not_activate_policy() -> None:
+    source = _FakeNF4SourceBackend()
+
+    def fail_sync(mirror, *, expected_adapter_digest):  # type: ignore[no-untyped-def]
+        del mirror, expected_adapter_digest
+        raise RuntimeError("injected mirror copy failure")
+
+    source.synchronize_cached_generation_mirror = fail_sync  # type: ignore[method-assign]
+    backend = HFCachedGenerationBackend(source, compile_backend=True)
+    identity = replace(
+        _identity(RolloutBackendKind.HF_CACHED),
+        backend_version=backend.backend_version,
+    )
+
+    with pytest.raises(RuntimeError, match="injected mirror copy failure"):
+        backend.synchronize(PolicySnapshot(identity))
+    assert backend.state is BackendLifecycleState.NEW
+    with pytest.raises(RuntimeError, match="synchronized"):
+        backend.generate([_request(identity, 0)])
+
+
+def test_compiled_nf4_mirror_is_discarded_when_compilation_fails() -> None:
+    source = _FakeNF4SourceBackend()
+
+    def fail_compile() -> None:
+        raise RuntimeError("injected compilation failure")
+
+    source.mirror.enable_cached_generation_compilation = fail_compile
+    with pytest.raises(RuntimeError, match="injected compilation failure"):
+        HFCachedGenerationBackend(source, compile_backend=True)
+
+    assert source.mirror.discard_calls == 1
 
 
 def test_policy_identity_digest_tracks_live_trainable_tensors() -> None:

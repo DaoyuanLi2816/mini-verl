@@ -107,3 +107,35 @@ def test_cached_sampling_tracks_eos_and_text_stop_per_row() -> None:
     assert outputs[1].matched_stop == "21"
     assert outputs[1].token_ids == [2, 1]
     assert calls == 1
+
+
+def test_greedy_cached_decode_reuses_the_device_token_tensor() -> None:
+    observed: list[torch.Tensor] = []
+
+    def prefill(rows):  # type: ignore[no-untyped-def]
+        del rows
+        logits = torch.tensor([[0.0, 3.0, 1.0], [4.0, 0.0, 2.0]], dtype=torch.float16)
+        return logits, None
+
+    def decode(tokens, active, state):  # type: ignore[no-untyped-def]
+        del active
+        assert isinstance(tokens, torch.Tensor)
+        observed.append(tokens)
+        logits = torch.tensor([[4.0, 0.0, 2.0], [0.0, 3.0, 1.0]], dtype=torch.float16)
+        return logits, state
+
+    outputs = run_cached_padded_generation(
+        prefill=prefill,
+        decode_step=decode,
+        prefix_token_ids=[[1], [2]],
+        decode=lambda ids: "".join(str(value) for value in ids),
+        eos_token_id=99,
+        max_new_tokens=2,
+        temperature=0.0,
+        generators=[torch.Generator(), torch.Generator()],
+    )
+
+    assert len(observed) == 1
+    assert observed[0].dtype == torch.long
+    assert observed[0].tolist() == [1, 0]
+    assert [row.token_ids for row in outputs] == [[1, 0], [0, 1]]

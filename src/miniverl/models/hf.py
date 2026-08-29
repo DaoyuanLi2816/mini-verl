@@ -11,6 +11,8 @@ card and not.
 
 from __future__ import annotations
 
+import copy
+import gc
 import inspect
 from collections.abc import Sequence
 from pathlib import Path
@@ -124,6 +126,32 @@ def _adapter_probe_kwargs(*, revision: str | None, local_files_only: bool) -> di
     return kwargs
 
 
+def _static_generation_cache(
+    config: Any,
+    *,
+    batch_size: int,
+    max_cache_len: int,
+    device: str,
+    dtype: torch.dtype,
+) -> Any:
+    """Construct the supported Transformers static cache across 4.x and 5.x."""
+
+    transformers = require_transformers("Static cached generation")
+    constructor = transformers.StaticCache
+    parameters = inspect.signature(constructor).parameters
+    kwargs: dict[str, Any] = {
+        "config": config,
+        "max_cache_len": max_cache_len,
+    }
+    if "max_batch_size" in parameters:
+        kwargs["max_batch_size"] = batch_size
+    if "device" in parameters:
+        kwargs["device"] = device
+    if "dtype" in parameters:
+        kwargs["dtype"] = dtype
+    return constructor(**kwargs)
+
+
 class HFBackend(CausalLMBackend):
     """Local Hugging Face causal LM, optionally quantized and LoRA-adapted."""
 
@@ -148,6 +176,7 @@ class HFBackend(CausalLMBackend):
         self.model_revision = model_revision
         self._device = device
         self._dtype = dtype
+        self._source_spec: StudentModelConfig | TeacherModelConfig | None = None
         self.adapter_provenance = adapter_provenance
         self.adapter = ArchitectureAdapter.resolve(model)
         self._cached_generation_backbone: Any | None = None
@@ -336,7 +365,7 @@ class HFBackend(CausalLMBackend):
         if getattr(model, "config", None) is not None:
             model.config.use_cache = not (trainable and gradient_checkpointing)
 
-        return cls(
+        backend = cls(
             model=model,
             tokenizer=tokenizer,
             model_id=spec.model_id,
@@ -349,6 +378,8 @@ class HFBackend(CausalLMBackend):
             lora=lora_enabled,
             adapter_provenance=adapter_provenance,
         )
+        backend._source_spec = spec.model_copy(deep=True)
+        return backend
 
     @staticmethod
     def _attach_lora(
@@ -442,6 +473,145 @@ class HFBackend(CausalLMBackend):
                 "could not initialize compiled hf_cached generation",
                 hint="set rollout.compile_backend=false to use the eager KV-cache path",
             ) from exc
+
+    @staticmethod
+    def _active_peft_adapter_name(model: Any) -> str:
+        active_adapters = getattr(model, "active_adapters", None)
+        if callable(active_adapters):
+            names = list(active_adapters())
+        else:
+            active = getattr(model, "active_adapter", None)
+            names = [active] if isinstance(active, str) else []
+        if len(names) != 1 or not isinstance(names[0], str):
+            raise BackendError(
+                "compiled NF4 rollout requires exactly one active student adapter",
+                hint="select one LoRA adapter before constructing the rollout runtime",
+            )
+        return names[0]
+
+    def build_cached_generation_mirror(self) -> HFBackend:
+        """Build a local BF16 rollout mirror derived from this NF4 actor.
+
+        The training actor remains the policy source of truth. The mirror loads
+        the same cached base snapshot, uses Transformers' supported dequantize
+        operation, and receives the actor's exact live adapter tensors before
+        every synchronized rollout.
+        """
+
+        if self.capabilities.quantization != Quantization.NF4.value:
+            raise BackendError("a cached generation mirror is only defined for an NF4 actor")
+        if not self._device.startswith("cuda"):
+            raise BackendError("the NF4 BF16 rollout mirror requires CUDA")
+        spec = self._source_spec
+        if not isinstance(spec, StudentModelConfig):
+            raise BackendError(
+                "the NF4 actor has no reconstructable student model specification",
+                hint="construct the actor with HFBackend.load before enabling compiled rollout",
+            )
+        adapter_name = self._active_peft_adapter_name(self.model)
+        peft_configs = getattr(self.model, "peft_config", None)
+        if not isinstance(peft_configs, dict) or adapter_name not in peft_configs:
+            raise BackendError("the active NF4 adapter configuration is unavailable")
+
+        mirror: HFBackend | None = None
+        try:
+            mirror = type(self).load(
+                spec,
+                device=self._device,
+                tokenizer=self.tokenizer,
+                trainable=False,
+                local_files_only=True,
+            )
+            dequantize = getattr(mirror.model, "dequantize", None)
+            if not callable(dequantize):
+                raise BackendError(
+                    "the loaded NF4 base cannot be expanded for compiled rollout",
+                    hint="use rollout.compile_backend=false with this Transformers backend",
+                )
+            dequantized = dequantize()
+            if dequantized is not None:
+                mirror.model = dequantized
+
+            peft = require_peft("Compiled NF4 rollout mirror")
+            adapter_config = copy.deepcopy(peft_configs[adapter_name])
+            adapter_config.inference_mode = False
+            mirror.model = peft.get_peft_model(
+                mirror.model,
+                adapter_config,
+                adapter_name=adapter_name,
+            )
+            mirror.adapter = ArchitectureAdapter.resolve(mirror.model)
+            mirror.model_id = self.model_id
+            mirror.model_revision = self.model_revision
+            mirror.adapter_provenance = self.adapter_provenance
+            mirror.capabilities.name = self.capabilities.name
+            mirror.capabilities.quantization = Quantization.NONE.value
+            mirror.capabilities.lora = True
+            mirror.capabilities.num_parameters = sum(
+                parameter.numel() for parameter in mirror.model.parameters()
+            )
+            mirror.capabilities.num_trainable_parameters = sum(
+                parameter.numel()
+                for parameter in mirror.model.parameters()
+                if parameter.requires_grad
+            )
+            mirror.model.config.use_cache = True
+            mirror.model.eval()
+            from miniverl.runtime.policy_sync import adapter_tensor_digest
+
+            self.synchronize_cached_generation_mirror(
+                mirror,
+                expected_adapter_digest=adapter_tensor_digest(self),
+            )
+            return mirror
+        except BaseException as exc:
+            if mirror is not None:
+                mirror.discard_cached_generation_mirror()
+            if isinstance(exc, BackendError):
+                raise
+            raise BackendError(
+                "could not construct the compiled NF4 rollout mirror",
+                hint=(
+                    "the training actor is unchanged; set rollout.compile_backend=false "
+                    f"to use it directly. Original error: {exc}"
+                ),
+            ) from exc
+
+    def synchronize_cached_generation_mirror(
+        self,
+        mirror: HFBackend,
+        *,
+        expected_adapter_digest: str,
+    ) -> None:
+        """Copy and verify one live adapter state before policy activation."""
+
+        from miniverl.runtime.policy_sync import adapter_tensor_digest
+
+        source_digest = adapter_tensor_digest(self)
+        if source_digest != expected_adapter_digest:
+            raise BackendError(
+                "the actor adapter changed after rollout policy identity construction",
+                hint="rebuild the policy identity and retry the synchronized rollout",
+            )
+        mirror.load_trainable_state_dict(self.trainable_state_dict())
+        mirror_digest = adapter_tensor_digest(mirror)
+        if mirror_digest != source_digest:
+            raise BackendError(
+                "the BF16 rollout mirror does not exactly match the live actor adapter",
+                hint="disable compiled rollout; generation was not started",
+            )
+        mirror.model.eval()
+
+    def discard_cached_generation_mirror(self) -> None:
+        """Invalidate an owned rollout mirror and release its CUDA allocations."""
+
+        self._cached_generation_backbone = None
+        self.__dict__.pop("adapter", None)
+        self.__dict__.pop("model", None)
+        gc.collect()
+        from miniverl.utils.gpu import empty_cache
+
+        empty_cache()
 
     # -- generation ---------------------------------------------------------
 
@@ -585,31 +755,58 @@ class HFBackend(CausalLMBackend):
         cache_flag = getattr(self.model.config, "use_cache", True)
         self.model.config.use_cache = True
         attention_mask: torch.Tensor | None = None
+        attention_workspace: torch.Tensor | None = None
+        attention_length = 0
+        next_position_ids: torch.Tensor | None = None
+        all_active: torch.Tensor | None = None
+        mask_required = False
 
         def prefill(rows: list[list[int]]) -> tuple[torch.Tensor, Any]:
-            nonlocal attention_mask
+            nonlocal attention_length, attention_mask, attention_workspace
+            nonlocal all_active, mask_required, next_position_ids
             lengths = [len(row) for row in rows]
             width = max(lengths)
+            mask_required = any(length != width for length in lengths)
             input_ids = torch.full(
                 (len(rows), width),
                 self.tokenizer.pad_token_id,
                 dtype=torch.long,
                 device=self._device,
             )
-            attention_mask = torch.zeros((len(rows), width), dtype=torch.bool, device=self._device)
+            attention_workspace = torch.zeros(
+                (len(rows), width + max_new_tokens),
+                dtype=torch.bool,
+                device=self._device,
+            )
+            attention_mask = attention_workspace[:, :width]
             for index, row in enumerate(rows):
                 input_ids[index, : len(row)] = torch.tensor(
                     row, dtype=torch.long, device=self._device
                 )
                 attention_mask[index, : len(row)] = True
+            attention_length = width
             position_ids = attention_mask.long().cumsum(dim=-1) - 1
             position_ids.masked_fill_(~attention_mask, 0)
-            with torch.no_grad():
+            next_position_ids = torch.tensor(
+                lengths, dtype=torch.long, device=self._device
+            ).unsqueeze(1)
+            all_active = torch.ones(len(rows), dtype=torch.bool, device=self._device)
+            cache_position = torch.arange(width, dtype=torch.long, device=self._device)
+            cache = _static_generation_cache(
+                self.model.config,
+                batch_size=len(rows),
+                max_cache_len=width + max_new_tokens,
+                device=self._device,
+                dtype=self._dtype,
+            )
+            with torch.inference_mode():
                 hidden, present = self._backbone_forward(
                     input_ids,
-                    attention_mask=attention_mask,
+                    attention_mask=attention_mask if mask_required else None,
+                    past_key_values=cache,
                     use_cache=True,
                     position_ids=position_ids,
+                    cache_position=cache_position,
                     cached_generation=True,
                 )
                 positions = torch.tensor(
@@ -620,26 +817,42 @@ class HFBackend(CausalLMBackend):
             return logits, present
 
         def decode_step(
-            tokens: list[int], active: list[bool], state: Any
+            tokens: Sequence[int] | torch.Tensor, active: list[bool], state: Any
         ) -> tuple[torch.Tensor, Any]:
-            nonlocal attention_mask
-            assert attention_mask is not None
-            active_tensor = torch.tensor(active, dtype=torch.bool, device=self._device)
-            input_ids = torch.tensor(tokens, dtype=torch.long, device=self._device).unsqueeze(1)
+            nonlocal attention_length, attention_mask, next_position_ids
+            nonlocal mask_required
+            assert attention_workspace is not None
+            assert all_active is not None
+            assert next_position_ids is not None
+            active_tensor = (
+                all_active
+                if all(active)
+                else torch.tensor(active, dtype=torch.bool, device=self._device)
+            )
+            if not all(active):
+                mask_required = True
+            input_ids = torch.as_tensor(tokens, dtype=torch.long, device=self._device).reshape(
+                -1, 1
+            )
             input_ids = torch.where(
                 active_tensor.unsqueeze(1),
                 input_ids,
                 torch.full_like(input_ids, self.tokenizer.pad_token_id),
             )
-            position_ids = attention_mask.long().sum(dim=-1, keepdim=True)
-            attention_mask = torch.cat((attention_mask, active_tensor.unsqueeze(1)), dim=1)
-            with torch.no_grad():
+            position_ids = next_position_ids
+            cache_position = torch.tensor([attention_length], dtype=torch.long, device=self._device)
+            attention_workspace[:, attention_length] = active_tensor
+            attention_length += 1
+            attention_mask = attention_workspace[:, :attention_length]
+            next_position_ids = next_position_ids + active_tensor.unsqueeze(1)
+            with torch.inference_mode():
                 hidden, present = self._backbone_forward(
                     input_ids,
-                    attention_mask=attention_mask,
+                    attention_mask=attention_mask if mask_required else None,
                     past_key_values=state,
                     use_cache=True,
                     position_ids=position_ids,
+                    cache_position=cache_position,
                     cached_generation=True,
                 )
                 logits = self.adapter.lm_head(hidden[:, -1, :])
