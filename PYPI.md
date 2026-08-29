@@ -132,7 +132,9 @@ profiles are available:
 
 Use `miniverl profiles show`, `compat explain` and `compat check` to inspect
 the complete mapping. [Compatibility profiles](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/profiles/index.md) explains
-how profile identity follows plans, caches, checkpoints and exports.
+how profile identity follows plans, caches, checkpoints and exports. Separate
+conformance-only grouped profiles add transactional Parquet `n>1` samples
+without changing either measured `n=1` profile or introducing GRPO semantics.
 
 ## Measured systems evidence
 

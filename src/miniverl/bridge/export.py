@@ -27,6 +27,10 @@ from miniverl.bridge.contract import (
 )
 from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
 from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
+from miniverl.bridge.profiles import (
+    VERL_OPD_GROUPED_V08_PROFILE,
+    VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+)
 from miniverl.errors import ConfigError
 from miniverl.utils.privacy import portable_payload
 from miniverl.utils.runs import read_json, write_json, write_text
@@ -428,7 +432,15 @@ def _write_hashes(root: Path) -> None:
     write_text(checksum, "\n".join(lines) + "\n")
 
 
-_OPD_PROFILES = frozenset({VERL_OPD_V08_PROFILE, VERL_OPD_PG_K1_V08_PROFILE})
+_PG_PROFILES = frozenset({VERL_OPD_PG_K1_V08_PROFILE, VERL_OPD_PG_K1_GROUPED_V08_PROFILE})
+_OPD_PROFILES = frozenset(
+    {
+        VERL_OPD_V08_PROFILE,
+        VERL_OPD_PG_K1_V08_PROFILE,
+        VERL_OPD_GROUPED_V08_PROFILE,
+        VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+    }
+)
 
 
 def _opd_run_contract(run: Path) -> tuple[dict[str, Any], dict[str, Any]] | None:
@@ -458,7 +470,7 @@ def _opd_run_contract(run: Path) -> tuple[dict[str, Any], dict[str, Any]] | None
             "distillation.distillation_loss.use_policy_gradient": True,
             "distillation.distillation_loss.policy_loss_mode": "vanilla",
         }
-        if profile == VERL_OPD_PG_K1_V08_PROFILE
+        if profile in _PG_PROFILES
         else {
             "distillation.distillation_loss.loss_mode": "forward_kl_topk",
             "distillation.distillation_loss.use_policy_gradient": False,
@@ -549,7 +561,7 @@ def _opd_overrides(
     # no such teacher inference key. It therefore belongs in provenance, not
     # in an override file that promises to parse upstream.
     teacher.get("inference", {}).pop("pipeline_model_parallel_size", None)
-    if profile == VERL_OPD_PG_K1_V08_PROFILE:
+    if profile in _PG_PROFILES:
         overrides["distillation"]["distillation_loss"].pop("topk", None)
     return overrides
 
@@ -581,7 +593,7 @@ exit 2
 def _opd_bundle_readme(profile: str) -> str:
     semantics = (
         "sampled k1 teacher log-probabilities and pinned vanilla policy-gradient loss"
-        if profile == VERL_OPD_PG_K1_V08_PROFILE
+        if profile in _PG_PROFILES
         else "pure GKD `forward_kl_topk` targets"
     )
     return f"""# miniVERL pure-OPD scale-out bundle
@@ -610,6 +622,9 @@ def _export_opd_bundle(
     destination: Path,
 ) -> dict[str, Any]:
     profile = str(compatibility["profile"])
+    samples_per_prompt = _get(source, "actor_rollout_ref.rollout.n")
+    if not isinstance(samples_per_prompt, int) or samples_per_prompt < 1:
+        raise ConfigError("compiled OPD source has no valid rollout.n identity")
     student_id = _get(source, "actor_rollout_ref.model.path")
     student_revision = _get(source, "miniverl.student_revision")
     if student_id != adapter["base_model"] or student_revision != adapter["revision"]:
@@ -697,14 +712,19 @@ def _export_opd_bundle(
             "miniverl_version": __version__,
             "target_semantics": (
                 "pure OPD sampled k1 policy gradient"
-                if profile == VERL_OPD_PG_K1_V08_PROFILE
+                if profile in _PG_PROFILES
                 else "pure GKD forward_kl_topk OPD"
             ),
             "target_representation": (
-                "sampled_token_log_probability"
-                if profile == VERL_OPD_PG_K1_V08_PROFILE
-                else "topk_distribution"
+                "sampled_token_log_probability" if profile in _PG_PROFILES else "topk_distribution"
             ),
+            "grouped_rollout_semantics": {
+                "samples_per_prompt": samples_per_prompt,
+                "trajectory_schema_version": 3,
+                "sample_semantics": "independent_current_policy_trajectory",
+                "group_baseline": False,
+                "grpo": False,
+            },
             "artifact_complete": False,
             "artifact_bundle_complete": True,
             "config_semantics_supported": True,
@@ -724,10 +744,7 @@ def _export_opd_bundle(
             "unsupported_semantics": [
                 item
                 for item in _UNSUPPORTED
-                if not (
-                    profile == VERL_OPD_PG_K1_V08_PROFILE
-                    and item == "PPO advantage or clipping semantics"
-                )
+                if not (profile in _PG_PROFILES and item == "PPO advantage or clipping semantics")
             ],
             "distributed_execution_status": "not tested",
         }

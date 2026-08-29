@@ -19,8 +19,9 @@ by plans, caches, checkpoints and exports.
 
 - A resolved YAML using the `verl-opd-v0.8-single-gpu-v1` field subset.
 - Reward-free verl-style Parquet prompts with structured chat messages.
-- One actor, one teacher, `n=1`, token-mean aggregation, and either direct
-  forward-top-k GKD or the sampled-k1 vanilla policy-loss profile.
+- One actor, one teacher, token-mean aggregation, and either direct
+  forward-top-k GKD or sampled-k1 vanilla policy loss. The measured profiles
+  remain `n=1`; their grouped counterparts accept independent `n>1` samples.
 - Immutable Hugging Face revisions, PEFT adapters and tokenizer snapshots.
 - Familiar fields such as `actor_rollout_ref.model.path`,
   `distillation.teacher_models.teacher_model.model_path`, response bounds,
@@ -125,8 +126,9 @@ has progressed.
   documented profile; inspect-only compilation can still explain known
   unsupported values.
 - **Algorithm field rejected:** select the explicit PG-k1 profile for its
-  narrow sampled policy-loss path. Rewards, critics, external advantages, KL
-  penalties, `n>1`, multiple teachers and distributed counts remain unsupported.
+  narrow sampled policy-loss path, or a grouped profile for Parquet `n>1`.
+  Rewards, critics, external advantages, KL penalties, group-relative
+  baselines, multiple teachers and distributed counts remain unsupported.
 - **Interpolation rejected:** resolve Hydra/OmegaConf in your trusted verl
   environment first. miniVERL will not execute `${...}`.
 - **High-risk reinterpretation not accepted:** inspect `miniverl plan`, then

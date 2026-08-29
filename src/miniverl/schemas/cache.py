@@ -22,8 +22,8 @@ __all__ = [
     "CacheCompressionStats",
 ]
 
-CACHE_SCHEMA_VERSION = 3
-READABLE_CACHE_SCHEMA_VERSIONS = frozenset({1, 2, CACHE_SCHEMA_VERSION})
+CACHE_SCHEMA_VERSION = 4
+READABLE_CACHE_SCHEMA_VERSIONS = frozenset({1, 2, 3, CACHE_SCHEMA_VERSION})
 
 
 class CacheEntryMeta(BaseModel):
@@ -84,6 +84,9 @@ class CacheIndex(BaseModel):
     estimator_implementation_version: str | None = None
     execution_plan_digest: str | None = None
     profile_identity: dict[str, Any] = Field(default_factory=dict)
+    samples_per_prompt: int = Field(default=1, ge=1)
+    trajectory_schema_version: int = Field(default=2, ge=1)
+    group_generation_seed_version: str = "miniverl-rollout-seed-v1"
     dtype: str = "float32"
     entries_per_shard: int = Field(default=32, ge=1, le=4096)
     entries: dict[str, CacheEntryMeta] = Field(default_factory=dict)

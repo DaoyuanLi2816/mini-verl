@@ -855,10 +855,10 @@ class RunConfig(_Base):
             )
         if self.source.kind is SourceKind.VERL_PARQUET and self.environment is not None:
             raise ValueError("source.kind=verl_parquet must not define environment")
-        if self.rollout.samples_per_prompt != 1:
+        if self.source.kind is SourceKind.ENVIRONMENT and self.rollout.samples_per_prompt != 1:
             raise ValueError(
-                "rollout.samples_per_prompt > 1 requires the transactional grouped-rollout "
-                "runtime, which is not enabled in this build"
+                "rollout.samples_per_prompt > 1 currently requires source.kind=verl_parquet; "
+                "multi-turn tool episodes retain one trajectory per task"
             )
         if self.source.kind is SourceKind.VERL_PARQUET:
             if mode is not TrainingMode.OPD:

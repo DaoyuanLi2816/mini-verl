@@ -122,7 +122,8 @@ distillation:
 
 使用 `miniverl profiles show`、`compat explain` 与 `compat check` 查看完整映射。
 [兼容 profile](docs/profiles/index.md)说明 profile identity 如何跟随 plan、cache、checkpoint
-与 export。
+与 export。另有两个仅完成一致性验证的 grouped profile，为 Parquet prompt 提供事务化
+`n>1` 独立样本；它们不改变两个实测 `n=1` profile，也不引入 GRPO 语义。
 
 ## 实测系统证据
 

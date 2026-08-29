@@ -14,6 +14,7 @@ from miniverl.models.base import GenerationOutput
 from miniverl.runtime.backends import HFCachedGenerationBackend, HFReferenceGenerationBackend
 from miniverl.runtime.generation import (
     GenerationRequest,
+    GenerationResult,
     PolicySnapshot,
     RolloutBackendKind,
     RolloutGroupIdentity,
@@ -21,7 +22,15 @@ from miniverl.runtime.generation import (
     derive_sample_seed,
 )
 from miniverl.runtime.policy_sync import build_rollout_policy_identity
-from miniverl.schemas.trajectory import Span, SpanType, TerminationReason, Trajectory
+from miniverl.schemas.trajectory import (
+    TRAJECTORY_SCHEMA_VERSION,
+    Span,
+    SpanType,
+    TerminationReason,
+    Trajectory,
+    derive_grouped_trajectory_id,
+    validate_trajectory_groups,
+)
 
 __all__ = [
     "GeneratedPromptBatch",
@@ -60,7 +69,9 @@ class PreparedPromptBatch:
     """One logical prompt batch and its deterministic physical partition."""
 
     prompts: tuple[RenderedPrompt, ...]
+    groups: tuple[RolloutGroupIdentity, ...]
     physical_batches: tuple[tuple[int, ...], ...]
+    group_cursor: int
 
 
 @dataclass(frozen=True)
@@ -68,6 +79,9 @@ class GeneratedPromptBatch:
     """Outputs restored to logical order plus the actual physical batch sizes."""
 
     outputs: tuple[GenerationOutput, ...]
+    groups: tuple[RolloutGroupIdentity, ...]
+    generation_seeds: tuple[int, ...]
+    rollout_policy_identity_digest: str
     policy_version: int
     physical_batch_sizes: tuple[int, ...]
     oom_downshifts: int = 0
@@ -102,16 +116,15 @@ class PromptDatasetRolloutRuntime:
         """Independent response bound for the verl Parquet profile."""
         return min(self.config.max_new_tokens_per_turn, self.source_config.max_response_length)
 
-    def prepare_batch(self, inputs: list[RenderedPrompt]) -> PreparedPromptBatch:
+    def prepare_batch(
+        self, inputs: list[RenderedPrompt], *, group_cursor: int = 0
+    ) -> PreparedPromptBatch:
         if self._closed:
             raise RuntimeError("prompt rollout runtime is closed")
         if not inputs:
             raise ValueError("prompt rollout batch cannot be empty")
-        if self.config.samples_per_prompt != 1:
-            raise ValueError(
-                "samples_per_prompt > 1 is reserved by the v2 contract but requires the "
-                "transactional grouped-rollout runtime"
-            )
+        if group_cursor < 0:
+            raise ValueError("group_cursor must be non-negative")
         max_new = self.max_new_tokens
         for prompt in inputs:
             if len(prompt.token_ids) + max_new > self.config.max_total_tokens:
@@ -122,7 +135,20 @@ class PromptDatasetRolloutRuntime:
         groups: list[tuple[int, ...]] = []
         current: list[int] = []
         current_width = 0
-        for index, prompt in enumerate(inputs):
+        logical_groups: list[RolloutGroupIdentity] = []
+        for prompt_index, prompt in enumerate(inputs):
+            prompt_group_id = f"g{group_cursor + prompt_index:012d}-{prompt.record.row_digest[:12]}"
+            logical_groups.extend(
+                RolloutGroupIdentity(
+                    prompt_group_id=prompt_group_id,
+                    prompt_digest=prompt.rendered_prompt_digest,
+                    sample_index=sample_index,
+                    samples_per_prompt=self.config.samples_per_prompt,
+                )
+                for sample_index in range(self.config.samples_per_prompt)
+            )
+        for index, _logical_group in enumerate(logical_groups):
+            prompt = inputs[index // self.config.samples_per_prompt]
             candidate_width = max(current_width, len(prompt.token_ids))
             candidate_size = len(current) + 1
             padded_tokens = candidate_size * (candidate_width + max_new)
@@ -142,7 +168,12 @@ class PromptDatasetRolloutRuntime:
                 )
         if current:
             groups.append(tuple(current))
-        return PreparedPromptBatch(prompts=tuple(inputs), physical_batches=tuple(groups))
+        return PreparedPromptBatch(
+            prompts=tuple(inputs),
+            groups=tuple(logical_groups),
+            physical_batches=tuple(groups),
+            group_cursor=group_cursor,
+        )
 
     def _generate_group(
         self,
@@ -152,32 +183,33 @@ class PromptDatasetRolloutRuntime:
         base_seed: int,
         policy_version: int,
         policy_identity: Any,
-    ) -> tuple[list[tuple[int, GenerationOutput]], list[int], int]:
+    ) -> tuple[list[tuple[int, GenerationResult]], list[int], int]:
         try:
             requests = []
             for index in indices:
-                prompt = batch.prompts[index]
+                logical_group = batch.groups[index]
+                prompt_index = index // self.config.samples_per_prompt
+                prompt = batch.prompts[prompt_index]
                 sample_seed = (
-                    base_seed * 1_000_003 + index
+                    base_seed * 1_000_003 + prompt_index
                     if self.config.backend is RolloutBackendKind.HF_REFERENCE
+                    and self.config.samples_per_prompt == 1
                     else derive_sample_seed(
                         run_seed=base_seed,
                         prompt_digest=prompt.rendered_prompt_digest,
                         policy_version=policy_version,
-                        sample_index=0,
+                        sample_index=logical_group.sample_index,
                     )
                 )
                 requests.append(
                     GenerationRequest(
                         request_id=hashlib.sha256(
-                            f"{prompt.rendered_prompt_digest}:{policy_version}:0".encode("ascii")
+                            (
+                                f"{logical_group.prompt_group_id}:{policy_version}:"
+                                f"{logical_group.sample_index}"
+                            ).encode("ascii")
                         ).hexdigest(),
-                        group=RolloutGroupIdentity(
-                            prompt_group_id=prompt.record.row_digest,
-                            prompt_digest=prompt.rendered_prompt_digest,
-                            sample_index=0,
-                            samples_per_prompt=1,
-                        ),
+                        group=logical_group,
                         deterministic_sample_seed=sample_seed,
                         prompt_token_ids=tuple(prompt.token_ids),
                         max_new_tokens=self.max_new_tokens,
@@ -191,16 +223,7 @@ class PromptDatasetRolloutRuntime:
                     )
                 )
             generated = self.generation_backend.generate(requests)
-            output = [
-                GenerationOutput(
-                    token_ids=list(result.output_token_ids),
-                    text=result.decoded_text,
-                    stop_reason=result.stop_reason,
-                    matched_stop=result.matched_stop,
-                    logprobs=list(result.sampled_token_logprobs),
-                )
-                for result in generated.results
-            ]
+            output = list(generated.results)
         except BaseException as exc:
             message = str(exc).lower()
             is_oom = type(exc).__name__ in {"OutOfMemoryError", "CudaOutOfMemoryError"} or (
@@ -254,7 +277,7 @@ class PromptDatasetRolloutRuntime:
             execution_plan_digest=self.execution_plan_digest,
         )
         self.generation_backend.synchronize(PolicySnapshot(policy_identity))
-        indexed: list[tuple[int, GenerationOutput]] = []
+        indexed: list[tuple[int, GenerationResult]] = []
         physical_sizes: list[int] = []
         downshifts = 0
         for group in batch.physical_batches:
@@ -269,8 +292,34 @@ class PromptDatasetRolloutRuntime:
             physical_sizes.extend(sizes)
             downshifts += count
         indexed.sort(key=lambda item: item[0])
+        results = tuple(result for _, result in indexed)
         return GeneratedPromptBatch(
-            outputs=tuple(output for _, output in indexed),
+            outputs=tuple(
+                GenerationOutput(
+                    token_ids=list(result.output_token_ids),
+                    text=result.decoded_text,
+                    stop_reason=result.stop_reason,
+                    matched_stop=result.matched_stop,
+                    logprobs=list(result.sampled_token_logprobs),
+                )
+                for result in results
+            ),
+            groups=tuple(result.group for result in results),
+            generation_seeds=tuple(
+                (
+                    seed * 1_000_003 + index
+                    if self.config.backend is RolloutBackendKind.HF_REFERENCE
+                    and self.config.samples_per_prompt == 1
+                    else derive_sample_seed(
+                        run_seed=seed,
+                        prompt_digest=result.group.prompt_digest,
+                        policy_version=policy_version,
+                        sample_index=result.group.sample_index,
+                    )
+                )
+                for index, result in enumerate(results)
+            ),
+            rollout_policy_identity_digest=policy_identity.digest,
             policy_version=policy_version,
             physical_batch_sizes=tuple(physical_sizes),
             oom_downshifts=downshifts,
@@ -287,12 +336,21 @@ class PromptDatasetRolloutRuntime:
             raise ValueError(
                 f"generated policy version {generated.policy_version} does not match {policy_version}"
             )
-        if len(generated.outputs) != len(batch.prompts):
-            raise ValueError("generated prompt count does not match the prepared batch")
+        if len(generated.outputs) != len(batch.groups):
+            raise ValueError("generated sample count does not match the prepared batch")
         trajectories: list[Trajectory] = []
         model_id = str(getattr(self.backend, "model_id", self.backend.capabilities.name))
         revision = getattr(self.backend, "model_revision", None)
-        for prompt, output in zip(batch.prompts, generated.outputs, strict=True):
+        for logical_index, (output, group, generation_seed) in enumerate(
+            zip(
+                generated.outputs,
+                generated.groups,
+                generated.generation_seeds,
+                strict=True,
+            )
+        ):
+            prompt_index = logical_index // self.config.samples_per_prompt
+            prompt = batch.prompts[prompt_index]
             prompt_ids = list(prompt.token_ids)
             response_ids = list(output.token_ids)
             if not response_ids:
@@ -301,9 +359,12 @@ class PromptDatasetRolloutRuntime:
                 )
             boundary = len(prompt_ids)
             token_ids = [*prompt_ids, *response_ids]
-            trajectory_id = hashlib.sha256(
-                f"{prompt.record.row_digest}:{policy_version}".encode("ascii")
-            ).hexdigest()
+            trajectory_id = derive_grouped_trajectory_id(
+                prompt_group_id=group.prompt_group_id,
+                sample_index=group.sample_index,
+                rollout_policy_identity_digest=generated.rollout_policy_identity_digest,
+                generation_seed=generation_seed,
+            )
             metadata = {
                 "source_kind": "verl_parquet",
                 "data_source": prompt.record.data_source,
@@ -333,6 +394,7 @@ class PromptDatasetRolloutRuntime:
                 metadata["actor_rollout_policy_version"] = policy_version
             trajectories.append(
                 Trajectory(
+                    schema_version=TRAJECTORY_SCHEMA_VERSION,
                     trajectory_id=trajectory_id,
                     task_id=prompt.record.row_digest,
                     environment="verl_parquet",
@@ -361,6 +423,13 @@ class PromptDatasetRolloutRuntime:
                     tokenizer_fingerprint=str(self.backend.tokenizer.fingerprint),
                     model_id=model_id,
                     model_revision=revision,
+                    prompt_group_id=group.prompt_group_id,
+                    prompt_digest=group.prompt_digest,
+                    sample_index=group.sample_index,
+                    samples_per_prompt=group.samples_per_prompt,
+                    generation_seed=generation_seed,
+                    rollout_backend=self.config.backend.value,
+                    rollout_policy_identity_digest=(generated.rollout_policy_identity_digest),
                     termination_reason=(
                         TerminationReason.EOS_WITHOUT_FINAL
                         if output.stop_reason == "eos"
@@ -371,6 +440,7 @@ class PromptDatasetRolloutRuntime:
                     metadata=metadata,
                 )
             )
+        validate_trajectory_groups(trajectories)
         return trajectories
 
     def close(self) -> None:

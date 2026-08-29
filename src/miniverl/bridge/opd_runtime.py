@@ -11,6 +11,10 @@ from pydantic import BaseModel, ConfigDict
 from miniverl.bridge.opd_capabilities import decide_placement
 from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
 from miniverl.bridge.opd_v08 import CompiledLocalExecutionPlan
+from miniverl.bridge.profiles import (
+    VERL_OPD_GROUPED_V08_PROFILE,
+    VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+)
 from miniverl.config.models import RunConfig
 from miniverl.errors import ConfigError
 
@@ -97,16 +101,28 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
     )
     max_tokens = source.data.max_prompt_length + source.data.max_response_length
     rollout_batch = source.miniverl.batching.rollout_batch_size
-    token_buffers = max_tokens * rollout_batch * 64 * 1024
-    pg_k1 = compiled.profile == VERL_OPD_PG_K1_V08_PROFILE
+    samples_per_prompt = source.actor_rollout_ref.rollout.n
+    token_buffers = max_tokens * rollout_batch * samples_per_prompt * 64 * 1024
+    pg_k1 = compiled.profile in {
+        VERL_OPD_PG_K1_V08_PROFILE,
+        VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+    }
     if pg_k1:
         # token id + position + actor/teacher log-probs + response-mask weight
-        target_bytes = source.data.train_batch_size * source.data.max_response_length * 28
+        target_bytes = (
+            source.data.train_batch_size * samples_per_prompt * source.data.max_response_length * 28
+        )
     else:
         top_k = source.distillation.distillation_loss.topk
         if top_k is None:
             raise ConfigError("direct forward_kl_topk profile requires a positive topk")
-        target_bytes = source.data.train_batch_size * source.data.max_response_length * top_k * 12
+        target_bytes = (
+            source.data.train_batch_size
+            * samples_per_prompt
+            * source.data.max_response_length
+            * top_k
+            * 12
+        )
     known_static = sum(
         value
         for value in (student_static, teacher_static, trainable_optimizer)
@@ -255,6 +271,8 @@ def build_system_plan(compiled: CompiledLocalExecutionPlan) -> OPDSystemPlan:
         },
         batching={
             "rollout": source.miniverl.batching.rollout_batch_size,
+            "samples_per_prompt": samples_per_prompt,
+            "group_semantics": "independent_current_policy_trajectories",
             "declared_rollout_sequence_cap": source.actor_rollout_ref.rollout.max_num_seqs,
             "declared_rollout_token_cap": (source.actor_rollout_ref.rollout.max_num_batched_tokens),
             "teacher_score": source.miniverl.batching.teacher_score_batch_size,
@@ -310,7 +328,10 @@ def compile_native_run_config(
     from miniverl.bridge.profiles import get_profile
 
     profile_identity = get_profile(compiled.profile).identity.model_dump(mode="json")
-    pg_k1 = compiled.profile == VERL_OPD_PG_K1_V08_PROFILE
+    pg_k1 = compiled.profile in {
+        VERL_OPD_PG_K1_V08_PROFILE,
+        VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+    }
     loss_payload = (
         {
             "mode": "verl_pg_k1",
@@ -405,6 +426,13 @@ def compile_native_run_config(
             "seed": source.data.seed or 0,
         },
         "rollout": {
+            "backend": (
+                "hf_cached"
+                if compiled.profile
+                in {VERL_OPD_GROUPED_V08_PROFILE, VERL_OPD_PG_K1_GROUPED_V08_PROFILE}
+                else "hf_reference"
+            ),
+            "samples_per_prompt": source.actor_rollout_ref.rollout.n,
             "max_turns": 1,
             "max_total_tokens": source.data.max_prompt_length + source.data.max_response_length,
             "temperature": source.actor_rollout_ref.rollout.temperature,
@@ -424,7 +452,7 @@ def compile_native_run_config(
         "train": {
             "cycles": total_steps,
             "rollouts_per_cycle": logical_batch,
-            "gradient_accumulation_steps": logical_batch,
+            "gradient_accumulation_steps": logical_batch * source.actor_rollout_ref.rollout.n,
             "trajectory_batch_size": source.miniverl.batching.update_trajectory_batch_size,
             "length_bucketing": source.actor_rollout_ref.actor.use_dynamic_bsz,
             "max_update_padded_tokens": (source.actor_rollout_ref.actor.ppo_max_token_len_per_gpu),

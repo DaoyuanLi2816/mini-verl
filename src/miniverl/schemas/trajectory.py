@@ -22,6 +22,7 @@ output.
 
 from __future__ import annotations
 
+import hashlib
 from enum import Enum
 from typing import Any
 
@@ -39,13 +40,42 @@ __all__ = [
     "MODEL_GENERATED_SPAN_TYPES",
     "CRITICAL_SPAN_TYPES",
     "TRAJECTORY_SCHEMA_VERSION",
+    "derive_grouped_trajectory_id",
+    "validate_trajectory_groups",
 ]
 
 LEGACY_TRAJECTORY_SCHEMA_VERSION = 1
-TRAJECTORY_SCHEMA_VERSION = 2
+PRE_GROUP_TRAJECTORY_SCHEMA_VERSION = 2
+TRAJECTORY_SCHEMA_VERSION = 3
 READABLE_TRAJECTORY_SCHEMA_VERSIONS = frozenset(
-    {LEGACY_TRAJECTORY_SCHEMA_VERSION, TRAJECTORY_SCHEMA_VERSION}
+    {
+        LEGACY_TRAJECTORY_SCHEMA_VERSION,
+        PRE_GROUP_TRAJECTORY_SCHEMA_VERSION,
+        TRAJECTORY_SCHEMA_VERSION,
+    }
 )
+
+
+def derive_grouped_trajectory_id(
+    *,
+    prompt_group_id: str,
+    sample_index: int,
+    rollout_policy_identity_digest: str,
+    generation_seed: int,
+) -> str:
+    """Bind one trajectory ID to its logical group, sample, policy and seed."""
+
+    payload = (
+        f"miniverl-trajectory-v3\0{prompt_group_id}\0{sample_index}\0"
+        f"{rollout_policy_identity_digest}\0{generation_seed}"
+    ).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _is_sha256(value: str | None) -> bool:
+    return bool(
+        value and len(value) == 64 and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 class SpanType(str, Enum):
@@ -187,7 +217,9 @@ class Trajectory(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    schema_version: int = TRAJECTORY_SCHEMA_VERSION
+    # Keep direct construction backward compatible for downstream callers.
+    # Runtime writers explicitly upgrade new artifacts to the current schema.
+    schema_version: int = PRE_GROUP_TRAJECTORY_SCHEMA_VERSION
     trajectory_id: str
     task_id: str
     environment: str
@@ -203,6 +235,16 @@ class Trajectory(BaseModel):
     tokenizer_fingerprint: str
     model_id: str
     model_revision: str | None = None
+
+    # Schema-v3 rollout identity. Versions 1 and 2 remain readable with these
+    # fields absent; every new grouped-rollout writer emits version 3.
+    prompt_group_id: str | None = None
+    prompt_digest: str | None = None
+    sample_index: int | None = Field(default=None, ge=0)
+    samples_per_prompt: int | None = Field(default=None, ge=1)
+    generation_seed: int | None = Field(default=None, ge=0)
+    rollout_backend: str | None = None
+    rollout_policy_identity_digest: str | None = None
 
     verification: VerificationRecord | None = None
     termination_reason: TerminationReason
@@ -225,6 +267,46 @@ class Trajectory(BaseModel):
 
     @model_validator(mode="after")
     def _validate_structure(self) -> Trajectory:
+        if self.schema_version not in READABLE_TRAJECTORY_SCHEMA_VERSIONS:
+            raise ValueError(f"trajectory schema_version {self.schema_version!r} is not readable")
+        grouped = (
+            self.prompt_group_id,
+            self.prompt_digest,
+            self.sample_index,
+            self.samples_per_prompt,
+            self.generation_seed,
+            self.rollout_backend,
+            self.rollout_policy_identity_digest,
+        )
+        if self.schema_version >= TRAJECTORY_SCHEMA_VERSION:
+            if any(value is None or value == "" for value in grouped):
+                raise ValueError("trajectory schema v3 requires complete grouped rollout identity")
+            assert self.sample_index is not None
+            assert self.samples_per_prompt is not None
+            if self.sample_index >= self.samples_per_prompt:
+                raise ValueError("sample_index must be smaller than samples_per_prompt")
+            if not _is_sha256(self.prompt_digest):
+                raise ValueError("prompt_digest must be a lowercase SHA-256 digest")
+            if not _is_sha256(self.rollout_policy_identity_digest):
+                raise ValueError(
+                    "rollout_policy_identity_digest must be a lowercase SHA-256 digest"
+                )
+            assert self.prompt_group_id is not None
+            assert self.generation_seed is not None
+            assert self.rollout_policy_identity_digest is not None
+            expected_id = derive_grouped_trajectory_id(
+                prompt_group_id=self.prompt_group_id,
+                sample_index=self.sample_index,
+                rollout_policy_identity_digest=self.rollout_policy_identity_digest,
+                generation_seed=self.generation_seed,
+            )
+            if self.trajectory_id != expected_id:
+                raise ValueError(
+                    "trajectory_id must bind prompt group, sample, policy identity and seed"
+                )
+        elif any(value is not None for value in grouped):
+            raise ValueError("legacy trajectory schemas cannot contain schema-v3 grouped fields")
+
         n = len(self.token_ids)
         if n == 0:
             raise ValueError("trajectory has no tokens")
@@ -314,3 +396,41 @@ class Trajectory(BaseModel):
         for span in self.spans:
             counts[span.span_type.value] = counts.get(span.span_type.value, 0) + span.length
         return counts
+
+
+def validate_trajectory_groups(trajectories: list[Trajectory]) -> None:
+    """Reject incomplete, duplicated or internally inconsistent schema-v3 groups."""
+
+    if not trajectories:
+        raise ValueError("trajectory group collection cannot be empty")
+    groups: dict[str, list[Trajectory]] = {}
+    identities: set[tuple[str, int]] = set()
+    for trajectory in trajectories:
+        if trajectory.schema_version != TRAJECTORY_SCHEMA_VERSION:
+            raise ValueError("grouped rollout publication requires trajectory schema v3")
+        assert trajectory.prompt_group_id is not None
+        assert trajectory.sample_index is not None
+        identity = (trajectory.prompt_group_id, trajectory.sample_index)
+        if identity in identities:
+            raise ValueError("duplicate (prompt_group_id, sample_index) trajectory")
+        identities.add(identity)
+        groups.setdefault(trajectory.prompt_group_id, []).append(trajectory)
+
+    for group_id, members in groups.items():
+        expected_size = members[0].samples_per_prompt
+        prompt_digest = members[0].prompt_digest
+        policy_digest = members[0].rollout_policy_identity_digest
+        if expected_size is None:
+            raise ValueError(f"group {group_id!r} has no samples_per_prompt")
+        if len(members) != expected_size:
+            raise ValueError(
+                f"group {group_id!r} is incomplete: {len(members)} of {expected_size} samples"
+            )
+        if {member.samples_per_prompt for member in members} != {expected_size}:
+            raise ValueError(f"group {group_id!r} mixes samples_per_prompt values")
+        if {member.prompt_digest for member in members} != {prompt_digest}:
+            raise ValueError(f"group {group_id!r} mixes prompt digests")
+        if {member.rollout_policy_identity_digest for member in members} != {policy_digest}:
+            raise ValueError(f"group {group_id!r} mixes rollout policy identities")
+        if {member.sample_index for member in members} != set(range(expected_size)):
+            raise ValueError(f"group {group_id!r} does not contain sample indices 0..n-1")

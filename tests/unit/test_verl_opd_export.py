@@ -166,7 +166,7 @@ def _opd_run(
             },
         },
     }
-    if profile == "verl-opd-v0.8-single-gpu-pg-k1-v1":
+    if "pg-k1" in profile:
         source["distillation"]["distillation_loss"] = {
             "loss_mode": "k1",
             "topk": None,
@@ -179,6 +179,8 @@ def _opd_run(
             "clip_ratio_low": 0.2,
             "clip_ratio_high": 0.2,
         }
+    if "grouped" in profile:
+        source["actor_rollout_ref"]["rollout"]["n"] = 4
     (run / "verl-source-config.json").write_text(json.dumps(source), encoding="utf-8")
     (run / "verl-compatibility-report.json").write_text(
         json.dumps(
@@ -226,6 +228,32 @@ def test_pg_k1_export_preserves_sampled_logprob_semantics_without_topk(tmp_path:
     assert diagnosis["verdict"] == "ok"
     assert diagnosis["config_profile"]["profile"] == profile
     assert diagnosis["config_profile"]["target_representation"] == ("sampled_token_log_probability")
+
+
+@pytest.mark.parametrize(
+    "profile",
+    [
+        "verl-opd-v0.8-single-gpu-grouped-v1",
+        "verl-opd-v0.8-single-gpu-pg-k1-grouped-v1",
+    ],
+)
+def test_grouped_export_binds_independent_sample_semantics(
+    tmp_path: Path,
+    profile: str,
+) -> None:
+    from miniverl.bridge.contract import VERL_TAG
+    from miniverl.bridge.export import export_verl_bundle
+
+    run, _, _ = _opd_run(tmp_path, profile=profile)
+    report = export_verl_bundle(run, target_verl=VERL_TAG, out=tmp_path / "grouped-bundle")
+
+    assert report["grouped_rollout_semantics"] == {
+        "samples_per_prompt": 4,
+        "trajectory_schema_version": 3,
+        "sample_semantics": "independent_current_policy_trajectory",
+        "group_baseline": False,
+        "grpo": False,
+    }
 
 
 def test_pure_opd_export_is_reward_free_and_preserves_data_bytes(tmp_path: Path) -> None:

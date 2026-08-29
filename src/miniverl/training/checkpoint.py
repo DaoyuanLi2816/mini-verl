@@ -55,6 +55,14 @@ class CheckpointState:
     rollout_iteration: int | None = None
     rollout_policy_version: int | None = None
     task_cursor: int = 0
+    prompt_cursor: int | None = None
+    rollout_group_cursor: int = 0
+    trajectory_count: int = 0
+    samples_per_prompt: int = 1
+    group_generation_seed_version: str = "miniverl-rollout-seed-v1"
+    pending_group_identity: list[str] = field(default_factory=list)
+    committed_group_identity: list[str] = field(default_factory=list)
+    backend_sync_identity: str = ""
     scheduler: dict[str, Any] = field(default_factory=dict)
     scaler: dict[str, Any] | None = None
     optimizer_param_groups: list[dict[str, Any]] = field(default_factory=list)
@@ -88,6 +96,16 @@ class CheckpointState:
                 else self.rollout_policy_version
             ),
             "task_cursor": self.task_cursor,
+            "prompt_cursor": (
+                self.task_cursor if self.prompt_cursor is None else self.prompt_cursor
+            ),
+            "rollout_group_cursor": self.rollout_group_cursor,
+            "trajectory_count": self.trajectory_count,
+            "samples_per_prompt": self.samples_per_prompt,
+            "group_generation_seed_version": self.group_generation_seed_version,
+            "pending_group_identity": self.pending_group_identity,
+            "committed_group_identity": self.committed_group_identity,
+            "backend_sync_identity": self.backend_sync_identity,
             "scheduler": self.scheduler,
             "scaler": self.scaler,
             "optimizer_param_groups": self.optimizer_param_groups,
@@ -312,6 +330,16 @@ def save_checkpoint(
                 if state.rollout_policy_version is None
                 else state.rollout_policy_version
             ),
+            "prompt_cursor": (
+                state.task_cursor if state.prompt_cursor is None else state.prompt_cursor
+            ),
+            "rollout_group_cursor": state.rollout_group_cursor,
+            "trajectory_count": state.trajectory_count,
+            "samples_per_prompt": state.samples_per_prompt,
+            "group_generation_seed_version": state.group_generation_seed_version,
+            "pending_group_identity": state.pending_group_identity,
+            "committed_group_identity": state.committed_group_identity,
+            "backend_sync_identity": state.backend_sync_identity,
             "config_digest": state.config_digest,
             "resolved_config_digest": state.resolved_config_digest,
             "offline_dataset_digest": state.offline_dataset_digest,
@@ -416,6 +444,19 @@ def validate_checkpoint(directory: str | Path) -> ValidatedCheckpoint:
         raise CheckpointError("checkpoint manifest and state disagree on global_step")
     if manifest.get("policy_version") != state.policy_version:
         raise CheckpointError("checkpoint manifest and state disagree on policy_version")
+    for field_name in (
+        "prompt_cursor",
+        "rollout_group_cursor",
+        "trajectory_count",
+        "samples_per_prompt",
+        "group_generation_seed_version",
+        "pending_group_identity",
+        "committed_group_identity",
+        "backend_sync_identity",
+    ):
+        expected = state.to_dict()[field_name]
+        if manifest.get(field_name, expected) != expected:
+            raise CheckpointError(f"checkpoint manifest and state disagree on {field_name}")
     parameter_version = (
         state.policy_version if state.parameter_version is None else state.parameter_version
     )

@@ -41,7 +41,7 @@ def test_prompt_resume_reconstructs_the_dataset_cursor(monkeypatch) -> None:
     assert trainer.task_cursor == 10
 
 
-def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
+def test_prompt_opd_trains_n4_as_independent_trajectories(tmp_path) -> None:
     from miniverl.config import RunConfig
     from miniverl.trainer import OPDTrainer
 
@@ -115,6 +115,7 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
                 "temperature": 0.0,
                 "prompt_batch_size": 2,
                 "max_padded_tokens": 128,
+                "samples_per_prompt": 4,
             },
             "selection": {"selector": "all_model_tokens"},
             "loss": {
@@ -146,8 +147,8 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
     finally:
         trainer.close()
 
-    assert result.global_step == 1
-    assert result.policy_version == 1
+    assert result.global_step == 4
+    assert result.policy_version == 4
     manifest = json.loads((result.run_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["source"]["kind"] == "verl_parquet"
     assert manifest["execution_plan_digest"] == "a" * 64
@@ -166,7 +167,11 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
         json.loads(line)
         for line in (result.run_dir / "trajectories.jsonl").read_text(encoding="utf-8").splitlines()
     ]
-    assert len(rows) == 2
+    assert len(rows) == 8
+    assert {(row["prompt_group_id"], row["sample_index"]) for row in rows} == {
+        (group, sample) for group in {row["prompt_group_id"] for row in rows} for sample in range(4)
+    }
+    assert {row["samples_per_prompt"] for row in rows} == {4}
     assert all(
         not any(row["model_generated_mask"][: row["metadata"]["prompt_token_count"]])
         for row in rows
@@ -179,8 +184,18 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
     update = next(row for row in metrics if row.get("phase") == "opd")
     cycle = next(row for row in metrics if row.get("phase") == "opd_cycle")
     assert cycle["rollout_execution"] == {
-        "physical_batch_sizes": [2],
+        "physical_batch_sizes": [2, 2, 2, 2],
+        "physical_generation_batches": 4,
         "oom_downshifts": 0,
+    }
+    assert cycle["grouped_rollouts"] == {
+        "unique_prompts": 2,
+        "groups": 2,
+        "samples_per_prompt": 4,
+        "trajectories": 8,
+        "generated_tokens": sum(row["generated_token_count"] for row in rows),
+        "per_group_reward_variance": {"status": "not_applicable", "values": {}},
+        "physical_generation_batches": 4,
     }
     assert update["loss_aggregation"] == "token-mean"
     assert set(update["verl_forward_kl_topk"]) == {

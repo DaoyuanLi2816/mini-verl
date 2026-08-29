@@ -90,7 +90,12 @@ def test_registry_lists_pg_profile_with_independent_identity() -> None:
     from miniverl.bridge.profiles import get_profile, list_profiles
 
     names = [profile.name for profile in list_profiles()]
-    assert names == ["verl-opd-v0.8-single-gpu-v1", PG_PROFILE]
+    assert names == [
+        "verl-opd-v0.8-single-gpu-v1",
+        PG_PROFILE,
+        "verl-opd-v0.8-single-gpu-grouped-v1",
+        "verl-opd-v0.8-single-gpu-pg-k1-grouped-v1",
+    ]
     direct = get_profile(names[0])
     pg = get_profile(PG_PROFILE)
     assert pg.identity.digest != direct.identity.digest
