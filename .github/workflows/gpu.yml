@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       qualification_level:
-        description: "Release smoke, or all three canonical full workloads"
+        description: "Release smoke, or the complete v0.11 WSL2 qualification"
         type: choice
         required: true
         default: smoke
@@ -62,23 +62,21 @@ jobs:
           retention-days: 90
 
   qualify:
-    name: qualify exact candidate on RTX 4080
+    name: qualify exact candidate on WSL2 RTX 4080
     needs: build-candidate
-    runs-on: [self-hosted, cuda, rtx4080]
+    runs-on: [self-hosted, cuda, rtx4080, wsl2]
     timeout-minutes: 360
     env:
       PYTHONUTF8: "1"
       PYTHONPATH: ""
       PYTHONHOME: ""
-    defaults:
-      run:
-        shell: pwsh
     steps:
       - name: Require a fresh workflow dispatch
         run: |
-          if ($env:GITHUB_RUN_ATTEMPT -ne "1") {
-            throw "GPU qualification cannot use a rerun attempt; start a new workflow_dispatch run."
-          }
+          if [ "$GITHUB_RUN_ATTEMPT" != "1" ]; then
+            echo "::error::GPU qualification cannot use a rerun attempt; start a new workflow_dispatch run."
+            exit 1
+          fi
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -89,58 +87,72 @@ jobs:
           path: candidate
       - name: Verify the dedicated measured device
         run: |
-          $name = nvidia-smi --query-gpu=name --format=csv,noheader
-          if (($name | Measure-Object).Count -ne 1) { throw "exactly one visible GPU is required" }
-          if ($name.Trim() -ne "NVIDIA GeForce RTX 4080") { throw "unexpected GPU: $name" }
+          mapfile -t names < <(nvidia-smi --query-gpu=name --format=csv,noheader)
+          if [ "${#names[@]}" -ne 1 ]; then echo "exactly one visible GPU is required"; exit 1; fi
+          if [ "${names[0]}" != "NVIDIA GeForce RTX 4080" ]; then
+            echo "unexpected GPU: ${names[0]}"
+            exit 1
+          fi
+          grep -qi microsoft /proc/sys/kernel/osrelease
           nvidia-smi
-          python --version
+          python3 --version
+          test -x "$HOME/.local/bin/uv"
+          "$HOME/.local/bin/uv" --version
       - name: Validate candidate before installation
         run: |
-          python -m venv .gpu-qualification-venv
-          $python = (Resolve-Path '.gpu-qualification-venv/Scripts/python.exe').Path
-          & $python -m pip install --upgrade pip
-          & $python -m pip install pydantic==2.13.4 PyYAML==6.0.3
-          & $python scripts/build_release_candidate.py `
-            --output candidate `
-            --commit $env:GITHUB_SHA `
-            --repository $env:GITHUB_REPOSITORY `
-            --workflow-path .github/workflows/gpu.yml `
-            --run-id $env:GITHUB_RUN_ID `
-            --run-attempt $env:GITHUB_RUN_ATTEMPT `
+          "$HOME/.local/bin/uv" venv --seed --python 3.12.13 .gpu-qualification-venv
+          qualification_python="$PWD/.gpu-qualification-venv/bin/python"
+          "$qualification_python" -m pip install --upgrade pip
+          "$qualification_python" -m pip install pydantic==2.13.4 PyYAML==6.0.3
+          "$qualification_python" scripts/build_release_candidate.py \
+            --output candidate \
+            --commit "$GITHUB_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --workflow-path .github/workflows/gpu.yml \
+            --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
             --check
-          $manifest = Get-Content -Raw -LiteralPath 'candidate/candidate-manifest.json' | ConvertFrom-Json
-          $wheel = (Resolve-Path (Join-Path 'candidate' $manifest.wheel.filename)).Path
-          "QUALIFICATION_WHEEL=$wheel" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "QUALIFICATION_PYTHON=$python" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "$qualification_python" - <<'PY'
+          import json, os
+          from pathlib import Path
+          manifest = json.loads(Path("candidate/candidate-manifest.json").read_text())
+          wheel = (Path("candidate") / manifest["wheel"]["filename"]).resolve()
+          with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as handle:
+              handle.write(f"QUALIFICATION_WHEEL={wheel}\n")
+              handle.write(f"QUALIFICATION_WHEEL_SHA256={manifest['wheel']['sha256']}\n")
+              handle.write(f"QUALIFICATION_PYTHON={Path('.gpu-qualification-venv/bin/python').resolve()}\n")
+          PY
       - name: Install the exact candidate wheel
         run: |
-          & $env:QUALIFICATION_PYTHON -m pip install 'torch==2.13.0+cu130' --index-url https://download.pytorch.org/whl/cu130
-          & $env:QUALIFICATION_PYTHON -m pip install "$env:QUALIFICATION_WHEEL[dev,train,cuda]" --constraint environments/known-good-rtx4080-cu130.txt
-          (Resolve-Path '.gpu-qualification-venv/Scripts').Path | Out-File -FilePath $env:GITHUB_PATH -Append
+          "$QUALIFICATION_PYTHON" -m pip install 'torch==2.13.0+cu130' --index-url https://download.pytorch.org/whl/cu130
+          "$QUALIFICATION_PYTHON" -m pip install \
+            "${QUALIFICATION_WHEEL}[dev,train,cuda,rollout-vllm]" \
+            --constraint environments/known-good-rtx4080-wsl2-cu130.txt
+          echo "$PWD/.gpu-qualification-venv/bin" >> "$GITHUB_PATH"
       - name: Run wheel-installed release smoke
         run: |
-          $offline = @()
-          if ('${{ inputs.offline }}' -eq 'true') { $offline = @('--offline') }
-          New-Item -ItemType Directory -Path qualification | Out-Null
-          Copy-Item -LiteralPath $env:QUALIFICATION_WHEEL -Destination qualification
-          & $env:QUALIFICATION_PYTHON scripts/run_gpu_qualification.py `
-            --commit $env:GITHUB_SHA `
-            --wheel (Join-Path 'qualification' (Split-Path $env:QUALIFICATION_WHEEL -Leaf)) `
-            --candidate-manifest candidate/candidate-manifest.json `
-            --known-good environments/known-good-rtx4080-cu130.json `
-            --output qualification `
-            --work qualification-work `
-            @offline
-          $candidate = Get-Content -Raw candidate/candidate-manifest.json | ConvertFrom-Json
-          $manifestSha = (Get-FileHash -Algorithm SHA256 candidate/candidate-manifest.json).Hash.ToLower()
-          & $env:QUALIFICATION_PYTHON scripts/validate_gpu_qualification.py `
-            qualification/qualification.json `
-            --commit $env:GITHUB_SHA `
-            --wheel-sha256 $candidate.wheel.sha256 `
-            --candidate-manifest-sha256 $manifestSha `
+          offline=()
+          if [ '${{ inputs.offline }}' = 'true' ]; then offline=(--offline); fi
+          mkdir qualification
+          cp -- "$QUALIFICATION_WHEEL" qualification/
+          wheel_copy="qualification/$(basename "$QUALIFICATION_WHEEL")"
+          "$QUALIFICATION_PYTHON" scripts/run_gpu_qualification.py \
+            --commit "$GITHUB_SHA" \
+            --wheel "$wheel_copy" \
+            --candidate-manifest candidate/candidate-manifest.json \
+            --known-good environments/known-good-rtx4080-wsl2-cu130.json \
+            --output qualification \
+            --work qualification-work \
+            "${offline[@]}"
+          manifest_sha=$(sha256sum candidate/candidate-manifest.json | cut -d' ' -f1)
+          "$QUALIFICATION_PYTHON" scripts/validate_gpu_qualification.py \
+            qualification/qualification.json \
+            --commit "$GITHUB_SHA" \
+            --wheel-sha256 "$QUALIFICATION_WHEEL_SHA256" \
+            --candidate-manifest-sha256 "$manifest_sha" \
             --required-gpu-name 'NVIDIA GeForce RTX 4080'
       - name: Run GPU regression tests
-        run: '& $env:QUALIFICATION_PYTHON -m pytest -q -m gpu -ra'
+        run: '"$QUALIFICATION_PYTHON" -m pytest -q -m gpu -ra'
       - name: Upload exact-commit release smoke
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -151,19 +163,42 @@ jobs:
       - name: Run full canonical qualification workloads
         if: ${{ inputs.qualification_level == 'full' }}
         run: |
-          $offline = @()
-          if ('${{ inputs.offline }}' -eq 'true') { $offline = @('--offline') }
-          & $env:QUALIFICATION_PYTHON -m pip install 'hydra-core>=1.3,<2'
-          & $env:QUALIFICATION_PYTHON -m pip install --no-deps 'git+https://github.com/verl-project/verl.git@7aed6b230776f963fa09509c10d9c3a767d1102c'
-          New-Item -ItemType Directory -Path qualification-full | Out-Null
-          & $env:QUALIFICATION_PYTHON scripts/run_verl_opd_reference_workload.py --out qualification-full-work/direct --result qualification-full/direct.json @offline
-          & $env:QUALIFICATION_PYTHON scripts/run_verl_pg_k1_workload.py --out qualification-full-work/pg-k1 --result qualification-full/pg-k1.json @offline
-          & $env:QUALIFICATION_PYTHON scripts/run_smollm2_opd_reference_workload.py --out qualification-full-work/smollm2 --result qualification-full/smollm2.json @offline
-          & $env:QUALIFICATION_PYTHON scripts/promote_full_gpu_qualification.py `
-            --qualification qualification/qualification.json `
-            --direct qualification-full/direct.json `
-            --pg-k1 qualification-full/pg-k1.json `
-            --smollm2 qualification-full/smollm2.json
+          offline=()
+          if [ '${{ inputs.offline }}' = 'true' ]; then offline=(--offline); fi
+          "$QUALIFICATION_PYTHON" -m pip install 'hydra-core>=1.3,<2'
+          "$QUALIFICATION_PYTHON" -m pip install --no-deps 'git+https://github.com/verl-project/verl.git@7aed6b230776f963fa09509c10d9c3a767d1102c'
+          mkdir qualification-full
+          "$QUALIFICATION_PYTHON" scripts/run_verl_opd_reference_workload.py --out qualification-full-work/direct --result qualification-full/direct.json "${offline[@]}"
+          "$QUALIFICATION_PYTHON" scripts/run_verl_pg_k1_workload.py --out qualification-full-work/pg-k1 --result qualification-full/pg-k1.json "${offline[@]}"
+          "$QUALIFICATION_PYTHON" scripts/run_smollm2_opd_reference_workload.py --out qualification-full-work/smollm2 --result qualification-full/smollm2.json "${offline[@]}"
+          "$QUALIFICATION_PYTHON" scripts/run_v011_profile_qualification.py \
+            --commit "$GITHUB_SHA" \
+            --wheel "$QUALIFICATION_WHEEL" \
+            --wheel-sha256 "$QUALIFICATION_WHEEL_SHA256" \
+            --output qualification-full/v011-profiles.json \
+            --work qualification-full-work/v011-profiles \
+            "${offline[@]}"
+          "$QUALIFICATION_PYTHON" scripts/benchmark_rollout_runtime_v2_selected.py \
+            --backend hf_cached \
+            --wheel "$QUALIFICATION_WHEEL" \
+            --expected-commit "$GITHUB_SHA" \
+            --output qualification-full/hf-cached-runtime.json \
+            --repetitions 3
+          "$QUALIFICATION_PYTHON" scripts/benchmark_rollout_runtime_v2_selected.py \
+            --backend vllm \
+            --wheel "$QUALIFICATION_WHEEL" \
+            --expected-commit "$GITHUB_SHA" \
+            --output qualification-full/vllm-runtime.json \
+            --repetitions 3
+          "$QUALIFICATION_PYTHON" scripts/promote_full_gpu_qualification.py \
+            --qualification qualification/qualification.json \
+            --direct qualification-full/direct.json \
+            --pg-k1 qualification-full/pg-k1.json \
+            --smollm2 qualification-full/smollm2.json \
+            --v011-profiles qualification-full/v011-profiles.json \
+            --hf-cached-runtime qualification-full/hf-cached-runtime.json \
+            --vllm-runtime qualification-full/vllm-runtime.json \
+            --hf-reference benchmarks/results/rollout-runtime-v2-hf-reference.json
       - name: Upload full qualification records
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ success() && inputs.qualification_level == 'full' }}
@@ -175,11 +210,19 @@ jobs:
       - name: Remove runner-local environments and model work products
         if: always()
         run: |
-          foreach ($relative in @('.gpu-qualification-venv', 'qualification-work', 'qualification-full-work')) {
-            if (Test-Path -LiteralPath $relative) {
-              $target = (Resolve-Path -LiteralPath $relative).Path
-              $workspace = (Resolve-Path -LiteralPath $env:GITHUB_WORKSPACE).Path
-              if (-not $target.StartsWith($workspace, [System.StringComparison]::OrdinalIgnoreCase)) { throw "refusing cleanup outside workspace: $target" }
-              Remove-Item -LiteralPath $target -Recurse -Force
-            }
-          }
+          python3 - <<'PY'
+          import os, shutil
+          from pathlib import Path
+          workspace = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+          for relative in (
+              ".gpu-qualification-venv",
+              "qualification-work",
+              "qualification-full-work",
+              "qualification-full",
+          ):
+              target = (workspace / relative).resolve()
+              if target.parent != workspace:
+                  raise SystemExit(f"refusing cleanup outside workspace: {target}")
+              if target.exists():
+                  shutil.rmtree(target)
+          PY

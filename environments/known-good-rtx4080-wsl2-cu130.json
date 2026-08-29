@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "name": "rtx4080-wsl2-cu130-v1",
+  "status": "maintainer_measured",
+  "measured_at": "2026-08-29",
+  "source_evidence": {
+    "version": "0.11.0.dev0",
+    "commit": "3cfa09b0b7aa2ee63f5702a5766b73d9a32fa8b9",
+    "wheel_sha256": "33c30834dcd01001a5c2ae619a1c982ceb2ad5fcc457998baa9f960a87267eba"
+  },
+  "required": {
+    "gpu_name": "NVIDIA GeForce RTX 4080",
+    "python": "3.12.13",
+    "packages": {
+      "torch": "2.13.0+cu130",
+      "transformers": "5.14.1",
+      "peft": "0.20.0",
+      "accelerate": "1.14.0",
+      "bitsandbytes": "0.50.2",
+      "numpy": "2.3.5",
+      "pyarrow": "25.0.1",
+      "safetensors": "0.8.0"
+    }
+  },
+  "observed": {
+    "os": "Ubuntu on WSL2",
+    "vram_mib": 16376,
+    "driver": "596.49",
+    "cuda_runtime": "13.0"
+  },
+  "pytorch": {
+    "package": "torch",
+    "index_url": "https://download.pytorch.org/whl/cu130"
+  },
+  "constraints": "environments/known-good-rtx4080-wsl2-cu130.txt",
+  "scope": {
+    "classification": "maintainer-measured on one WSL2 RTX 4080",
+    "other_hardware": "unmeasured",
+    "distributed_execution": "not_tested"
+  }
+}

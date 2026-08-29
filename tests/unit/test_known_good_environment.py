@@ -23,3 +23,13 @@ def test_known_good_environment_is_scoped_to_one_measured_stack() -> None:
     assert payload["pytorch"]["index_url"].startswith("https://download.pytorch.org/whl/")
     assert "+cu" in payload["required"]["packages"]["torch"]
     assert payload["observed"]["driver"] == "596.49"
+
+
+def test_v011_known_good_environment_is_wsl2_and_includes_vllm() -> None:
+    payload = json.loads(
+        (ROOT / "environments/known-good-rtx4080-wsl2-cu130.json").read_text(encoding="utf-8")
+    )
+    assert payload["required"]["python"] == "3.12.13"
+    assert payload["observed"]["os"] == "Ubuntu on WSL2"
+    constraints = (ROOT / payload["constraints"]).read_text(encoding="utf-8")
+    assert "vllm==0.28.0" in constraints

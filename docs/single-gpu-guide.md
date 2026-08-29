@@ -37,13 +37,16 @@ not select a CUDA-enabled PyTorch build on its own.
 For the exact stack measured by the maintainer on one RTX 4080, use the
 machine-readable
 [`environments/known-good-rtx4080-cu130.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/environments/known-good-rtx4080-cu130.json)
+is the historical Windows v0.10.1 record. The active v0.11 release
+qualification uses
+[`environments/known-good-rtx4080-wsl2-cu130.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/environments/known-good-rtx4080-wsl2-cu130.json)
 and its constraints:
 
 ```bash
 python -m pip install "torch==2.13.0+cu130" \
   --index-url https://download.pytorch.org/whl/cu130
-python -m pip install "miniverl[train,cuda]" \
-  --constraint environments/known-good-rtx4080-cu130.txt
+python -m pip install "miniverl[train,cuda,rollout-vllm]" \
+  --constraint environments/known-good-rtx4080-wsl2-cu130.txt
 python scripts/check_known_good_environment.py
 ```
 

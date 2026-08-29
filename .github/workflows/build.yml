@@ -45,6 +45,9 @@ jobs:
               "PROJECT_STATE.md",
               "environments/known-good-rtx4080-cu130.json",
               "environments/known-good-rtx4080-cu130.txt",
+              "environments/known-good-rtx4080-wsl2-cu130.json",
+              "environments/known-good-rtx4080-wsl2-cu130.txt",
+              "scripts/run_v011_profile_qualification.py",
               "LICENSE",
               "README.md",
           ):
