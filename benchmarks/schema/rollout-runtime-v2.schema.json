@@ -1,0 +1,212 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/DaoyuanLi2816/mini-verl/benchmarks/schema/rollout-runtime-v2.schema.json",
+  "title": "miniVERL Rollout Runtime v2 benchmark result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "name",
+    "measurement_status",
+    "source",
+    "preregistration_sha256",
+    "workload_manifest_sha256",
+    "frozen_calculator_sha256",
+    "environment",
+    "models",
+    "backend",
+    "cells",
+    "failures"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "name": {"const": "rollout-runtime-v2-hf-reference"},
+    "measurement_status": {
+      "enum": ["measured_baseline", "completed_with_failures"]
+    },
+    "source": {"$ref": "#/$defs/source"},
+    "preregistration_sha256": {"$ref": "#/$defs/sha256"},
+    "workload_manifest_sha256": {"$ref": "#/$defs/sha256"},
+    "frozen_calculator_sha256": {
+      "const": "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc"
+    },
+    "environment": {"type": "object"},
+    "models": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actor", "teacher", "dtype", "quantization"],
+      "properties": {
+        "actor": {"$ref": "#/$defs/model"},
+        "teacher": {"$ref": "#/$defs/model"},
+        "dtype": {"type": "string", "minLength": 1},
+        "quantization": {"type": "string", "minLength": 1}
+      }
+    },
+    "backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version", "reproducibility_class"],
+      "properties": {
+        "name": {"const": "hf_reference"},
+        "version": {"type": "string", "minLength": 1},
+        "reproducibility_class": {"const": "same_process_seeded_reference"}
+      }
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/cell"}
+    },
+    "failures": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "dirty", "miniverl_version", "wheel_sha256"],
+      "properties": {
+        "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "dirty": {"const": false},
+        "miniverl_version": {"type": "string", "minLength": 1},
+        "wheel_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "revision", "tokenizer_revision"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "tokenizer_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+      }
+    },
+    "phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["measured", "not_applicable", "not_measured", "failed"]},
+        "median_seconds": {"type": "number", "minimum": 0},
+        "minimum_seconds": {"type": "number", "minimum": 0},
+        "note": {"type": "string"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "measured"}}},
+          "then": {"required": ["median_seconds", "minimum_seconds"]}
+        }
+      ]
+    },
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cell_id",
+        "prompt_length",
+        "response_bound",
+        "samples_per_prompt",
+        "sampling",
+        "status",
+        "counts",
+        "phases",
+        "rates",
+        "memory",
+        "output_token_ids_sha256",
+        "sampled_logprobs_sha256",
+        "oom_downshifts",
+        "error"
+      ],
+      "properties": {
+        "cell_id": {"type": "string", "minLength": 1},
+        "prompt_length": {"enum": [128, 512]},
+        "response_bound": {"enum": [64, 256, 512, 1024]},
+        "samples_per_prompt": {"enum": [1, 4]},
+        "sampling": {"enum": ["greedy", "seeded_stochastic"]},
+        "status": {"enum": ["completed", "oom", "failed", "not_run"]},
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "logical_prompts",
+            "generated_trajectories",
+            "prompt_tokens",
+            "generated_tokens",
+            "physical_batches"
+          ],
+          "properties": {
+            "logical_prompts": {"type": "integer", "minimum": 0},
+            "generated_trajectories": {"type": "integer", "minimum": 0},
+            "prompt_tokens": {"type": "integer", "minimum": 0},
+            "generated_tokens": {"type": "integer", "minimum": 0},
+            "physical_batches": {"type": "integer", "minimum": 0}
+          }
+        },
+        "phases": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cold_start",
+            "prefill",
+            "decode",
+            "rollout_total",
+            "policy_sync",
+            "teacher_scoring",
+            "actor_update",
+            "full_cycle",
+            "teardown"
+          ],
+          "properties": {
+            "cold_start": {"$ref": "#/$defs/phase"},
+            "prefill": {"$ref": "#/$defs/phase"},
+            "decode": {"$ref": "#/$defs/phase"},
+            "rollout_total": {"$ref": "#/$defs/phase"},
+            "policy_sync": {"$ref": "#/$defs/phase"},
+            "teacher_scoring": {"$ref": "#/$defs/phase"},
+            "actor_update": {"$ref": "#/$defs/phase"},
+            "full_cycle": {"$ref": "#/$defs/phase"},
+            "teardown": {"$ref": "#/$defs/phase"}
+          }
+        },
+        "rates": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "time_to_first_token_seconds",
+            "prompt_tokens_per_second",
+            "output_tokens_per_second"
+          ],
+          "properties": {
+            "time_to_first_token_seconds": {"type": ["number", "null"], "minimum": 0},
+            "prompt_tokens_per_second": {"type": ["number", "null"], "minimum": 0},
+            "output_tokens_per_second": {"type": ["number", "null"], "minimum": 0}
+          }
+        },
+        "memory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "peak_allocated_bytes",
+            "peak_reserved_bytes",
+            "process_rss_bytes",
+            "teardown_residual_allocated_bytes"
+          ],
+          "properties": {
+            "peak_allocated_bytes": {"type": ["integer", "null"], "minimum": 0},
+            "peak_reserved_bytes": {"type": ["integer", "null"], "minimum": 0},
+            "process_rss_bytes": {"type": ["integer", "null"], "minimum": 0},
+            "teardown_residual_allocated_bytes": {"type": ["integer", "null"], "minimum": 0}
+          }
+        },
+        "output_token_ids_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "sampled_logprobs_sha256": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "oom_downshifts": {"type": "integer", "minimum": 0},
+        "error": {"type": ["string", "null"]}
+      }
+    }
+  }
+}

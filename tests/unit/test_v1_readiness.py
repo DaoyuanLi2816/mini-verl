@@ -42,5 +42,5 @@ def test_polish_does_not_change_version_or_beta_classifier() -> None:
     state = yaml.safe_load((ROOT / "release-state.yaml").read_text(encoding="utf-8"))
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert state["stable"]["version"] == "0.10.1"
-    assert state["development"]["version"] == "0.10.2.dev0"
+    assert state["development"]["version"] == "0.11.0.dev0"
     assert "Development Status :: 4 - Beta" in pyproject

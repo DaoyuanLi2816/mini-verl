@@ -1,0 +1,142 @@
+schema_version: 1
+name: rollout-runtime-v2
+status: preregistered_before_baseline_measurement
+registered_at_utc: 2026-08-29T08:20:00Z
+
+question: >-
+  On one RTX 4080 under WSL2, how do miniVERL rollout backends change
+  generation throughput, current-policy synchronization cost, peak memory and
+  lifecycle cleanup under one fixed token workload?
+
+claim_scope:
+  allowed:
+    - measured runtime, memory and conformance on the declared machine
+    - exact current-policy synchronization and cache-invalidation behavior
+    - behavior of samples_per_prompt under the versioned workload
+  forbidden:
+    - task-quality improvement
+    - universal performance across GPUs or software stacks
+    - distributed verl execution
+    - unmeasured superiority over mini-opd or NeMo RL
+
+hardware:
+  gpu: NVIDIA GeForce RTX 4080
+  total_vram_mib: 16376
+  os: WSL2/Linux
+  peak_reserved_limit_gib: 14.5
+
+models:
+  actor:
+    id: Qwen/Qwen3-0.6B
+    revision: c1899de289a04d12100db370d81485cdf75e47ca
+    tokenizer_revision: c1899de289a04d12100db370d81485cdf75e47ca
+  teacher:
+    id: Qwen/Qwen3-1.7B
+    revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+    tokenizer_revision: 70d244cc86ccca08cf5af4e1e306ecf908b1ad5e
+  dtype: bfloat16
+  quantization: nf4
+  attention_implementation: sdpa
+
+workload:
+  manifest_version: rollout-runtime-v2-workload-v1
+  run_seed: 20260829
+  logical_prompts: 4
+  prompt_lengths: [128, 512]
+  response_bounds: [64, 256, 512]
+  optional_response_bounds: [1024]
+  samples_per_prompt: [1, 4]
+  sampling:
+    - name: greedy
+      temperature: 0.0
+      top_p: 1.0
+      top_k: 0
+    - name: seeded_stochastic
+      temperature: 0.8
+      top_p: 0.95
+      top_k: 50
+  warmup_repetitions: 1
+  measured_repetitions: 3
+
+baseline:
+  backend: hf_reference
+  timing: before_hf_cached_or_external_backend_implementation
+  grouped_semantics: >-
+    Repeated independent requests only. The baseline does not claim the typed,
+    transactional samples_per_prompt semantics planned for runtime v2.
+
+metrics:
+  phases:
+    - cold_start
+    - prefill
+    - decode
+    - rollout_total
+    - policy_sync
+    - teacher_scoring
+    - actor_update
+    - full_cycle
+    - teardown
+  counters:
+    - logical_prompts
+    - samples_per_prompt
+    - generated_trajectories
+    - prompt_tokens
+    - generated_tokens
+    - physical_batches
+    - oom_downshifts
+  rates:
+    - time_to_first_token_seconds
+    - prompt_tokens_per_second
+    - output_tokens_per_second
+  memory:
+    - peak_allocated_bytes
+    - peak_reserved_bytes
+    - process_rss_bytes
+    - teardown_residual_allocated_bytes
+  identity:
+    - source_commit
+    - wheel_sha256
+    - profile_identity
+    - model_and_tokenizer_revisions
+    - backend_name_and_version
+    - policy_version
+    - adapter_or_weight_digest
+    - workload_manifest_sha256
+    - reproducibility_class
+
+conformance:
+  greedy_token_ids: exact
+  stop_reason: exact
+  policy_identity: exact
+  logprob_max_absolute:
+    fp32: 2.0e-4
+    bf16_or_fp16: 2.0e-3
+    nf4: 1.0e-2
+  batch_partitions:
+    - [4]
+    - [2, 2]
+    - [1, 1, 1, 1]
+
+performance_gates:
+  hf_cached_speedup_over_hf_reference:
+    response_256: 2.0
+    response_512: 2.0
+  selected_external_engine_advantage_over_hf_cached: 1.2
+  repeated_sync_generate_cycles: 8
+  monotonic_memory_leak_allowed: false
+
+invalidation_policy:
+  invalidate_if:
+    - a model or tokenizer revision changes
+    - prompt token ids, sample seeds or response bounds change across backends
+    - phase timings are merged into one throughput number
+    - failed or OOM cells are discarded
+    - a backend silently falls back to another backend
+    - the frozen calculator benchmark changes
+  frozen_calculator_sha256: 53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc
+
+outputs:
+  schema: benchmarks/schema/rollout-runtime-v2.schema.json
+  baseline_result: benchmarks/results/rollout-runtime-v2-hf-reference.json
+  method: docs/benchmarks/rollout-runtime-v2-method.md
+  report: docs/benchmarks/rollout-runtime-v2.md

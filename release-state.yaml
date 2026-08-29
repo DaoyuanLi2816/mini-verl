@@ -26,4 +26,4 @@ stable:
   released_at: "2026-08-16"
 
 development:
-  version: "0.10.2.dev0"
+  version: "0.11.0.dev0"
