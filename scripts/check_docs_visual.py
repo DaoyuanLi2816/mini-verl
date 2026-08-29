@@ -34,6 +34,7 @@ PAGES = (
     "/for-verl-users/",
     "/config-overrides/",
     "/immutable-plans/",
+    "/profiles/",
     "/hardware-planning/",
     "/verl-opd-runtime/",
     "/verl-opd-reference-workload/",

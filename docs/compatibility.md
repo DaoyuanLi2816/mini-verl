@@ -22,13 +22,16 @@ migrations, and readers retain the schema-specific behavior needed to load them.
 
 ## Pinned OPD profiles
 
-v0.8 adds the separately versioned `verl-opd-v0.8-single-gpu-v1` executable
-profile: one local actor, one teacher, one generation, pure GKD
-`forward_kl_topk`, token-mean aggregation, LoRA/QLoRA and Parquet prompts.
+v0.8 introduced `verl-opd-v0.8-single-gpu-v1`: one local actor, one teacher,
+pure GKD `forward_kl_topk`, token-mean aggregation, LoRA/QLoRA and Parquet
+prompts. The registry now also contains sampled-k1, grouped-independent and a
+separate rewarded sampled-k1 contract.
 `import-verl --config` publishes a canonical profile plus field report;
-`export-verl` recognizes a completed compatible run and emits reward-free OPD
-overrides. PG OPD, task-reward mixtures, multiple teachers, multimodal and all
-distributed semantics fail closed. Local physical phase scheduling is always
+`export-verl` recognizes a completed compatible run and emits its profile-bound
+OPD overrides. The rewarded profile accepts only a closed deterministic
+exact-answer provider and remains critic/value/GRPO-free. Multiple teachers,
+arbitrary reward code, multimodal and all distributed semantics fail closed.
+Local physical phase scheduling is always
 labelled as a reinterpretation of upstream resource fields.
 
 The [machine-readable field matrix](generated/verl-opd-v0.8-compatibility.json)
@@ -54,8 +57,8 @@ Optimizer state, distributed RNG, FSDP/Megatron native checkpoints, Ray runtime
 state and teacher-cache conversion sit beyond that exchange contract. The
 release smoke records artifact/config validation and distributed execution as
 separate evidence fields. Legacy reward-scaffold bundles use
-`launch.template.sh`; current pure-OPD bundles become launchable through the
-documented materialization checks.
+`launch.template.sh`; current profile exports remain explicit about their
+individual launch blockers and semantic-parity status.
 See the [current local runtime](verl-opd-runtime.md), [current scale-out
 contract](verl-opd-scaleout.md), and [legacy bridge](legacy-verl-bridge.md).
 

@@ -21,6 +21,7 @@ def test_registry_exposes_immutable_direct_gkd_identity() -> None:
         PG_PROFILE,
         GROUPED_PROFILE,
         GROUPED_PG_PROFILE,
+        "verl-opd-v0.8-single-gpu-pg-k1-rewarded-v1",
     ]
 
     profile = get_profile(DIRECT_PROFILE)

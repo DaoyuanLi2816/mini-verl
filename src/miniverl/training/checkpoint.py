@@ -63,6 +63,8 @@ class CheckpointState:
     pending_group_identity: list[str] = field(default_factory=list)
     committed_group_identity: list[str] = field(default_factory=list)
     backend_sync_identity: str = ""
+    reward_provider_identity_digest: str | None = None
+    advantage_composer_version: str | None = None
     scheduler: dict[str, Any] = field(default_factory=dict)
     scaler: dict[str, Any] | None = None
     optimizer_param_groups: list[dict[str, Any]] = field(default_factory=list)
@@ -106,6 +108,8 @@ class CheckpointState:
             "pending_group_identity": self.pending_group_identity,
             "committed_group_identity": self.committed_group_identity,
             "backend_sync_identity": self.backend_sync_identity,
+            "reward_provider_identity_digest": self.reward_provider_identity_digest,
+            "advantage_composer_version": self.advantage_composer_version,
             "scheduler": self.scheduler,
             "scaler": self.scaler,
             "optimizer_param_groups": self.optimizer_param_groups,

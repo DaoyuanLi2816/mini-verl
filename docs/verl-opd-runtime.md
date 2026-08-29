@@ -1,8 +1,9 @@
 # Current verl-style OPD runtime
 
-This is miniVERL's current executable path: two documented, resolved profiles
-from official verl `v0.8.0`, pinned at `7aed6b23`, compiled into local phases
-on one NVIDIA CUDA GPU.
+This is miniVERL's current executable path: five closed profiles from official
+verl `v0.8.0`, pinned at `7aed6b23`, compiled into local phases on one NVIDIA
+CUDA GPU. Two profiles have measured systems records; the grouped and rewarded
+extensions are conformance-only.
 
 ## Start from the pinned profile
 
@@ -43,6 +44,12 @@ recomputes the current actor log-probability for pinned `k1` + vanilla
 policy-loss semantics. Its export carries sampled-token signals in place of a
 top-k target requirement. See [Which profile should I use?](profiles/index.md)
 for the choice guide.
+
+`verl-opd-v0.8-single-gpu-pg-k1-rewarded-v1` keeps that sampled-k1 path and
+adds an explicit deterministic task-reward advantage. The provider, group
+transform and both coefficients are versioned and carried by cache, checkpoint
+and export identity. This is a local task-plus-distillation objective, not a
+GRPO or distributed verl result.
 
 ## Placement strategy
 

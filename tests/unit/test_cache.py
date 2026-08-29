@@ -105,6 +105,43 @@ def test_execution_plan_digest_is_persisted_and_required_for_reuse(tmp_path: Pat
         )
 
 
+def test_rewarded_cache_binds_provider_and_advantage_composer(tmp_path: Path) -> None:
+    cache = TeacherCache.create(
+        tmp_path / "rewarded",
+        miniverl_version="0.11.0.dev0",
+        teacher_model_id="toy-teacher",
+        teacher_model_revision="rev",
+        tokenizer_fingerprint="fp",
+        vocab_size=VOCAB,
+        top_k=1,
+        temperature=1.0,
+        loss_mode="verl_pg_k1_rewarded",
+        target_representation="sampled_token_log_probs",
+        estimator_implementation_version="verl-v0.8-pg-k1-v1",
+        reward_provider_identity_digest="a" * 64,
+        advantage_composer_version="miniverl-task-distill-advantage-v1",
+    )
+    common = {
+        "teacher_model_id": "toy-teacher",
+        "teacher_model_revision": "rev",
+        "tokenizer_fingerprint": "fp",
+        "tokenizer_identity": {},
+        "teacher_adapter_provenance": None,
+        "vocab_size": VOCAB,
+        "top_k": 1,
+        "temperature": 1.0,
+        "loss_mode": "verl_pg_k1_rewarded",
+        "target_representation": "sampled_token_log_probs",
+        "estimator_implementation_version": "verl-v0.8-pg-k1-v1",
+        "dtype": "float32",
+        "reward_provider_identity_digest": "a" * 64,
+        "advantage_composer_version": "miniverl-task-distill-advantage-v1",
+    }
+    cache.assert_compatible(**common)
+    with pytest.raises(StaleCacheError, match="reward_provider_identity_digest"):
+        cache.assert_compatible(**{**common, "reward_provider_identity_digest": "b" * 64})
+
+
 # ----------------------------------------------------------- round trip
 
 

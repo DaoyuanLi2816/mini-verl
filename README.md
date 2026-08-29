@@ -135,6 +135,8 @@ the complete mapping. [Compatibility profiles](docs/profiles/index.md) explains
 how profile identity follows plans, caches, checkpoints and exports. Separate
 conformance-only grouped profiles add transactional Parquet `n>1` samples
 without changing either measured `n=1` profile or introducing GRPO semantics.
+A separate conformance-only rewarded profile adds deterministic exact-answer
+rewards and explicit group advantage composition; it has no task-quality claim.
 
 ## Measured systems evidence
 

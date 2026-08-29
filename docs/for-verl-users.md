@@ -1,7 +1,8 @@
 # For verl users
 
-miniVERL brings two documented verl v0.8 OPD profiles into a local, inspectable
-workflow. Familiar field names and Parquet data flow through a typed compiler,
+miniVERL brings five closed verl v0.8 OPD profiles into a local, inspectable
+workflow; two have measured systems records and three are conformance-only.
+Familiar field names and Parquet data flow through a typed compiler,
 which turns resource intent into sequential phases on one CUDA GPU and records
 every local mapping in the resulting plan.
 
@@ -18,7 +19,8 @@ by plans, caches, checkpoints and exports.
 ## Supported input shape
 
 - A resolved YAML using the `verl-opd-v0.8-single-gpu-v1` field subset.
-- Reward-free verl-style Parquet prompts with structured chat messages.
+- Verl-style Parquet prompts with structured chat messages; the rewarded
+  profile additionally requires bound deterministic exact-answer metadata.
 - One actor, one teacher, token-mean aggregation, and either direct
   forward-top-k GKD or sampled-k1 vanilla policy loss. The measured profiles
   remain `n=1`; their grouped counterparts accept independent `n>1` samples.
@@ -100,8 +102,9 @@ produces top-k token IDs and log-probabilities on actor-generated tokens;
 top-k mass and overlap are diagnostics, not an explicit tail bucket. In the PG
 k1 profile the target is only the sampled token's teacher log-probability,
 bound to the rollout actor log-probability and policy version; current actor
-log-probability is recomputed at update time. Both profiles use reward-free
-distillation with one actor and one teacher. Local runtime strategies
+log-probability is recomputed at update time. The rewarded PG profile adds a
+separately logged task advantage from the closed exact-answer provider; it has
+no critic, value model or GRPO semantics. Local runtime strategies
 may keep quantized roles resident, swap movable unquantized roles, or share a
 compatible backbone while preserving distinct role identities in provenance.
 
@@ -127,8 +130,8 @@ has progressed.
   unsupported values.
 - **Algorithm field rejected:** select the explicit PG-k1 profile for its
   narrow sampled policy-loss path, or a grouped profile for Parquet `n>1`.
-  Rewards, critics, external advantages, KL penalties, group-relative
-  baselines, multiple teachers and distributed counts remain unsupported.
+  Arbitrary reward code, critics, value models, KL penalties, multiple teachers
+  and distributed counts remain unsupported.
 - **Interpolation rejected:** resolve Hydra/OmegaConf in your trusted verl
   environment first. miniVERL will not execute `${...}`.
 - **High-risk reinterpretation not accepted:** inspect `miniverl plan`, then

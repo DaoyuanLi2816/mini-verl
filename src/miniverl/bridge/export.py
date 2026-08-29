@@ -25,7 +25,10 @@ from miniverl.bridge.contract import (
     required_verl_text,
     validate_target_verl,
 )
-from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
+from miniverl.bridge.opd_pg_v08 import (
+    VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
+    VERL_OPD_PG_K1_V08_PROFILE,
+)
 from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.bridge.profiles import (
     VERL_OPD_GROUPED_V08_PROFILE,
@@ -432,13 +435,20 @@ def _write_hashes(root: Path) -> None:
     write_text(checksum, "\n".join(lines) + "\n")
 
 
-_PG_PROFILES = frozenset({VERL_OPD_PG_K1_V08_PROFILE, VERL_OPD_PG_K1_GROUPED_V08_PROFILE})
+_PG_PROFILES = frozenset(
+    {
+        VERL_OPD_PG_K1_V08_PROFILE,
+        VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+        VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
+    }
+)
 _OPD_PROFILES = frozenset(
     {
         VERL_OPD_V08_PROFILE,
         VERL_OPD_PG_K1_V08_PROFILE,
         VERL_OPD_GROUPED_V08_PROFILE,
         VERL_OPD_PG_K1_GROUPED_V08_PROFILE,
+        VERL_OPD_PG_K1_REWARDED_V08_PROFILE,
     }
 )
 
@@ -460,7 +470,9 @@ def _opd_run_contract(run: Path) -> tuple[dict[str, Any], dict[str, Any]] | None
     if report.get("executable") is not True or not isinstance(source, dict):
         raise ConfigError("source run does not carry an executable verl OPD compatibility plan")
     required: dict[str, Any] = {
-        "distillation.distillation_loss.use_task_rewards": False,
+        "distillation.distillation_loss.use_task_rewards": (
+            profile == VERL_OPD_PG_K1_REWARDED_V08_PROFILE
+        ),
         "actor_rollout_ref.actor.use_kl_loss": False,
         "algorithm.use_kl_in_reward": False,
     }
@@ -591,8 +603,11 @@ exit 2
 
 
 def _opd_bundle_readme(profile: str) -> str:
+    rewarded = profile == VERL_OPD_PG_K1_REWARDED_V08_PROFILE
     semantics = (
-        "sampled k1 teacher log-probabilities and pinned vanilla policy-gradient loss"
+        "explicit task and sampled-k1 distillation advantages through the pinned vanilla policy loss"
+        if rewarded
+        else "sampled k1 teacher log-probabilities and pinned vanilla policy-gradient loss"
         if profile in _PG_PROFILES
         else "pure GKD `forward_kl_topk` targets"
     )
@@ -601,8 +616,7 @@ def _opd_bundle_readme(profile: str) -> str:
 This checksummed bundle preserves a local `{profile}` run as standard
 PEFT, tokenizer and Parquet artifacts plus {semantics}
 overrides for [`verl {VERL_TAG}`]({VERL_REPOSITORY}/tree/{VERL_TAG}) at
-`{VERL_COMMIT}`. It contains no reward scaffold because task rewards are
-disabled by contract.
+`{VERL_COMMIT}`. {"The rewarded profile uses a closed deterministic provider and no critic, value model or GRPO normalization." if rewarded else "Task rewards are disabled by contract."}
 
 `recipe/launch.template.sh` remains fail-closed until the exact student and
 teacher snapshots are materialized. The bundle has not run distributed verl;
@@ -657,6 +671,11 @@ def _export_opd_bundle(
         "teacher base snapshot is not bundled",
         "distributed verl execution was not tested",
     ]
+    rewarded = profile == VERL_OPD_PG_K1_REWARDED_V08_PROFILE
+    if rewarded:
+        blockers.append(
+            "rewarded task-plus-distillation composition has no claimed distributed verl parity"
+        )
     if teacher_adapter_path is not None:
         blockers.append(
             "teacher adapter requires an explicit merge/materialization step for upstream verl"
@@ -711,7 +730,9 @@ def _export_opd_bundle(
             },
             "miniverl_version": __version__,
             "target_semantics": (
-                "pure OPD sampled k1 policy gradient"
+                "rewarded OPD task plus sampled-k1 distillation policy gradient"
+                if rewarded
+                else "pure OPD sampled k1 policy gradient"
                 if profile in _PG_PROFILES
                 else "pure GKD forward_kl_topk OPD"
             ),
@@ -722,8 +743,13 @@ def _export_opd_bundle(
                 "samples_per_prompt": samples_per_prompt,
                 "trajectory_schema_version": 3,
                 "sample_semantics": "independent_current_policy_trajectory",
-                "group_baseline": False,
+                "group_baseline": (
+                    _get(source, "distillation.distillation_loss.task_advantage_mode")
+                    if rewarded
+                    else False
+                ),
                 "grpo": False,
+                **({"critic": False, "value_model": False} if rewarded else {}),
             },
             "artifact_complete": False,
             "artifact_bundle_complete": True,
@@ -738,7 +764,13 @@ def _export_opd_bundle(
             "launchable": False,
             "distributed_execution_tested": False,
             "algorithm_semantic_parity": False,
-            "reward_required": False,
+            "reward_required": rewarded,
+            "reward_provider": (
+                _get(source, "distillation.distillation_loss.reward_provider") if rewarded else None
+            ),
+            "advantage_composer_version": (
+                "miniverl-task-distill-advantage-v1" if rewarded else None
+            ),
             "launch_blockers": blockers,
             "data_round_trip": data_evidence,
             "unsupported_semantics": [
