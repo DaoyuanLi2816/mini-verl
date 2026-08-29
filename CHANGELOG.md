@@ -12,6 +12,8 @@ All notable changes to miniVERL are recorded here. The format follows
   RTX 4080 rollout workload before changing generation behavior.
 - Added an exact-source competitive landscape that separates upstream claims,
   miniVERL's current state and measurements that have not yet been run.
+- Froze the 24-cell pre-v0.11 `hf_reference` actor-rollout baseline on the WSL2
+  RTX 4080, with exact wheel, weight, policy and raw-measurement identity.
 
 ### Documentation narrative
 

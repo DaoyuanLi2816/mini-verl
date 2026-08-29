@@ -40,6 +40,62 @@ def test_rollout_runtime_v2_preserves_frozen_calculator() -> None:
     )
 
 
+def test_measured_hf_reference_baseline_is_exact_and_schema_valid() -> None:
+    expected = {
+        "benchmarks/preregistration/rollout-runtime-v2.yaml": (
+            "8cc3ba738c69b59ed19c22c1de874fd00249404198a3e05983477dc8899bb7e5"
+        ),
+        "benchmarks/evidence/rollout-runtime-v2/hf-reference-raw.json": (
+            "2e303eabb559b843d25377a7c72e0aeb0219eec7eb8bc109c0419839b3251170"
+        ),
+        "benchmarks/results/rollout-runtime-v2-hf-reference.json": (
+            "b25daee7ee726b7a7be18d7dbe26590fb61325bf212cfd9e7110b69f5fa8889c"
+        ),
+    }
+    for relative, digest in expected.items():
+        assert hashlib.sha256((ROOT / relative).read_bytes()).hexdigest() == digest
+
+    payload = json.loads(
+        (ROOT / "benchmarks/results/rollout-runtime-v2-hf-reference.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    jsonschema.validate(payload, schema)
+    assert payload["measurement_status"] == "measured_baseline"
+    assert payload["failures"] == []
+    assert len(payload["cells"]) == 24
+    assert all(cell["status"] == "completed" for cell in payload["cells"])
+    assert payload["source"] == {
+        "commit": "0d6e0070ae73ef35f718aec3624ee5263ac96e3a",
+        "dirty": False,
+        "miniverl_version": "0.11.0.dev0",
+        "wheel_sha256": "0256bd9e63ca6ed52999a5073a3577a008581a8d4418062314750d86f21cd5fe",
+    }
+    assert payload["policy_identity"]["base_weight_digest_sha256"] == (
+        "b29cd98b83f9bddc7ec8943be5f142243e956f448f13456847849e5b8615b413"
+    )
+    assert max(cell["memory"]["peak_reserved_bytes"] for cell in payload["cells"]) == (1166016512)
+    raw_payload = json.loads(
+        (ROOT / "benchmarks/evidence/rollout-runtime-v2/hf-reference-raw.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    measurement_view = dict(payload)
+    measurement_view.pop("raw_measurement_sha256")
+    measurement_view.pop("policy_identity")
+    measurement_view["environment"] = dict(measurement_view["environment"])
+    measurement_view["environment"].pop("driver_version")
+    assert measurement_view == raw_payload
+    for cell in payload["cells"]:
+        assert cell["counts"]["generated_tokens"] == (
+            4 * cell["samples_per_prompt"] * cell["response_bound"]
+        )
+        for phase in ("prefill", "decode", "teacher_scoring", "actor_update", "full_cycle"):
+            assert cell["phases"][phase]["status"] == "not_measured"
+            assert "median_seconds" not in cell["phases"][phase]
+
+
 def _phase(status: str, measured: bool = False) -> dict[str, object]:
     payload: dict[str, object] = {"status": status}
     if measured:
@@ -69,6 +125,7 @@ def test_rollout_runtime_v2_schema_keeps_unavailable_phases_distinct_from_zero()
             "miniverl_version": "0.11.0.dev0",
             "wheel_sha256": "b" * 64,
         },
+        "raw_measurement_sha256": "9" * 64,
         "preregistration_sha256": "c" * 64,
         "workload_manifest_sha256": "d" * 64,
         "frozen_calculator_sha256": (
@@ -93,6 +150,14 @@ def test_rollout_runtime_v2_schema_keeps_unavailable_phases_distinct_from_zero()
             "name": "hf_reference",
             "version": "5.14.1",
             "reproducibility_class": "same_process_seeded_reference",
+        },
+        "policy_identity": {
+            "policy_version": 0,
+            "profile_identity": "rollout-runtime-v2-hf-reference-baseline-v1",
+            "base_revision": "e" * 40,
+            "base_weight_digest_sha256": "8" * 64,
+            "adapter_digest_sha256": None,
+            "identity_digest_sha256": "7" * 64,
         },
         "cells": [
             {

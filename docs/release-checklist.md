@@ -10,7 +10,10 @@ after the exact release commit and its remote checks are green.
       release and documentation remain at immutable `v0.10.1`.
 - [x] Preregister the RTX 4080 Rollout Runtime v2 workload before measuring
       the pre-v0.11 `hf_reference` baseline.
-- [ ] Freeze the `hf_reference` result before implementing `hf_cached`.
+- [x] Freeze the 24-cell `hf_reference` result from exact source commit
+      `0d6e0070ae73ef35f718aec3624ee5263ac96e3a` and candidate wheel
+      `0256bd9e63ca6ed52999a5073a3577a008581a8d4418062314750d86f21cd5fe`
+      before implementing `hf_cached`.
 - [ ] Add typed policy identity, lifecycle and strict synchronization contracts.
 - [ ] Qualify `hf_cached` at 64/256/512 response bounds and require at least 2x
       speedup at 256 and 512 without exceeding 14.5 GiB peak reserved VRAM.

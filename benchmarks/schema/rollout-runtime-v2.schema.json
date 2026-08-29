@@ -9,12 +9,14 @@
     "name",
     "measurement_status",
     "source",
+    "raw_measurement_sha256",
     "preregistration_sha256",
     "workload_manifest_sha256",
     "frozen_calculator_sha256",
     "environment",
     "models",
     "backend",
+    "policy_identity",
     "cells",
     "failures"
   ],
@@ -25,6 +27,7 @@
       "enum": ["measured_baseline", "completed_with_failures"]
     },
     "source": {"$ref": "#/$defs/source"},
+    "raw_measurement_sha256": {"$ref": "#/$defs/sha256"},
     "preregistration_sha256": {"$ref": "#/$defs/sha256"},
     "workload_manifest_sha256": {"$ref": "#/$defs/sha256"},
     "frozen_calculator_sha256": {
@@ -50,6 +53,26 @@
         "name": {"const": "hf_reference"},
         "version": {"type": "string", "minLength": 1},
         "reproducibility_class": {"const": "same_process_seeded_reference"}
+      }
+    },
+    "policy_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_version",
+        "profile_identity",
+        "base_revision",
+        "base_weight_digest_sha256",
+        "adapter_digest_sha256",
+        "identity_digest_sha256"
+      ],
+      "properties": {
+        "policy_version": {"const": 0},
+        "profile_identity": {"const": "rollout-runtime-v2-hf-reference-baseline-v1"},
+        "base_revision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "base_weight_digest_sha256": {"$ref": "#/$defs/sha256"},
+        "adapter_digest_sha256": {"type": "null"},
+        "identity_digest_sha256": {"$ref": "#/$defs/sha256"}
       }
     },
     "cells": {
