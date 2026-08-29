@@ -32,7 +32,7 @@ def _identity(version: int) -> RolloutPolicyIdentity:
         quantization="nf4",
         dtype="bfloat16",
         generation_backend=RolloutBackendKind.VLLM,
-        backend_version="vllm-0.28.0-direct-gkd-v1",
+        backend_version="vllm-0.28.0-cudagraph-direct-gkd-v2",
         profile_identity="4" * 64,
         execution_plan_digest="5" * 64,
     )
@@ -72,6 +72,7 @@ def test_vllm_launch_is_local_managed_and_disables_persistent_prefix_cache() -> 
     assert command[:3] == ["/venv/bin/python", "-m", "vllm.entrypoints.openai.api_server"]
     assert command[command.index("--host") + 1] == "127.0.0.1"
     assert "--no-enable-prefix-caching" in command
+    assert "--enforce-eager" not in command
     assert "--enable-lora" in command
     assert environment["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] == "True"
     assert environment["VLLM_USE_V2_MODEL_RUNNER"] == "0"
@@ -229,6 +230,7 @@ def test_vllm_backend_uses_unique_content_bound_adapter_names_and_tears_down(
     assert lifecycle["policy_identity_digest"] == second.digest
     assert lifecycle["adapter_name"] == second_name
     assert lifecycle["prefix_cache_enabled"] is False
+    assert lifecycle["execution_mode"] == "cuda_graph"
     assert lifecycle["numerical_equivalence_class"] == "bf16-external-vs-nf4-actor-direct-gkd"
     assert lifecycle["startup_seconds"] == first_lifecycle["startup_seconds"]
     assert lifecycle["initial_startup_seconds"] == first_lifecycle["startup_seconds"]

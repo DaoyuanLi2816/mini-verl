@@ -46,7 +46,7 @@ __all__ = [
 ]
 
 _QUALIFIED_VLLM_VERSION = "0.28.0"
-_BACKEND_VERSION = f"vllm-{_QUALIFIED_VLLM_VERSION}-direct-gkd-v1"
+_BACKEND_VERSION = f"vllm-{_QUALIFIED_VLLM_VERSION}-cudagraph-direct-gkd-v2"
 
 
 def build_vllm_server_command(
@@ -78,7 +78,6 @@ def build_vllm_server_command(
         str(max_model_len),
         "--gpu-memory-utilization",
         str(memory_fraction),
-        "--enforce-eager",
         "--no-enable-prefix-caching",
         "--return-tokens-as-token-ids",
         "--generation-config",
@@ -420,6 +419,7 @@ class VLLMGenerationBackend:
         self._server_adapter_name: str | None = None
         self._lifecycle: dict[str, object] = {
             "prefix_cache_enabled": False,
+            "execution_mode": "cuda_graph",
             "numerical_equivalence_class": "unmeasured",
         }
 
@@ -530,6 +530,7 @@ class VLLMGenerationBackend:
             "adapter_sync_seconds": adapter_sync_seconds,
             "sync_total_seconds": time.perf_counter() - sync_started,
             "prefix_cache_enabled": False,
+            "execution_mode": "cuda_graph",
             "numerical_equivalence_class": (
                 f"bf16-external-vs-{identity.quantization}-actor-direct-gkd"
             ),
