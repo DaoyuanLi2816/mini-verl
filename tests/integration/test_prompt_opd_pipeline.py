@@ -152,6 +152,8 @@ def test_prompt_opd_trains_without_an_environment_or_reward(tmp_path) -> None:
     assert manifest["source"]["kind"] == "verl_parquet"
     assert manifest["execution_plan_digest"] == "a" * 64
     assert manifest["source"]["rows"] == {"train": 2, "val": 0}
+    assert manifest["rollout_runtime"]["backend"] == "hf_reference"
+    assert manifest["rollout_runtime"]["capabilities"]["backend_version"] == "hf_reference-v1"
     cache_index = json.loads(
         (result.run_dir / "teacher-cache" / "index.json").read_text(encoding="utf-8")
     )

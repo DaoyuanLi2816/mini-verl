@@ -15,6 +15,16 @@ All notable changes to miniVERL are recorded here. The format follows
 - Froze the 24-cell pre-v0.11 `hf_reference` actor-rollout baseline on the WSL2
   RTX 4080, with exact wheel, weight, policy and raw-measurement identity.
 
+### Typed rollout core
+
+- Added a torch-free Rollout Runtime v2 contract for requests, grouped sample
+  identity, policy snapshots, synchronization, lifecycle and backend metrics.
+- Preserved `hf_reference` for existing recipes and added opt-in `hf_cached`
+  generation with one padded prefill, incremental KV-cache decode, per-row RNG,
+  sampled-token log-probabilities, stop provenance and OOM-safe repartitioning.
+- Bound prompt-generation manifests and every v2 request to the live actor
+  parameter version, base/tokenizer/adapter identity, backend and execution plan.
+
 ### Documentation narrative
 
 - Rebuilt the English, Chinese and PyPI landing narratives around the local

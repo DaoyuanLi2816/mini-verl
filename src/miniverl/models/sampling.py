@@ -14,7 +14,13 @@ import torch
 
 from miniverl.models.base import GenerationOutput
 
-__all__ = ["sample_from_logits", "run_generation", "run_greedy_padded_generation", "StepFn"]
+__all__ = [
+    "sample_from_logits",
+    "run_generation",
+    "run_greedy_padded_generation",
+    "run_cached_padded_generation",
+    "StepFn",
+]
 
 #: ``step(new_token_ids, state) -> (next_token_logits [V], new_state)``
 StepFn = Callable[[list[int], Any], "tuple[torch.Tensor, Any]"]
@@ -182,6 +188,116 @@ def run_greedy_padded_generation(
                 active[index] = False
         if not any(active):
             break
+    return [
+        GenerationOutput(
+            token_ids=row,
+            text=decode(row),
+            stop_reason=reasons[index],
+            matched_stop=matched[index],
+            logprobs=logprobs[index],
+        )
+        for index, row in enumerate(generated)
+    ]
+
+
+def run_cached_padded_generation(
+    *,
+    prefill: Callable[[list[list[int]]], tuple[torch.Tensor, Any]],
+    decode_step: Callable[[list[int], list[bool], Any], tuple[torch.Tensor, Any]],
+    prefix_token_ids: Sequence[Sequence[int]],
+    decode: Callable[[Sequence[int]], str],
+    eos_token_id: int,
+    max_new_tokens: int,
+    stop_sequences: Sequence[str] = (),
+    temperature: float = 0.0,
+    top_p: float = 1.0,
+    top_k: int = 0,
+    generators: Sequence[torch.Generator] | None = None,
+    record_logprobs: bool = False,
+) -> list[GenerationOutput]:
+    """Run one prefill and cache-aware incremental decode for a padded batch.
+
+    Randomness belongs to logical rows, not the physical batch. A caller can
+    therefore bisect or repartition a batch without changing sampled tokens.
+    ``decode_step`` advances only rows marked active; inactive rows remain as
+    masked placeholders so a standard batched KV cache can retain its shape.
+    """
+
+    if not prefix_token_ids:
+        return []
+    if any(not row for row in prefix_token_ids):
+        raise ValueError("cached generation cannot contain an empty prompt")
+    if max_new_tokens < 1:
+        raise ValueError(f"max_new_tokens must be >= 1, got {max_new_tokens}")
+    row_generators = list(generators or [torch.Generator(device="cpu") for _ in prefix_token_ids])
+    if len(row_generators) != len(prefix_token_ids):
+        raise ValueError("cached generation needs exactly one generator per prompt")
+
+    rows = [list(row) for row in prefix_token_ids]
+    logits, state = prefill(rows)
+    if tuple(logits.shape[:1]) != (len(rows),):
+        raise ValueError(f"cached prefill returned {tuple(logits.shape)}, expected [batch, vocab]")
+    generated: list[list[int]] = [[] for _ in rows]
+    logprobs: list[list[float]] = [[] for _ in rows]
+    reasons = ["max_new_tokens"] * len(rows)
+    matched: list[str | None] = [None] * len(rows)
+    active = [True] * len(rows)
+
+    for step_index in range(max_new_tokens):
+        chosen = [0] * len(rows)
+        greedy_tokens: list[int] | None = None
+        greedy_logprobs: list[float] | None = None
+        if temperature <= 0.0:
+            token_tensor = torch.argmax(logits.detach().to(torch.float32), dim=-1)
+            greedy_tokens = [int(value) for value in token_tensor.cpu().tolist()]
+            if record_logprobs:
+                row_log_probs = torch.log_softmax(logits.detach().to(torch.float32), dim=-1)
+                selected = row_log_probs.gather(1, token_tensor.unsqueeze(1)).squeeze(1)
+                greedy_logprobs = [float(value) for value in selected.cpu().tolist()]
+        for index, is_active in enumerate(active):
+            if not is_active:
+                continue
+            row_logits = logits[index]
+            token = (
+                greedy_tokens[index]
+                if greedy_tokens is not None
+                else sample_from_logits(
+                    row_logits,
+                    temperature=temperature,
+                    top_p=top_p,
+                    top_k=top_k,
+                    generator=row_generators[index],
+                )
+            )
+            chosen[index] = token
+            if record_logprobs:
+                if greedy_logprobs is not None:
+                    logprobs[index].append(greedy_logprobs[index])
+                else:
+                    row_log_probs = torch.log_softmax(
+                        row_logits.detach().to(torch.float32).flatten(), dim=-1
+                    )
+                    logprobs[index].append(float(row_log_probs[token].item()))
+            generated[index].append(token)
+            if token == eos_token_id:
+                reasons[index] = "eos"
+                active[index] = False
+                continue
+            text = decode(generated[index])
+            hit = next((value for value in stop_sequences if value and value in text), None)
+            if hit is not None:
+                reasons[index] = "stop_sequence"
+                matched[index] = hit
+                active[index] = False
+
+        if not any(active) or step_index + 1 == max_new_tokens:
+            break
+        logits, state = decode_step(chosen, active, state)
+        if tuple(logits.shape[:1]) != (len(rows),):
+            raise ValueError(
+                f"cached decode returned {tuple(logits.shape)}, expected [batch, vocab]"
+            )
+
     return [
         GenerationOutput(
             token_ids=row,

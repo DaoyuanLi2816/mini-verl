@@ -42,6 +42,7 @@ from miniverl.config.models import (
     OptimizerName,
     Precision,
     Quantization,
+    RolloutConfig,
     RunConfig,
     SelectorName,
     TeacherContextMode,
@@ -49,9 +50,44 @@ from miniverl.config.models import (
     TrainingMode,
 )
 from miniverl.errors import ConfigError
+from miniverl.runtime.generation import RolloutBackendKind
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RECIPES_DIR = REPO_ROOT / "recipes"
+
+
+def test_legacy_rollout_config_keeps_reference_backend_and_single_sample() -> None:
+    rollout = RolloutConfig()
+
+    assert rollout.backend is RolloutBackendKind.HF_REFERENCE
+    assert rollout.samples_per_prompt == 1
+    assert rollout.synchronization == "strict"
+
+
+def test_v2_rollout_config_accepts_cached_backend_and_managed_engine_bounds() -> None:
+    rollout = RolloutConfig.model_validate(
+        {
+            "backend": "hf_cached",
+            "samples_per_prompt": 1,
+            "prompt_batch_size": 4,
+            "max_padded_tokens": 4096,
+            "synchronization": "strict",
+            "record_logprobs": True,
+            "compile_backend": True,
+            "engine": {
+                "managed": True,
+                "host": "127.0.0.1",
+                "startup_timeout_seconds": 120,
+                "request_timeout_seconds": 60,
+                "memory_fraction": 0.7,
+            },
+        }
+    )
+
+    assert rollout.backend is RolloutBackendKind.HF_CACHED
+    assert rollout.engine.host == "127.0.0.1"
+    assert rollout.engine.memory_fraction == 0.7
+    assert rollout.compile_backend is True
 
 
 def _read_raw(path: Path) -> Any:

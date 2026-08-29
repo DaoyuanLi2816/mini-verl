@@ -400,6 +400,31 @@ class ToyBackend(CausalLMBackend):
             if was_training:
                 self.model.train()
 
+    def generate_batch_cached(
+        self,
+        prefix_token_ids: Sequence[Sequence[int]],
+        *,
+        max_new_tokens: int,
+        stop_sequences: Sequence[str] = (),
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+        top_k: int = 0,
+        seeds: Sequence[int | None] | None = None,
+        record_logprobs: bool = False,
+    ) -> list[GenerationOutput]:
+        """Exercise v2 seed semantics; the tiny CPU backend decodes rows independently."""
+
+        return super().generate_batch(
+            prefix_token_ids,
+            max_new_tokens=max_new_tokens,
+            stop_sequences=stop_sequences,
+            temperature=temperature,
+            top_p=top_p,
+            top_k=top_k,
+            seeds=seeds,
+            record_logprobs=record_logprobs,
+        )
+
     # -- scoring --------------------------------------------------------
 
     def hidden_states_at(

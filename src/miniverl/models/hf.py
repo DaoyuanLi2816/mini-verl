@@ -29,7 +29,11 @@ from miniverl.config.models import (
 from miniverl.errors import BackendError, MissingDependencyError
 from miniverl.models.adapters import ArchitectureAdapter
 from miniverl.models.base import BackendCapabilities, CausalLMBackend, GenerationOutput
-from miniverl.models.sampling import run_generation, run_greedy_padded_generation
+from miniverl.models.sampling import (
+    run_cached_padded_generation,
+    run_generation,
+    run_greedy_padded_generation,
+)
 from miniverl.utils.lazy import have_module, require_peft, require_transformers
 
 __all__ = ["HFBackend", "resolve_dtype", "supports_bfloat16"]
@@ -146,6 +150,7 @@ class HFBackend(CausalLMBackend):
         self._dtype = dtype
         self.adapter_provenance = adapter_provenance
         self.adapter = ArchitectureAdapter.resolve(model)
+        self._cached_generation_backbone: Any | None = None
         num_params = sum(p.numel() for p in model.parameters())
         num_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
         self.capabilities = BackendCapabilities(
@@ -392,18 +397,51 @@ class HFBackend(CausalLMBackend):
         attention_mask: torch.Tensor | None = None,
         past_key_values: Any = None,
         use_cache: bool = False,
+        position_ids: torch.Tensor | None = None,
+        cache_position: torch.Tensor | None = None,
+        cached_generation: bool = False,
     ) -> tuple[torch.Tensor, Any]:
-        backbone = self.adapter.backbone
+        backbone = (
+            self._cached_generation_backbone
+            if cached_generation and self._cached_generation_backbone is not None
+            else self.adapter.backbone
+        )
         kwargs: dict[str, Any] = {"input_ids": input_ids, "use_cache": use_cache}
         if attention_mask is not None:
             kwargs["attention_mask"] = attention_mask
         if past_key_values is not None:
             kwargs["past_key_values"] = past_key_values
+        if position_ids is not None:
+            kwargs["position_ids"] = position_ids
+        if cache_position is not None:
+            kwargs["cache_position"] = cache_position
         outputs = backbone(**kwargs)
         hidden = getattr(outputs, "last_hidden_state", None)
         if hidden is None:
             hidden = outputs[0]
         return hidden, getattr(outputs, "past_key_values", None)
+
+    def enable_cached_generation_compilation(self) -> None:
+        """Compile only the cached decode backbone, with CUDA graphs disabled."""
+
+        if self._cached_generation_backbone is not None:
+            return
+        if not self._device.startswith("cuda"):
+            raise BackendError(
+                "compiled hf_cached generation requires CUDA",
+                hint="set rollout.compile_backend=false on CPU",
+            )
+        try:
+            self._cached_generation_backbone = torch.compile(
+                self.adapter.backbone,
+                dynamic=True,
+                options={"triton.cudagraphs": False},
+            )
+        except Exception as exc:
+            raise BackendError(
+                "could not initialize compiled hf_cached generation",
+                hint="set rollout.compile_backend=false to use the eager KV-cache path",
+            ) from exc
 
     # -- generation ---------------------------------------------------------
 
@@ -512,6 +550,128 @@ class HFBackend(CausalLMBackend):
                 record_logprobs=record_logprobs,
             )
         finally:
+            if was_training:
+                self.model.train()
+
+    def generate_batch_cached(
+        self,
+        prefix_token_ids: Sequence[Sequence[int]],
+        *,
+        max_new_tokens: int,
+        stop_sequences: Sequence[str] = (),
+        temperature: float = 0.0,
+        top_p: float = 1.0,
+        top_k: int = 0,
+        seeds: Sequence[int | None] | None = None,
+        record_logprobs: bool = False,
+    ) -> list[GenerationOutput]:
+        """Decode a physical batch with one prefill and an incremental KV cache."""
+
+        if not prefix_token_ids:
+            return []
+        if any(not row for row in prefix_token_ids):
+            raise ValueError("cached generation cannot contain an empty prompt")
+        chosen_seeds = list(seeds or [0] * len(prefix_token_ids))
+        if len(chosen_seeds) != len(prefix_token_ids):
+            raise ValueError("generate_batch_cached needs exactly one seed per prompt")
+        generators = []
+        for seed in chosen_seeds:
+            generator = torch.Generator(device="cpu")
+            generator.manual_seed(int(seed or 0))
+            generators.append(generator)
+
+        was_training = self.model.training
+        self.model.eval()
+        cache_flag = getattr(self.model.config, "use_cache", True)
+        self.model.config.use_cache = True
+        attention_mask: torch.Tensor | None = None
+
+        def prefill(rows: list[list[int]]) -> tuple[torch.Tensor, Any]:
+            nonlocal attention_mask
+            lengths = [len(row) for row in rows]
+            width = max(lengths)
+            input_ids = torch.full(
+                (len(rows), width),
+                self.tokenizer.pad_token_id,
+                dtype=torch.long,
+                device=self._device,
+            )
+            attention_mask = torch.zeros((len(rows), width), dtype=torch.bool, device=self._device)
+            for index, row in enumerate(rows):
+                input_ids[index, : len(row)] = torch.tensor(
+                    row, dtype=torch.long, device=self._device
+                )
+                attention_mask[index, : len(row)] = True
+            position_ids = attention_mask.long().cumsum(dim=-1) - 1
+            position_ids.masked_fill_(~attention_mask, 0)
+            with torch.no_grad():
+                hidden, present = self._backbone_forward(
+                    input_ids,
+                    attention_mask=attention_mask,
+                    use_cache=True,
+                    position_ids=position_ids,
+                    cached_generation=True,
+                )
+                positions = torch.tensor(
+                    [length - 1 for length in lengths], dtype=torch.long, device=self._device
+                )
+                selected = hidden[torch.arange(len(rows), device=self._device), positions]
+                logits = self.adapter.lm_head(selected)
+            return logits, present
+
+        def decode_step(
+            tokens: list[int], active: list[bool], state: Any
+        ) -> tuple[torch.Tensor, Any]:
+            nonlocal attention_mask
+            assert attention_mask is not None
+            active_tensor = torch.tensor(active, dtype=torch.bool, device=self._device)
+            input_ids = torch.tensor(tokens, dtype=torch.long, device=self._device).unsqueeze(1)
+            input_ids = torch.where(
+                active_tensor.unsqueeze(1),
+                input_ids,
+                torch.full_like(input_ids, self.tokenizer.pad_token_id),
+            )
+            position_ids = attention_mask.long().sum(dim=-1, keepdim=True)
+            attention_mask = torch.cat((attention_mask, active_tensor.unsqueeze(1)), dim=1)
+            with torch.no_grad():
+                hidden, present = self._backbone_forward(
+                    input_ids,
+                    attention_mask=attention_mask,
+                    past_key_values=state,
+                    use_cache=True,
+                    position_ids=position_ids,
+                    cached_generation=True,
+                )
+                logits = self.adapter.lm_head(hidden[:, -1, :])
+            return logits, present
+
+        try:
+            try:
+                return run_cached_padded_generation(
+                    prefill=prefill,
+                    decode_step=decode_step,
+                    prefix_token_ids=prefix_token_ids,
+                    decode=self.tokenizer.decode,
+                    eos_token_id=self.tokenizer.eos_token_id,
+                    max_new_tokens=max_new_tokens,
+                    stop_sequences=stop_sequences,
+                    temperature=temperature,
+                    top_p=top_p,
+                    top_k=top_k,
+                    generators=generators,
+                    record_logprobs=record_logprobs,
+                )
+            except torch.OutOfMemoryError:
+                raise
+            except Exception as exc:
+                if self._cached_generation_backbone is None:
+                    raise
+                raise BackendError(
+                    "compiled hf_cached generation failed",
+                    hint="set rollout.compile_backend=false to use the eager KV-cache path",
+                ) from exc
+        finally:
+            self.model.config.use_cache = cache_flag
             if was_training:
                 self.model.train()
 

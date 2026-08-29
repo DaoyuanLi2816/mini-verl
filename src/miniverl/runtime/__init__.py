@@ -1,5 +1,22 @@
 """Typed local runtime roles."""
 
+from miniverl.runtime.generation import (
+    BackendCapabilities,
+    BackendLifecycleState,
+    BackendMetrics,
+    GenerationBackend,
+    GenerationBatch,
+    GenerationRequest,
+    GenerationResult,
+    PolicySnapshot,
+    PolicySyncResult,
+    ReproducibilityClass,
+    RolloutBackendKind,
+    RolloutGroupIdentity,
+    RolloutPolicyIdentity,
+    SamplingParameters,
+    derive_sample_seed,
+)
 from miniverl.runtime.roles import (
     ActorPolicy,
     ArtifactBridge,
@@ -26,4 +43,19 @@ __all__ = [
     "ArtifactBridge",
     "LocalArtifactBridge",
     "LocalRoleGraph",
+    "BackendCapabilities",
+    "BackendLifecycleState",
+    "BackendMetrics",
+    "GenerationBackend",
+    "GenerationBatch",
+    "GenerationRequest",
+    "GenerationResult",
+    "PolicySnapshot",
+    "PolicySyncResult",
+    "ReproducibilityClass",
+    "RolloutBackendKind",
+    "RolloutGroupIdentity",
+    "RolloutPolicyIdentity",
+    "SamplingParameters",
+    "derive_sample_seed",
 ]
