@@ -25,7 +25,7 @@ miniVERL turns typed YAML and structured Parquet prompts into a local actor
 rollout → teacher scoring → actor update loop, then exports standard PEFT,
 Parquet and config artifacts for scale-out work.
 
-PyPI `v0.10.1` is stable; `main` is development.
+PyPI `v0.11.0` is stable; `main` is development.
 
 ## Start in 60 seconds
 

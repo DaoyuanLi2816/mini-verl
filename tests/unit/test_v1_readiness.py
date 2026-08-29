@@ -14,7 +14,7 @@ def test_v1_readiness_matches_canonical_v0101_release_evidence() -> None:
     text = (ROOT / "docs/v1-readiness.md").read_text(encoding="utf-8")
     stable = state["stable"]
     assert stable["version"] >= "0.10.1"
-    assert stable["release_commit"] in text
+    assert "2364e9b8e8b550f44d1b66a77fc2d407b76b05b5" in text
     assert "passed in v0.10.1" in text
     assert "31932226695" in text
     assert "31933844796" in text
@@ -38,9 +38,10 @@ def test_v1_readiness_has_no_obsolete_or_contradictory_gate() -> None:
     assert "dedicated v1 candidate" in text
 
 
-def test_polish_does_not_change_version_or_beta_classifier() -> None:
+def test_release_state_keeps_beta_classifier() -> None:
     state = yaml.safe_load((ROOT / "release-state.yaml").read_text(encoding="utf-8"))
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert state["stable"]["version"] == "0.10.1"
-    assert state["development"]["version"] == "0.11.0.dev0"
+    assert state["stable"]["version"] >= "0.10.1"
+    if state["phase"] == "release":
+        assert state["development"]["version"] == state["stable"]["version"]
     assert "Development Status :: 4 - Beta" in pyproject

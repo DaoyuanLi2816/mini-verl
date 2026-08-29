@@ -23,7 +23,7 @@ teacher target 与训练产物。** miniVERL 把类型化 YAML 和结构化 Parq
 编译成本地 actor rollout → teacher scoring → actor update 循环，再导出标准 PEFT、
 Parquet 与配置产物，便于继续扩展。
 
-PyPI `v0.10.1` 是稳定版；`main` 是开发版。
+PyPI `v0.11.0` 是稳定版；`main` 是开发版。
 
 ## 60 秒开始
 

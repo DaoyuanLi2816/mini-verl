@@ -6,6 +6,8 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-29
+
 ### Rollout Runtime v2 baseline
 
 - Advanced the development line to `0.11.0.dev0` and preregistered the fixed
@@ -1141,7 +1143,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.0...v0.9.1
