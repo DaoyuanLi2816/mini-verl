@@ -20,9 +20,17 @@ SCHEMA = ROOT / "benchmarks/schema/rollout-runtime-v2.schema.json"
 FROZEN = ROOT / "benchmarks/results/gpu-calc-hard-equal-update-v2.json"
 SELECTED_SCHEMA = ROOT / "benchmarks/schema/rollout-runtime-v2-selected.schema.json"
 RESULT_SCHEMA = ROOT / "benchmarks/schema/rollout-runtime-v2-result.schema.json"
+CANDIDATE_SCHEMA = ROOT / "benchmarks/schema/rollout-runtime-v2-candidate-result.schema.json"
 HF_CACHED = ROOT / "benchmarks/evidence/rollout-runtime-v2/hf-cached-rtx4080-raw.json"
 VLLM = ROOT / "benchmarks/evidence/rollout-runtime-v2/vllm-rtx4080-raw.json"
 SELECTED_RESULT = ROOT / "benchmarks/results/rollout-runtime-v2-rtx4080.json"
+HF_CACHED_CANDIDATE = (
+    ROOT / "benchmarks/evidence/rollout-runtime-v2/hf-cached-v2-rtx4080-candidate-raw.json"
+)
+VLLM_CANDIDATE = (
+    ROOT / "benchmarks/evidence/rollout-runtime-v2/vllm-cudagraph-rtx4080-candidate-raw.json"
+)
+CANDIDATE_RESULT = ROOT / "benchmarks/results/rollout-runtime-v2-v0.11.0-candidate-rtx4080.json"
 
 
 def test_hf_cached_conformance_request_explicitly_collects_logprobs() -> None:
@@ -278,6 +286,57 @@ def test_selected_backend_result_preserves_failed_release_gate() -> None:
 def test_selected_backend_aggregate_is_reproducible() -> None:
     subprocess.run(
         [sys.executable, "scripts/publish_rollout_runtime_v2_evidence.py", "--check"],
+        cwd=ROOT,
+        check=True,
+    )
+
+
+def test_v011_candidate_evidence_is_exact_private_path_free_and_schema_valid() -> None:
+    expected = {
+        HF_CACHED_CANDIDATE: ("dd29402642ab68f7854579bd68accb4b449ca0a2ec4cb8b90d834ee2e6f03757"),
+        VLLM_CANDIDATE: "00c55a25deb9ecf7786d7f54ccba4c5c5b0bcce4bf1e46fe8ac6b48d0596194c",
+        CANDIDATE_RESULT: "0fb2066a8b567adbb011113141b2b4e3a4fa281cf3f3d13f6eecd1d7b0499a5d",
+    }
+    raw_schema = json.loads(SELECTED_SCHEMA.read_text(encoding="utf-8"))
+    candidate_schema = json.loads(CANDIDATE_SCHEMA.read_text(encoding="utf-8"))
+    for path, digest in expected.items():
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == digest
+        text = path.read_text(encoding="utf-8")
+        for private_fragment in (
+            "14191",
+            "daoyuanli/.venvs",
+            "OneDrive",
+            "AppData",
+            "C:\\Users",
+        ):
+            assert private_fragment not in text
+    for path in (HF_CACHED_CANDIDATE, VLLM_CANDIDATE):
+        jsonschema.validate(json.loads(path.read_text(encoding="utf-8")), raw_schema)
+    jsonschema.validate(json.loads(CANDIDATE_RESULT.read_text(encoding="utf-8")), candidate_schema)
+
+
+def test_v011_candidate_passes_runtime_gates_without_claiming_pg_or_release() -> None:
+    result = json.loads(CANDIDATE_RESULT.read_text(encoding="utf-8"))
+    assert result["source"] == {
+        "commit": "3cfa09b0b7aa2ee63f5702a5766b73d9a32fa8b9",
+        "dirty": False,
+        "miniverl_version": "0.11.0.dev0",
+        "wheel_sha256": "33c30834dcd01001a5c2ae619a1c982ceb2ad5fcc457998baa9f960a87267eba",
+    }
+    assert result["gates"]["hf_cached_speedup_over_hf_reference"]["passed"] is True
+    assert result["gates"]["vllm_speedup_over_hf_cached"]["passed"] is True
+    assert result["gates"]["hf_cached_nf4_conformance"]["passed"] is True
+    assert result["gates"]["vllm_pg_logprob_conformance"]["passed"] is False
+    assert result["release_progress"] == {
+        "next_action": "run the exact-wheel full GPU qualification and release dry-run",
+        "rollout_runtime_v2_gate_passed": True,
+        "v0_11_0_published": False,
+    }
+
+
+def test_v011_candidate_aggregate_is_reproducible() -> None:
+    subprocess.run(
+        [sys.executable, "scripts/publish_rollout_runtime_v2_candidate.py", "--check"],
         cwd=ROOT,
         check=True,
     )

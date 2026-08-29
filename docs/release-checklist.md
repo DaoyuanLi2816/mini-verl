@@ -15,11 +15,11 @@ after the exact release commit and its remote checks are green.
       `0256bd9e63ca6ed52999a5073a3577a008581a8d4418062314750d86f21cd5fe`
       before implementing `hf_cached`.
 - [x] Add typed policy identity, lifecycle and strict synchronization contracts.
-- [ ] Qualify `hf_cached` at 64/256/512 response bounds and require at least 2x
-      speedup at 256 and 512 without exceeding 14.5 GiB peak reserved VRAM.
-      The exact 24-cell run at `690db9b` stayed below the memory limit but
-      failed the speed gate: greedy ranged from 0.67–1.05× and most seeded
-      256/512-token cells reached about 1.8–1.9×.
+- [x] Qualify `hf_cached` at 64/256/512 response bounds and require at least 2x
+      speedup at 256 and 512 without exceeding 14.5 GiB peak total GPU memory.
+      The first exact candidate at `690db9b` failed and remains preserved. The
+      exact-wheel rerun at `3cfa09b` passed every required cell at 2.375–4.305×
+      with a 6,504 MiB peak.
 - [x] Add transactional `samples_per_prompt > 1` and exact no-skip/no-duplicate
       resume semantics without changing the published `n=1` profiles.
 - [x] Add the new deterministic task-reward plus distillation-advantage profile;
@@ -29,8 +29,8 @@ after the exact release commit and its remote checks are green.
       vLLM 0.28.0 passed the direct-GKD value, sync, memory and teardown gates
       and remains fail-closed for PG log-probabilities.
 - [ ] Run exact-candidate-wheel full qualification, dry-run and publication
-      only after every v0.11 acceptance gate passes. Publication is blocked on
-      the failed `hf_cached` performance gate.
+      after the completed runtime gate and only publish when the release checks
+      are green.
 
 ## v0.10.2 development (superseded by v0.11 scope)
 

@@ -71,7 +71,7 @@ See the [method](rollout-runtime-v2-method.md) for timing and invalidation
 rules. The next backend must use this workload unchanged and pass the
 preregistered correctness, memory and 256/512-token speedup gates.
 
-## Development-line backend measurement
+## First development candidate (preserved negative result)
 
 The exact `0.11.0.dev0` wheel at source `690db9b079bfecfec14dc3bedc3aa0308cbacf60`
 ran the same 24 cells with `hf_cached` and managed vLLM 0.28.0. Both runs used
@@ -107,10 +107,9 @@ p512/r256/n4 stochastic cell had measured runs of 118.807, 267.930 and
   was 32/32, while maximum absolute log-probability difference was 0.0194
   against the 0.01 NF4 threshold. Direct GKD remains the supported scope.
 
-The failed local-backend speed gate blocks v0.11.0 publication. It does not
-invalidate the completed runtime, grouped-sample, reward or managed-engine
-implementation; it requires profiling `hf_cached` and rerunning this frozen
-workload before release.
+This candidate failed the local-backend speed gate and triggered the profiling
+work that produced the qualified candidate below. Its bytes and failed outcome
+remain part of the record.
 
 ## Candidate artifact integrity
 
@@ -124,3 +123,56 @@ workload before release.
 The [aggregate JSON](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/rollout-runtime-v2-rtx4080.json)
 contains every cell, exact raw hashes, gate calculation and backend-selection
 state. `scripts/publish_rollout_runtime_v2_evidence.py --check` reproduces it.
+
+## Qualified v0.11 candidate
+
+The exact `0.11.0.dev0` wheel at source
+`3cfa09b0b7aa2ee63f5702a5766b73d9a32fa8b9` reran the same 24 cells. Both
+backends used wheel SHA-256
+`33c30834dcd01001a5c2ae619a1c982ceb2ad5fcc457998baa9f960a87267eba`.
+The local backend keeps the NF4 actor as the training source of truth, builds a
+BF16 inference mirror, and synchronizes the exact live LoRA tensors before each
+policy version. The managed vLLM backend uses CUDA Graph execution.
+
+| Response | `hf_cached` / reference | vLLM / `hf_cached` | `hf_cached` tokens/s | vLLM tokens/s |
+| ---: | ---: | ---: | ---: | ---: |
+| 64 | 2.39–4.30× | 2.99–5.71× | 124.2–242.5 | 626.6–806.0 |
+| 256 | 2.38–4.30× | 3.19–5.97× | 125.9–240.8 | 685.6–836.4 |
+| 512 | 2.54–4.23× | 3.08–5.88× | 124.3–248.7 | 693.4–821.2 |
+
+Ranges include both prompt lengths, both `n` values and both sampling modes.
+Each cell used one warmup and three measured repetitions. Compilation and
+engine warmup happen before measured repetitions and remain visible in the raw
+artifact.
+
+### Gate outcome
+
+- `hf_cached >= 2× hf_reference` at response 256 and 512: **passed in every
+  cell**, with conservative minima of 2.375× and 2.541×.
+- vLLM `>= 1.2× hf_cached` at response 256 and 512: **passed in every cell**;
+  the full observed range was 3.076–5.966×.
+- Peak total GPU memory below 14.5 GiB: **passed**. `hf_cached` peaked at
+  6,504 MiB and vLLM at 11,931 MiB.
+- Exact policy refresh and teardown: **passed** for both backends across eight
+  unique policy identities, without monotonic memory growth.
+- Local NF4/mirror conformance: **passed** with exact greedy tokens and maximum
+  sampled-token log-probability difference 0.002483 against the 0.01 limit.
+- vLLM PG-k1 log-probability conformance: **failed closed**. Greedy tokens were
+  exact, but the maximum difference was 0.019646. vLLM is therefore selected
+  for direct GKD only; PG-k1 stays on `hf_cached`.
+
+The runtime performance gate is complete. Release publication still requires
+the exact-wheel qualification and release workflow.
+
+## Qualified-candidate artifact integrity
+
+| Artifact | SHA-256 |
+| --- | --- |
+| `hf_cached` raw | `dd29402642ab68f7854579bd68accb4b449ca0a2ec4cb8b90d834ee2e6f03757` |
+| vLLM CUDA Graph raw | `00c55a25deb9ecf7786d7f54ccba4c5c5b0bcce4bf1e46fe8ac6b48d0596194c` |
+| Aggregate result | `0fb2066a8b567adbb011113141b2b4e3a4fa281cf3f3d13f6eecd1d7b0499a5d` |
+| Frozen calculator | `53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc` |
+
+The [qualified aggregate JSON](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/rollout-runtime-v2-v0.11.0-candidate-rtx4080.json)
+binds every cell to the exact wheel, raw files and preregistration.
+`scripts/publish_rollout_runtime_v2_candidate.py --check` reproduces it.
