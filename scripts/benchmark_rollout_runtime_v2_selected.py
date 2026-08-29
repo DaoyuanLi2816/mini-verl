@@ -72,6 +72,18 @@ def _package_version(name: str) -> str | None:
         return None
 
 
+def _cached_snapshot(model_id: str, revision: str) -> Path:
+    from huggingface_hub import try_to_load_from_cache
+
+    config = try_to_load_from_cache(model_id, "config.json", revision=revision)
+    if not isinstance(config, str):
+        raise RuntimeError(f"cached model {model_id}@{revision} has no config.json")
+    snapshot = Path(config).resolve().parent
+    if not any(snapshot.glob("*.safetensors")):
+        raise RuntimeError(f"cached model {model_id}@{revision} has no safetensors weights")
+    return snapshot
+
+
 def _gpu_used_mib() -> int:
     raw = subprocess.check_output(
         [
@@ -430,6 +442,12 @@ def run(
         attn_implementation=prereg["models"]["attention_implementation"],
         gradient_checkpointing=False,
     )
+    local_spec = spec.model_copy(
+        update={
+            "model_id": str(_cached_snapshot(spec.model_id, str(spec.revision))),
+            "revision": None,
+        }
+    )
     baseline_gpu_mib = _gpu_used_mib()
     load_started = time.perf_counter()
     tokenizer = HFTokenizerAdapter.load(
@@ -439,12 +457,16 @@ def run(
         local_files_only=True,
     )
     actor = HFBackend.load(
-        spec,
+        local_spec,
         device="cuda",
         tokenizer=tokenizer,
         trainable=True,
         local_files_only=True,
     )
+    # The concrete path avoids Hub completeness checks; public identity remains
+    # the exact repository and revision from the preregistration.
+    actor.model_id = spec.model_id
+    actor.model_revision = spec.revision
     torch.cuda.synchronize()
     actor_load_seconds = time.perf_counter() - load_started
     if backend_name == "hf_cached":
