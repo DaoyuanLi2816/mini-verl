@@ -1,9 +1,8 @@
 # Alignment Lab demo recording script
 
-This is a reproducible recording plan, not a fabricated video. The short run
-uses the CPU toy backend and proves the workflow and artifact surfaces; its 0%
-task score is not capability evidence. The measured v0.5 result remains the
-separate three-seed Qwen3 artifact.
+This reproducible recording plan uses the CPU toy backend to show the workflow
+and artifact surfaces. Its 0% task score belongs to the demo fixture; the
+measured v0.5 result is the separate three-seed Qwen3 artifact.
 
 ## Install
 

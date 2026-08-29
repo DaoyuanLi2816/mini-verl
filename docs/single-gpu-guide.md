@@ -1,11 +1,11 @@
 # Bring your own GPU
 
-miniVERL is a **single-GPU CUDA LLM post-training** stack. It has no GPU model
-allowlist and no multi-GPU launcher: one process uses one CUDA device, while
-the model pair and sequence budget determine whether a recipe fits.
+miniVERL is a **single-GPU CUDA LLM post-training** stack. One process uses one
+CUDA device, and the model pair, sequence budget and runtime strategy determine
+how the recipe fits.
 
-The shipped Qwen3 recipe is measured on an RTX 4080, but it is not coded for an
-RTX 4080. Its portable defaults are:
+The shipped Qwen3 recipe follows a device-name-agnostic CUDA path and has a
+measured RTX 4080 reference. Its portable defaults are:
 
 - `models.device: auto` selects CUDA when PyTorch can use it;
 - `dtype: auto` selects bfloat16 when the device supports it and float16
@@ -14,9 +14,9 @@ RTX 4080. Its portable defaults are:
 - `train.trajectory_batch_size: 1` is the conservative compatibility default;
   `2` or `4` can improve update throughput when measured headroom permits;
 - `memory.strategy: auto` resolves the supported resident/swap policy;
-- an out-of-memory error may reduce only the vocabulary-loss chunk size and
-  retry the gradient phase. It never silently changes the objective, model,
-  rollout length, or optimizer update.
+- an out-of-memory retry reduces the mathematically neutral vocabulary-loss
+  chunk size while keeping the objective, model, rollout length and optimizer
+  update fixed.
 
 ## Start here
 
@@ -48,10 +48,10 @@ python scripts/check_known_good_environment.py
 ```
 
 The ordinary dependency ranges remain the library contract. In the manifest,
-Python and package pins are required reproducibility inputs; GPU name, VRAM,
-driver and CUDA runtime are observed audit fields, not install requirements.
-This is one maintainer-measured known-good stack, not a universal lock: other
-GPUs are unmeasured, and other CUDA/PyTorch combinations remain user-selected.
+Python and package pins are reproducibility inputs; GPU name, VRAM, driver and
+CUDA runtime record the measured machine. In the schema, the driver and CUDA
+runtime are observed audit fields; other GPUs are unmeasured by the maintained
+reference and can be recorded with the same schema.
 
 Then watch free memory in another terminal before the real run:
 
@@ -62,32 +62,31 @@ miniverl train recipes/qwen_consumer_gpu_calc.yaml
 
 `doctor` reports the device, CUDA availability and optional dependencies.
 `--dry-run` validates model identity, tokenizer compatibility, adapter
-provenance and the resolved configuration. It does not prove that every phase
-will fit; only an actual run can do that.
+provenance and the resolved configuration. `plan --probe` adds a bounded
+measurement before the full run establishes end-to-end fit.
 
 The default calculator recipe owns separate 0.6B student and 1.7B teacher
 models, so it uses `models.runtime: dual_model`. When student and teacher use
 the same base revision, `models.runtime: shared_backbone` can instead keep one
 base with separate adapters. The shipped
 [`qwen_consumer_gpu_shared.yaml`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/recipes/qwen_consumer_gpu_shared.yaml)
-demonstrates the wiring and batch-4 update path; its frozen teacher is a systems
-artifact, not a newly quality-qualified recipe. See the
-[measured runtime report](consumer-runtime-v1.md) before adapting it.
+demonstrates the wiring and batch-4 update path. See the
+[measured runtime report](consumer-runtime-v1.md) for its systems evidence and
+teacher provenance before adapting it.
 
 ## What different cards change
 
-These are starting points, not benchmark claims:
+Use these as starting points and record the resulting plan:
 
 | Your card | Sensible first move | Evidence status |
 | --- | --- | --- |
-| 8–12 GiB, such as an RTX 3070 or Titan V | Try the shipped pair, but be ready to shorten token budgets or select a smaller teacher. Keep `dtype: auto`; Titan V-class hardware resolves to fp16 because it has no bf16 path. | Supported by the device-name-agnostic CUDA path; not measured in this repository |
+| 8–12 GiB, such as an RTX 3070 or Titan V | Try the shipped pair, then shorten token budgets or select a smaller teacher if the probe requires it. Keep `dtype: auto`; Titan V-class hardware resolves to fp16. | Portable CUDA path; contribute a measured record |
 | 16–24 GiB | Start with the shipped recipe unchanged. Increase budgets only after recording a successful baseline. | The exact default pair is measured on one RTX 4080 16 GiB |
-| 24–32+ GiB, such as RTX 3090/4090/5090-class cards | Use the same recipe first; extra headroom can support longer contexts, larger models, or less quantization. Change one variable at a time. | Expected from the same single-device path; not measured here |
+| 24–32+ GiB, such as RTX 3090/4090/5090-class cards | Use the same recipe first; extra headroom can support longer contexts, larger models, or less quantization. Change one variable at a time. | Portable CUDA path; contribute a measured record |
 
-The default measured run peaked below 5 GiB of CUDA allocated/reserved memory,
-but allocator behavior, kernels, driver versions and generation length vary.
-That number is evidence from one machine, **not** a promise that every 8 GiB
-card or software stack will complete.
+The default measured run peaked below 5 GiB of CUDA allocated/reserved memory.
+Allocator behavior, kernels, driver versions and generation length all affect
+the headroom on another machine, which is why the plan records them.
 
 ## If the recipe does not fit
 
@@ -106,10 +105,9 @@ Work down this list and preserve the resulting YAML with the run:
    students remain resident because moving bitsandbytes modules between
    devices is not a supported lifecycle.
 
-Do not infer correctness from a falling loss alone. Run the strict held-out
-verifier and inspect the terminal manifest. The published negative controls
-are included precisely because an incompatible teacher can optimize normally
-while producing a 0% tool policy.
+Use the strict held-out verifier and terminal manifest alongside the loss. The
+published negative controls show why task behavior and teacher protocol
+competence belong in the same review.
 
 ## Share a hardware result
 
@@ -122,5 +120,4 @@ miniverl export-benchmark runs/<run-id> --notes "GPU, VRAM, driver, torch and CU
 
 Validate the exported JSON and open a pull request following
 [`benchmarks/README.md`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/README.md). Results from cards other than
-the measured RTX 4080 are welcome; until they exist, the README labels those
-cards as portable code paths rather than measured performance.
+the measured RTX 4080 are welcome and extend the public hardware matrix.

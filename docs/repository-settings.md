@@ -1,7 +1,7 @@
 # Repository settings audit
 
-This is a maintainer checklist, not a claim about settings that code cannot
-inspect.
+This maintainer checklist records the intended repository policy; verify each
+item in GitHub settings during an audit.
 
 - Default branch: `main`.
 - Require a pull request and the current CPU/build/docs/pinned-verl checks.

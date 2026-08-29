@@ -1,9 +1,9 @@
 # For verl users
 
-miniVERL is a local runtime for two documented subsets of verl v0.8 OPD. It
-keeps familiar field names and Parquet data, then compiles distributed resource
-intent into sequential phases on one CUDA GPU. It is an independent project;
-the mapping is explicit and does not imply endorsement or full compatibility.
+miniVERL brings two documented verl v0.8 OPD profiles into a local, inspectable
+workflow. Familiar field names and Parquet data flow through a typed compiler,
+which turns resource intent into sequential phases on one CUDA GPU and records
+every local mapping in the resulting plan.
 
 Inspect the closed, versioned registry with `miniverl profiles list`; use
 `miniverl compat explain` before assuming that an accepted field is effective.
@@ -12,10 +12,10 @@ by plans, caches, checkpoints and exports.
 
 <picture>
   <source media="(max-width: 640px)" srcset="../verl-local-runtime-mobile.svg">
-  <img src="../verl-local-runtime.svg" alt="verl-shaped YAML, overrides and Parquet prompts pass through a typed compiler; one CUDA GPU runs actor rollout, teacher scoring and actor update; portable artifacts can be handed to pinned verl while distributed execution remains outside miniVERL.">
+  <img src="../verl-local-runtime.svg" alt="verl-shaped YAML, overrides and Parquet prompts pass through a typed compiler; one CUDA GPU runs actor rollout, teacher scoring and actor update; portable artifacts form a pinned scale-out handoff.">
 </picture>
 
-## What you can reuse
+## Supported input shape
 
 - A resolved YAML using the `verl-opd-v0.8-single-gpu-v1` field subset.
 - Reward-free verl-style Parquet prompts with structured chat messages.
@@ -26,11 +26,10 @@ by plans, caches, checkpoints and exports.
   `distillation.teacher_models.teacher_model.model_path`, response bounds,
   learning rate and LoRA configuration.
 
-What is not reusable: arbitrary Hydra composition inside miniVERL, shell launch scripts,
-resource pools, Ray actors, FSDP/Megatron checkpoints, PPO/GRPO, critics,
-policy-gradient modes beyond the closed sampled-k1 profile, task-reward
-mixtures, multiple teachers and multimodal workers. Unsupported semantics fail
-closed instead of falling back silently.
+The profile compiler accepts a resolved, documented subset and classifies every
+field before execution. [Compatibility profiles](profiles/index.md) contains
+the field contract; [limitations](limitations.md) collects the algorithms and
+distributed runtime surfaces covered by other tools.
 
 ## Command mapping
 
@@ -42,7 +41,6 @@ closed instead of falling back silently.
 | launch OPD | `miniverl run` |
 | read prompt Parquet | use the file directly |
 | allocate resource pools | compile to sequential local phases |
-| save a distributed checkpoint | unsupported |
 | hand artifacts back | `miniverl export-verl` |
 
 ```bash
@@ -53,9 +51,9 @@ miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
 ```
 
 Planning is weight-free and offline. Use `--json` to retain the complete field
-matrix. The stable v0.9 CLI records repeated `--set`, override files and
-trailing tokens with deterministic precedence; it does not execute `${...}`
-interpolations or shell text. See [Config overrides](config-overrides.md).
+matrix. The CLI records repeated `--set`, override files and
+trailing tokens with deterministic precedence. Resolve `${...}` composition in
+the trusted source workflow first; see [Config overrides](config-overrides.md).
 
 For a serious run, add `--accept-local-reinterpretations --out plan.json`,
 inspect the immutable artifact, then execute `miniverl run --plan plan.json`.
@@ -77,10 +75,10 @@ distillation:
       inference: {name: vllm}
 ```
 
-miniVERL does not launch vLLM here. The compiler classifies both engine names
-as local reinterpretations and runs local Hugging Face generation and teacher
-scoring sequentially. The source value, local meaning and risk are preserved in
-the compatibility report.
+The `vllm` values remain visible as source intent. The compiler classifies them
+as local reinterpretations, runs Hugging Face generation and teacher scoring
+sequentially, and preserves the source value, local meaning and risk in the
+compatibility report.
 
 ## Data mapping
 
@@ -90,9 +88,9 @@ row preserves its structured messages and source metadata. Run
 `miniverl data sample --out prompts.parquet` for a valid small file, or use
 `miniverl convert-dataset` when crossing the native trajectory boundary.
 
-The compiler never substitutes a calculator environment for missing Parquet
-data. A missing file is an actionable error when execution begins. Dataset
-bytes and schema are copied into export provenance.
+Parquet paths are direct execution inputs, so a missing file produces an
+actionable error when execution begins. Dataset bytes and schema are copied
+into export provenance.
 
 ## Actor, teacher and reference roles
 
@@ -101,10 +99,10 @@ produces top-k token IDs and log-probabilities on actor-generated tokens;
 top-k mass and overlap are diagnostics, not an explicit tail bucket. In the PG
 k1 profile the target is only the sampled token's teacher log-probability,
 bound to the rollout actor log-probability and policy version; current actor
-log-probability is recomputed at update time. Neither profile has a reference
-policy, critic or task reward. Local runtime strategies
+log-probability is recomputed at update time. Both profiles use reward-free
+distillation with one actor and one teacher. Local runtime strategies
 may keep quantized roles resident, swap movable unquantized roles, or share a
-compatible backbone, but role identities never collapse in provenance.
+compatible backbone while preserving distinct role identities in provenance.
 
 ## Export boundary
 
@@ -114,12 +112,12 @@ miniverl bridge materialize scaleout --download --offline
 miniverl bridge doctor scaleout --json
 ```
 
-The stable v0.9 bundle carries PEFT, Parquet, config and provenance artifacts,
+The export bundle carries PEFT, Parquet, config and provenance artifacts,
 but is reported as `launchable: false` until exact base snapshots are materialized and
 the pinned upstream checks pass. Read the [materialization workflow](scaleout-materialization.md).
 Upstream parse/load smoke, artifact completeness, launchability and distributed
-execution are separate statuses. miniVERL never reports a distributed job as
-tested.
+execution are separate statuses, so the report shows exactly how far a bundle
+has progressed.
 
 ## Common errors
 

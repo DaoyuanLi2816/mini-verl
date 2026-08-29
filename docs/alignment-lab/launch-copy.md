@@ -1,7 +1,7 @@
 # miniVERL v0.5.0 launch copy
 
-All text below is evidence-bounded. Update the release URL only after the exact
-tag is public.
+This archived launch copy is tied to the v0.5.0 evidence bundle. Update its
+release URL only when republishing against the exact tag.
 
 ## GitHub Release summary
 

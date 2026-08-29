@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 930" role="img" aria-labelledby="title desc">
   <title id="title">miniVERL local OPD product flow, mobile layout</title>
-  <desc id="desc">A vertical view of typed verl-shaped inputs, local one-GPU OPD phases, inspectable artifacts and the bounded export to pinned verl. Distributed execution is outside miniVERL.</desc>
+  <desc id="desc">A vertical view of typed verl-shaped inputs, local one-GPU OPD phases, inspectable artifacts and a portable export bundle with explicit readiness states.</desc>
   <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#050816"/><stop offset="1" stop-color="#111b38"/></linearGradient><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0l10 5-10 5z" fill="#67e8f9"/></marker></defs>
   <rect width="390" height="930" rx="20" fill="url(#bg)"/><rect x="1" y="1" width="388" height="928" rx="19" fill="none" stroke="#475569"/>
   <g font-family="Inter,DejaVu Sans,Segoe UI,sans-serif">
-    <text x="24" y="42" fill="#f8fafc" font-size="20" font-weight="750">One-GPU OPD workflow</text><text x="24" y="68" fill="#94a3b8" font-size="14">typed · inspectable · fail-closed</text>
+    <text x="24" y="42" fill="#f8fafc" font-size="20" font-weight="750">One-GPU OPD workflow</text><text x="24" y="68" fill="#94a3b8" font-size="14">typed · inspectable · resumable</text>
     <g fill="#0f2740" stroke="#38bdf8"><rect x="24" y="96" width="342" height="94" rx="14"/><rect x="24" y="226" width="342" height="104" rx="14"/><rect x="24" y="366" width="342" height="218" rx="14"/></g>
     <text x="44" y="126" fill="#67e8f9" font-size="13" font-weight="700">INPUTS</text><text x="44" y="154" fill="#f8fafc" font-size="17" font-weight="700">verl-shaped YAML + overrides</text><text x="44" y="177" fill="#cbd5e1" font-size="15">Parquet prompt data</text>
     <path d="M195 190v28M195 330v28M195 584v28M195 728v28" stroke="#67e8f9" stroke-width="3" marker-end="url(#a)"/>
@@ -14,6 +14,6 @@
     <text x="195" y="450" text-anchor="middle" fill="#e0e7ff" font-size="16" font-weight="650">actor rollout</text><text x="195" y="504" text-anchor="middle" fill="#e0e7ff" font-size="16" font-weight="650">teacher scoring</text><text x="195" y="558" text-anchor="middle" fill="#e0e7ff" font-size="16" font-weight="650">actor update</text>
     <rect x="24" y="620" width="342" height="108" rx="14" fill="#18213c" stroke="#a78bfa"/><text x="44" y="651" fill="#c4b5fd" font-size="13" font-weight="700">INSPECTABLE OUTPUTS</text><text x="44" y="680" fill="#f8fafc" font-size="16" font-weight="650">checkpoint · PEFT · targets</text><text x="44" y="704" fill="#cbd5e1" font-size="15">trajectories · metrics · provenance</text>
     <rect x="24" y="764" width="342" height="70" rx="14" fill="#12313a" stroke="#2dd4bf"/><text x="195" y="793" text-anchor="middle" fill="#ccfbf1" font-size="15" font-weight="700">materialized export bundle</text><text x="195" y="817" text-anchor="middle" fill="#ccfbf1" font-size="15">→ pinned verl v0.8.0</text>
-    <rect x="24" y="852" width="342" height="54" rx="14" fill="#34151b" stroke="#fb7185" stroke-dasharray="7 5"/><text x="195" y="875" text-anchor="middle" fill="#fecdd3" font-size="13" font-weight="750">OUTSIDE miniVERL</text><text x="195" y="896" text-anchor="middle" fill="#fff1f2" font-size="15">distributed execution</text>
+    <rect x="24" y="852" width="342" height="54" rx="14" fill="#24204a" stroke="#a78bfa"/><text x="195" y="875" text-anchor="middle" fill="#ddd6fe" font-size="13" font-weight="750">READINESS REPORT</text><text x="195" y="896" text-anchor="middle" fill="#f5f3ff" font-size="15">bundle · launch · execution</text>
   </g>
 </svg>

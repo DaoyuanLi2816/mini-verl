@@ -1,8 +1,8 @@
 # v1 readiness contract
 
-Version 1 is a stability promise, not a feature-count milestone. A successful
-release qualification is necessary evidence, but it does not by itself freeze
-the public surface or make miniVERL a v1 candidate.
+Version 1 marks a reviewed stability promise across the public surface. Release
+qualification supplies the binary evidence; the contracts below define the
+additional API, artifact and maintenance commitments.
 
 ## Stability contract
 

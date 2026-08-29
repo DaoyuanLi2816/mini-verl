@@ -1,7 +1,7 @@
 # Upstream verl support policy
 
-miniVERL supports closed compatibility profiles, not “latest verl” and not
-arbitrary upstream configuration. The machine-readable matrix is
+miniVERL supports versioned compatibility profiles tied to exact upstream
+source states. The machine-readable matrix is
 [`generated/upstream-support-matrix.json`](generated/upstream-support-matrix.json).
 
 ## Lifecycle
@@ -26,4 +26,3 @@ The active direct-GKD and sampled-k1 profiles both target official verl
 `v0.8.0` at `7aed6b230776f963fa09509c10d9c3a767d1102c`. No v0.9-or-newer profile is
 currently supported. Existing bridge artifacts remain independent-project
 handoffs and do not imply upstream endorsement.
-

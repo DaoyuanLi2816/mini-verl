@@ -1,8 +1,7 @@
 # External benchmark governance
 
-This page records where every external alignment endpoint comes from, what
-licence it carries, what this project redistributes, and what each measurement
-does *not* establish. It is the auditable half of
+This page records the source, licence, redistribution policy and interpretation
+scope for every external alignment endpoint. It is the auditable half of
 [`benchmarks/external-alignment/registry.yaml`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/external-alignment/registry.yaml),
 which is the machine-readable half.
 

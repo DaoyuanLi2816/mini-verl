@@ -1,10 +1,9 @@
 # Limitations
 
-This page is the list of reasons not to trust miniVERL beyond what it has
-actually been shown to do. It is deliberately longer than the feature list.
-
-Everything below is traceable to a file in this repository or to a command that
-was run against it. Measurements come from one machine: Windows 11 Pro
+This page collects miniVERL's scientific, runtime, compatibility and security
+boundaries so the product guides can stay focused on workflows. Each item is
+traceable to a repository file or an executed command. Measurements come from
+one machine: Windows 11 Pro
 10.0.22631, RTX 4080 (16376 MiB, driver 596.49), CPython 3.12.13, torch
 2.13.0+cu130, transformers 5.14.1, peft 0.19.1, bitsandbytes 0.50.0. The GPU
 figures include the published calculator runs, hardware probes and
@@ -183,7 +182,7 @@ automatically. Sequence length, batch size, models and objective are never
 changed behind your back, so a run that does not fit will fail rather than
 quietly train something different.
 
-## Evidence quality
+## Evidence scope
 
 ### The toy backend is a machinery harness, not a capability result
 
@@ -425,7 +424,7 @@ Models with tied embeddings, weight-sharing tricks, or a non-`Linear` output
 projection have not been exercised beyond the pinned Qwen3 pair (which does have
 `tie_word_embeddings: true`) and a tiny offline `Qwen3ForCausalLM` fixture.
 
-### Things this project does not contain
+### Execution boundary
 
 miniVERL has no distributed training, multi-GPU or multi-node execution,
 high-throughput rollout engine, PPO/GRPO objective, trained reward model,
@@ -439,7 +438,7 @@ node whitelist instead of calling `eval`, and the SQLite environment uses a
 `sqlite3` authorizer plus a function whitelist and permits one statement per
 call.
 
-### The verified verl bridge does not execute verl
+### Verl bridge boundary
 
 The v0.6 **miniVERL-defined compatibility Level 3** bridge targets official verl
 `v0.8.0` at one exact commit and one named profile. It validates standard
@@ -463,7 +462,7 @@ See the [current OPD runtime](verl-opd-runtime.md), [scale-out contract](verl-op
 implement `privileged_context()`. All three built-in environments do;
 `miniverl validate` warns if you point it at one that does not.
 
-### Portable redaction is not a secret store
+### Portable redaction boundary
 
 Shareable views structurally redact credential-like keys, URL userinfo and
 embedded absolute paths across the supported report and export formats. That is
@@ -506,10 +505,9 @@ commit identity, date and opt-in GPU/network status live in the single
 machine-readable [release-quality record](generated/quality.json), so this page
 does not drift when tests are added.
 
-## Roadmap (not implemented)
+## Roadmap
 
-Nothing in this section exists in the code. It is recorded here so that the
-sections above cannot be read as implying it does.
+These are future design directions rather than current runtime surfaces.
 
 - **Cross-tokenizer distillation.** Referenced as a roadmap item by the error
   hints in `models/factory.py` and `trajectory/alignment.py`. Would require a

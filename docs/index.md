@@ -1,134 +1,149 @@
 # miniVERL
 
-Run a documented subset of verl v0.8 on-policy distillation on one consumer
-GPU. Bring a typed OPD profile and Parquet prompts, inspect rollout → teacher
-scoring → update locally, then export standard artifacts. miniVERL is
-independent; distributed execution and full verl compatibility are not claimed.
+Run verl-style on-policy distillation on one NVIDIA GPU, inspect every local
+mapping and teacher target, and carry standard artifacts into a scale-out
+workflow.
 
 [Install and run locally](single-gpu-guide.md){ .md-button .md-button--primary }
-[Read the compatibility boundary](verl-opd-runtime.md){ .md-button }
+[Start with a verl profile](for-verl-users.md){ .md-button }
 
-## Pip-only OPD quickstart
+## From profile to adapter
+
+miniVERL compiles typed YAML and structured Parquet prompts into three local
+phases: actor rollout, teacher scoring and actor update. The same execution plan
+binds the profile version, overrides and input bytes to trajectories,
+checkpoints, teacher caches and the final PEFT adapter.
 
 ```bash
 python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
 python -m pip install "miniverl[train,cuda]"
-miniverl doctor
 miniverl data sample --format verl-parquet --out prompts.parquet
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
   --config builtin:qwen3-0.6b-1.7b-opd \
-  --set 'data.train_files=["prompts.parquet"]'
+  --set 'data.train_files=["prompts.parquet"]' --out plan.json
 miniverl run --profile verl-opd-v0.8-single-gpu-v1 \
-  --config builtin:qwen3-0.6b-1.7b-opd \
-  --set 'data.train_files=["prompts.parquet"]' --dry-run
+  --plan plan.json --dry-run
 ```
 
-Planning loads no weights. Remove `--dry-run` on one CUDA GPU to execute the
-pinned Qwen3 recipe and export a standard PEFT adapter. Install the matching
-CUDA-enabled PyTorch wheel first; the `[cuda]` extra does not select one.
-For the exact maintainer-measured versions, use the
-[machine-readable known-good stack](single-gpu-guide.md).
+Planning is weight-free. Review `plan.json`, remove `--dry-run` on a CUDA GPU,
+then inspect and export the result:
 
-After inspection, write `plan.json` with `plan --out`, run it without
-`--dry-run`, then use `inspect`, `cache stats`, `export-verl` and `bridge
-doctor`; the [quickstart](opd-quickstart.md) carries the complete copyable path.
+```bash
+miniverl run --profile verl-opd-v0.8-single-gpu-v1 --plan plan.json \
+  --output runs --run-id my-opd
+miniverl inspect runs/my-opd/trajectories.jsonl
+miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
+miniverl bridge doctor scaleout --json
+```
 
-## Runtime and compatibility boundary
+The `[train,cuda]` extra supplies the training and quantization stack. Choose
+the matching CUDA PyTorch wheel separately; the
+[single-GPU installation guide](single-gpu-guide.md) includes flexible and
+maintainer-measured setups.
 
-miniVERL runs one local CPU process or one NVIDIA CUDA GPU. Fit depends on the
-model pair, context, kernels and VRAM; there is no GPU-name allowlist. Ray,
-FSDP, Megatron, PPO, GRPO and distributed launch are outside the runtime.
-
-The executable profile pins verl `v0.8.0` at `7aed6b23`: one actor, one teacher,
-`n=1`, GKD `forward_kl_topk`, token-mean and no reward/KL penalty. Unsupported
-algorithm or distributed semantics fail closed. Exports remain unlaunchable
-until exact base snapshots are materialized and checked under the pinned verl
-commit. See [scale-out materialization](scaleout-materialization.md).
-
-## Measured runtime evidence
-
-The v0.9 RTX 4080 developer workload consumed 32 distinct prompts and completed
-8 current-policy updates at 3.1914 GiB peak reserved VRAM. Median steady-state
-rollout, teacher-scoring and update times were 9.7200, 0.4864 and 2.3260 seconds;
-a matched interruption/resume reproduced byte-identical trajectories, adapter
-and optimizer tensors. No quality endpoint or method comparison ran.
-
-[Measured workload evidence](verl-opd-reference-workload.md){ .md-button }
-
-## Choose a path
+## Three ways to use miniVERL
 
 <div class="path-grid" markdown>
 
 <div class="path-card" markdown>
 
-## Run OPD locally
+### Run local OPD
 
-Plan, execute, inspect and resume one local pure-OPD run.
+Compile a pinned direct-GKD or sampled-k1 profile, execute it in local phases,
+and inspect strict current-policy trajectories.
 
 ```bash
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml
 ```
 
-**Artifact:** a checksummed local execution plan, trajectories and PEFT adapter.
+**Artifact:** immutable plan, trajectories, teacher cache and PEFT adapter.
 
-**Next:** [Plan and run](opd-quickstart.md)
+**Next:** [OPD quickstart](opd-quickstart.md)
 
 </div>
 
 <div class="path-card" markdown>
 
-## Bring a verl config
+### Bring verl-shaped inputs
 
-Import the resolved, documented OPD subset with field-by-field classifications.
+Keep familiar field names and structured Parquet while receiving a
+field-by-field account of each local effect.
 
 ```bash
-miniverl import-verl --profile verl-opd-v0.8-single-gpu-v1 \
-  --config verl-opd.yaml --out local-opd.yaml
+miniverl compat check --profile verl-opd-v0.8-single-gpu-v1 \
+  --config verl-opd.yaml
 ```
 
-**Artifact:** a round-trippable profile and `local-opd.import-report.json`.
+**Artifact:** resolved compatibility matrix and local execution plan.
 
-**Next:** [Supported field boundary](compatibility.md)
+**Next:** [For verl users](for-verl-users.md)
 
 </div>
 
 <div class="path-card" markdown>
 
-## Move data and artifacts
+### Prepare scale-out artifacts
 
-Convert Parquet, export standard artifacts and inspect the unsupported boundary.
+Package the local adapter, source Parquet, resolved config and provenance, then
+materialize exact model snapshots against the pinned upstream source.
 
 ```bash
 miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
 ```
 
-**Artifact:** PEFT + Parquet + OPD overrides and separate readiness flags.
+**Artifact:** checksummed PEFT + Parquet + config bundle with readiness states.
 
-**Next:** [current scale-out contract](verl-opd-scaleout.md)
-
-</div>
+**Next:** [Scale-out contract](verl-opd-scaleout.md)
 
 </div>
 
-## Research Notes
+</div>
 
-The v0.7 external study stopped at its first preregistered gate: **0 selected
-checkpoints, 0 qualified teachers, 0 continuation arms and 0 final-test tasks
-accessed**. All eight candidates scored 0/64 retained JSONNav utility against
-the unchanged 20% floor.
+## Runtime design
 
-```bash
-miniverl pilot --builtin-study alignment-external-v1 --json
-```
+The local scheduler keeps actor, teacher and optional reference roles explicit
+while choosing resident, swap or shared-backbone placement. Structured token
+provenance, pickle-free caches and transactional publication make a run
+inspectable and resumable across phase boundaries.
 
-[Read the early-stop study](alignment-external/alignment-external-v1.md){ .md-button .md-button--primary }
+Two measured profiles pin official verl `v0.8.0` at `7aed6b23`:
 
-Alignment Lab starts from a saturated SFT checkpoint. No continuation method
-improves it; measured regressions and unexecuted external safety endpoints stay
-visible. RecoveryBench and the calculator study likewise preserve their
-negative and mixed results rather than turning them into product claims.
+| Profile | Objective | Teacher signal |
+| --- | --- | --- |
+| direct GKD | `forward_kl_topk` | top-k token IDs and log-probabilities |
+| sampled-k1 PG | sampled `k1` + vanilla policy loss | sampled-token teacher log-probability |
 
-- [Alignment Lab](alignment-lab/alignment-lab-v1.md)
-- [RecoveryBench](recoverybench/recoverybench-v1.md)
+[Compatibility profiles](profiles/index.md) describes the exact field and
+semantic contract. [Hardware planning](hardware-planning.md) explains how the
+same device-name-agnostic CUDA path adapts to different VRAM budgets.
+
+## Measured runtime evidence
+
+The RTX 4080 Qwen3 developer workload consumed 32 distinct prompts and
+completed eight current-policy updates at 3.1914 GiB peak reserved VRAM. A
+matched interruption/resume reproduced byte-identical trajectories, adapter
+and optimizer tensors. The companion SmolLM2 workload completed the same run
+shape at 1.4961 GiB peak reserved VRAM.
+
+[Qwen3 workload](verl-opd-reference-workload.md){ .md-button }
+[SmolLM2 workload](smollm2-opd-workload.md){ .md-button }
+
+## Research record
+
+The studies section preserves the actual outcome of each scoped experiment.
+It includes a protocol-qualified teacher that tied supervised continuation, a
+negative RecoveryBench result, regressions from a saturated Alignment Lab
+starting point, and a preregistered external-alignment early stop.
+
 - [Calculator protocol study](benchmarking.md)
+- [RecoveryBench](recoverybench/recoverybench-v1.md)
+- [Alignment Lab](alignment-lab/alignment-lab-v1.md)
 - [External Alignment Gate](alignment-external/alignment-external-v1.md)
+
+## Scope and boundaries
+
+miniVERL's execution scope is one local process, one NVIDIA CUDA GPU and its
+versioned profiles. Its scale-out path ends in a validated artifact handoff.
+Read [compatibility](compatibility.md) for field and handoff semantics, and
+[limitations](limitations.md) for the consolidated architecture, measurement,
+security and generalization boundaries.
