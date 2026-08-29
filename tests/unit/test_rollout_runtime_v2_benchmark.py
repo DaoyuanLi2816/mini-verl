@@ -10,9 +10,8 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import jsonschema
+import pytest
 import yaml
-
-from scripts import benchmark_rollout_runtime_v2_selected as selected_benchmark
 
 ROOT = Path(__file__).resolve().parents[2]
 PREREGISTRATION = ROOT / "benchmarks/preregistration/rollout-runtime-v2.yaml"
@@ -33,7 +32,10 @@ VLLM_CANDIDATE = (
 CANDIDATE_RESULT = ROOT / "benchmarks/results/rollout-runtime-v2-v0.11.0-candidate-rtx4080.json"
 
 
+@pytest.mark.torch
 def test_hf_cached_conformance_request_explicitly_collects_logprobs() -> None:
+    from scripts import benchmark_rollout_runtime_v2_selected as selected_benchmark
+
     tokenizer = SimpleNamespace(
         eos_token_id=99,
         encode=lambda _text: [7],
