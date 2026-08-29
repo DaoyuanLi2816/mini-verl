@@ -61,6 +61,7 @@ def test_prompt_runtime_records_exact_rollout_logprobs_for_pg_targets() -> None:
             train_files=["unused.parquet"], allow_plain_string_prompts=True
         ),
         rollout_config=RolloutConfig(
+            backend="hf_cached",
             max_new_tokens_per_turn=4,
             max_total_tokens=32,
             temperature=0.0,
@@ -92,6 +93,7 @@ def test_prompt_runtime_records_exact_rollout_logprobs_for_pg_targets() -> None:
         assert all(value <= 0.0 for value in output.logprobs)
         assert trajectory.metadata["actor_rollout_log_probs"] == output.logprobs
         assert trajectory.metadata["actor_rollout_policy_version"] == 7
+        assert trajectory.metadata["rollout_backend"] == "hf_cached"
 
 
 def test_prompt_trajectories_never_select_prompt_or_padding_tokens() -> None:

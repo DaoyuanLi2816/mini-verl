@@ -632,6 +632,8 @@ class OPDTrainer:
                     backend=student,
                     source_config=config.source,
                     rollout_config=config.rollout,
+                    profile_identity=config.run.profile_identity,
+                    execution_plan_digest=config.run.execution_plan_digest,
                 )
 
             trainer = cls(
@@ -986,6 +988,24 @@ class OPDTrainer:
                 else None
             ),
             "runtime_role_graph": self.role_graph.describe(),
+            "rollout_runtime": (
+                {
+                    "kind": "prompt_generation_v2",
+                    "backend": config.rollout.backend.value,
+                    "samples_per_prompt": config.rollout.samples_per_prompt,
+                    "prompt_batch_size": config.rollout.prompt_batch_size,
+                    "max_padded_tokens": config.rollout.max_padded_tokens,
+                    "synchronization": config.rollout.synchronization,
+                    "compile_backend": config.rollout.compile_backend,
+                    "record_logprobs": config.rollout.record_logprobs,
+                    "capabilities": self.rollout_runtime.generation_backend.inspect().to_dict(),
+                }
+                if isinstance(config.source, VerlParquetSourceConfig)
+                else {
+                    "kind": "tool_environment_v1",
+                    "backend": "model_backend_direct",
+                }
+            ),
             "artifact_bridge": {
                 "kind": "local_filesystem",
                 "run_root": self.paths.root.name,
@@ -2853,6 +2873,8 @@ class OPDTrainer:
             rollout_config=config.rollout.model_copy(
                 update={"temperature": config.eval.temperature}
             ),
+            profile_identity=config.run.profile_identity,
+            execution_plan_digest=config.run.execution_plan_digest,
         )
         try:
             gpu.reset_peak_stats()

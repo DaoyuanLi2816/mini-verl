@@ -11,6 +11,16 @@ from miniverl.config.models import RolloutConfig, VerlParquetSourceConfig
 from miniverl.data.verl_parquet import RenderedPrompt
 from miniverl.errors import GpuMemoryError
 from miniverl.models.base import GenerationOutput
+from miniverl.runtime.backends import HFCachedGenerationBackend, HFReferenceGenerationBackend
+from miniverl.runtime.generation import (
+    GenerationRequest,
+    PolicySnapshot,
+    RolloutBackendKind,
+    RolloutGroupIdentity,
+    SamplingParameters,
+    derive_sample_seed,
+)
+from miniverl.runtime.policy_sync import build_rollout_policy_identity
 from miniverl.schemas.trajectory import Span, SpanType, TerminationReason, Trajectory
 
 __all__ = [
@@ -72,10 +82,19 @@ class PromptDatasetRolloutRuntime:
         backend: Any,
         source_config: VerlParquetSourceConfig,
         rollout_config: RolloutConfig,
+        profile_identity: object | None = None,
+        execution_plan_digest: str | None = None,
     ) -> None:
         self.backend = backend
         self.source_config = source_config
         self.config = rollout_config
+        self.profile_identity = profile_identity
+        self.execution_plan_digest = execution_plan_digest
+        self.generation_backend = (
+            HFCachedGenerationBackend(backend, compile_backend=rollout_config.compile_backend)
+            if rollout_config.backend is RolloutBackendKind.HF_CACHED
+            else HFReferenceGenerationBackend(backend)
+        )
         self._closed = False
 
     @property
@@ -88,6 +107,11 @@ class PromptDatasetRolloutRuntime:
             raise RuntimeError("prompt rollout runtime is closed")
         if not inputs:
             raise ValueError("prompt rollout batch cannot be empty")
+        if self.config.samples_per_prompt != 1:
+            raise ValueError(
+                "samples_per_prompt > 1 is reserved by the v2 contract but requires the "
+                "transactional grouped-rollout runtime"
+            )
         max_new = self.max_new_tokens
         for prompt in inputs:
             if len(prompt.token_ids) + max_new > self.config.max_total_tokens:
@@ -126,17 +150,57 @@ class PromptDatasetRolloutRuntime:
         indices: tuple[int, ...],
         *,
         base_seed: int,
+        policy_version: int,
+        policy_identity: Any,
     ) -> tuple[list[tuple[int, GenerationOutput]], list[int], int]:
         try:
-            output = self.backend.generate_batch(
-                [batch.prompts[index].token_ids for index in indices],
-                max_new_tokens=self.max_new_tokens,
-                temperature=self.config.temperature,
-                top_p=self.config.top_p,
-                top_k=self.config.top_k,
-                seeds=[base_seed * 1_000_003 + index for index in indices],
-                record_logprobs=self.config.record_logprobs,
-            )
+            requests = []
+            for index in indices:
+                prompt = batch.prompts[index]
+                sample_seed = (
+                    base_seed * 1_000_003 + index
+                    if self.config.backend is RolloutBackendKind.HF_REFERENCE
+                    else derive_sample_seed(
+                        run_seed=base_seed,
+                        prompt_digest=prompt.rendered_prompt_digest,
+                        policy_version=policy_version,
+                        sample_index=0,
+                    )
+                )
+                requests.append(
+                    GenerationRequest(
+                        request_id=hashlib.sha256(
+                            f"{prompt.rendered_prompt_digest}:{policy_version}:0".encode("ascii")
+                        ).hexdigest(),
+                        group=RolloutGroupIdentity(
+                            prompt_group_id=prompt.record.row_digest,
+                            prompt_digest=prompt.rendered_prompt_digest,
+                            sample_index=0,
+                            samples_per_prompt=1,
+                        ),
+                        deterministic_sample_seed=sample_seed,
+                        prompt_token_ids=tuple(prompt.token_ids),
+                        max_new_tokens=self.max_new_tokens,
+                        sampling=SamplingParameters(
+                            temperature=self.config.temperature,
+                            top_p=self.config.top_p,
+                            top_k=self.config.top_k,
+                        ),
+                        need_sampled_token_logprobs=self.config.record_logprobs,
+                        expected_policy_identity=policy_identity,
+                    )
+                )
+            generated = self.generation_backend.generate(requests)
+            output = [
+                GenerationOutput(
+                    token_ids=list(result.output_token_ids),
+                    text=result.decoded_text,
+                    stop_reason=result.stop_reason,
+                    matched_stop=result.matched_stop,
+                    logprobs=list(result.sampled_token_logprobs),
+                )
+                for result in generated.results
+            ]
         except BaseException as exc:
             message = str(exc).lower()
             is_oom = type(exc).__name__ in {"OutOfMemoryError", "CudaOutOfMemoryError"} or (
@@ -151,10 +215,18 @@ class PromptDatasetRolloutRuntime:
                 ) from exc
             midpoint = len(indices) // 2
             left, left_sizes, left_down = self._generate_group(
-                batch, indices[:midpoint], base_seed=base_seed
+                batch,
+                indices[:midpoint],
+                base_seed=base_seed,
+                policy_version=policy_version,
+                policy_identity=policy_identity,
             )
             right, right_sizes, right_down = self._generate_group(
-                batch, indices[midpoint:], base_seed=base_seed
+                batch,
+                indices[midpoint:],
+                base_seed=base_seed,
+                policy_version=policy_version,
+                policy_identity=policy_identity,
             )
             return left + right, left_sizes + right_sizes, left_down + right_down + 1
         if len(output) != len(indices):
@@ -172,11 +244,27 @@ class PromptDatasetRolloutRuntime:
     ) -> GeneratedPromptBatch:
         if self._closed:
             raise RuntimeError("prompt rollout runtime is closed")
+        capabilities = self.generation_backend.inspect()
+        policy_identity = build_rollout_policy_identity(
+            backend=self.backend,
+            parameter_version=policy_version,
+            generation_backend=self.config.backend,
+            backend_version=capabilities.backend_version,
+            profile_identity=self.profile_identity,
+            execution_plan_digest=self.execution_plan_digest,
+        )
+        self.generation_backend.synchronize(PolicySnapshot(policy_identity))
         indexed: list[tuple[int, GenerationOutput]] = []
         physical_sizes: list[int] = []
         downshifts = 0
         for group in batch.physical_batches:
-            rows, sizes, count = self._generate_group(batch, group, base_seed=seed)
+            rows, sizes, count = self._generate_group(
+                batch,
+                group,
+                base_seed=seed,
+                policy_version=policy_version,
+                policy_identity=policy_identity,
+            )
             indexed.extend(rows)
             physical_sizes.extend(sizes)
             downshifts += count
@@ -232,6 +320,8 @@ class PromptDatasetRolloutRuntime:
                 "truncation_decision": prompt.truncation_decision,
                 "response_token_count": len(response_ids),
                 "generation_stop_reason": output.stop_reason,
+                "rollout_backend": self.config.backend.value,
+                "rollout_backend_version": self.generation_backend.inspect().backend_version,
             }
             if self.config.record_logprobs:
                 if len(output.logprobs) != len(response_ids):
@@ -284,6 +374,7 @@ class PromptDatasetRolloutRuntime:
         return trajectories
 
     def close(self) -> None:
+        self.generation_backend.close()
         self._closed = True
 
 

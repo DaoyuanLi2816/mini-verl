@@ -91,6 +91,88 @@ def test_cuda_peak_memory_counters_move(tiny_config, tiny_tokenizer):
     assert payload["peak_allocated_gib"] >= 0.0
 
 
+@pytest.mark.parametrize("temperature", [0.0, 0.8])
+def test_hf_cached_matches_reference_and_batch_partition(
+    tiny_config, tiny_tokenizer, temperature: float
+) -> None:
+    """The cached backend preserves logical seeds, tokens and fp32 policy log-probs."""
+
+    from transformers import AutoModelForCausalLM
+
+    from miniverl.config.models import Quantization
+    from miniverl.models.hf import HFBackend
+
+    torch.manual_seed(29)
+    model = AutoModelForCausalLM.from_config(tiny_config).to("cuda")
+    backend = HFBackend(
+        model=model,
+        tokenizer=tiny_tokenizer,
+        model_id="tiny",
+        model_revision=None,
+        device="cuda",
+        dtype=torch.float32,
+        quantization=Quantization.NONE,
+        gradient_checkpointing=False,
+        attn_implementation="sdpa",
+        lora=False,
+    )
+    prompts = [
+        tiny_tokenizer.encode("short"),
+        tiny_tokenizer.encode("a longer prompt"),
+        tiny_tokenizer.encode("third"),
+        tiny_tokenizer.encode("the longest prompt here"),
+    ]
+    seeds = [201, 202, 203, 204]
+    reference = [
+        backend.generate(
+            prompt,
+            max_new_tokens=8,
+            temperature=temperature,
+            top_p=0.9,
+            top_k=32,
+            seed=seed,
+            record_logprobs=True,
+        )
+        for prompt, seed in zip(prompts, seeds, strict=True)
+    ]
+    whole = backend.generate_batch_cached(
+        prompts,
+        max_new_tokens=8,
+        temperature=temperature,
+        top_p=0.9,
+        top_k=32,
+        seeds=seeds,
+        record_logprobs=True,
+    )
+    split = [
+        *backend.generate_batch_cached(
+            prompts[:2],
+            max_new_tokens=8,
+            temperature=temperature,
+            top_p=0.9,
+            top_k=32,
+            seeds=seeds[:2],
+            record_logprobs=True,
+        ),
+        *backend.generate_batch_cached(
+            prompts[2:],
+            max_new_tokens=8,
+            temperature=temperature,
+            top_p=0.9,
+            top_k=32,
+            seeds=seeds[2:],
+            record_logprobs=True,
+        ),
+    ]
+
+    assert [row.token_ids for row in whole] == [row.token_ids for row in reference]
+    assert [row.stop_reason for row in whole] == [row.stop_reason for row in reference]
+    assert [row.token_ids for row in split] == [row.token_ids for row in whole]
+    for expected, actual, partitioned in zip(reference, whole, split, strict=True):
+        assert actual.logprobs == pytest.approx(expected.logprobs, abs=2e-4, rel=0.0)
+        assert partitioned.logprobs == pytest.approx(actual.logprobs, abs=2e-4, rel=0.0)
+
+
 @requires_peft
 @requires_bitsandbytes
 @pytest.mark.network

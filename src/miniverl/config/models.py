@@ -27,6 +27,7 @@ from miniverl.alignment.schema import (
     TeacherMode,
 )
 from miniverl.errors import ConfigError
+from miniverl.runtime.generation import RolloutBackendKind
 from miniverl.utils.runs import write_text
 
 __all__ = [
@@ -62,6 +63,7 @@ __all__ = [
     "LossConfig",
     "SelectionConfig",
     "RolloutConfig",
+    "RolloutEngineConfig",
     "SourceKind",
     "PromptTruncation",
     "EnvironmentSourceConfig",
@@ -523,6 +525,16 @@ class SelectionConfig(_Base):
         return self
 
 
+class RolloutEngineConfig(_Base):
+    """Lifecycle and resource bounds for an optional managed generation engine."""
+
+    managed: bool = True
+    host: str = Field(default="127.0.0.1", min_length=1)
+    startup_timeout_seconds: float = Field(default=120.0, gt=0.0, le=3600.0)
+    request_timeout_seconds: float = Field(default=120.0, gt=0.0, le=3600.0)
+    memory_fraction: float = Field(default=0.7, gt=0.0, le=1.0)
+
+
 class RolloutConfig(_Base):
     """Bounds and sampling parameters for student rollouts."""
 
@@ -540,8 +552,15 @@ class RolloutConfig(_Base):
     # first parse error.
     max_parse_errors: int = Field(default=2, ge=0, le=32)
     max_repeated_calls: int = Field(default=2, ge=1, le=32)
+    #: The historical path remains the default for old recipes. New v2 recipes
+    #: select ``hf_cached`` explicitly.
+    backend: RolloutBackendKind = RolloutBackendKind.HF_REFERENCE
+    samples_per_prompt: int = Field(default=1, ge=1, le=128)
     prompt_batch_size: int = Field(default=1, ge=1, le=1024)
     max_padded_tokens: int = Field(default=4096, ge=16, le=1048576)
+    synchronization: Literal["strict"] = "strict"
+    compile_backend: bool = False
+    engine: RolloutEngineConfig = Field(default_factory=RolloutEngineConfig)
 
 
 class SourceKind(str, Enum):
@@ -826,8 +845,21 @@ class RunConfig(_Base):
         mode = self.run.mode
         if self.source.kind is SourceKind.ENVIRONMENT and self.environment is None:
             raise ValueError("source.kind=environment requires an environment configuration")
+        if (
+            self.source.kind is SourceKind.ENVIRONMENT
+            and self.rollout.backend is not RolloutBackendKind.HF_REFERENCE
+        ):
+            raise ValueError(
+                "rollout.backend=hf_cached currently requires source.kind=verl_parquet; "
+                "tool-environment episodes retain the hf_reference path"
+            )
         if self.source.kind is SourceKind.VERL_PARQUET and self.environment is not None:
             raise ValueError("source.kind=verl_parquet must not define environment")
+        if self.rollout.samples_per_prompt != 1:
+            raise ValueError(
+                "rollout.samples_per_prompt > 1 requires the transactional grouped-rollout "
+                "runtime, which is not enabled in this build"
+            )
         if self.source.kind is SourceKind.VERL_PARQUET:
             if mode is not TrainingMode.OPD:
                 raise ValueError(
