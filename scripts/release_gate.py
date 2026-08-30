@@ -39,7 +39,7 @@ def gate_plan(
     python = sys.executable
     source_commit = source_commit or _git_head()
     known_good_sha256 = known_good_sha256 or _sha256(
-        ROOT / "environments/known-good-rtx4080-cu130.json"
+        ROOT / "environments/known-good-rtx4080-wsl2-cu130.json"
     )
     return [
         Gate("release_state", (python, "scripts/release_state.py", "--check")),

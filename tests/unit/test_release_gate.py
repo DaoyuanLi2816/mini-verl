@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+from scripts import release_gate
 
 
 def test_release_gate_lists_the_product_checks_without_publishing(tmp_path: Path) -> None:
@@ -64,3 +67,22 @@ def test_release_gate_requires_qualification_when_running() -> None:
     assert completed.returncode == 2
     assert "--candidate-dir, --candidate-manifest and --qualification" in completed.stderr
     assert "required unless --list is used" in completed.stderr
+
+
+def test_release_gate_binds_the_wsl2_known_good_environment(tmp_path: Path) -> None:
+    plan = release_gate.gate_plan(
+        candidate_dir=tmp_path / "candidate",
+        candidate_wheel=tmp_path / "candidate.whl",
+        candidate_sdist=tmp_path / "candidate.tar.gz",
+        qualification=tmp_path / "qualification.json",
+        site=tmp_path / "site",
+        screenshots=tmp_path / "screenshots",
+        source_commit="a" * 40,
+    )
+    command = next(gate.command for gate in plan if gate.name == "release_evidence_chain")
+    known_good_sha256 = command[command.index("--known-good-sha256") + 1]
+
+    wsl2_manifest = Path("environments/known-good-rtx4080-wsl2-cu130.json")
+    legacy_manifest = Path("environments/known-good-rtx4080-cu130.json")
+    assert known_good_sha256 == hashlib.sha256(wsl2_manifest.read_bytes()).hexdigest()
+    assert known_good_sha256 != hashlib.sha256(legacy_manifest.read_bytes()).hexdigest()
