@@ -84,7 +84,7 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: candidate-distributions
-          path: candidate
+          path: ${{ runner.temp }}/candidate
       - name: Verify the dedicated measured device
         run: |
           mapfile -t names < <(nvidia-smi --query-gpu=name --format=csv,noheader)
@@ -100,12 +100,12 @@ jobs:
           "$HOME/.local/bin/uv" --version
       - name: Validate candidate before installation
         run: |
-          "$HOME/.local/bin/uv" venv --seed --python 3.12.13 .gpu-qualification-venv
-          qualification_python="$PWD/.gpu-qualification-venv/bin/python"
+          "$HOME/.local/bin/uv" venv --seed --python 3.12.13 "$RUNNER_TEMP/gpu-qualification-venv"
+          qualification_python="$RUNNER_TEMP/gpu-qualification-venv/bin/python"
           "$qualification_python" -m pip install --upgrade pip
           "$qualification_python" -m pip install pydantic==2.13.4 PyYAML==6.0.3
           "$qualification_python" scripts/build_release_candidate.py \
-            --output candidate \
+            --output "$RUNNER_TEMP/candidate" \
             --commit "$GITHUB_SHA" \
             --repository "$GITHUB_REPOSITORY" \
             --workflow-path .github/workflows/gpu.yml \
@@ -115,9 +115,10 @@ jobs:
           "$qualification_python" - <<'PY'
           import json, os
           from pathlib import Path
-          manifest = json.loads(Path("candidate/candidate-manifest.json").read_text())
-          wheel = (Path("candidate") / manifest["wheel"]["filename"]).resolve()
-          qualification_python = Path.cwd() / ".gpu-qualification-venv/bin/python"
+          candidate = Path(os.environ["RUNNER_TEMP"]) / "candidate"
+          manifest = json.loads((candidate / "candidate-manifest.json").read_text())
+          wheel = (candidate / manifest["wheel"]["filename"]).resolve()
+          qualification_python = Path(os.environ["RUNNER_TEMP"]) / "gpu-qualification-venv/bin/python"
           if not qualification_python.is_file():
               raise SystemExit(f"missing qualification interpreter: {qualification_python}")
           with Path(os.environ["GITHUB_ENV"]).open("a", encoding="utf-8") as handle:
@@ -131,25 +132,27 @@ jobs:
           "$QUALIFICATION_PYTHON" -m pip install \
             "${QUALIFICATION_WHEEL}[dev,train,cuda,rollout-vllm]" \
             --constraint environments/known-good-rtx4080-wsl2-cu130.txt
-          echo "$PWD/.gpu-qualification-venv/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/gpu-qualification-venv/bin" >> "$GITHUB_PATH"
       - name: Run wheel-installed release smoke
         run: |
           offline=()
           if [ '${{ inputs.offline }}' = 'true' ]; then offline=(--offline); fi
-          mkdir qualification
-          cp -- "$QUALIFICATION_WHEEL" qualification/
-          wheel_copy="qualification/$(basename "$QUALIFICATION_WHEEL")"
+          qualification_dir="$RUNNER_TEMP/qualification"
+          qualification_work="$RUNNER_TEMP/qualification-work"
+          mkdir "$qualification_dir"
+          cp -- "$QUALIFICATION_WHEEL" "$qualification_dir/"
+          wheel_copy="$qualification_dir/$(basename "$QUALIFICATION_WHEEL")"
           "$QUALIFICATION_PYTHON" scripts/run_gpu_qualification.py \
             --commit "$GITHUB_SHA" \
             --wheel "$wheel_copy" \
-            --candidate-manifest candidate/candidate-manifest.json \
+            --candidate-manifest "$RUNNER_TEMP/candidate/candidate-manifest.json" \
             --known-good environments/known-good-rtx4080-wsl2-cu130.json \
-            --output qualification \
-            --work qualification-work \
+            --output "$qualification_dir" \
+            --work "$qualification_work" \
             "${offline[@]}"
-          manifest_sha=$(sha256sum candidate/candidate-manifest.json | cut -d' ' -f1)
+          manifest_sha=$(sha256sum "$RUNNER_TEMP/candidate/candidate-manifest.json" | cut -d' ' -f1)
           "$QUALIFICATION_PYTHON" scripts/validate_gpu_qualification.py \
-            qualification/qualification.json \
+            "$qualification_dir/qualification.json" \
             --commit "$GITHUB_SHA" \
             --wheel-sha256 "$QUALIFICATION_WHEEL_SHA256" \
             --candidate-manifest-sha256 "$manifest_sha" \
@@ -160,7 +163,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gpu-release-smoke
-          path: qualification/
+          path: ${{ runner.temp }}/qualification/
           if-no-files-found: error
           retention-days: 90
       - name: Run full canonical qualification workloads
@@ -168,46 +171,49 @@ jobs:
         run: |
           offline=()
           if [ '${{ inputs.offline }}' = 'true' ]; then offline=(--offline); fi
+          full_dir="$RUNNER_TEMP/qualification-full"
+          full_work="$RUNNER_TEMP/qualification-full-work"
           "$QUALIFICATION_PYTHON" -m pip install 'hydra-core>=1.3,<2'
           "$QUALIFICATION_PYTHON" -m pip install --no-deps 'git+https://github.com/verl-project/verl.git@7aed6b230776f963fa09509c10d9c3a767d1102c'
-          mkdir qualification-full
-          "$QUALIFICATION_PYTHON" scripts/run_verl_opd_reference_workload.py --out qualification-full-work/direct --result qualification-full/direct.json "${offline[@]}"
-          "$QUALIFICATION_PYTHON" scripts/run_verl_pg_k1_workload.py --out qualification-full-work/pg-k1 --result qualification-full/pg-k1.json "${offline[@]}"
-          "$QUALIFICATION_PYTHON" scripts/run_smollm2_opd_reference_workload.py --out qualification-full-work/smollm2 --result qualification-full/smollm2.json "${offline[@]}"
+          mkdir "$full_dir"
+          "$QUALIFICATION_PYTHON" scripts/run_verl_opd_reference_workload.py --out "$full_work/direct" --result "$full_dir/direct.json" "${offline[@]}"
+          "$QUALIFICATION_PYTHON" scripts/run_verl_pg_k1_workload.py --out "$full_work/pg-k1" --result "$full_dir/pg-k1.json" "${offline[@]}"
+          "$QUALIFICATION_PYTHON" scripts/run_smollm2_opd_reference_workload.py --out "$full_work/smollm2" --result "$full_dir/smollm2.json" "${offline[@]}"
           "$QUALIFICATION_PYTHON" scripts/run_v011_profile_qualification.py \
             --commit "$GITHUB_SHA" \
             --wheel "$QUALIFICATION_WHEEL" \
             --wheel-sha256 "$QUALIFICATION_WHEEL_SHA256" \
-            --output qualification-full/v011-profiles.json \
-            --work qualification-full-work/v011-profiles \
+            --output "$full_dir/v011-profiles.json" \
+            --work "$full_work/v011-profiles" \
             "${offline[@]}"
+          test -z "$(git status --porcelain)"
           "$QUALIFICATION_PYTHON" scripts/benchmark_rollout_runtime_v2_selected.py \
             --backend hf_cached \
             --wheel "$QUALIFICATION_WHEEL" \
             --expected-commit "$GITHUB_SHA" \
-            --output qualification-full/hf-cached-runtime.json \
+            --output "$full_dir/hf-cached-runtime.json" \
             --repetitions 3
           "$QUALIFICATION_PYTHON" scripts/benchmark_rollout_runtime_v2_selected.py \
             --backend vllm \
             --wheel "$QUALIFICATION_WHEEL" \
             --expected-commit "$GITHUB_SHA" \
-            --output qualification-full/vllm-runtime.json \
+            --output "$full_dir/vllm-runtime.json" \
             --repetitions 3
           "$QUALIFICATION_PYTHON" scripts/promote_full_gpu_qualification.py \
-            --qualification qualification/qualification.json \
-            --direct qualification-full/direct.json \
-            --pg-k1 qualification-full/pg-k1.json \
-            --smollm2 qualification-full/smollm2.json \
-            --v011-profiles qualification-full/v011-profiles.json \
-            --hf-cached-runtime qualification-full/hf-cached-runtime.json \
-            --vllm-runtime qualification-full/vllm-runtime.json \
+            --qualification "$RUNNER_TEMP/qualification/qualification.json" \
+            --direct "$full_dir/direct.json" \
+            --pg-k1 "$full_dir/pg-k1.json" \
+            --smollm2 "$full_dir/smollm2.json" \
+            --v011-profiles "$full_dir/v011-profiles.json" \
+            --hf-cached-runtime "$full_dir/hf-cached-runtime.json" \
+            --vllm-runtime "$full_dir/vllm-runtime.json" \
             --hf-reference benchmarks/results/rollout-runtime-v2-hf-reference.json
       - name: Upload full qualification records
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ success() && inputs.qualification_level == 'full' }}
         with:
           name: gpu-full-qualification
-          path: qualification/
+          path: ${{ runner.temp }}/qualification/
           if-no-files-found: error
           retention-days: 90
       - name: Remove runner-local environments and model work products
@@ -216,16 +222,18 @@ jobs:
           python3 - <<'PY'
           import os, shutil
           from pathlib import Path
-          workspace = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
-          for relative in (
-              ".gpu-qualification-venv",
+          root = Path(os.environ["RUNNER_TEMP"]).resolve()
+          for name in (
+              "candidate",
+              "gpu-qualification-venv",
+              "qualification",
               "qualification-work",
               "qualification-full-work",
               "qualification-full",
           ):
-              target = (workspace / relative).resolve()
-              if target.parent != workspace:
-                  raise SystemExit(f"refusing cleanup outside workspace: {target}")
+              target = (root / name).resolve()
+              if target.parent != root:
+                  raise SystemExit(f"refusing cleanup outside runner temp: {target}")
               if target.exists():
                   shutil.rmtree(target)
           PY

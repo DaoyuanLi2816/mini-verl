@@ -113,13 +113,25 @@ def test_gpu_workflow_builds_candidate_only_on_hosted_job() -> None:
     assert "needs: build-candidate" in qualify
     assert "actions/download-artifact@" in qualify
     assert "python -m build" not in qualify
-    assert "--candidate-manifest candidate/candidate-manifest.json" in qualify
+    assert '--candidate-manifest "$RUNNER_TEMP/candidate/candidate-manifest.json"' in qualify
     assert 'PYTHONPATH: ""' in qualify and 'PYTHONHOME: ""' in qualify
     assert "runs-on: [self-hosted, cuda, rtx4080, wsl2]" in qualify
     assert "shell: pwsh" not in qualify
-    assert 'uv" venv --seed --python 3.12.13' in qualify
-    assert 'Path.cwd() / ".gpu-qualification-venv/bin/python"' in qualify
+    assert 'uv" venv --seed --python 3.12.13 "$RUNNER_TEMP/gpu-qualification-venv"' in qualify
+    assert 'Path(os.environ["RUNNER_TEMP"]) / "gpu-qualification-venv/bin/python"' in qualify
     assert "Path('.gpu-qualification-venv/bin/python').resolve()" not in qualify
+    assert "path: ${{ runner.temp }}/candidate" in qualify
+    assert qualify.count("path: ${{ runner.temp }}/qualification/") == 2
+    assert 'test -z "$(git status --porcelain)"' in qualify
+    for name in (
+        "candidate",
+        "gpu-qualification-venv",
+        "qualification",
+        "qualification-work",
+        "qualification-full",
+        "qualification-full-work",
+    ):
+        assert f"$RUNNER_TEMP/{name}" in qualify
 
 
 def test_gpu_workflow_refuses_rerun_attempts_and_separates_smoke_from_full() -> None:
