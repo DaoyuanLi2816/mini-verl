@@ -4,6 +4,11 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.11.1 development
+
+- [x] Begin from the verified v0.11.0 release and advance only the canonical
+      development state to `0.11.1.dev0`.
+
 ## v0.11.0 development
 
 - [x] Advance the canonical development line to `0.11.0.dev0` while stable
@@ -34,12 +39,24 @@ after the exact release commit and its remote checks are green.
 
 ## Publication record
 
-- [ ] Exact-release-SHA WSL2 full qualification passes on attempt 1.
-- [ ] The non-publishing release dry run accepts the same candidate and full
-      qualification without rebuilding distributions.
-- [ ] The annotated tag workflow verifies PyPI hashes, attestations and clean
-      installation before creating the GitHub Release.
-- [ ] Main advances to `0.11.1.dev0` through a green state-sync PR.
+- [x] Exact-release-SHA WSL2 full qualification run
+      [`33288192471`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/33288192471)
+      passed on attempt 1 for commit
+      `479695c4980150bc6f7a51bddec2b90c08c8bb98`.
+- [x] Non-publishing release dry run
+      [`33290350620`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/33290350620)
+      accepted the same candidate and full qualification without rebuilding.
+- [x] Tag workflow
+      [`33290669280`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/33290669280)
+      verified PyPI hashes, GitHub trusted-publisher attestations and a clean
+      public install before creating the
+      [v0.11.0 GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.11.0).
+- [x] PyPI and the GitHub Release expose the identical wheel at SHA-256
+      `d2fb981987b34bc53dfdefa505ded96d019614c69c4d0509360a414e8ab69aca`
+      and sdist at SHA-256
+      `5ee1de64b2eaf82d7076f11add1f897d99668b245ba3635a8f9bb7260f970b13`.
+- [x] This state-sync PR advances main to `0.11.1.dev0`; merge only after its
+      required checks pass.
 
 ## v0.10.2 development (superseded by v0.11 scope)
 
