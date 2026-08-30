@@ -118,6 +118,8 @@ def test_gpu_workflow_builds_candidate_only_on_hosted_job() -> None:
     assert "runs-on: [self-hosted, cuda, rtx4080, wsl2]" in qualify
     assert "shell: pwsh" not in qualify
     assert 'uv" venv --seed --python 3.12.13' in qualify
+    assert 'Path.cwd() / ".gpu-qualification-venv/bin/python"' in qualify
+    assert "Path('.gpu-qualification-venv/bin/python').resolve()" not in qualify
 
 
 def test_gpu_workflow_refuses_rerun_attempts_and_separates_smoke_from_full() -> None:
