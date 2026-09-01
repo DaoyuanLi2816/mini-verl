@@ -6,5 +6,5 @@ peft==0.18.0
 accelerate==1.14.0
 bitsandbytes==0.50.0; platform_system != "Darwin"
 numpy==2.2.6
-pyarrow==25.0.0
+pyarrow==25.0.1
 safetensors==0.8.0
