@@ -64,7 +64,7 @@ train = [
 cuda = ["bitsandbytes>=0.43; platform_system != 'Darwin'"]
 dpo = [
   "trl==1.8.0",
-  "datasets>=4.0,<5",
+  "datasets>=4.0,<6",
 ]
 # numpy is what the official safetensors reader needs for framework="np". Without
 # it the adapter payload can still be validated structurally, but
@@ -79,7 +79,7 @@ rollout-vllm = [
 # judge models or a network client. The judge models themselves are ordinary
 # transformers checkpoints, so [train] supplies the runtime for them.
 alignment-benchmarks = [
-  "datasets>=4.0,<5",
+  "datasets>=4.0,<6",
   # IFEval's language:response_language instruction cannot be verified without
   # language identification. Absent it, that instruction reports
   # not_applicable rather than being guessed or scored zero.
