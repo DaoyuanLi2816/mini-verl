@@ -63,7 +63,7 @@ train = [
 ]
 cuda = ["bitsandbytes>=0.43; platform_system != 'Darwin'"]
 dpo = [
-  "trl==1.8.0",
+  "trl==1.12.0",
   "datasets>=4.0,<5",
 ]
 # numpy is what the official safetensors reader needs for framework="np". Without
