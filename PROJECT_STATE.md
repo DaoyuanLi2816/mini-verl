@@ -6,19 +6,20 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-09-08.
 
-Canonical release state: releasing `v0.13.0`.
+Canonical release state: stable `v0.13.0` (`8e7bc3b5ff1145ae502cca893b7fffca3e12b6a8`), development `0.13.1.dev0`.
 
 ## Release state
 
-- Release candidate: `v0.13.0`; the exact release commit remains pending.
-- Development line during release finalization: `0.13.0`.
+- Stable release: `v0.13.0` at
+  `8e7bc3b5ff1145ae502cca893b7fffca3e12b6a8`.
+- Current development line: `0.13.1.dev0`.
 - Stable docs: <https://daoyuanli2816.github.io/mini-verl/>.
 - Development docs: <https://daoyuanli2816.github.io/mini-verl/dev/>.
 - Historical build log: [v0.1-v0.9 archive](docs/history/project-state-v0.1-v0.9.md).
 
 ## Current product boundary
 
-Release `0.13.0` has a closed typed profile compiler: it retains the v1 critic-free contract and adds
+Development `0.13.1.dev0` has a closed typed profile compiler: it retains the v1 critic-free contract and adds
 `verl-rl-v0.9-single-gpu-v2`, a typed resolved PPO subset of official verl
 `v0.9.0` at commit `483b8a009ba3a97563edee3a19887e4862b8094a`.
 It compiles PPO/GAE into phased one-GPU actor, critic, reference and reward

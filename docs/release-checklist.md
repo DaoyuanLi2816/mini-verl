@@ -4,6 +4,11 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.13.1 development
+
+- [x] Begin from the verified v0.13.0 release and advance only the canonical
+      development state to `0.13.1.dev0`.
+
 ## v0.12.1 development
 
 - [x] Begin from the verified v0.12.0 release and advance only the canonical
@@ -80,6 +85,27 @@ after the exact release commit and its remote checks are green.
 
 ## Publication record
 
+### v0.13.0
+
+- [x] Exact-release-SHA WSL2 full qualification run
+      [`34224643106`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34224643106)
+      passed on attempt 1 for commit
+      `8e7bc3b5ff1145ae502cca893b7fffca3e12b6a8`.
+- [x] Non-publishing release dry run
+      [`34230187298`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34230187298)
+      accepted the same candidate and full qualification without rebuilding.
+- [x] Tag workflow
+      [`34231102925`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34231102925)
+      verified PyPI hashes, trusted-publisher attestations and a clean public
+      install before creating the
+      [v0.13.0 GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.13.0).
+- [x] PyPI and the GitHub Release expose the identical wheel at SHA-256
+      `1284d47c3b981ce1c74bc431254ca49e123ae144b2b49a728d42ff4efdff3a9e`
+      and sdist at SHA-256
+      `886c2813a31fd58e84370bdf68bab765b8e92f8800cf54cc7f19ad84d9f32c91`.
+- [x] This state-sync PR advances main to `0.13.1.dev0`; merge only after its
+      required checks pass.
+
 ### v0.12.0
 
 - [x] Exact-release-SHA WSL2 full qualification run
@@ -100,6 +126,8 @@ after the exact release commit and its remote checks are green.
       `38b6f77f27e3986867b5d453c684f7a7b15205809643cfc8470a45e02e3e84ff`.
 - [x] This state-sync PR advances main to `0.12.1.dev0`; merge only after its
       required checks pass.
+
+### v0.11.0
 
 - [x] Exact-release-SHA WSL2 full qualification run
       [`33288192471`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/33288192471)
