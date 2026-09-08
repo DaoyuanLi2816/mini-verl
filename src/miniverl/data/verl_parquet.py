@@ -15,7 +15,11 @@ from miniverl.errors import ConfigError, MissingDependencyError
 
 SplitName = Literal["train", "val"]
 _PRESERVED_FIELDS = ("data_source", "ability", "reward_model", "extra_info")
-_REWARD_MODEL_FIELDS = frozenset({"style", "ground_truth"})
+_REWARD_MODEL_FIELDS_BY_STYLE = {
+    "exact": frozenset({"style", "ground_truth"}),
+    "rule": frozenset({"style", "ground_truth"}),
+    "target_length": frozenset({"style", "characters"}),
+}
 _REWARD_SCALARS = (str, int, float, bool)
 
 
@@ -48,17 +52,34 @@ def _validate_task_reward_metadata(preserved: dict[str, Any], *, location: str) 
     data_source = preserved["data_source"]
     if not isinstance(data_source, str) or not data_source:
         raise ConfigError(f"{location} requires a non-empty string data_source for task rewards")
-    unknown = sorted(set(reward_model).difference(_REWARD_MODEL_FIELDS))
+    style = reward_model.get("style")
+    if not isinstance(style, str):
+        raise ConfigError(
+            f"{location} reward_model.style is unsupported: {style!r}",
+            hint="use a deterministic built-in style: exact, rule, or target_length",
+        )
+    allowed_fields = _REWARD_MODEL_FIELDS_BY_STYLE.get(style)
+    if allowed_fields is None:
+        raise ConfigError(
+            f"{location} reward_model.style is unsupported: {style!r}",
+            hint="use a deterministic built-in style: exact, rule, or target_length",
+        )
+    unknown = sorted(set(reward_model).difference(allowed_fields))
     if unknown:
         raise ConfigError(
             f"{location} reward_model contains unsupported fields: {', '.join(unknown)}",
-            hint="only deterministic exact/rule metadata is accepted; Python modules and code are not",
+            hint="only fields defined by the selected built-in reward style are accepted",
         )
-    if reward_model.get("style") not in {"exact", "rule"}:
-        raise ConfigError(f"{location} reward_model.style must be exact/rule")
     extra = preserved["extra_info"]
     if extra is not None and not isinstance(extra, dict):
         raise ConfigError(f"{location} extra_info must be an object or null")
+    if style == "target_length":
+        target = reward_model.get("characters")
+        if not isinstance(target, int) or isinstance(target, bool) or not 1 <= target <= 1_000_000:
+            raise ConfigError(
+                f"{location} target_length characters must be an integer in [1, 1000000]"
+            )
+        return
     primary = reward_model.get("ground_truth")
     secondary = extra.get("ground_truth") if isinstance(extra, dict) else None
     if primary is None and secondary is None:

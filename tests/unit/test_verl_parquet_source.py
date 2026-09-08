@@ -131,6 +131,28 @@ def test_task_reward_row_accepts_bound_exact_ground_truth(tmp_path) -> None:
     assert next(VerlParquetDataset(config).iter_split("train")).reward_model == row["reward_model"]
 
 
+def test_task_reward_row_accepts_builtin_target_length_metadata(tmp_path) -> None:
+    row = _row(0)
+    row["reward_model"] = {"style": "target_length", "characters": 80}
+    path = tmp_path / "target-length.parquet"
+    _write(path, [row])
+    config = VerlParquetSourceConfig(train_files=[str(path)], use_task_rewards=True)
+
+    assert next(VerlParquetDataset(config).iter_split("train")).reward_model == row["reward_model"]
+
+
+@pytest.mark.parametrize("target", [True, 0, -1, 1_000_001, "80"])
+def test_task_reward_row_rejects_invalid_target_length_metadata(tmp_path, target: object) -> None:
+    row = _row(0)
+    row["reward_model"] = {"style": "target_length", "characters": target}
+    path = tmp_path / "target-length.parquet"
+    _write(path, [row])
+    config = VerlParquetSourceConfig(train_files=[str(path)], use_task_rewards=True)
+
+    with pytest.raises(ConfigError, match="characters"):
+        list(VerlParquetDataset(config).iter_split("train"))
+
+
 def test_chat_template_is_applied_once_and_records_provenance(tmp_path) -> None:
     train = _write(tmp_path / "train.parquet", [_row(1)])
     source = VerlParquetSourceConfig(train_files=[str(train)], max_prompt_length=200)
