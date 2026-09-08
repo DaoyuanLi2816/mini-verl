@@ -6,7 +6,7 @@
   "local_validation": {
     "scope": "the maintainer's workstation, including Windows CUDA and network paths plus the exact official verl v0.9 checkout",
     "commit": "afc37083152de7e90b71a61c4d0fe9b75fcd2c9d",
-    "commit_relationship": "implementation commit; the following release commit changes versioned release metadata and this candidate record only",
+    "commit_relationship": "implementation commit; subsequent candidate commits change version metadata and core-only test selection, not runtime semantics",
     "measured_at": "2026-09-08T10:10:00Z",
     "platform": "Windows 11",
     "python": "CPython 3.10 for coverage, local CUDA tests and network tests",
