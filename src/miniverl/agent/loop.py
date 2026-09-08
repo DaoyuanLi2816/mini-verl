@@ -432,6 +432,7 @@ class RolloutRunner:
         final_answers_format_valid = 0
         final_answers_verified = 0
         generated_tokens = 0
+        generated_logprobs: list[float] = []
         verification: VerificationRecord | None = None
         metadata_error: str | None = None
         termination = TerminationReason.MAX_TURNS
@@ -448,8 +449,19 @@ class RolloutRunner:
                 temperature=sample_temperature,
                 top_p=cfg.top_p,
                 top_k=cfg.top_k,
-                seed=seed * 1_000_003 + turn_id,
+                # ``derive_sample_seed`` already occupies the full signed
+                # 63-bit range.  Keep the historical turn-mixing formula for
+                # ordinary seeds while bounding it for torch.Generator.
+                seed=(seed * 1_000_003 + turn_id) & ((1 << 63) - 1),
+                record_logprobs=cfg.record_logprobs,
             )
+            if cfg.record_logprobs:
+                if len(generation.logprobs) != len(generation.token_ids):
+                    raise ToolEnvironmentError(
+                        "agent rollout requested behavior log-probabilities but the backend "
+                        "returned a misaligned result"
+                    )
+                generated_logprobs.extend(generation.logprobs)
             if not generation.token_ids:
                 termination = TerminationReason.EOS_WITHOUT_FINAL
                 break
@@ -699,6 +711,7 @@ class RolloutRunner:
                 "split": task.split,
                 "initial_observation_state_id": initial_observation.state_id,
                 **self.environment.trajectory_metadata(task),
+                **({"actor_rollout_log_probs": generated_logprobs} if cfg.record_logprobs else {}),
                 **({"environment_error": metadata_error} if metadata_error else {}),
             },
         )

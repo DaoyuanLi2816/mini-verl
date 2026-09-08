@@ -253,3 +253,28 @@ def test_data_sample_writes_portable_message_rows(tmp_path) -> None:
     assert rows[0]["prompt"][1]["role"] == "user"
     assert rows[0]["data_source"] == "miniverl_quickstart"
     assert "reward_model" not in rows[0]
+
+
+def test_data_sample_can_emit_bound_exact_answer_rewards(tmp_path) -> None:
+    pytest.importorskip("pyarrow")
+    import pyarrow.parquet as pq
+
+    target = tmp_path / "rl-sample.parquet"
+    result = runner.invoke(
+        app,
+        [
+            "data",
+            "sample",
+            "--format",
+            "verl-parquet",
+            "--task-rewards",
+            "--out",
+            str(target),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    rows = pq.read_table(target).to_pylist()
+    assert rows[0]["data_source"] == "miniverl_quickstart_rl"
+    assert rows[0]["reward_model"] == {"style": "exact", "ground_truth": "provenance"}
+    assert rows[0]["extra_info"]["ground_truth"] == "provenance"

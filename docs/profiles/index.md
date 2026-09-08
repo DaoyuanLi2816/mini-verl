@@ -4,6 +4,11 @@ A miniVERL compatibility profile is a closed, versioned contract that binds an
 accepted schema and its field rules to one upstream repository, tag and commit.
 Native-compiler, loss-conformance and export versions travel with that identity.
 
+The v0.8 OPD family is exposed through the `profiles` registry. The newer
+`verl-rl-v0.9-single-gpu-v1` compiler is invoked through `import-verl`; its
+machine-readable field report is the profile inspection surface while the
+registry API is generalized in a future compatible change.
+
 ```bash
 miniverl profiles list
 miniverl profiles show verl-opd-v0.8-single-gpu-v1
@@ -39,6 +44,16 @@ name.
 
 ## Which profile should I use?
 
+For critic-free RL, start with:
+
+```bash
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
+  --config examples/verl-rl-v0.9-single-gpu.yaml --out local-grpo.yaml
+```
+
+It supports GRPO, Dr.GRPO, RLOO and REINFORCE++ against the pinned verl v0.9
+contract; read [Single-GPU verl RL](../verl-rl-runtime.md).
+
 | Profile | Objective | Teacher target | Trade-off | Status |
 | --- | --- | --- | --- | --- |
 | `verl-opd-v0.8-single-gpu-v1` | direct GKD `forward_kl_topk` | top-k token IDs and log-probabilities | fuller distributional signal; larger target artifact | measured |
@@ -55,7 +70,8 @@ policy-loss form. The measured records compare runtime and semantic
 conformance; the rewarded profile has no task-quality result yet.
 Library callers may inject an object implementing `RewardProvider` with
 `reward.provider: python_api`; YAML and run artifacts never name or load Python
-modules. The built-in verl-shaped profile remains fixed to `exact_answer`.
+modules. The built-in verl-shaped RL profile accepts the deterministic
+`exact_answer` and `target_length` providers.
 The group-capable profiles use transactional Parquet prompt groups while
 leaving the published `n=1` identities unchanged.
 See [For verl users](../for-verl-users.md), the

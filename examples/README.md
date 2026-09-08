@@ -1,7 +1,29 @@
 # Examples
 
-Two runnable examples, both CPU-only and network-free. Each one is executed as
-part of the release check, so if it is here it works.
+The directory contains a verl v0.9-shaped single-GPU RL config plus two
+runnable, CPU-only Python extension examples.
+
+## `verl-rl-v0.9-single-gpu.yaml`
+
+A resolved GRPO source config for the versioned compatibility compiler. It
+keeps upstream data, actor, rollout, algorithm and trainer fields recognizable,
+and places local reward, revision and physical batching choices under
+`miniverl.*`.
+
+```bash
+miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
+  --config examples/verl-rl-v0.9-single-gpu.yaml --out local-grpo.yaml
+miniverl train local-grpo.yaml --dry-run
+```
+
+The generated report records how the example's eight-GPU/two-node source
+resource intent lowers to one local process/device. The logical GRPO group and
+objective remain unchanged.
+
+## Python extension examples
+
+Both scripts are network-free and execute as part of the release check.
 
 ```bash
 pip install "miniverl[train]"      # CPU torch is enough

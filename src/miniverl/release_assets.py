@@ -54,6 +54,9 @@ V011_ARCHIVE_EVIDENCE = {
     ),
     "full_vllm_runtime_result": ("v011_vllm_runtime", "v011/vllm-runtime.json"),
 }
+V012_ARCHIVE_EVIDENCE = {
+    "full_v012_rl_result": ("v012_rl", "v012/rl-qualification.json"),
+}
 _SPECIAL_EVIDENCE = {"candidate-manifest.json"}
 QUALIFICATION_SUM_FILES = (
     "candidate-manifest.json",
@@ -134,6 +137,7 @@ def _validate_archive_mapping() -> None:
     for original_name, (semantic_role, archive_path) in {
         **ARCHIVE_EVIDENCE,
         **V011_ARCHIVE_EVIDENCE,
+        **V012_ARCHIVE_EVIDENCE,
     }.items():
         if (
             not original_name
@@ -162,6 +166,12 @@ def _archive_evidence_for_version(version: str) -> dict[str, tuple[str, str]]:
         is_v011 = False
     if is_v011:
         mapping.update(V011_ARCHIVE_EVIDENCE)
+    try:
+        is_v012 = (int(version_parts[0]), int(version_parts[1])) >= (0, 12)
+    except (IndexError, ValueError):
+        is_v012 = False
+    if is_v012:
+        mapping.update(V012_ARCHIVE_EVIDENCE)
     return mapping
 
 

@@ -4,7 +4,7 @@ Current maintainer handoff for **miniVERL** (`mini-verl` package, `miniverl`
 CLI). `release-state.yaml` is the canonical version source; this page indexes
 current product and evidence state rather than repeating release history.
 
-Last updated: 2026-08-29.
+Last updated: 2026-09-07.
 
 Canonical release state: stable `v0.11.0` (`479695c4980150bc6f7a51bddec2b90c08c8bb98`), development `0.11.1.dev0`.
 
@@ -18,11 +18,18 @@ Canonical release state: stable `v0.11.0` (`479695c4980150bc6f7a51bddec2b90c08c8
 
 ## Current product boundary
 
-The primary product is `verl-opd-v0.8-single-gpu-v1`: a typed, resolved subset
-of official verl `v0.8.0` at commit
-`7aed6b230776f963fa09509c10d9c3a767d1102c`. It runs one actor, one teacher,
-`n=1`, reward-free direct GKD `forward_kl_topk` and token-mean reduction in one
-local process on one NVIDIA CUDA GPU.
+Development `0.11.1.dev0` has a closed typed profile compiler and adds
+`verl-rl-v0.9-single-gpu-v1`, a typed resolved
+subset of official verl `v0.9.0` at commit
+`483b8a009ba3a97563edee3a19887e4862b8094a`. It compiles GRPO, Dr.GRPO, RLOO
+and REINFORCE++ experiments into grouped one-GPU actor/reward/reference phases,
+with behavior-policy identity, fixed reference reward KL, transactional resume
+and a machine-readable field report.
+
+The established `verl-opd-v0.8-single-gpu-v1` family remains the teacher-based
+distillation path. It targets official verl `v0.8.0` at
+`7aed6b230776f963fa09509c10d9c3a767d1102c` and provides direct GKD,
+sampled-k1, grouped and rewarded profiles.
 
 The stable v0.9.1 repair makes dtype, quantization, attention, student
 adapter input, logical/physical batch limits and placement legality explicit.
@@ -31,10 +38,11 @@ Executable compatibility claims are mutation-tested and recorded in
 unknown-size quantized roles require proof instead of receiving an executable
 plan.
 
-Development `0.11.1.dev0` has a closed typed profile registry and torch-free
-compatibility introspection. Profile-scoped plans, caches, checkpoints and
-exports bind an independent identity. The direct-GKD and sampled-k1 vanilla
-policy-loss profiles both have pinned conformance and measured RTX 4080 paths.
+Profile-scoped recipes, plans, caches, checkpoints and exports bind an
+independent identity. The v0.9 compiler is Torch-free; the RL math and runtime
+remain inside `[train]`. The new estimator, policy, value and KL primitives are
+compared against the exact upstream source. The direct-GKD and sampled-k1
+profiles retain their pinned conformance and measured RTX 4080 paths.
 Portable hardware records preserve measured, estimated and unknown states;
 schema-valid community submissions remain unreviewed until maintainer validation.
 The release chain builds one hosted-runner candidate and binds the maintainer's
@@ -44,8 +52,11 @@ Releases use a canonical, explicit evidence layout with four principal JSON
 records and one deterministic subordinate-evidence archive; historical v0.10.1
 asset names remain immutable.
 
-Arbitrary verl YAML, other policy-gradient modes, rewards, PPO/GRPO, Ray, FSDP,
-Megatron, multi-GPU and distributed execution remain unsupported. The legacy
+PPO/GAE execution remains unimplemented because the runtime has no trainable
+critic model/optimizer/checkpoint lifecycle; its mathematical primitives are
+conformance-tested. Ray, FSDP/FSDP2, Megatron, multi-GPU and multi-node
+execution are distributed-only. Arbitrary unresolved verl YAML and unknown
+algorithm-changing fields remain outside the versioned compiler. The legacy
 environment/PPO artifact bridge is migration-only.
 
 ## Current evidence
@@ -66,6 +77,7 @@ calculator schema-v2 source stays at SHA-256
 ## Maintainer entry points
 
 - [Current local runtime](docs/verl-opd-runtime.md)
+- [Single-GPU verl RL](docs/verl-rl-runtime.md)
 - [Current scale-out contract](docs/verl-opd-scaleout.md)
 - [Compatibility policy](docs/compatibility.md)
 - [Measured workload](docs/verl-opd-reference-workload.md)

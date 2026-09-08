@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 
 from miniverl.bridge.contract import BRIDGE_PROFILE, VERL_TAG
 from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
+from miniverl.bridge.rl_v09 import VERL_RL_V09_PROFILE
 from miniverl.cli import app
 
 
@@ -287,6 +288,56 @@ def test_import_verl_v2_writes_a_round_trippable_prompt_opd_profile(tmp_path: Pa
     round_trip = load_verl_opd_v08(out)
     assert round_trip.executable is True
     assert round_trip.source.data.train_files == ["train.parquet"]
+
+
+def test_import_verl_rl_profile_uses_its_v09_pin_by_default(tmp_path: Path) -> None:
+    source = tmp_path / "verl-rl.yaml"
+    source.write_text(
+        yaml.safe_dump(
+            {
+                "data": {
+                    "train_files": ["train.parquet"],
+                    "train_batch_size": 1,
+                    "max_prompt_length": 32,
+                    "max_response_length": 8,
+                },
+                "actor_rollout_ref": {
+                    "model": {"path": "Qwen/Qwen3-0.6B"},
+                    "actor": {"optim": {"lr": "1e-5"}, "ppo_mini_batch_size": 2},
+                    "rollout": {"name": "hf", "n": 2, "temperature": 1.0},
+                },
+                "algorithm": {"adv_estimator": "grpo"},
+                "trainer": {"total_training_steps": 1},
+                "miniverl": {
+                    "reward": {"provider": "exact_answer"},
+                    "actor": {"lora_enabled": True},
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    out = tmp_path / "local-rl.yaml"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "import-verl",
+            "--config",
+            str(source),
+            "--profile",
+            VERL_RL_V09_PROFILE,
+            "--out",
+            str(out),
+            "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    report = json.loads(result.stdout)
+    assert report["status"] == "accepted"
+    assert report["source_verl"]["tag"] == "v0.9.0"
+    assert out.is_file()
 
 
 def test_benchmark_export_community_exact_command_needs_no_training_stack(

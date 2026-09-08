@@ -1,8 +1,9 @@
 # The miniVERL objective
 
-This document defines exactly what miniVERL optimizes, and states which
-property is asserted by which test. It covers the five modules under
-`src/miniverl/losses/`:
+This document defines miniVERL's distillation objectives and states which
+property is asserted by which test. Critic-free RL uses the separate pure
+primitives under `src/miniverl/algorithms/`, summarized below; the remaining
+numbered sections cover the modules under `src/miniverl/losses/`:
 
 | module | responsibility |
 | --- | --- |
@@ -14,6 +15,32 @@ property is asserted by which test. It covers the five modules under
 
 Nothing here depends on a model, a config object or a device. That is what makes
 the brute-force reference tests possible.
+
+## Critic-free RL objectives
+
+For a prompt group with scalar trajectory outcomes $R_i$, GRPO assigns every
+generated token in sample $i$ the sequence advantage
+
+$$
+A_i = \frac{R_i - \bar R}{s_R + \epsilon},
+$$
+
+where $s_R$ is the sample standard deviation used by verl v0.9. Dr.GRPO uses
+$R_i - \bar R$ without the denominator. RLOO uses
+$A_i = R_i - \sum_{j \ne i} R_j/(n-1)$. REINFORCE++ forms discounted token
+returns and whitens them over the selected response mask.
+
+The actor objective uses the recorded behavior-policy log-probability
+$\log \pi_{old}$, the recomputed current value $\log \pi_\theta$, ratio
+$r=\exp(\log \pi_\theta-\log \pi_{old})$, and verl's vanilla asymmetric plus
+dual clipping before token-mean reduction. A fixed reference reward penalty is
+subtracted token-wise before advantage estimation when configured.
+
+`tests/conformance/test_verl_v09_rl.py` extracts the official functions from
+verl `v0.9.0` commit `483b8a009ba3a97563edee3a19887e4862b8094a` and compares
+estimator values, returns, policy/value losses, KL penalties, gradients and an
+optimizer step. GAE and clipped value loss are included in that mathematical
+conformance suite, but the executable runtime has no trainable critic yet.
 
 ---
 

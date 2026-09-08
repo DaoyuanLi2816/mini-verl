@@ -181,8 +181,8 @@ def build_immutable_opd_plan(
         role="student",
     )
     teacher = _revision(
-        native.models.teacher.model_id,
-        native.models.teacher.revision,
+        native.models.required_teacher.model_id,
+        native.models.required_teacher.revision,
         role="teacher",
     )
     from miniverl.bridge.profiles import get_profile

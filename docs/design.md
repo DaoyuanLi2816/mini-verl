@@ -1,14 +1,21 @@
 # miniVERL design
 
-This document explains miniVERL's layers, one on-policy distillation (OPD)
-cycle, and the invariants checked at each boundary. Module, function and field
-names follow the source tree; measured numbers link to their result artifacts.
+This document explains miniVERL's layers, critic-free RL and on-policy
+distillation (OPD) cycles, and the invariants checked at each boundary. Module,
+function and field names follow the source tree; measured numbers link to their
+result artifacts.
 
 For the mathematics of the objectives see [math.md](math.md).
 
 ---
 
 ## 1. The problem
+
+verl expresses useful experiment semantics together with a distributed runtime.
+miniVERL preserves a tested subset of the experiment—data, rollout groups,
+rewards or teacher targets, advantage/objective and schedule—while lowering its
+logical roles onto one GPU. This makes a cluster-shaped experiment easier to
+prototype, inspect and resume locally.
 
 On-policy distillation trains a small student on **its own** rollouts, scored by
 a larger teacher at exactly the states the student visited. Compared with
@@ -24,7 +31,7 @@ that the model must condition on but must never be trained to reproduce. Getting
 that wrong does not crash anything — it silently trains the policy to hallucinate
 tool results.
 
-miniVERL is a single-GPU implementation of that loop with three properties it
+The OPD path is a single-GPU implementation of that loop with three properties it
 tries to make checkable rather than aspirational:
 
 1. **Token provenance is a validated data structure, not a convention.** Every
@@ -37,11 +44,10 @@ tries to make checkable rather than aspirational:
    out-of-memory retry ever changes is the projection chunk size, which does not
    change the loss or the gradient.
 
-### 1.1 What this is not competing with
+### 1.1 Position in the ecosystem
 
-miniVERL is a small, readable, single-GPU lab. It is not a replacement for the
-production frameworks, and the following statements about them are accurate as
-of 2026-07:
+miniVERL is a small, readable, single-GPU lab. Production frameworks cover
+larger execution surfaces; the following comparison was checked in 2026-07:
 
 - **verl** (`verl-project/verl`, Apache-2.0) already has first-class on-policy
   distillation in core (`verl/trainer/distillation/`, config namespace
@@ -621,40 +627,27 @@ quietly did no work.
 
 ---
 
-## 7. Deliberately not here
+## 7. Runtime scope
 
-Every omission below is a scope decision, not an oversight. Each one is a thing a
-production framework does that a single-process one-GPU lab should not pretend to
-do.
+**Critic-free RL.** `algorithms` contains pure GRPO, Dr.GRPO, RLOO,
+REINFORCE++, reference-KL and clipped-policy primitives pinned to official verl
+v0.9. `rewards` owns deterministic scalar/batch provider contracts and trusted
+composition. The trainer publishes complete prompt groups, attaches rewards
+and token-aligned advantages, then updates the current actor.
 
-**Ray.** verl depends on `ray[default]` unconditionally because it schedules
-heterogeneous actor pools across nodes. miniVERL runs one process and one GPU,
-so a cluster scheduler would add a large dependency, a second failure mode and a
-second mental model in exchange for nothing. Concurrency here is a `for` loop.
+**PPO critic.** GAE and clipped value-loss mathematics are conformance-tested,
+but no executable PPO plan is published. A trainable value role still needs its
+own model/head, optimizer, checkpoint identity and temporal phase ownership.
 
-**FSDP / FSDP2 / Megatron-LM.** Sharding exists to train a model that does not
-fit on one device. The target configuration — a 0.6B NF4-QLoRA student plus a
-bf16 1.7B teacher — fits: the one-cycle GPU smoke test on the RTX 4080 measured
-peak CUDA allocated 4.251 GiB and peak reserved 4.762 GiB. Adding a sharding
-runtime would make the memory accounting in this document unverifiable by a
-reader with one GPU.
+**Distributed placement.** Ray, FSDP/FSDP2, Megatron-LM and parallel degrees
+above one remain upstream scale-out machinery. miniVERL compiles safe experiment
+fields and records those placement values as distributed-only while running one
+process and one device.
 
-**vLLM / SGLang for rollouts.** A dedicated inference server is the right answer
-when rollout throughput dominates and you are batching hundreds of sequences. At
-this scale it does not: the decode-throughput probe on the RTX 4080 measured a
-14-token prefill at 37.0 ms against a cached single-token step at 30.9 ms, which
-means single-sequence decoding here is kernel-launch bound rather than compute
-bound. A separate server process would add weight-sync complexity and a second
-sampling implementation without changing that. `HFBackend.generate` and
-`ToyBackend.generate` share one loop (`models/sampling.py::run_generation`) so
-stop-string handling, seeding and token accounting are implemented once.
-
-**GRPO / PPO / any RL algorithm.** miniVERL has no advantage estimator, no value
-head, no reference-policy KL penalty and no reward model. The objective is a
-token-level divergence against a teacher, full stop. Mixing an RL objective in
-would make it impossible to attribute a result to the distillation term. The
-environments do return an exact `reward` in `VerificationRecord`, but nothing
-optimizes it — it is used for reporting and for evaluation success rates only.
+**Rollout backends.** `hf_reference` is the compatibility path; `hf_cached`
+adds grouped prefill, per-row RNG and KV-cache decode. Direct-GKD OPD also has a
+measured managed-vLLM path on Linux/WSL2. The RL policy-loss path uses HF
+behavior log-probabilities and has no asynchronous actor pool.
 
 **Cross-tokenizer distillation.** `build_tokenizer` loads the teacher tokenizer
 when its id differs and compares behavioural fingerprints, raising
@@ -671,8 +664,8 @@ transcript codec, in the alignment map and in the cache. None of that exists.
 but rollout decoding remains one sequence at a time. There is no continuous
 batching scheduler or external inference engine.
 
-**Telemetry.** There is none. `utils/logging.py` writes to the console and to
-`events.jsonl` and nowhere else.
+**Telemetry.** Structured JSON/JSONL is the primary observability surface.
+There is no required external tracking service.
 
 ---
 

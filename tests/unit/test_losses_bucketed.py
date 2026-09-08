@@ -222,6 +222,25 @@ def test_bucketed_entropy_lower_bounds_the_exact_entropy(logits):
     assert bool((coarse <= exact + 1e-5).all())
 
 
+@pytest.mark.parametrize("tail_epsilon", [1e-9, 1e-3, 9e-3])
+def test_full_vocabulary_bucketed_entropy_is_exact(tail_epsilon: float) -> None:
+    """An empty K == V tail must not become a synthetic epsilon bucket."""
+    from miniverl.losses.bucketed import bucketed_teacher_entropy, teacher_topk_targets
+    from miniverl.losses.exact import exact_teacher_entropy
+
+    torch.manual_seed(23)
+    teacher = torch.randn(20, 32) * 2
+    _, topk_log_probs, empty_tail = teacher_topk_targets(teacher, top_k=32)
+
+    actual = bucketed_teacher_entropy(
+        topk_log_probs,
+        empty_tail,
+        tail_epsilon=tail_epsilon,
+    )
+
+    torch.testing.assert_close(actual, exact_teacher_entropy(teacher), rtol=1e-6, atol=1e-7)
+
+
 def test_half_precision_student_logits_are_upcast(logits):
     from miniverl.losses.bucketed import bucketed_divergence, teacher_topk_targets
 

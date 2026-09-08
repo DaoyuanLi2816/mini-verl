@@ -325,13 +325,12 @@ error student and teacher tokenizers differ (<12 hex chars>... vs <12 hex chars>
 ```
 
 **Cause.** `build_tokenizer` loads one tokenizer for both sides. When the
-teacher declares its own `tokenizer_id`, that tokenizer is loaded and
-fingerprint-compared rather than trusted. The fingerprint is behavioural: it
-hashes the tokenizer class name, `len(tokenizer)`, the EOS and PAD ids, the
-added special tokens, and the token ids produced for a fixed probe string that
-includes the chat template markers and the tool-call tags. Two tokenizers with
-the same declared vocabulary size but different merge behaviour therefore do
-not match.
+teacher declares its own `tokenizer_id`, that tokenizer is loaded and compared
+by structural identity: full vocabulary, added vocabulary, special-token map,
+backend tokenizer and behavior-relevant configuration. Local path spellings are
+canonicalized away. Old artifacts without that digest use the legacy behavioral
+probe fingerprint, which is a compatibility signal rather than an identity
+proof.
 
 **Fix.** Use a teacher from the same family as the student. The pinned pair in
 `recipes/qwen_consumer_gpu_calc.yaml` is verified byte-identical on
@@ -528,31 +527,16 @@ loads no models.
 `metrics.jsonl` and in the `rollouts_collected` events is around ten tokens per
 second on a modern GPU.
 
-**Cause, measured.** Single-sequence decoding in miniVERL is kernel-launch
-bound, not compute bound. On this machine a 14-token prefill costs 37.0 ms
-while a cached 1-token step costs 30.9 ms: almost all of the per-step cost is
-fixed overhead rather than work proportional to the token count. Supporting
-measurements from the same probe, at 64 new tokens with a 36-token prefix:
+**Cause, measured.** `hf_reference` decodes each sequence through the simple
+compatibility loop and can be kernel-launch bound. Rollout Runtime v2 measured
+the compiled `hf_cached` backend at 124.2–248.7 output tokens/s over its RTX
+4080 matrix. Managed vLLM reached 626.6–836.4 tokens/s on the qualified
+direct-GKD cells. See the [runtime result](benchmarks/rollout-runtime-v2.md)
+before comparing numbers across models, lengths or sampling modes.
 
-| configuration | tok/s | peak allocated |
-| --- | --- | --- |
-| NF4 + bf16, deterministic | 11.19 | 0.862 GiB |
-| NF4 + bf16, non-deterministic | 11.29 | not recorded |
-| bf16 LoRA, deterministic | 12.84 | 1.170 GiB |
-| bf16 LoRA, non-deterministic | 14.12 | not recorded |
-
-For reference, applying the LM head at one position costs 0.48 ms, decoding 64
-token ids costs 0.02 ms, and copying a 151936-float vector to the host costs
-0.11 ms. None of those is the bottleneck.
-
-Reproduce the probe on your own machine:
-
-```bash
-python scripts/gpu_probe_throughput.py
-```
-
-**Fix.** There is no batched rollout in this version, so the levers are budget
-levers rather than throughput levers:
+**Fix.** Use `hf_cached` for HF RL and sampled-k1 paths. The direct-GKD OPD
+profile can opt into managed vLLM on the qualified Linux/WSL2 stack. Context and
+workload bounds remain useful controls:
 
 ```yaml
 rollout:
@@ -569,11 +553,6 @@ models:
   student:
     attn_implementation: sdpa    # sdpa or eager
 ```
-
-Turning off deterministic mode with `run: {deterministic: false}` recovered
-about 10 percent on bf16 LoRA in the table above and almost nothing on NF4. It
-also gives up the guarantees in `docs/reproducibility.md`; the default is
-`true` for that reason.
 
 Note that `models.student.gradient_checkpointing: true` sets
 `model.config.use_cache = False` for training, but `HFBackend.generate`

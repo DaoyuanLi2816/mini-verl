@@ -139,3 +139,28 @@ def test_greedy_cached_decode_reuses_the_device_token_tensor() -> None:
     assert observed[0].dtype == torch.long
     assert observed[0].tolist() == [1, 0]
     assert [row.token_ids for row in outputs] == [[1, 0], [0, 1]]
+
+
+def test_recorded_behavior_logprob_uses_sampling_temperature() -> None:
+    """The PPO anchor is the temperature-scaled policy, as in pinned verl."""
+    from miniverl.models.sampling import run_generation
+
+    logits = torch.tensor([0.0, 2.0, -1.0])
+
+    def step(_pending, state):  # type: ignore[no-untyped-def]
+        return logits, state
+
+    output = run_generation(
+        step=step,
+        prefix_token_ids=[1],
+        decode=lambda ids: "x" * len(ids),
+        eos_token_id=99,
+        max_new_tokens=1,
+        temperature=2.0,
+        top_p=0.6,
+        top_k=2,
+        generator=torch.Generator().manual_seed(4),
+        record_logprobs=True,
+    )
+    expected = torch.log_softmax(logits / 2.0, dim=-1)[output.token_ids[0]]
+    assert output.logprobs[0] == pytest.approx(float(expected))

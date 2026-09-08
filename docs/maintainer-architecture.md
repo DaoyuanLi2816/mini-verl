@@ -4,12 +4,13 @@ This page maps the change boundaries maintainers use for review.
 
 ## Config to runtime
 
-`bridge.profiles` selects one closed profile and dispatches to its typed source
-compiler. The compiler classifies every source field and produces a resolved
-compatibility plan. `bridge.opd_runtime` derives legal one-device placement and
-the native `RunConfig`; `bridge.opd_plan` binds data files, revisions, profile
-identity and native config into an immutable plan. `OPDTrainer.from_config`
-then constructs the local runtime. No generic dynamic profile loader exists.
+`bridge.profiles` selects a closed OPD profile, while `bridge.rl_v09` owns the
+resolved verl v0.9 RL subset. Both classify source fields before publishing a
+native `RunConfig`. `bridge.opd_runtime` and `bridge.opd_plan` add placement,
+data and immutable-plan identity for OPD; the RL compiler emits its native
+recipe and field report transactionally. `OPDTrainer.from_config` remains the
+public runtime facade for native modes. No generic dynamic profile loader
+exists.
 
 The profile identity enters immutable plans and is copied into run manifests,
 teacher-cache metadata, checkpoint identity and export/materialization reports.
@@ -18,18 +19,27 @@ using their contents.
 
 ## Logical roles and physical placement
 
-Actor, teacher and optional reference are distinct logical identities. Rollout
-generates with the current actor policy; teacher scoring observes only the
-visited positions; update consumes provenance-bound targets. Physical
-placement may be resident phased models, an allowed unquantized swap, or a
-shared backbone with separate adapters. Quantized swap remains illegal.
+Actor, teacher, reference, reward and future critic are distinct logical
+identities. Rollout generates with the current actor policy. OPD teacher
+scoring observes only visited positions; RL reward providers consume ordered
+trajectory identities; reference KL evaluates a frozen adapter before the
+actor is restored for update. Physical placement may be resident phased
+models, an allowed unquantized swap, or a shared backbone with separate
+adapters. Quantized swap remains illegal.
 
 `training.trainer.OPDTrainer` is the compatibility facade and state-machine
 owner. Batching, memory planning, optimizer construction, checkpoint I/O and
 offline-dataset persistence live in dedicated `training` modules; model and
 tokenizer construction live under `models`; cache transactions live under
-`cache`. Public methods remain on the facade so internal extraction does not
-change user imports.
+`cache`. Pure upstream-conformant advantage, policy, value and KL mathematics
+live under `algorithms`; trusted reward protocols live under `rewards`. Public
+methods remain on the facade so internal extraction does not change user
+imports.
+
+RL trajectories are schema v3 records with prompt-group, sample, seed,
+generated-span and policy identity. Tool/environment content remains context;
+only model-generated positions enter behavior log-probability and loss masks.
+The trainer publishes complete groups before scoring or updating them.
 
 ## State and transaction boundaries
 
@@ -57,6 +67,12 @@ version and export version. Prove every accepted field has the claimed native
 effect, add pinned upstream scalar/gradient/optimizer conformance, exercise
 plan/cache/checkpoint/export identity mismatch failures, then complete the
 [upstream lifecycle](upstream-support-policy.md) and GPU qualification.
+
+For an RL compiler field, choose one of `exact`, `semantically_conformant`,
+`locally_lowered`, `informational_only`, `distributed_only`,
+`not_implemented` or `unsupported`. An accepted runnable source must have no
+unknown fields and must validate as a complete `RunConfig` before atomic
+publication. Keep local physical controls under `miniverl.*` where practical.
 
 ## Validation entry points
 

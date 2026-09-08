@@ -47,6 +47,7 @@ __all__ = [
     "BucketedTargetProvider",
     "VerlTopKTargetProvider",
     "VerlPGK1TargetProvider",
+    "VerlRLTargetProvider",
     "LossOutput",
     "chunked_selected_position_loss",
 ]
@@ -253,6 +254,62 @@ class VerlPGK1TargetProvider:
 
     def teacher_entropy(self, start: int, end: int) -> torch.Tensor:
         """Entropy is not available from one sampled-token log-probability."""
+        return torch.full((end - start,), float("nan"), dtype=torch.float32)
+
+
+@dataclass
+class VerlRLTargetProvider:
+    """Reward-derived token advantages and behavior-policy anchors for local RL."""
+
+    target_token_ids: torch.Tensor
+    old_actor_log_probs: torch.Tensor
+    advantages: torch.Tensor
+    temperature: float = 1.0
+    clip_ratio: float = 0.2
+    clip_ratio_low: float = 0.2
+    clip_ratio_high: float = 0.2
+    clip_ratio_c: float = 3.0
+    algorithm: str = "grpo"
+    reward_kl_mean: float = 0.0
+    reward_kl_coef: float = 0.0
+    kind: str = "verl_rl_policy"
+    diagnostics: list[dict[str, torch.Tensor | float | str]] = field(default_factory=list)
+
+    def divergence(self, start: int, end: int, student_logits: torch.Tensor) -> torch.Tensor:
+        from miniverl.algorithms.policy import clipped_policy_loss
+
+        targets = self.target_token_ids[start:end].to(student_logits.device)
+        log_probs = torch.log_softmax(student_logits.to(torch.float32) / self.temperature, dim=-1)
+        current = log_probs.gather(-1, targets.unsqueeze(-1)).squeeze(-1)
+        actor_entropy = -(log_probs.exp() * log_probs).sum(dim=-1)
+        old = self.old_actor_log_probs[start:end].to(student_logits.device)
+        advantages = self.advantages[start:end].to(student_logits.device)
+        response_mask = torch.ones(end - start, device=student_logits.device)
+        output = clipped_policy_loss(
+            current_log_probs=current,
+            old_log_probs=old,
+            advantages=advantages,
+            response_mask=response_mask,
+            clip_ratio=self.clip_ratio,
+            clip_ratio_low=self.clip_ratio_low,
+            clip_ratio_high=self.clip_ratio_high,
+            clip_ratio_c=self.clip_ratio_c,
+        )
+        self.diagnostics.append(
+            {
+                "algorithm": self.algorithm,
+                "reward_kl_mean": self.reward_kl_mean,
+                "reward_kl_coef": self.reward_kl_coef,
+                "advantages": advantages.detach().cpu(),
+                "ratio": output.ratio.detach().cpu(),
+                "actor_entropy": float(actor_entropy.mean().detach()),
+                **output.metrics,
+            }
+        )
+        return output.per_token_loss
+
+    def teacher_entropy(self, start: int, end: int) -> torch.Tensor:
+        """Teacher entropy is not applicable to teacher-free RL."""
         return torch.full((end - start,), float("nan"), dtype=torch.float32)
 
 

@@ -31,6 +31,11 @@ _V011_CHECKS = (
     "v011_policy_refresh_cache_invalidation",
     "v011_external_engine_teardown",
 )
+_V012_CHECKS = (
+    "v012_pinned_verl_v09_compiler",
+    "v012_grpo_nonconstant_reward_update",
+    "v012_exact_wheel_rl_runtime",
+)
 _MAX_GPU_MEMORY_MIB = 14.5 * 1024
 _PREREGISTRATION_SHA256 = "8cc3ba738c69b59ed19c22c1de874fd00249404198a3e05983477dc8899bb7e5"
 _FROZEN_CALCULATOR_SHA256 = "53fc1d4d5b7adee09618d77ad62d4086ba56b78569832d6fc7c3bcd5c2695bbc"
@@ -90,6 +95,96 @@ def _is_v011(version: str) -> bool:
         return (int(match[0]), int(match[1])) >= (0, 11)
     except (IndexError, ValueError):
         return False
+
+
+def _is_v012(version: str) -> bool:
+    match = version.split(".", 2)
+    try:
+        return (int(match[0]), int(match[1])) >= (0, 12)
+    except (IndexError, ValueError):
+        return False
+
+
+def _validate_v012_rl(payload: dict[str, Any], qualification: GPUQualification) -> None:
+    if payload.get("schema_version") != 1 or payload.get("status") != "passed":
+        raise ValueError("v0.12 RL: unsupported schema or failed status")
+    if payload.get("kind") != "miniverl_v012_rl_qualification":
+        raise ValueError("v0.12 RL: unexpected evidence kind")
+    if payload.get("source_commit") != qualification.source_commit:
+        raise ValueError("v0.12 RL: source commit does not match release smoke")
+    if payload.get("miniverl_version") != qualification.miniverl_version:
+        raise ValueError("v0.12 RL: miniVERL version does not match release smoke")
+    if payload.get("wheel_sha256") != qualification.wheel.sha256:
+        raise ValueError("v0.12 RL: wheel binding does not match release smoke")
+    hardware = payload.get("hardware") or {}
+    if hardware.get("gpu") != qualification.environment.gpu_name or hardware.get("gpu_count") != 1:
+        raise ValueError("v0.12 RL: hardware does not match release smoke")
+    if "microsoft" not in str(hardware.get("platform", "")).lower():
+        raise ValueError("v0.12 RL: execution was not measured under WSL2")
+    for field, expected in (
+        ("python", qualification.environment.python),
+        ("cuda_runtime", qualification.environment.cuda_runtime),
+        ("driver", qualification.environment.driver),
+        ("packages", qualification.environment.packages),
+    ):
+        if hardware.get(field) != expected:
+            raise ValueError(f"v0.12 RL: environment {field} does not match release smoke")
+    upstream = payload.get("upstream") or {}
+    if (
+        upstream.get("tag") != "v0.9.0"
+        or upstream.get("commit") != "483b8a009ba3a97563edee3a19887e4862b8094a"
+        or upstream.get("profile") != "verl-rl-v0.9-single-gpu-v1"
+        or upstream.get("compiler_status") != "accepted"
+        or upstream.get("generated_recipe_validated") is not True
+    ):
+        raise ValueError("v0.12 RL: pinned v0.9 compiler evidence did not pass")
+    workload = payload.get("workload") or {}
+    if (
+        workload.get("model_id") != "Qwen/Qwen3-0.6B"
+        or workload.get("algorithm") != "grpo"
+        or workload.get("reward_provider") != "builtin_target_length"
+        or workload.get("rollout_backend") != "hf_cached"
+        or workload.get("cycles") != 2
+        or workload.get("prompts_per_cycle") != 2
+        or workload.get("samples_per_prompt") != 4
+        or workload.get("trajectories") != 16
+        or workload.get("optimizer_updates") != 2
+        or workload.get("policy_version") != 2
+        or int(workload.get("selected_positions", 0)) < 1
+    ):
+        raise ValueError("v0.12 RL: workload shape or optimizer updates are incomplete")
+    if float(workload.get("max_within_prompt_reward_variance", 0.0)) <= 0.0 or float(
+        workload.get("reward_max", 0.0)
+    ) <= float(workload.get("reward_min", 0.0)):
+        raise ValueError("v0.12 RL: nonconstant reward variation was not measured")
+    if float(workload.get("max_absolute_advantage", 0.0)) <= 0.0:
+        raise ValueError("v0.12 RL: nonzero GRPO advantages were not measured")
+    losses = workload.get("losses") or []
+    if len(losses) != 2 or any(not math.isfinite(float(value)) for value in losses):
+        raise ValueError("v0.12 RL: optimizer losses are incomplete or non-finite")
+    initial = workload.get("initial_trainable_state_sha256")
+    final = workload.get("final_trainable_state_sha256")
+    if (
+        not isinstance(initial, str)
+        or not isinstance(final, str)
+        or len(initial) != 64
+        or len(final) != 64
+        or initial == final
+    ):
+        raise ValueError("v0.12 RL: actor parameters did not change")
+    resource = payload.get("resource_contract") or {}
+    if (
+        resource.get("peak_reserved_within_limit") is not True
+        or float(resource.get("peak_reserved_gib", math.inf)) > 14.5
+    ):
+        raise ValueError("v0.12 RL: VRAM resource contract did not pass")
+    scope = payload.get("scientific_scope") or {}
+    if (
+        scope.get("runtime_correctness_only") is not True
+        or scope.get("task_quality_evaluated") is not False
+        or scope.get("distributed_execution_tested") is not False
+    ):
+        raise ValueError("v0.12 RL: scientific scope is not fail-closed")
 
 
 def _validate_v011_profiles(payload: dict[str, Any], qualification: GPUQualification) -> None:
@@ -295,6 +390,7 @@ def promote(
     hf_cached_runtime: Path | None = None,
     vllm_runtime: Path | None = None,
     hf_reference: Path | None = None,
+    v012_rl: Path | None = None,
 ) -> GPUQualification:
     problems = validate_qualification_file(qualification_path)
     if problems:
@@ -325,6 +421,12 @@ def promote(
             "hf_cached_runtime": hf_cached_runtime,
             "vllm_runtime": vllm_runtime,
         }
+    v012_sources: dict[str, Path] = {}
+    if _is_v012(qualification.miniverl_version):
+        if v012_rl is None:
+            raise ValueError("v0.12 full qualification requires RL evidence")
+        _validate_v012_rl(_load(v012_rl), qualification)
+        v012_sources = {"v012_rl": v012_rl}
 
     root = qualification_path.parent
     destination = root / "full"
@@ -337,6 +439,10 @@ def promote(
         shutil.copy2(source, target)
         additions.append((f"full_{name}_result", target))
     for name, source in v011_sources.items():
+        target = destination / f"{name.replace('_', '-')}.json"
+        shutil.copy2(source, target)
+        additions.append((f"full_{name}_result", target))
+    for name, source in v012_sources.items():
         target = destination / f"{name.replace('_', '-')}.json"
         shutil.copy2(source, target)
         additions.append((f"full_{name}_result", target))
@@ -360,6 +466,8 @@ def promote(
     )
     if v011_sources:
         payload["checks"]["executed"].extend(_V011_CHECKS)
+    if v012_sources:
+        payload["checks"]["executed"].extend(_V012_CHECKS)
     promoted = GPUQualification.model_validate(payload)
     write_json_atomic(qualification_path, promoted.model_dump(mode="json"))
     final_problems = validate_qualification_file(qualification_path)
@@ -378,6 +486,7 @@ def main() -> int:
     parser.add_argument("--hf-cached-runtime", type=Path)
     parser.add_argument("--vllm-runtime", type=Path)
     parser.add_argument("--hf-reference", type=Path)
+    parser.add_argument("--v012-rl", type=Path)
     args = parser.parse_args()
     promoted = promote(
         args.qualification,
@@ -388,6 +497,7 @@ def main() -> int:
         hf_cached_runtime=args.hf_cached_runtime,
         vllm_runtime=args.vllm_runtime,
         hf_reference=args.hf_reference,
+        v012_rl=args.v012_rl,
     )
     print(json.dumps(promoted.model_dump(mode="json"), sort_keys=True, allow_nan=False))
     return 0

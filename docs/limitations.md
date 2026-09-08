@@ -138,9 +138,11 @@ share one physical backbone forward. `auto` pads the whole group and can be
 slower or use more memory when lengths differ. Sequential physical batching
 remains the compatibility default.
 
-Rollout decoding is still one sequence at a time. There is no continuous
-batching scheduler, vLLM/SGLang engine or asynchronous actor pool, so update
-speedups must not be described as rollout-throughput improvements.
+The `hf_reference` compatibility path decodes one sequence at a time.
+`hf_cached` adds grouped prefill, per-row RNG and KV-cache decode; the measured
+direct-GKD path can also use miniVERL-managed vLLM 0.28.0 on Linux/WSL2.
+There is no asynchronous actor pool or general-purpose continuous-batching
+scheduler, and the RL policy-loss path uses HF behavior log-probabilities.
 
 If you set `gradient_accumulation_steps < rollouts_per_cycle` in `opd` mode,
 the default `train.opd_freshness: strict` rejects the config: later optimizer
@@ -149,6 +151,29 @@ updated. Explicit `opd_freshness: replay` allows the schedule but labels it
 `online_distillation_with_replay` and records the rollout policy version. The
 shipped 16 GB recipe sets `gradient_accumulation_steps: 6` equal to
 `rollouts_per_cycle: 6` for strict freshness.
+
+For `run.mode: rl`, one cycle is one rollout iteration. The logical trajectory
+count is `rollouts_per_cycle × rollout.samples_per_prompt`.
+`gradient_accumulation_steps` is the logical actor mini-batch; a smaller value
+intentionally performs multiple replay-labelled updates from one complete
+rollout batch. Physical trajectory batching remains separate. Changing a
+physical batch or OOM chunk must not change group membership, sample seed,
+reward or advantage.
+
+### PPO needs a complete critic lifecycle
+
+The repository includes upstream-conformance tests for v0.9 GAE and clipped
+value-loss primitives, but does not expose an executable PPO recipe. A correct
+runtime needs an independently trainable critic/value head, its optimizer and
+checkpoint state, old/current value provenance, plus an
+actor/reference/critic phase schedule that survives interruption and OOM.
+Those pieces are not yet implemented. This is feasible single-GPU work, not a
+distributed-only feature.
+
+GRPO, Dr.GRPO, RLOO and REINFORCE++ do execute locally. Their portable profile
+supports exact-answer and target-length rewards; environment and trusted Python reward providers
+are available through explicit local API injection. There is no trained reward
+model inference role in this release.
 
 ### `swap` is unavailable whenever anything is quantized
 
@@ -427,20 +452,27 @@ projection have not been exercised beyond the pinned Qwen3 pair (which does have
 ### Execution boundary
 
 miniVERL has no distributed training, multi-GPU or multi-node execution,
-high-throughput rollout engine, PPO/GRPO objective, trained reward model,
-vision-language support, cross-tokenizer distillation, or containerized or
-networked tool sandbox. The three built-in environments still generate their
-tasks in-process; the v0.6 Parquet converter only exchanges validated prompt
-datasets and does not turn arbitrary verl datasets into those environments.
-Tools execute in-process. Where that is risky the environment restricts the
-input rather than the process: the calculator walks a parsed `ast` with a closed
-node whitelist instead of calling `eval`, and the SQLite environment uses a
-`sqlite3` authorizer plus a function whitelist and permits one statement per
-call.
+trainable PPO critic, trained reward-model role, vision-language path,
+cross-tokenizer distillation, or containerized/networked tool sandbox. It does
+run critic-free GRPO, Dr.GRPO, RLOO and REINFORCE++ objectives on one GPU. Ray,
+FSDP/FSDP2, Megatron and TP/PP/DP above one are distributed-only placement
+systems.
+
+The built-in environments generate tasks in-process; Parquet conversion does
+not turn an arbitrary verl dataset into an environment. Tools also execute
+in-process. The calculator walks a parsed `ast` with a closed node whitelist
+instead of calling `eval`, and SQLite uses an authorizer, function whitelist and
+one-statement limit. Use an external sandbox when the tool itself is untrusted.
 
 ### Verl bridge boundary
 
-The v0.6 **miniVERL-defined compatibility Level 3** bridge targets official verl
+The RL compiler targets official verl `v0.9.0` at commit
+`483b8a009ba3a97563edee3a19887e4862b8094a` and accepts a closed resolved
+subset. It preserves data, actor, rollout, algorithm and schedule fields with
+tested local semantics; distributed resource fields lower to one process and
+device. It is not a generic Hydra composition engine.
+
+The historical **miniVERL-defined compatibility Level 3** bridge targets official verl
 `v0.8.0` at one exact commit and one named profile. It validates standard
 PEFT/safetensors/tokenizer artifacts, Parquet prompt data, 14 whitelisted
 config fields, a safe reward scaffold and bundle hashes. The recorded smoke
@@ -521,5 +553,6 @@ These are future design directions rather than current runtime surfaces.
 - **Native multi-GPU or multi-node execution.** Not implemented. The v0.6
   bridge can export one documented profile to pinned verl, where scale-out
   remains the user's separately reviewed and executed operation.
-- **A batched or engine-backed rollout path.** Not implemented.
+- **PPO critic execution.** GAE/value math is pinned and tested; critic model,
+  optimizer, checkpoint and temporal phase ownership remain to be built.
 - **Additional tested architectures.** Only Qwen3 and Qwen2 are tested today.

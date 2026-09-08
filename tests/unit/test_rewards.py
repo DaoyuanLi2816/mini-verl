@@ -4,14 +4,20 @@ import math
 
 import pytest
 
+from miniverl.errors import ConfigError
 from miniverl.rewards import (
     ADVANTAGE_COMPOSER_VERSION,
     AdvantageComposer,
     AdvantageMode,
     EnvironmentVerifierRewardProvider,
     ExactAnswerRewardProvider,
+    RewardProviderIdentity,
     RewardRequest,
+    RewardResult,
     RewardStatus,
+    TargetLengthRewardProvider,
+    WeightedRewardProvider,
+    score_reward_requests,
 )
 
 
@@ -66,6 +72,27 @@ def test_exact_answer_provider_returns_error_not_zero_for_invalid_metadata() -> 
     assert result.failure_category == "invalid_reward_metadata"
 
 
+def test_target_length_provider_scores_declared_character_distance() -> None:
+    provider = TargetLengthRewardProvider()
+    exact = provider.score(
+        _request(response="four", reward_model={"style": "target_length", "characters": 4})
+    )
+    near = provider.score(
+        _request(response="three", reward_model={"style": "target_length", "characters": 4})
+    )
+    invalid = provider.score(
+        _request(response="four", reward_model={"style": "target_length", "characters": 0})
+    )
+
+    assert exact.status is RewardStatus.OK
+    assert exact.raw_reward == 1.0
+    assert exact.components[0].name == "target_length"
+    assert near.raw_reward == pytest.approx(0.75)
+    assert invalid.status is RewardStatus.ERROR
+    assert invalid.raw_reward is None
+    assert invalid.failure_category == "invalid_reward_metadata"
+
+
 def test_environment_verifier_adapter_preserves_components() -> None:
     from miniverl.environments.base import FailureCategory, VerificationResult
 
@@ -92,6 +119,30 @@ def test_environment_verifier_adapter_preserves_components() -> None:
     assert result.raw_reward == 0.75
     assert result.components[0].name == "environment_verifier"
     assert result.provider.name == "environment:unit_env"
+
+
+@pytest.mark.parametrize("reward", [float("nan"), float("inf"), float("-inf")])
+def test_recorded_environment_verifier_rejects_non_finite_rewards(reward: float) -> None:
+    class Verifier:
+        name = "unit_env"
+        verifier_version = "v2"
+
+        def __init__(self) -> None:
+            self.params: dict[str, object] = {}
+
+    request = _request().model_copy(
+        update={
+            "reward_model": {
+                "style": "recorded_environment_verifier",
+                "reward": reward,
+            }
+        }
+    )
+    result = EnvironmentVerifierRewardProvider(Verifier()).score(request)
+
+    assert result.status is RewardStatus.ERROR
+    assert result.raw_reward is None
+    assert result.failure_category == "invalid_recorded_verification"
 
 
 @pytest.mark.parametrize(
@@ -146,3 +197,58 @@ def test_composer_expands_task_scalar_only_to_selected_assistant_tokens() -> Non
     expanded = composer.expand_task_advantage(2.0, [False, True, True, False])
 
     assert expanded == [0.0, 2.0, 2.0, 0.0]
+
+
+def test_weighted_reward_preserves_named_components_and_identity() -> None:
+    provider = WeightedRewardProvider(
+        [
+            ("correctness", 2.0, ExactAnswerRewardProvider()),
+            ("format", -0.25, ExactAnswerRewardProvider(strip_whitespace=False)),
+        ]
+    )
+
+    result = provider.score(_request())
+
+    assert result.status is RewardStatus.OK
+    assert result.raw_reward == pytest.approx(1.75)
+    assert [(item.name, item.value) for item in result.components] == [
+        ("correctness", 2.0),
+        ("format", -0.25),
+    ]
+    assert provider.identity.name == "weighted_composite"
+    assert len(provider.identity.digest) == 64
+
+
+def test_batch_reward_results_must_match_request_order_and_provider() -> None:
+    request = _request()
+
+    class MisboundProvider:
+        identity = RewardProviderIdentity(
+            name="misbound",
+            version="v1",
+            config_digest="b" * 64,
+            deterministic=True,
+        )
+
+        def score_batch(self, requests):  # type: ignore[no-untyped-def]
+            return [
+                RewardResult(
+                    trajectory_id="another-trajectory",
+                    prompt_group_id=item.prompt_group_id,
+                    sample_index=item.sample_index,
+                    samples_per_prompt=item.samples_per_prompt,
+                    provider=self.identity,
+                    input_digest=item.input_digest,
+                    raw_reward=1.0,
+                    status=RewardStatus.OK,
+                    duration_ms=0.0,
+                    deterministic=True,
+                )
+                for item in requests
+            ]
+
+        def score(self, request):  # type: ignore[no-untyped-def]
+            raise AssertionError("batch path expected")
+
+    with pytest.raises(ConfigError, match="identity does not match"):
+        score_reward_requests(MisboundProvider(), [request])

@@ -33,9 +33,9 @@ from miniverl.utils.runs import make_run_id
 app = typer.Typer(
     name="miniverl",
     help=(
-        "Run a documented subset of verl-style OPD on one consumer GPU.\n\n"
-        "Compile typed verl-shaped config, reuse Parquet prompts, execute actor rollout, "
-        "teacher scoring and actor update locally, then export inspectable PEFT artifacts."
+        "Compile supported verl experiment semantics for one consumer GPU.\n\n"
+        "Turn resolved YAML and Parquet prompts into actor rollout, reward/reference/teacher "
+        "phases and actor updates, then export inspectable PEFT artifacts."
     ),
     add_completion=False,
     no_args_is_help=True,
@@ -146,7 +146,7 @@ def main(
         envvar="MINIVERL_LOG_LEVEL",
     ),
 ) -> None:
-    """miniVERL: the bounded local runtime for verl-style OPD on one GPU."""
+    """miniVERL: verl experiment semantics compiled for one GPU."""
     from miniverl.utils.logging import configure_logging
 
     configure_logging(log_level)
@@ -159,8 +159,13 @@ def data_sample_command(
         "verl-parquet", "--format", help="Portable output format (verl-parquet only)."
     ),
     rows: int = typer.Option(4, "--rows", min=1, max=1024, help="Number of sample prompts."),
+    task_rewards: bool = typer.Option(
+        False,
+        "--task-rewards",
+        help="Add deterministic exact-answer reward metadata for local RL examples.",
+    ),
 ) -> None:
-    """Create a small reward-free verl-style Parquet prompt dataset."""
+    """Create a small verl-style Parquet prompt dataset."""
     if format_name != "verl-parquet":
         _fail(ConfigError("--format must be verl-parquet"))
         return
@@ -178,22 +183,42 @@ def data_sample_command(
         "What does token-mean loss aggregation mean?",
         "State one limitation of a single-GPU training runtime.",
     ]
+    rewarded = [
+        ("Reply with exactly the word: provenance", "provenance"),
+        ("Reply with exactly the word: checkpoint", "checkpoint"),
+        ("Reply with exactly the word: adapter", "adapter"),
+        ("Reply with exactly the word: reward", "reward"),
+    ]
     records = []
     for index in range(rows):
-        prompt = prompts[index % len(prompts)]
-        if index >= len(prompts):
-            prompt = f"Sample {index + 1}: {prompt}"
-        records.append(
-            {
-                "prompt": [
-                    {"role": "system", "content": "Answer clearly and briefly."},
-                    {"role": "user", "content": prompt},
-                ],
-                "data_source": "miniverl_quickstart",
-                "ability": "short_answer",
-                "extra_info": {"sample_index": index},
-            }
+        prompt, ground_truth = (
+            rewarded[index % len(rewarded)]
+            if task_rewards
+            else (prompts[index % len(prompts)], None)
         )
+        if index >= len(prompts) and not task_rewards:
+            prompt = f"Sample {index + 1}: {prompt}"
+        extra_info: dict[str, Any] = {"sample_index": index}
+        record: dict[str, Any] = {
+            "prompt": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Follow the exact response instruction."
+                        if task_rewards
+                        else "Answer clearly and briefly."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "data_source": "miniverl_quickstart_rl" if task_rewards else "miniverl_quickstart",
+            "ability": "exact_answer" if task_rewards else "short_answer",
+            "extra_info": extra_info,
+        }
+        if ground_truth is not None:
+            record["reward_model"] = {"style": "exact", "ground_truth": ground_truth}
+            extra_info["ground_truth"] = ground_truth
+        records.append(record)
     out.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(pa.Table.from_pylist(records), out)
     digest = hashlib.sha256(out.read_bytes()).hexdigest()
@@ -303,8 +328,10 @@ def validate(
     if environment_config is not None:
         try:
             environment = make_environment(environment_config.name, **environment_config.params)
-            if config.models.teacher.mode.value == "privileged_context" and not hasattr(
-                environment, "privileged_context"
+            if (
+                config.models.teacher is not None
+                and config.models.teacher.mode.value == "privileged_context"
+                and not hasattr(environment, "privileged_context")
             ):
                 warnings.append("environment provides no privileged context")
         except MiniVerlError as exc:
@@ -326,7 +353,11 @@ def validate(
         )
     if config.models.backend.value == "hf" and not config.models.student.revision:
         warnings.append("models.student.revision is unpinned; the manifest will record 'unpinned'")
-    if config.models.backend.value == "hf" and not config.models.teacher.revision:
+    if (
+        config.models.backend.value == "hf"
+        and config.models.teacher is not None
+        and not config.models.teacher.revision
+    ):
         warnings.append("models.teacher.revision is unpinned")
 
     payload = {
@@ -340,7 +371,7 @@ def validate(
         ),
         "backend": config.models.backend.value,
         "student": config.models.student.model_id,
-        "teacher": config.models.teacher.model_id,
+        "teacher": config.models.teacher.model_id if config.models.teacher is not None else None,
         "source_kind": config.source.kind.value,
         "environment": environment_config.name if environment_config is not None else None,
         "difficulty": environment_config.difficulty if environment_config is not None else None,
@@ -588,8 +619,10 @@ def prepare_offline_kd_command(
         "collection_tasks": (config.offline_kd.collection_tasks or config.train.rollouts_per_cycle),
         "student": config.models.student.model_id,
         "student_revision": config.models.student.revision,
-        "teacher": config.models.teacher.model_id,
-        "teacher_revision": config.models.teacher.revision,
+        "teacher": config.models.teacher.model_id if config.models.teacher is not None else None,
+        "teacher_revision": (
+            config.models.teacher.revision if config.models.teacher is not None else None
+        ),
     }
     if dry_run:
         if as_json:
@@ -1180,7 +1213,8 @@ def verl_run_command(
                 f"n={native.rollout.samples_per_prompt}, max response "
                 f"{_esc(native.source.max_response_length)}"
             )
-            console.print(f"  teacher    {_esc(native.models.teacher.model_id)}")
+            if native.models.teacher is not None:
+                console.print(f"  teacher    {_esc(native.models.teacher.model_id)}")
             console.print("  distill    forward_kl_topk / token-mean / no reward")
             console.print(f"  trainer    {_esc(native.train.cycles)} optimizer update(s)")
             console.print(f"  placement  {_esc(system_plan.local_execution['strategy'])}")
@@ -1390,9 +1424,12 @@ def train(
         return
 
     if dry_run:
+        trajectories_per_cycle = config.train.rollouts_per_cycle * (
+            config.rollout.samples_per_prompt if config.run.mode.value == "rl" else 1
+        )
         steps_per_cycle = max(
             1,
-            (config.train.rollouts_per_cycle + config.train.gradient_accumulation_steps - 1)
+            (trajectories_per_cycle + config.train.gradient_accumulation_steps - 1)
             // config.train.gradient_accumulation_steps,
         )
         plan = {
@@ -1403,12 +1440,17 @@ def train(
             "backend": config.models.backend.value,
             "student": config.models.student.model_id,
             "student_revision": config.models.student.revision,
-            "teacher": config.models.teacher.model_id,
-            "teacher_revision": config.models.teacher.revision,
+            "teacher": config.models.teacher.model_id
+            if config.models.teacher is not None
+            else None,
+            "teacher_revision": (
+                config.models.teacher.revision if config.models.teacher is not None else None
+            ),
             "downloads_required": config.models.backend.value == "hf",
             "planned_optimizer_steps": steps_per_cycle
             * (config.train.cycles + config.train.sft_warmup_cycles),
-            "planned_rollouts": config.train.rollouts_per_cycle * config.train.cycles,
+            "planned_prompt_groups": config.train.rollouts_per_cycle * config.train.cycles,
+            "planned_rollouts": trajectories_per_cycle * config.train.cycles,
             "output_dir": str(output or config.run.output_dir),
             "resume": str(resume) if resume is not None else None,
             "resume_from": str(resume_from) if resume_from is not None else None,
@@ -1567,7 +1609,11 @@ def import_verl_command(
         None, "--config", help="Resolved verl YAML configuration (v2 spelling)."
     ),
     profile: str = typer.Option(..., "--profile", help="Documented bridge profile."),
-    target_verl: str = typer.Option("v0.8.0", "--target-verl", help="Pinned verl tag or commit."),
+    target_verl: Optional[str] = typer.Option(
+        None,
+        "--target-verl",
+        help="Pinned verl tag or commit (defaults to the selected profile's pin).",
+    ),
     out: Path = typer.Option(..., "--out", help="New miniVERL recipe path."),
     overrides: list[str] = typer.Option([], "--set", help="Repeatable dotted key=value override."),
     environment: Optional[str] = typer.Option(
@@ -1600,12 +1646,29 @@ def import_verl_command(
         if selected_source is None:
             raise ConfigError("a resolved verl YAML path is required", hint="pass --config FILE")
         from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
+        from miniverl.bridge.rl_v09 import VERL_RL_V09_PROFILE
 
-        if profile == VERL_OPD_V08_PROFILE:
+        if profile == VERL_RL_V09_PROFILE:
+            resolved_target_verl = target_verl or "v0.9.0"
+            if overrides:
+                raise ConfigError(
+                    "--set is not supported by the fail-closed verl v0.9 RL importer; "
+                    "pass a fully resolved YAML"
+                )
+            from miniverl.bridge.rl_v09 import publish_imported_verl_rl_v09
+
+            report = publish_imported_verl_rl_v09(
+                selected_source,
+                out=out,
+                target_verl=resolved_target_verl,
+                overwrite=overwrite,
+            )
+        elif profile == VERL_OPD_V08_PROFILE:
             from miniverl.bridge.contract import validate_target_verl
             from miniverl.bridge.opd_v08 import publish_imported_verl_opd_v08
 
-            validate_target_verl(target_verl)
+            resolved_target_verl = target_verl or "v0.8.0"
+            validate_target_verl(resolved_target_verl)
             report = publish_imported_verl_opd_v08(
                 selected_source,
                 out=out,
@@ -1613,6 +1676,7 @@ def import_verl_command(
                 overwrite=overwrite,
             )
         else:
+            resolved_target_verl = target_verl or "v0.8.0"
             if overrides:
                 raise ConfigError(
                     "--set is supported by the verl OPD v2 profile only",
@@ -1623,7 +1687,7 @@ def import_verl_command(
             report = import_verl_config(
                 selected_source,
                 profile=profile,
-                target_verl=target_verl,
+                target_verl=resolved_target_verl,
                 out=out,
                 environment=environment,
                 teacher_model=teacher_model,

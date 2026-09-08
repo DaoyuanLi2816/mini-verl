@@ -107,7 +107,10 @@ def run_generation(
             generator=generator,
         )
         if record_logprobs:
-            log_probs = torch.log_softmax(logits.detach().to(torch.float32).flatten(), dim=-1)
+            behavior_logits = logits.detach().to(torch.float32).flatten()
+            if temperature > 0.0:
+                behavior_logits = behavior_logits / temperature
+            log_probs = torch.log_softmax(behavior_logits, dim=-1)
             logprobs.append(float(log_probs[token].item()))
         generated.append(token)
         pending = [token]
@@ -277,9 +280,10 @@ def run_cached_padded_generation(
                 if greedy_logprobs is not None:
                     logprobs[index].append(greedy_logprobs[index])
                 else:
-                    row_log_probs = torch.log_softmax(
-                        row_logits.detach().to(torch.float32).flatten(), dim=-1
-                    )
+                    behavior_logits = row_logits.detach().to(torch.float32).flatten()
+                    if temperature > 0.0:
+                        behavior_logits = behavior_logits / temperature
+                    row_log_probs = torch.log_softmax(behavior_logits, dim=-1)
                     logprobs[index].append(float(row_log_probs[token].item()))
             generated[index].append(token)
             if token == eos_token_id:

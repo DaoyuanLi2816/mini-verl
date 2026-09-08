@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — run verl-style OPD on one consumer GPU" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — lower verl experiment semantics onto one CUDA GPU" width="880">
 </p>
 
 <div align="center">
@@ -19,11 +19,15 @@
   <a href="README.zh-CN.md">中文</a>
 </p>
 
-**Run verl-style on-policy distillation on one NVIDIA GPU, with every config
-mapping, teacher target and training artifact available for inspection.**
-miniVERL turns typed YAML and structured Parquet prompts into a local actor
-rollout → teacher scoring → actor update loop, then exports standard PEFT,
-Parquet and config artifacts for scale-out work.
+**miniVERL runs a validated subset of verl experiment semantics on one NVIDIA
+GPU.** Give it a resolved verl-shaped config and Parquet prompts; its versioned
+compiler produces a reviewable local plan, executes actor/reference/teacher/
+reward roles in phases, and publishes portable PEFT and data artifacts.
+
+The current development line adds critic-free RL against official verl
+`v0.9.0` (`483b8a00`): GRPO, Dr.GRPO, RLOO and REINFORCE++, grouped rollouts,
+task rewards and fixed reference-policy KL. The established verl `v0.8.0` OPD
+profiles remain available for direct GKD and sampled-k1 distillation.
 
 PyPI `v0.11.0` is stable; `main` is development.
 
@@ -33,186 +37,124 @@ Install the CUDA-enabled PyTorch build that matches your machine, then:
 
 ```bash
 python -m pip install "miniverl[train,cuda]"
-miniverl data sample --format verl-parquet --out prompts.parquet
-miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
-  --config builtin:qwen3-0.6b-1.7b-opd \
-  --set 'data.train_files=["prompts.parquet"]' --out plan.json
-miniverl run --profile verl-opd-v0.8-single-gpu-v1 \
-  --plan plan.json --dry-run
+miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
+  --config examples/verl-rl-v0.9-single-gpu.yaml --out local-grpo.yaml
+miniverl validate local-grpo.yaml
+miniverl train local-grpo.yaml --dry-run
 ```
 
-This path works from the published wheel and loads no model weights while
-planning. The generated `plan.json` binds the source config, ordered overrides,
-profile version and input Parquet bytes. On a CUDA GPU, remove `--dry-run` to
-run the pinned Qwen3-0.6B actor and Qwen3-1.7B teacher recipe.
+The importer writes `local-grpo.import-report.json` beside the native recipe.
+It accounts for every accepted source field and records how distributed
+resource settings lower to one process and one device. Remove `--dry-run` to
+load the pinned Qwen3-0.6B actor and execute the two-iteration example.
 
-The `[train,cuda]` extra installs the ML and quantization dependencies. Select
-the matching CUDA PyTorch wheel separately with the
-[PyTorch installer](https://pytorch.org/get-started/locally/). The
-[single-GPU guide](docs/single-gpu-guide.md) covers memory planning from 8 GiB
-cards upward and includes the maintainer-measured RTX 4080 stack.
+The `[train,cuda]` extra installs the ML and quantization stack; select PyTorch's
+CUDA build separately with the [PyTorch installer](https://pytorch.org/get-started/locally/).
+The [single-GPU guide](docs/single-gpu-guide.md) covers memory planning and the
+maintainer-measured RTX 4080 environment.
 
 ## What a run gives you
 
-- **A reviewable plan.** Every accepted verl field has a local effect,
-  classification and risk level before weights are loaded.
-- **Strict current-policy trajectories.** The actor policy version, token
-  spans and teacher-supervised positions travel together.
-- **Compact teacher targets.** Top-k targets and sampled-k1 signals use
-  checksummed, pickle-free caches.
-- **Recoverable training.** Transactional manifests, checkpoints and cache
-  indexes support inspection and exact resume.
-- **Standard outputs.** PEFT adapters, safetensors, structured Parquet,
-  resolved config and typed provenance remain portable.
-
-```bash
-miniverl run --profile verl-opd-v0.8-single-gpu-v1 --plan plan.json \
-  --output runs --run-id my-opd
-miniverl inspect runs/my-opd/trajectories.jsonl
-miniverl cache stats runs/my-opd/teacher-cache
-miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
-miniverl bridge doctor scaleout --json
-```
+- **A field-by-field compiler report.** Experiment fields retain their meaning;
+  physical distribution fields receive an explicit one-GPU lowering.
+- **Policy-bound trajectories.** Group/sample identity, generated-token spans,
+  behavior log-probabilities and policy version travel together.
+- **Auditable rewards and objectives.** Reward components, group advantages,
+  reference KL, clipping, entropy and update metrics are structured data.
+- **Exact recovery.** Transactional manifests and checkpoints restore policy,
+  optimizer, cursor, RNG and reward identities before another rollout.
+- **Portable outputs.** PEFT adapters, safetensors, Parquet, resolved config and
+  typed provenance can move into a larger workflow.
 
 ## How it works
 
 <picture>
   <source media="(max-width: 640px)" srcset="docs/verl-local-runtime-mobile.svg">
-  <img src="docs/verl-local-runtime.svg" alt="Typed verl-style configuration and Parquet prompts compile into sequential actor rollout, teacher scoring and actor update phases on one CUDA GPU, producing inspectable local artifacts and a pinned scale-out bundle.">
+  <img src="docs/verl-local-runtime.svg" alt="A resolved verl config compiles into a validated single-GPU execution plan; actor, reference, teacher and reward roles execute in phases and produce portable artifacts plus a readiness report.">
 </picture>
 
-miniVERL schedules actor, teacher and optional reference roles in phases inside
-one ordinary process. The actor generates with its current adapter, the teacher
-scores the visited token positions, and the actor receives a padded token-mean
-update. Resident, swap and shared-backbone placement strategies keep those role
-identities explicit while adapting to available memory.
-
-Each phase publishes evidence before the next boundary: structured
-trajectories carry per-token provenance, teacher targets are checksummed,
-checkpoints publish transactionally, and the final adapter is reloaded through
-standard PEFT. The result is a training run you can inspect without
-reconstructing intent from console logs.
+One GPU is treated as a temporal scheduler for logical roles. Critic-free RL
+generates complete prompt groups, scores outcomes, computes the pinned
+advantage estimator, optionally evaluates a frozen reference adapter, and then
+updates the actor. OPD uses the same trajectory and checkpoint foundations,
+with a teacher-scoring phase in place of outcome-only rewards.
 
 ## Choose your path
 
 | Goal | First command | Primary artifact | Next step |
 | --- | --- | --- | --- |
-| **Run local OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml` | immutable execution plan | [OPD quickstart](docs/opd-quickstart.md) |
-| **Bring a verl profile** | `miniverl compat check --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml` | field-by-field compatibility report | [For verl users](docs/for-verl-users.md) |
+| **Run local RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 --config verl-rl.yaml --out local.yaml` | native recipe + compatibility report | [RL quickstart](docs/verl-rl-runtime.md) |
+| **Run local OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | immutable execution plan | [OPD quickstart](docs/opd-quickstart.md) |
 | **Fit your GPU** | `miniverl plan --config verl-opd.yaml --probe` | measured placement plan | [Hardware planning](docs/hardware-planning.md) |
-| **Hand off for scale-out** | `miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout` | PEFT + Parquet + config bundle | [Scale-out contract](docs/verl-opd-scaleout.md) |
+| **Hand off artifacts** | `miniverl export-verl --run runs/my-run --target-verl v0.8.0 --out scaleout` | PEFT + Parquet + config bundle | [Scale-out contract](docs/verl-opd-scaleout.md) |
 
-The native recipe system also supports SFT, DPO, offline KD and tool-aware OPD
-over calculator, JSON navigation, read-only SQLite and custom environments.
+Native recipes also support SFT, DPO and offline KD, plus calculator, JSON
+navigation, read-only SQLite and custom tool environments.
 
-## Familiar verl inputs, local execution
+## Current capability matrix
 
-The current profiles pin official verl `v0.8.0` at
-`7aed6b230776f963fa09509c10d9c3a767d1102c` and preserve recognizable fields:
-
-```yaml
-actor_rollout_ref:
-  model: {path: Qwen/Qwen3-0.6B}
-  rollout: {name: vllm, n: 1}
-distillation:
-  teacher_models:
-    teacher_model:
-      model_path: Qwen/Qwen3-1.7B
-      inference: {name: vllm}
-```
-
-The compiler translates distributed resource intent into sequential local
-Hugging Face phases and records that translation in the plan. Two measured
-profiles are available:
-
-| Profile | Objective | Teacher target |
+| Experiment surface | Local status | Contract |
 | --- | --- | --- |
-| `verl-opd-v0.8-single-gpu-v1` | direct GKD `forward_kl_topk` | top-k token IDs and log-probabilities |
-| `verl-opd-v0.8-single-gpu-pg-k1-v1` | sampled `k1` + vanilla policy loss | sampled-token teacher log-probability |
+| GRPO / Dr.GRPO | semantically conformant | verl v0.9 group statistics and vanilla clipped policy loss |
+| RLOO / REINFORCE++ | semantically conformant | verl v0.9 advantage and masking rules |
+| Grouped `n > 1` rollouts | supported | complete groups, stable sample seeds and behavior-policy identity |
+| Task rewards | supported | exact-answer/target-length built-ins, environment verifier, or trusted Python API |
+| Fixed reference KL | locally lowered | frozen adapter role on the shared actor backbone |
+| Direct GKD / sampled-k1 OPD | supported | pinned verl v0.8 profiles with teacher targets |
+| PPO / GAE execution | not implemented | math is conformance-tested; a trainable critic lifecycle is not yet present |
+| Ray, FSDP/FSDP2, Megatron, TP/PP/DP > 1 | distributed-only | these change physical scale, not the local objective |
 
-Use `miniverl profiles show`, `compat explain` and `compat check` to inspect
-the complete mapping. [Compatibility profiles](docs/profiles/index.md) explains
-how profile identity follows plans, caches, checkpoints and exports. Separate
-conformance-only grouped profiles add transactional Parquet `n>1` samples
-without changing either measured `n=1` profile or introducing GRPO semantics.
-A separate conformance-only rewarded profile adds deterministic exact-answer
-rewards and explicit group advantage composition; it has no task-quality claim.
+The generated [v0.9 compatibility record](docs/generated/verl-rl-v0.9-compatibility.json)
+binds every example field to its source value, local target, classification and
+compiler-rule digest. `miniverl import-verl` accepts a resolved documented
+subset, rejects unknown algorithm-changing fields, and never substitutes a
+dataset or reward implementation.
 
 ## Measured systems evidence
 
-Rollout Runtime v2 has a complete 24-cell RTX 4080 measurement across
-64/256/512-token responses, `n=1/4`, greedy and seeded sampling. The compiled
-`hf_cached` path reached 124.2–248.7 output tokens/s and passed the
-preregistered 2× gate in every required cell. It keeps the NF4 actor for
-training and synchronizes each policy version into an owned BF16 rollout
-mirror.
+The published Qwen3-0.6B/1.7B OPD workload consumed 32 distinct prompts and
+completed eight current-policy updates at 3.1914 GiB peak reserved VRAM on an
+RTX 4080. A matched interruption after update four reproduced byte-identical
+trajectories, adapter and optimizer tensors. The SmolLM2-360M/1.7B workload
+completed the same shape at 1.4961 GiB. [System records](docs/verl-opd-reference-workload.md)
+contain configs, hashes and phase timings.
 
-Managed vLLM 0.28.0 with CUDA Graph execution reached 626.6–836.4 output
-tokens/s and was 3.08–5.97× faster than `hf_cached` in the 256/512-token cells.
-Both backends passed memory, eight-refresh and teardown gates. vLLM is the
-measured direct-GKD engine; PG-k1 stays on `hf_cached` because its engine
-log-probability probe exceeded the numerical threshold. See the
-[full runtime result](docs/benchmarks/rollout-runtime-v2.md) for every cell,
-the preserved first candidate and artifact hashes.
-
-The Qwen3-0.6B/1.7B developer workload consumed **32 distinct prompts**, used a
-64-token response bound, and completed **8 current-policy updates** at
-**3.1914 GiB peak reserved VRAM** on an RTX 4080. Median steady-state rollout,
-teacher-scoring and update times were 9.7200, 0.4864 and 2.3260 seconds. A
-matched interruption after update four resumed to byte-identical trajectories,
-adapter and optimizer tensors.
-
-A second SmolLM2-360M/1.7B workload completed the same 32-prompt, 8-update
-shape at 1.4961 GiB peak reserved VRAM, including exact resume, PEFT reload and
-scale-out materialization. Read the
-[Qwen3](docs/verl-opd-reference-workload.md) and
-[SmolLM2](docs/smollm2-opd-workload.md) systems records for configs, hashes and
-phase-level measurements.
-
-Other NVIDIA GPUs use the same device-name-agnostic CUDA path. Model fit and
-speed vary with VRAM, context, quantization, kernels and software versions;
-`miniverl doctor` and `plan --probe` expose those machine-specific choices.
+Rollout Runtime v2 measured `hf_cached` and managed vLLM across 24 RTX 4080
+cells spanning response length, sampling mode and `n=1/4`. See the
+[runtime report](docs/benchmarks/rollout-runtime-v2.md). Evidence for the new
+RL family is published through the exact-wheel release qualification rather
+than presented as a task-quality comparison.
 
 ## Research record
 
-The repository publishes positive, mixed and negative results with the same
-resolved configs and source hashes. The calculator study found that a
-protocol-qualified teacher prevented collapse but tied supervised
-continuation. RecoveryBench found no fresh-state advantage in its scoped
-SQLite setting. Alignment Lab began at a saturated SFT checkpoint and exposed
-utility regressions that two sandbox safety checks missed. The preregistered
-External Alignment Gate stopped before continuation because every candidate
-failed the retained-utility threshold.
+The scientific reports preserve their original outcomes and frozen inputs:
+[calculator protocol](docs/benchmarking.md),
+[RecoveryBench](docs/recoverybench/recoverybench-v1.md),
+[Alignment Lab](docs/alignment-lab/alignment-lab-v1.md), and the
+[External Alignment Gate](docs/alignment-external/alignment-external-v1.md).
+They are scoped studies, separate from runtime qualification.
 
-- [Calculator protocol study](docs/benchmarking.md)
-- [RecoveryBench](docs/recoverybench/recoverybench-v1.md)
-- [Alignment Lab](docs/alignment-lab/alignment-lab-v1.md)
-- [External Alignment Gate](docs/alignment-external/alignment-external-v1.md)
+## Compatibility boundary
 
-These reports answer scoped experimental questions; the
-[limitations](docs/limitations.md) page collects the measurement, architecture,
-security and generalization boundaries in one place.
-
-## Scope
-
-miniVERL is designed for one local process, one NVIDIA CUDA GPU and the
-documented OPD profiles above. Scale-out support produces and validates a
-portable bundle against the pinned upstream source. The
-[compatibility policy](docs/compatibility.md) lists supported fields, profile
-semantics and handoff readiness states; [limitations](docs/limitations.md)
-covers the broader execution and scientific boundaries. miniVERL is an
-independent Apache-2.0 project.
+miniVERL targets one local process and one NVIDIA CUDA GPU. The compiler
+distinguishes exact or conformant semantics, local physical lowering,
+distributed-only settings, feasible work not yet implemented, and technically
+unsupported inputs. The [compatibility policy](docs/compatibility.md) is the
+complete matrix; [limitations](docs/limitations.md) collects architecture,
+measurement, security and generalization boundaries in one place. miniVERL is
+an independent Apache-2.0 project.
 
 ## Development
 
 ```bash
 git clone https://github.com/DaoyuanLi2816/mini-verl.git
 cd mini-verl
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,train]"
 pytest -q -m "not gpu and not network"
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md),
-[CITATION.cff](CITATION.cff), the
-[reproducibility guide](docs/reproducibility.md), [SECURITY.md](SECURITY.md)
-and the [Apache-2.0 license](LICENSE).
+[CITATION.cff](CITATION.cff), the [guide for verl users](docs/for-verl-users.md),
+[SECURITY.md](SECURITY.md) and the
+[Apache-2.0 license](LICENSE).

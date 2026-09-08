@@ -46,6 +46,7 @@ from miniverl.config.models import (
     OPDFreshness,
     Quantization,
     RewardProviderKind,
+    RLAlgorithm,
     RunConfig,
     SourceKind,
     TeacherContextMode,
@@ -75,6 +76,7 @@ from miniverl.schemas.trajectory import (
     SpanType,
     Trajectory,
     VerificationRecord,
+    derive_grouped_trajectory_id,
 )
 from miniverl.selection.selectors import (
     SelectionResult,
@@ -138,6 +140,7 @@ class TrainSample:
     alignment: AlignmentMap
     selection: SelectionResult
     teacher: TeacherScoreResult | None = None
+    objective_provider: Any | None = None
 
 
 @dataclass
@@ -261,23 +264,35 @@ class OPDTrainer:
 
         self.reference = reference
         self.reward_provider: Any | None = reward_provider
-        if config.loss.mode is LossMode.VERL_PG_K1_REWARDED:
+        if config.loss.mode in {LossMode.VERL_PG_K1_REWARDED, LossMode.VERL_RL_POLICY}:
             from miniverl.rewards.providers import (
+                EnvironmentVerifierRewardProvider,
                 ExactAnswerRewardProvider,
                 RewardProvider,
+                TargetLengthRewardProvider,
             )
 
             if config.reward.provider is RewardProviderKind.EXACT_ANSWER:
                 if reward_provider is not None:
                     raise ConfigError("an injected provider requires reward.provider=python_api")
                 self.reward_provider = ExactAnswerRewardProvider()
+            elif config.reward.provider is RewardProviderKind.TARGET_LENGTH:
+                if reward_provider is not None:
+                    raise ConfigError("an injected provider requires reward.provider=python_api")
+                self.reward_provider = TargetLengthRewardProvider()
+            elif config.reward.provider is RewardProviderKind.ENVIRONMENT_VERIFIER:
+                if reward_provider is not None:
+                    raise ConfigError("an injected provider requires reward.provider=python_api")
+                if environment is None:
+                    raise ConfigError("environment_verifier requires a ToolEnvironment")
+                self.reward_provider = EnvironmentVerifierRewardProvider(environment)
             elif reward_provider is None or not isinstance(reward_provider, RewardProvider):
                 raise ConfigError(
                     "reward.provider=python_api requires a RewardProvider object passed to "
                     "OPDTrainer.from_config(..., reward_provider=...)"
                 )
         elif reward_provider is not None:
-            raise ConfigError("an injected reward provider requires the rewarded PG profile")
+            raise ConfigError("an injected reward provider requires a reward-driven policy profile")
         self.reward_log = JsonlWriter(paths.root / "rewards.jsonl")
         self.advantage_log = JsonlWriter(paths.root / "advantages.jsonl")
         self.artifact_bridge = LocalArtifactBridge(paths.root)
@@ -344,7 +359,7 @@ class OPDTrainer:
         rollouts = self.config.train.rollouts_per_cycle
         trajectories = (
             rollouts * self.config.rollout.samples_per_prompt
-            if self.config.source.kind is SourceKind.VERL_PARQUET
+            if self.config.run.mode is TrainingMode.RL
             else rollouts
         )
         return max(1, (trajectories + accum - 1) // accum)
@@ -452,9 +467,9 @@ class OPDTrainer:
         # bitsandbytes 4-bit parameters are pinned to the device they were
         # quantized on, so a quantized model cannot be moved off the GPU and
         # back. `swap` is therefore only available for unquantized pairs.
-        quantized = (
-            config.models.student.quantization is not Quantization.NONE
-            or config.models.teacher.quantization is not Quantization.NONE
+        quantized = config.models.student.quantization is not Quantization.NONE or (
+            config.models.teacher is not None
+            and config.models.teacher.quantization is not Quantization.NONE
         )
         memory_config = config.memory
         from miniverl.bridge.opd_capabilities import assert_runtime_placement_legal
@@ -462,7 +477,11 @@ class OPDTrainer:
         assert_runtime_placement_legal(
             strategy=memory_config.strategy.value,
             student_quantization=config.models.student.quantization.value,
-            teacher_quantization=config.models.teacher.quantization.value,
+            teacher_quantization=(
+                config.models.teacher.quantization.value
+                if config.models.teacher is not None
+                else Quantization.NONE.value
+            ),
         )
         if (
             config.models.runtime is ModelRuntime.SHARED_BACKBONE
@@ -580,7 +599,10 @@ class OPDTrainer:
                     raise ConfigError(
                         "eval task range exceeds the number of Parquet validation rows"
                     )
-            if config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT:
+            if (
+                config.models.teacher is not None
+                and config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT
+            ):
                 assert environment is not None
                 probe = environment.privileged_context(splits["train"][0])
                 if not probe:
@@ -601,7 +623,8 @@ class OPDTrainer:
                     device=device,
                     local_files_only=local_files_only,
                     include_teacher=(
-                        config.run.mode is not TrainingMode.SFT and not for_evaluation
+                        config.run.mode in {TrainingMode.OPD, TrainingMode.OFFLINE_KD}
+                        and not for_evaluation
                     ),
                 )
                 plan.reason = "shared_backbone -> resident: all policy roles share one base"
@@ -616,7 +639,7 @@ class OPDTrainer:
                 )
             if (
                 config.models.runtime is ModelRuntime.DUAL_MODEL
-                and config.run.mode is not TrainingMode.SFT
+                and config.run.mode in {TrainingMode.OPD, TrainingMode.OFFLINE_KD}
                 and not for_evaluation
             ):
                 if memory_config.strategy is MemoryStrategy.AUTO and device.startswith("cuda"):
@@ -899,6 +922,8 @@ class OPDTrainer:
                     if config.is_on_policy
                     else "online_distillation_with_replay"
                 )
+            elif config.run.mode is TrainingMode.RL:
+                name = config.algorithm.name.value
             objective = {
                 "name": name,
                 "loss_mode": config.loss.mode.value,
@@ -917,6 +942,11 @@ class OPDTrainer:
                 "opd_freshness": (
                     config.train.opd_freshness.value
                     if config.run.mode is TrainingMode.OPD
+                    else None
+                ),
+                "algorithm": (
+                    config.algorithm.model_dump(mode="json")
+                    if config.run.mode is TrainingMode.RL
                     else None
                 ),
             }
@@ -984,12 +1014,12 @@ class OPDTrainer:
                 },
                 "teacher": (
                     {
-                        "model_id": config.models.teacher.model_id,
-                        "revision": config.models.teacher.revision,
-                        "tokenizer_revision": config.models.teacher.tokenizer_revision,
-                        "quantization": config.models.teacher.quantization.value,
-                        "precision": config.models.teacher.dtype.value,
-                        "context_mode": config.models.teacher.mode.value,
+                        "model_id": config.models.required_teacher.model_id,
+                        "revision": config.models.required_teacher.revision,
+                        "tokenizer_revision": config.models.required_teacher.tokenizer_revision,
+                        "quantization": config.models.required_teacher.quantization.value,
+                        "precision": config.models.required_teacher.dtype.value,
+                        "context_mode": config.models.required_teacher.mode.value,
                         "adapter": getattr(self.teacher, "adapter_provenance", None),
                         "capabilities": self.teacher.capabilities.to_dict(),
                     }
@@ -1158,7 +1188,7 @@ class OPDTrainer:
         if (
             config.models.backend is not ModelBackend.TOY
             or self.teacher is None
-            or config.models.teacher.toy_pretrain_steps <= 0
+            or config.models.required_teacher.toy_pretrain_steps <= 0
             or self.environment is None
         ):
             return
@@ -1187,9 +1217,9 @@ class OPDTrainer:
             losses = fit_toy_model(
                 self.teacher,
                 batches,
-                steps=config.models.teacher.toy_pretrain_steps,
-                lr=config.models.teacher.toy_pretrain_lr,
-                seed=config.models.teacher.toy_teacher_seed,
+                steps=config.models.required_teacher.toy_pretrain_steps,
+                lr=config.models.required_teacher.toy_pretrain_lr,
+                seed=config.models.required_teacher.toy_teacher_seed,
                 chunk_size=self.plan.chunk_size,
                 batch_size=config.train.gradient_accumulation_steps,
             )
@@ -1297,6 +1327,131 @@ class OPDTrainer:
                 stats.observe(trajectory)
             return trajectories, stats
         assert self.runner is not None
+        if self.config.run.mode is TrainingMode.RL:
+            from miniverl.runtime.generation import RolloutBackendKind, derive_sample_seed
+            from miniverl.runtime.policy_sync import build_rollout_policy_identity
+
+            task_cursor_before = self.task_cursor - len(tasks)
+            group_cursor_before = self._rollout_group_cursor
+            identity = build_rollout_policy_identity(
+                backend=self.student,
+                parameter_version=self.policy_version,
+                generation_backend=RolloutBackendKind.HF_REFERENCE,
+                backend_version="agent-hf-reference-v1",
+                profile_identity=self.config.run.profile_identity,
+                execution_plan_digest=self.config.run.execution_plan_digest,
+            )
+            self._backend_sync_identity = identity.digest
+            self._pending_group_identity = []
+            try:
+                for offset, task in enumerate(tasks):
+                    prompt_digest = hashlib.sha256(
+                        (
+                            f"{self.environment.name if self.environment else ''}\0"
+                            f"{task.task_id}\0{self.environment.system_prompt() if self.environment else ''}"
+                        ).encode()
+                    ).hexdigest()
+                    group_id = f"g{group_cursor_before + offset:012d}-{prompt_digest[:12]}"
+                    self._pending_group_identity.append(group_id)
+                    for sample_index in range(self.config.rollout.samples_per_prompt):
+                        generation_seed = derive_sample_seed(
+                            run_seed=(
+                                rollout_seed_base
+                                if rollout_seed_base is not None
+                                else self.config.run.seed + self.global_step * 1013
+                            ),
+                            prompt_digest=prompt_digest,
+                            policy_version=self.policy_version,
+                            sample_index=sample_index,
+                        )
+                        legacy = self.runner.rollout(
+                            task,
+                            policy_version=self.policy_version,
+                            seed=generation_seed,
+                        )
+                        verification = legacy.verification
+                        reward_metadata = {
+                            "style": "recorded_environment_verifier",
+                            "reward": float(verification.reward)
+                            if verification is not None
+                            else 0.0,
+                            "failure_category": (
+                                verification.failure_category
+                                if verification is not None
+                                else "no_final_answer"
+                            ),
+                            "detail": (
+                                verification.detail
+                                if verification is not None
+                                else legacy.termination_reason.value
+                            ),
+                        }
+                        trajectory_id = derive_grouped_trajectory_id(
+                            prompt_group_id=group_id,
+                            sample_index=sample_index,
+                            rollout_policy_identity_digest=identity.digest,
+                            generation_seed=generation_seed,
+                        )
+                        trajectory = Trajectory.model_validate(
+                            {
+                                **legacy.model_dump(mode="python"),
+                                "schema_version": TRAJECTORY_SCHEMA_VERSION,
+                                "trajectory_id": trajectory_id,
+                                "prompt_group_id": group_id,
+                                "prompt_digest": prompt_digest,
+                                "sample_index": sample_index,
+                                "samples_per_prompt": self.config.rollout.samples_per_prompt,
+                                "generation_seed": generation_seed,
+                                "rollout_backend": "agent_hf_reference",
+                                "rollout_policy_identity_digest": identity.digest,
+                                "metadata": {
+                                    **legacy.metadata,
+                                    "row_digest": prompt_digest,
+                                    "data_source": f"environment:{legacy.environment}",
+                                    "reward_model": reward_metadata,
+                                },
+                            }
+                        )
+                        if not any(trajectory.model_generated_mask):
+                            raise ConfigError(
+                                "RL environment rollout produced no model-generated tokens; "
+                                "increase rollout.max_total_tokens beyond the rendered system "
+                                "prompt and task context"
+                            )
+                        trajectories.append(trajectory)
+                transaction_id = hashlib.sha256(
+                    f"{self.run_id}:{self.cycle}:{group_cursor_before}:{identity.digest}".encode()
+                ).hexdigest()
+                append_trajectory_groups(
+                    self.paths.trajectories,
+                    trajectories,
+                    transaction_id=transaction_id,
+                )
+            except BaseException as exc:
+                self.task_cursor = task_cursor_before
+                self._pending_group_identity = []
+                if isinstance(exc, KeyboardInterrupt):
+                    try:
+                        self._save_checkpoint_impl(name="interrupted-group")
+                    except BaseException as checkpoint_error:
+                        logger.warning(
+                            "could not save the rolled-back interruption checkpoint: %s",
+                            checkpoint_error,
+                        )
+                raise
+            self._committed_group_identity = list(self._pending_group_identity)
+            self._pending_group_identity = []
+            self._rollout_group_cursor += len(tasks)
+            self._trajectory_count += len(trajectories)
+            self._committed_task_cursor = self.task_cursor
+            for trajectory in trajectories:
+                stats.observe(trajectory)
+            self._last_rollout_execution = {
+                "physical_batch_sizes": [1] * len(trajectories),
+                "physical_generation_batches": len(trajectories),
+                "oom_downshifts": 0,
+            }
+            return trajectories, stats
         for offset, task in enumerate(tasks):
             if oracle:
                 traj = self.runner.oracle_rollout(
@@ -1344,8 +1499,8 @@ class OPDTrainer:
             )
             path = Path(self.config.cache.dir or self.paths.teacher_cache)
             identity = {
-                "teacher_model_id": self.config.models.teacher.model_id,
-                "teacher_model_revision": self.config.models.teacher.revision,
+                "teacher_model_id": self.config.models.required_teacher.model_id,
+                "teacher_model_revision": self.config.models.required_teacher.revision,
                 "tokenizer_fingerprint": self.tokenizer.fingerprint,
                 "tokenizer_identity": getattr(self.tokenizer, "identity", {}),
                 "teacher_adapter_provenance": getattr(self.teacher, "adapter_provenance", None),
@@ -1403,7 +1558,7 @@ class OPDTrainer:
         return self._cache
 
     def _teacher_identity(self) -> dict[str, Any]:
-        teacher = self.config.models.teacher
+        teacher = self.config.models.required_teacher
         return {
             "model_id": teacher.model_id,
             "revision": teacher.revision,
@@ -1578,7 +1733,10 @@ class OPDTrainer:
         if expected_schedule and manifest.get("task_schedule_digest") != expected_schedule:
             raise CheckpointError("offline dataset task schedule digest changed")
 
-        privileged = self.config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT
+        privileged = bool(
+            self.config.models.teacher is not None
+            and self.config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT
+        )
         task_by_id = {task.task_id: task for split in self.splits.values() for task in split}
         samples: list[TrainSample] = []
         for trajectory in trajectories:
@@ -1683,7 +1841,10 @@ class OPDTrainer:
         config = self.config
         samples: list[TrainSample] = []
         selections: list[SelectionStats] = []
-        privileged = config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT
+        privileged = bool(
+            config.models.teacher is not None
+            and config.models.teacher.mode is TeacherContextMode.PRIVILEGED_CONTEXT
+        )
         task_by_id = {t.task_id: t for split in self.splits.values() for t in split}
 
         for traj in trajectories:
@@ -1756,20 +1917,30 @@ class OPDTrainer:
 
     def _score_task_rewards(self, trajectories: list[Trajectory]) -> None:
         """Score one complete rollout group and attach explicit task advantages."""
-        if self.config.loss.mode is not LossMode.VERL_PG_K1_REWARDED:
+        if self.config.loss.mode not in {
+            LossMode.VERL_PG_K1_REWARDED,
+            LossMode.VERL_RL_POLICY,
+        }:
             return
         if self.reward_provider is None:
-            raise ConfigError("rewarded PG requires a configured reward provider")
-        from miniverl.rewards import AdvantageComposer, AdvantageMode, RewardRequest, RewardStatus
+            raise ConfigError("reward-driven policy training requires a configured reward provider")
+        from miniverl.rewards import (
+            AdvantageComposer,
+            AdvantageMode,
+            RewardRequest,
+            RewardStatus,
+            score_reward_requests,
+        )
 
         groups: dict[str, list[tuple[Trajectory, Any]]] = {}
+        pending: list[tuple[Trajectory, Any]] = []
         for trajectory in trajectories:
             if (
                 trajectory.prompt_group_id is None
                 or trajectory.sample_index is None
                 or trajectory.samples_per_prompt is None
             ):
-                raise ConfigError("rewarded PG requires schema-v3 grouped trajectories")
+                raise ConfigError("reward-driven policy training requires grouped trajectories")
             metadata = trajectory.metadata
             row_digest = metadata.get("row_digest")
             data_source = metadata.get("data_source")
@@ -1778,7 +1949,7 @@ class OPDTrainer:
                 or not isinstance(data_source, str)
                 or not data_source
             ):
-                raise ConfigError("rewarded PG trajectory is missing bound row/data provenance")
+                raise ConfigError("reward trajectory is missing bound row/data provenance")
             extra = metadata.get("extra_info")
             ground_truth = extra.get("ground_truth") if isinstance(extra, dict) else None
             response = "".join(
@@ -1797,14 +1968,25 @@ class OPDTrainer:
                 ground_truth=ground_truth,
                 data_source=data_source,
             )
-            result = self.reward_provider.score(request)
+            pending.append((trajectory, request))
+        results = score_reward_requests(
+            self.reward_provider,
+            [request for _, request in pending],
+        )
+        for (trajectory, _), result in zip(pending, results, strict=True):
             self.reward_log.write(result.model_dump(mode="json"))
             if result.status is not RewardStatus.OK or result.raw_reward is None:
                 raise ConfigError(
                     f"reward provider failed closed for {trajectory.trajectory_id}: "
                     f"{result.failure_category or result.status.value}: {result.detail or ''}"
                 )
-            groups.setdefault(trajectory.prompt_group_id, []).append((trajectory, result))
+            group_id = trajectory.prompt_group_id
+            assert group_id is not None
+            groups.setdefault(group_id, []).append((trajectory, result))
+
+        if self.config.loss.mode is LossMode.VERL_RL_POLICY:
+            self._attach_rl_advantages(groups)
+            return
 
         composer = AdvantageComposer(
             mode=AdvantageMode(self.config.loss.advantage_mode),
@@ -1847,6 +2029,150 @@ class OPDTrainer:
                     failure_category=result.failure_category,
                     detail=result.detail,
                 )
+
+    def _attach_rl_advantages(self, groups: dict[str, list[tuple[Trajectory, Any]]]) -> None:
+        """Compute one pinned verl estimator over complete reward groups."""
+        import torch
+
+        from miniverl.algorithms.advantages import (
+            gae_advantage_return,
+            grpo_outcome_advantage,
+            reinforce_plus_plus_advantage,
+            rloo_outcome_advantage,
+        )
+
+        ordered: list[tuple[Trajectory, Any]] = []
+        group_ids: list[str] = []
+        for group_id, members in groups.items():
+            members.sort(key=lambda item: int(item[0].sample_index or 0))
+            expected = int(members[0][0].samples_per_prompt or 0)
+            if len(members) != expected:
+                raise ConfigError(f"reward group {group_id!r} is incomplete")
+            ordered.extend(members)
+            group_ids.extend([group_id] * len(members))
+        lengths = [sum(trajectory.model_generated_mask) for trajectory, _ in ordered]
+        if not lengths or any(length < 1 for length in lengths):
+            raise ConfigError("RL requires a non-empty generated response for every sample")
+        width = max(lengths)
+        rewards = torch.zeros((len(ordered), width), dtype=torch.float32)
+        mask = torch.zeros_like(rewards)
+        kl_rows = torch.zeros_like(rewards)
+        for row, ((_, result), length) in enumerate(zip(ordered, lengths, strict=True)):
+            mask[row, :length] = 1.0
+            rewards[row, length - 1] = float(result.raw_reward)
+
+        if self.config.algorithm.kl_coef > 0.0:
+            if self.reference is None:  # pragma: no cover - RunConfig/build guard
+                raise ConfigError("RL reference KL requires a loaded reference policy")
+            from miniverl.algorithms.kl import reference_kl_penalty
+
+            for row, (trajectory, _) in enumerate(ordered):
+                target_positions = [
+                    index
+                    for index, generated in enumerate(trajectory.model_generated_mask)
+                    if generated
+                ]
+                prediction_positions = [index - 1 for index in target_positions]
+                targets = torch.tensor(
+                    [trajectory.token_ids[index] for index in target_positions],
+                    dtype=torch.long,
+                )
+                reference_logits = self.reference.logits_at(
+                    trajectory.token_ids,
+                    prediction_positions,
+                    chunk_size=self.config.loss.chunk_size,
+                )
+                reference_log_probs = (
+                    torch.log_softmax(
+                        reference_logits.to(torch.float32) / self.config.rollout.temperature,
+                        dim=-1,
+                    )
+                    .gather(-1, targets.to(reference_logits.device).unsqueeze(-1))
+                    .squeeze(-1)
+                    .cpu()
+                )
+                old_values = trajectory.metadata.get("actor_rollout_log_probs")
+                if not isinstance(old_values, list) or len(old_values) != len(target_positions):
+                    raise ConfigError("RL trajectory lacks behavior log-probs for reference KL")
+                old = torch.tensor(old_values, dtype=torch.float32)
+                penalty = reference_kl_penalty(
+                    old,
+                    reference_log_probs,
+                    penalty=self.config.algorithm.kl_penalty,
+                )
+                length = lengths[row]
+                kl_rows[row, :length] = penalty
+                rewards[row, :length] -= self.config.algorithm.kl_coef * penalty
+                trajectory.metadata["reference_log_probs"] = reference_log_probs.tolist()
+                trajectory.metadata["reward_kl"] = {
+                    "penalty": self.config.algorithm.kl_penalty,
+                    "coefficient": self.config.algorithm.kl_coef,
+                    "token_values": penalty.tolist(),
+                    "mean": float(penalty.mean()),
+                }
+
+        algorithm = self.config.algorithm.name
+        if algorithm in {RLAlgorithm.GRPO, RLAlgorithm.DR_GRPO}:
+            output = grpo_outcome_advantage(
+                rewards,
+                mask,
+                group_ids,
+                epsilon=self.config.algorithm.epsilon,
+                normalize_by_std=algorithm is RLAlgorithm.GRPO,
+            )
+        elif algorithm is RLAlgorithm.RLOO:
+            output = rloo_outcome_advantage(rewards, mask, group_ids)
+        elif algorithm is RLAlgorithm.REINFORCE_PLUS_PLUS:
+            output = reinforce_plus_plus_advantage(
+                rewards,
+                mask,
+                gamma=self.config.algorithm.gamma,
+            )
+        elif algorithm is RLAlgorithm.PPO:  # rejected by RunConfig until critic lifecycle ships
+            values = torch.zeros_like(rewards)
+            output = gae_advantage_return(
+                rewards,
+                values,
+                mask,
+                gamma=self.config.algorithm.gamma,
+                lam=self.config.algorithm.lam,
+            )
+        else:  # pragma: no cover - RunConfig closes this set
+            raise ConfigError(f"unsupported RL algorithm {algorithm.value!r}")
+
+        for row, (trajectory, result) in enumerate(ordered):
+            length = lengths[row]
+            advantages = [float(value) for value in output.advantages[row, :length].tolist()]
+            trajectory.metadata["task_reward"] = result.model_dump(mode="json")
+            trajectory.metadata["rl_advantages"] = advantages
+            trajectory.metadata["advantage_estimator"] = {
+                "name": algorithm.value,
+                "implementation_version": self.config.algorithm.implementation_version,
+                "gamma": self.config.algorithm.gamma,
+                "lambda": self.config.algorithm.lam,
+                "epsilon": self.config.algorithm.epsilon,
+                "zero_variance_groups": output.zero_variance_groups,
+                "reward_kl_mean": float(kl_rows[row, :length].mean()),
+                "reward_kl_coefficient": self.config.algorithm.kl_coef,
+            }
+            trajectory.verification = VerificationRecord(
+                solved=bool(result.raw_reward > 0.0),
+                reward=float(result.raw_reward),
+                failure_category=result.failure_category,
+                detail=result.detail,
+            )
+            self.advantage_log.write(
+                {
+                    "trajectory_id": trajectory.trajectory_id,
+                    "prompt_group_id": trajectory.prompt_group_id,
+                    "sample_index": trajectory.sample_index,
+                    "reward_input_digest": result.input_digest,
+                    "reward_provider_identity_digest": result.provider.digest,
+                    "raw_task_reward": result.raw_reward,
+                    "advantages": advantages,
+                    **trajectory.metadata["advantage_estimator"],
+                }
+            )
 
     # -- optimization --------------------------------------------------------------
 
@@ -1910,6 +2236,9 @@ class OPDTrainer:
         verl_pg_advantages: list[Any] = []
         verl_pg_ratios: list[Any] = []
         verl_pg_metric_rows: list[dict[str, float]] = []
+        rl_advantages: list[Any] = []
+        rl_ratios: list[Any] = []
+        rl_metric_rows: list[dict[str, float]] = []
         group_scale = 1.0 / max(len(group), 1)
         token_mean = config.loss.aggregation is LossAggregation.TOKEN_MEAN
         group_weight_total = sum(sum(sample.alignment.token_weights) for sample in group)
@@ -1952,7 +2281,11 @@ class OPDTrainer:
                 ]
             )
             providers = [
-                sample.teacher.provider if sample.teacher is not None else None
+                sample.objective_provider
+                if sample.objective_provider is not None
+                else sample.teacher.provider
+                if sample.teacher is not None
+                else None
                 for sample in samples
             ]
             if all(provider is None for provider in providers):
@@ -2005,6 +2338,16 @@ class OPDTrainer:
                                 if isinstance(value, (int, float))
                             }
                         )
+                    elif "advantages" in values and "ratio" in values:
+                        rl_advantages.append(values["advantages"])
+                        rl_ratios.append(values["ratio"])
+                        rl_metric_rows.append(
+                            {
+                                key: float(value)
+                                for key, value in values.items()
+                                if isinstance(value, (int, float))
+                            }
+                        )
                 diagnostics.clear()
             loss_total += float(output.loss) * microbatch_scale
             positions_total += output.num_positions
@@ -2047,7 +2390,7 @@ class OPDTrainer:
                     entropy_count += int(sample.teacher.teacher_entropy.numel())
             del hidden, output
 
-        result = {
+        result: dict[str, Any] = {
             "loss": loss_total,
             "selected_positions": positions_total,
             "trajectories_in_step": len(group),
@@ -2096,6 +2439,20 @@ class OPDTrainer:
                 **{
                     key: sum(row.get(key, 0.0) for row in verl_pg_metric_rows)
                     / len(verl_pg_metric_rows)
+                    for key in metric_names
+                },
+            }
+        if rl_advantages:
+            advantages = torch.cat(rl_advantages).float()
+            ratios = torch.cat(rl_ratios).float()
+            metric_names = sorted({key for row in rl_metric_rows for key in row})
+            result["verl_rl"] = {
+                "algorithm": config.algorithm.name.value,
+                "advantage_mean": float(advantages.mean()),
+                "advantage_std": float(advantages.std(unbiased=False)),
+                "ratio_mean": float(ratios.mean()),
+                **{
+                    key: sum(row.get(key, 0.0) for row in rl_metric_rows) / len(rl_metric_rows)
                     for key in metric_names
                 },
             }
@@ -2155,12 +2512,12 @@ class OPDTrainer:
             next(iter(rollout_versions)) if rollout_versions else self.parameter_version
         )
         if (
-            self.config.run.mode is TrainingMode.OPD
+            self.config.run.mode in {TrainingMode.OPD, TrainingMode.RL}
             and self.config.train.opd_freshness is OPDFreshness.STRICT
             and rollout_policy_version != self.parameter_version
         ):
             raise LifecycleError(
-                "strict OPD requires rollout policy version to equal the current parameter "
+                "strict on-policy training requires rollout policy version to equal the current parameter "
                 f"version before update (rollout={rollout_policy_version}, "
                 f"parameters={self.parameter_version})"
             )
@@ -2534,6 +2891,63 @@ class OPDTrainer:
         self._last_selection_stats = selections
         return samples
 
+    def _build_rl_samples(self, trajectories: list[Trajectory]) -> list[TrainSample]:
+        """Bind reward advantages and rollout-policy log-probs to selected response tokens."""
+        import torch
+
+        from miniverl.losses.chunked import VerlRLTargetProvider
+
+        samples: list[TrainSample] = []
+        selections: list[SelectionStats] = []
+        for trajectory in trajectories:
+            selection = select_positions(
+                trajectory,
+                self.config.selection,
+                run_seed=self.config.run.seed,
+            )
+            selections.append(selection.stats)
+            if not selection.positions:
+                continue
+            alignment = build_alignment_map(trajectory, selection.positions, selection.weights)
+            old = trajectory.metadata.get("actor_rollout_log_probs")
+            advantages = trajectory.metadata.get("rl_advantages")
+            generated_positions = [
+                index
+                for index, generated in enumerate(trajectory.model_generated_mask)
+                if generated
+            ]
+            if selection.positions != generated_positions:
+                raise ConfigError(
+                    "RL selection must include every generated response token in order"
+                )
+            if not isinstance(old, list) or len(old) != len(generated_positions):
+                raise ConfigError("RL trajectory lacks aligned behavior-policy log-probabilities")
+            if not isinstance(advantages, list) or len(advantages) != len(generated_positions):
+                raise ConfigError("RL trajectory lacks aligned reward advantages")
+            provider = VerlRLTargetProvider(
+                target_token_ids=torch.tensor(alignment.target_token_ids, dtype=torch.long),
+                old_actor_log_probs=torch.tensor(old, dtype=torch.float32),
+                advantages=torch.tensor(advantages, dtype=torch.float32),
+                temperature=self.config.rollout.temperature,
+                clip_ratio=self.config.loss.clip_ratio,
+                clip_ratio_low=self.config.loss.clip_ratio_low,
+                clip_ratio_high=self.config.loss.clip_ratio_high,
+                clip_ratio_c=self.config.loss.clip_ratio_c,
+                algorithm=self.config.algorithm.name.value,
+                reward_kl_mean=float((trajectory.metadata.get("reward_kl") or {}).get("mean", 0.0)),
+                reward_kl_coef=self.config.algorithm.kl_coef,
+            )
+            samples.append(
+                TrainSample(
+                    trajectory=trajectory,
+                    alignment=alignment,
+                    selection=selection,
+                    objective_provider=provider,
+                )
+            )
+        self._last_selection_stats = selections
+        return samples
+
     def _run_cycle(self) -> list[dict[str, Any]]:
         config = self.config
         mode = config.run.mode
@@ -2582,7 +2996,9 @@ class OPDTrainer:
                 rollout_policy_version = trajectories[0].policy_version
             rollout_seconds = max(time.perf_counter() - rollout_started, 1e-9)
 
-            if mode is TrainingMode.SFT or self.teacher is None:
+            if mode is TrainingMode.RL:
+                samples = self._build_rl_samples(trajectories)
+            elif mode is TrainingMode.SFT or self.teacher is None:
                 samples = self._build_samples_ce_only(trajectories)
             else:
                 teacher_scoring_started = time.perf_counter()
@@ -2617,7 +3033,9 @@ class OPDTrainer:
                     else round(stats.to_dict()["success_rate"], 4)
                 ),
                 reward_status=(
-                    "not_applicable_pure_opd" if self.prompt_dataset is not None else "measured"
+                    "measured"
+                    if mode is TrainingMode.RL or self.prompt_dataset is None
+                    else "not_applicable_pure_opd"
                 ),
                 generated_tokens=stats.generated_tokens,
                 rollout_tokens_per_second=round(stats.generated_tokens / rollout_seconds, 2),
@@ -2662,6 +3080,9 @@ class OPDTrainer:
             if mode is TrainingMode.OPD:
                 for sample in samples:
                     sample.teacher = None
+            if mode is TrainingMode.RL:
+                for sample in samples:
+                    sample.objective_provider = None
         selection_stats = aggregate_selection_stats(
             self._last_selection_stats or [sample.selection.stats for sample in samples]
         )
@@ -3268,6 +3689,11 @@ class OPDTrainer:
                 if self.config.loss.mode is LossMode.VERL_PG_K1_REWARDED
                 else None
             ),
+            algorithm_identity=(
+                self.config.algorithm.model_dump(mode="json")
+                if self.config.run.mode is TrainingMode.RL
+                else None
+            ),
             scheduler=self.schedule.state_dict(),
             config_digest=self._config_digest(),
             resolved_config_digest=self._resolved_config_digest(),
@@ -3340,6 +3766,13 @@ class OPDTrainer:
             raise ConfigError(
                 "checkpoint advantage composer version does not match the current run"
             )
+        expected_algorithm = (
+            self.config.algorithm.model_dump(mode="json")
+            if self.config.run.mode is TrainingMode.RL
+            else None
+        )
+        if validated.state.algorithm_identity != expected_algorithm:
+            raise ConfigError("checkpoint RL algorithm identity does not match the current run")
         if validated.state.pending_group_identity:
             raise ConfigError(
                 "checkpoint contains a pending partial rollout group",
