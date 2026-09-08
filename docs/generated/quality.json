@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "release": "0.13.0",
-  "status": "candidate",
+  "status": "released",
   "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.13.0",
   "local_validation": {
     "scope": "the maintainer's workstation, including Windows CUDA and network paths plus the exact official verl v0.9 checkout",
@@ -28,25 +28,25 @@
   },
   "release_validation": {
     "scope": "the exact v0.13.0 release commit",
-    "commit": "pending",
+    "commit": "8e7bc3b5ff1145ae502cca893b7fffca3e12b6a8",
     "workflows": {
-      "ci": "pending",
-      "build": "pending",
-      "docs": "pending",
-      "pinned_verl_bridge": "pending",
-      "gpu_full_qualification": "pending",
-      "release_dry_run": "pending",
-      "release": "pending"
+      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34224400200",
+      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34224400239",
+      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34231102850",
+      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34231102799",
+      "gpu_full_qualification": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34224643106",
+      "release_dry_run": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34230187298",
+      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34231102925"
     },
-    "conclusion": "pending",
-    "gpu_coverage": "pending exact-SHA attempt-1 full qualification on the WSL2 RTX 4080 runner",
+    "conclusion": "passed",
+    "gpu_coverage": "attempt-1 full qualification of the exact release wheel on one WSL2 RTX 4080; eight PPO trajectories, two actor updates, two critic updates, exact actor/critic resume and the pinned trained reward-model role passed alongside the historical regression matrix",
     "publication": {
-      "pypi": "pending",
-      "github_release": "pending",
-      "documentation": "pending",
-      "immutable_documentation_build": "pending",
-      "wheel_sha256": "pending",
-      "sdist_sha256": "pending"
+      "pypi": "https://pypi.org/project/miniverl/0.13.0/",
+      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.13.0",
+      "documentation": "https://daoyuanli2816.github.io/mini-verl/",
+      "immutable_documentation_build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34231102850",
+      "wheel_sha256": "1284d47c3b981ce1c74bc431254ca49e123ae144b2b49a728d42ff4efdff3a9e",
+      "sdist_sha256": "886c2813a31fd58e84370bdf68bab765b8e92f8800cf54cc7f19ad84d9f32c91"
     }
   }
 }
