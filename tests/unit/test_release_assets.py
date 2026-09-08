@@ -83,10 +83,16 @@ def _fixture(tmp_path: Path, *, version: str = "0.11.0.dev0") -> tuple[Path, Pat
             b'{"kind":"vllm-runtime"}\n',
         ),
     }
-    if version.startswith("0.12."):
+    version_key = tuple(int(part) for part in version.split(".")[:2])
+    if version_key >= (0, 12):
         evidence["full_v012_rl_result"] = (
             "full/v012-rl.json",
             b'{"kind":"v012-rl"}\n',
+        )
+    if version_key >= (0, 13):
+        evidence["full_v013_ppo_result"] = (
+            "full/v013-ppo.json",
+            b'{"kind":"v013-ppo"}\n',
         )
     artifacts = []
     for name, (relative, content) in evidence.items():
@@ -199,12 +205,22 @@ def _fixture(tmp_path: Path, *, version: str = "0.11.0.dev0") -> tuple[Path, Pat
             "other_hardware_measured": False,
         },
     }
-    if version.startswith("0.12."):
+    if version_key >= (0, 12):
         payload["checks"]["executed"].extend(
             [
                 "v012_pinned_verl_v09_compiler",
                 "v012_grpo_nonconstant_reward_update",
                 "v012_exact_wheel_rl_runtime",
+            ]
+        )
+    if version_key >= (0, 13):
+        payload["checks"]["executed"].extend(
+            [
+                "v013_pinned_verl_v09_ppo_compiler",
+                "v013_independent_actor_critic_updates",
+                "v013_exact_actor_critic_resume",
+                "v013_trained_reward_model",
+                "v013_exact_wheel_ppo_runtime",
             ]
         )
     qualification_path = qualification / "qualification.json"
@@ -282,6 +298,7 @@ def test_release_evidence_mapping_is_versioned_for_historical_records() -> None:
     historical = _archive_evidence_for_version("0.10.1")
     current = _archive_evidence_for_version("0.11.0")
     v012 = _archive_evidence_for_version("0.12.0")
+    v013 = _archive_evidence_for_version("0.13.0")
     assert "full_v011_profiles_result" not in historical
     assert set(current) - set(historical) == {
         "full_v011_profiles_result",
@@ -289,6 +306,7 @@ def test_release_evidence_mapping_is_versioned_for_historical_records() -> None:
         "full_vllm_runtime_result",
     }
     assert set(v012) - set(current) == {"full_v012_rl_result"}
+    assert set(v013) - set(v012) == {"full_v013_ppo_result"}
 
 
 def test_v012_release_archive_includes_rl_qualification(tmp_path: Path) -> None:
@@ -299,6 +317,46 @@ def test_v012_release_archive_includes_rl_qualification(tmp_path: Path) -> None:
 
     assert "v012_rl" in {member["semantic_role"] for member in manifest["members"]}
     assert check_release_assets(output) == []
+
+
+def test_v013_release_archive_includes_ppo_qualification(tmp_path: Path) -> None:
+    from miniverl.release_assets import check_release_assets
+
+    output = _build(tmp_path, version="0.13.0")
+    manifest = json.loads((output / "qualification-evidence-manifest.json").read_text())
+
+    assert "v013_ppo" in {member["semantic_role"] for member in manifest["members"]}
+    assert check_release_assets(output) == []
+
+
+@pytest.mark.parametrize(
+    ("remove_artifact", "remove_check", "match"),
+    [
+        ("full_v013_ppo_result", None, "v0.13 full qualification evidence is missing"),
+        (None, "v013_exact_actor_critic_resume", "v0.13 full qualification evidence is missing"),
+    ],
+)
+def test_v013_qualification_requires_ppo_evidence_and_checks(
+    tmp_path: Path,
+    remove_artifact: str | None,
+    remove_check: str | None,
+    match: str,
+) -> None:
+    from pydantic import ValidationError
+
+    from miniverl.qualification import GPUQualification
+
+    _, _, qualification, _ = _fixture(tmp_path, version="0.13.0")
+    payload = json.loads((qualification / "qualification.json").read_text())
+    if remove_artifact is not None:
+        payload["artifacts"] = [
+            artifact for artifact in payload["artifacts"] if artifact["name"] != remove_artifact
+        ]
+    if remove_check is not None:
+        payload["checks"]["executed"].remove(remove_check)
+
+    with pytest.raises(ValidationError, match=match):
+        GPUQualification.model_validate(payload)
 
 
 def test_archive_and_manifest_are_reproducible_and_explicit(tmp_path: Path) -> None:

@@ -278,6 +278,27 @@ class GPUQualification(_Strict):
                     raise ValueError(
                         "v0.12 full qualification evidence is missing: " + ", ".join(details)
                     )
+            try:
+                requires_v013 = (int(version_parts[0]), int(version_parts[1])) >= (0, 13)
+            except (IndexError, ValueError):
+                requires_v013 = False
+            if requires_v013:
+                v013_checks = {
+                    "v013_pinned_verl_v09_ppo_compiler",
+                    "v013_independent_actor_critic_updates",
+                    "v013_exact_actor_critic_resume",
+                    "v013_trained_reward_model",
+                    "v013_exact_wheel_ppo_runtime",
+                }
+                missing_v013_checks = sorted(v013_checks - set(self.checks.executed))
+                missing_v013_artifacts = sorted(
+                    {"full_v013_ppo_result"} - {artifact.name for artifact in self.artifacts}
+                )
+                if missing_v013_checks or missing_v013_artifacts:
+                    details = missing_v013_checks + missing_v013_artifacts
+                    raise ValueError(
+                        "v0.13 full qualification evidence is missing: " + ", ".join(details)
+                    )
         return self
 
 
