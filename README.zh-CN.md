@@ -26,7 +26,7 @@ teacher 与 reward 角色按阶段执行，最终发布可携带的 PEFT 与数�
 Dr.GRPO、RLOO、REINFORCE++、grouped rollout、task reward 与固定 reference-policy
 KL。已有 verl `v0.8.0` OPD profile 继续提供 direct GKD 与 sampled-k1 蒸馏。
 
-PyPI `v0.11.0` 是稳定版；`main` 是开发版。
+PyPI `v0.12.0` 是稳定版；`main` 是开发版。
 
 ## 60 秒开始
 

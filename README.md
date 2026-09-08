@@ -29,7 +29,7 @@ The current development line adds critic-free RL against official verl
 task rewards and fixed reference-policy KL. The established verl `v0.8.0` OPD
 profiles remain available for direct GKD and sampled-k1 distillation.
 
-PyPI `v0.11.0` is stable; `main` is development.
+PyPI `v0.12.0` is stable; `main` is development.
 
 ## Start in 60 seconds
 

@@ -6,19 +6,19 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-09-07.
 
-Canonical release state: stable `v0.11.0` (`479695c4980150bc6f7a51bddec2b90c08c8bb98`), development `0.11.1.dev0`.
+Canonical release state: releasing `v0.12.0`.
 
 ## Release state
 
-- Stable release: `v0.11.0` at `479695c4980150bc6f7a51bddec2b90c08c8bb98`.
-- Development release: `0.11.1.dev0`.
+- Release candidate: `v0.12.0`; publication is gated on exact-SHA RTX 4080 qualification.
+- Previous stable release: `v0.11.0` at `479695c4980150bc6f7a51bddec2b90c08c8bb98`.
 - Stable docs: <https://daoyuanli2816.github.io/mini-verl/>.
 - Development docs: <https://daoyuanli2816.github.io/mini-verl/dev/>.
 - Historical build log: [v0.1-v0.9 archive](docs/history/project-state-v0.1-v0.9.md).
 
 ## Current product boundary
 
-Development `0.11.1.dev0` has a closed typed profile compiler and adds
+Release `0.12.0` has a closed typed profile compiler and adds
 `verl-rl-v0.9-single-gpu-v1`, a typed resolved
 subset of official verl `v0.9.0` at commit
 `483b8a009ba3a97563edee3a19887e4862b8094a`. It compiles GRPO, Dr.GRPO, RLOO

@@ -14,6 +14,10 @@ after the exact release commit and its remote checks are green.
       weighted-composite and explicit trusted Python API reward paths.
 - [x] Add a v0.12 exact-wheel RTX 4080 qualification record to the existing
       full-release promotion and canonical evidence archive.
+- [x] Validate implementation commit
+      `feed761514c3925dd2290d855baac6d38c417e50`: 2,566 non-GPU/non-network
+      tests at 83% branch coverage, 10 local RTX 4080 GPU tests, 16 network
+      tests, pinned verl v0.9 conformance, strict docs and four browser widths.
 - [ ] Merge the reviewed release PR after all hosted checks pass.
 - [ ] Run the exact-release-SHA WSL2 full qualification on attempt 1.
 - [ ] Complete the non-publishing release dry run and OIDC publication.
