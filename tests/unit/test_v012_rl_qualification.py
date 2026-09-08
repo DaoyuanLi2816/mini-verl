@@ -9,11 +9,14 @@ def test_v012_gpu_workload_source_compiles_to_validated_grpo_recipe(tmp_path: Pa
     from miniverl.algorithms.contract import UPSTREAM_VERL_COMMIT
     from miniverl.bridge.rl_v09 import publish_imported_verl_rl_v09
     from miniverl.config import RunConfig
-    from scripts.run_v012_rl_qualification import _source_payload
+    from miniverl.data.verl_parquet import VerlParquetDataset
+    from scripts.run_v012_rl_qualification import _source_payload, _write_dataset
 
+    dataset = tmp_path / "data.parquet"
+    _write_dataset(dataset)
     source = tmp_path / "source.yaml"
     source.write_text(
-        yaml.safe_dump(_source_payload(tmp_path / "data.parquet"), sort_keys=False),
+        yaml.safe_dump(_source_payload(dataset), sort_keys=False),
         encoding="utf-8",
     )
     recipe = tmp_path / "native.yaml"
@@ -32,3 +35,4 @@ def test_v012_gpu_workload_source_compiles_to_validated_grpo_recipe(tmp_path: Pa
     assert config.rollout.samples_per_prompt == 4
     assert config.train.cycles == 2
     assert config.train.gradient_accumulation_steps == 8
+    assert VerlParquetDataset(config.source).inspect().rows == {"train": 4, "val": 0}
