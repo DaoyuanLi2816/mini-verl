@@ -5,14 +5,14 @@
   "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.12.0",
   "local_validation": {
     "scope": "the maintainer's workstation, including Windows CUDA and network paths plus the exact official verl v0.9 checkout",
-    "commit": "feed761514c3925dd2290d855baac6d38c417e50",
-    "commit_relationship": "implementation commit; the following release commit changes versioned release metadata and this candidate record only",
-    "measured_at": "2026-09-08T04:20:14Z",
+    "commit": "b62436207dea666b6a5bd08e48655876c3999377",
+    "commit_relationship": "implementation and qualification-metadata hotfix commit; the following release commit changes versioned release metadata and this candidate record only",
+    "measured_at": "2026-09-08T06:06:12Z",
     "platform": "Windows 11",
     "python": "CPython 3.10 for coverage, local CUDA tests and network tests",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2566,
+      "passed": 2572,
       "skipped": 10,
       "deselected": 24,
       "branch_coverage_percent": 83.0,

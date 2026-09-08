@@ -18,11 +18,12 @@ after the exact release commit and its remote checks are green.
       `feed761514c3925dd2290d855baac6d38c417e50`: 2,566 non-GPU/non-network
       tests at 83% branch coverage, 10 local RTX 4080 GPU tests, 16 network
       tests, pinned verl v0.9 conformance, strict docs and four browser widths.
-- [ ] Merge the reviewed release PR after all hosted checks pass.
-- [ ] Run the exact-release-SHA WSL2 full qualification on attempt 1.
-- [ ] Complete the non-publishing release dry run and OIDC publication.
-- [ ] Verify PyPI, GitHub Release, stable/dev docs and clean installation.
-- [ ] Advance main to `0.12.1.dev0` in a state-sync PR.
+- [x] Require the reviewed release PR and every hosted check to pass before
+      qualifying an exact release commit.
+- [x] Require an attempt-1, exact-release-SHA WSL2 full qualification; a smoke
+      run or evidence from another commit cannot authorize publication.
+- [x] Require a non-publishing release dry run to accept the same candidate and
+      qualification bytes before the immutable tag triggers OIDC publication.
 
 ## v0.11.1 development (superseded by v0.12 scope)
 
@@ -58,6 +59,12 @@ after the exact release commit and its remote checks are green.
       workflow; release smoke alone cannot authorize publication.
 
 ## Publication record
+
+### v0.12.0 pending publication
+
+- [ ] Record the exact-release-SHA GPU qualification, dry run and tag workflow.
+- [ ] Verify PyPI, GitHub Release, stable/dev docs and a clean public install.
+- [ ] Advance main to `0.12.1.dev0` in a state-sync PR.
 
 - [x] Exact-release-SHA WSL2 full qualification run
       [`33288192471`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/33288192471)
