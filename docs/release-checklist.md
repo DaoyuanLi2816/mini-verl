@@ -4,6 +4,11 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.12.1 development
+
+- [x] Begin from the verified v0.12.0 release and advance only the canonical
+      development state to `0.12.1.dev0`.
+
 ## v0.12.0 development
 
 - [x] Pin the critic-free RL compiler and conformance fixtures to upstream verl
@@ -60,11 +65,26 @@ after the exact release commit and its remote checks are green.
 
 ## Publication record
 
-### v0.12.0 pending publication
+### v0.12.0
 
-- [ ] Record the exact-release-SHA GPU qualification, dry run and tag workflow.
-- [ ] Verify PyPI, GitHub Release, stable/dev docs and a clean public install.
-- [ ] Advance main to `0.12.1.dev0` in a state-sync PR.
+- [x] Exact-release-SHA WSL2 full qualification run
+      [`34193785555`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34193785555)
+      passed on attempt 1 for commit
+      `94216828ecab77d5f87a541563f5c2d8951d5a33`.
+- [x] Non-publishing release dry run
+      [`34197998778`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34197998778)
+      accepted the same candidate and full qualification without rebuilding.
+- [x] Tag workflow
+      [`34198700279`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34198700279)
+      verified PyPI hashes, trusted-publisher attestations and a clean public
+      install before creating the
+      [v0.12.0 GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.12.0).
+- [x] PyPI and the GitHub Release expose the identical wheel at SHA-256
+      `41a7d59b792b977bc4d81d644fc4429e303493b3c4417a6c213c68ad7b0b345f`
+      and sdist at SHA-256
+      `38b6f77f27e3986867b5d453c684f7a7b15205809643cfc8470a45e02e3e84ff`.
+- [x] This state-sync PR advances main to `0.12.1.dev0`; merge only after its
+      required checks pass.
 
 - [x] Exact-release-SHA WSL2 full qualification run
       [`33288192471`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/33288192471)
