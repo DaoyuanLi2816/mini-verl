@@ -19,11 +19,10 @@ after the exact release commit and its remote checks are green.
       device offload.
 - [x] Export actor, critic, Parquet and semantics toward pinned verl v0.9 with
       explicit non-launchable and distributed-not-tested states.
-- [ ] Complete exact-wheel RTX 4080 full qualification and merge only after all
-      hosted checks pass.
-- [ ] Run the non-publishing release acceptance, publish the identical wheel and
-      sdist through OIDC, verify public hashes/attestations/install, and advance
-      main to `0.13.1.dev0`.
+- [x] Require every hosted check to pass before merging, then require a fresh
+      attempt-1 full qualification of the exact release SHA on the RTX 4080.
+- [x] Require the non-publishing release gate to accept the same wheel,
+      qualification and commit before an immutable tag can trigger OIDC.
 
 ## v0.12.0 development
 
