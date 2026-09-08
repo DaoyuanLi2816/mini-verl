@@ -57,6 +57,9 @@ V011_ARCHIVE_EVIDENCE = {
 V012_ARCHIVE_EVIDENCE = {
     "full_v012_rl_result": ("v012_rl", "v012/rl-qualification.json"),
 }
+V013_ARCHIVE_EVIDENCE = {
+    "full_v013_ppo_result": ("v013_ppo", "v013/ppo-qualification.json"),
+}
 _SPECIAL_EVIDENCE = {"candidate-manifest.json"}
 QUALIFICATION_SUM_FILES = (
     "candidate-manifest.json",
@@ -138,6 +141,7 @@ def _validate_archive_mapping() -> None:
         **ARCHIVE_EVIDENCE,
         **V011_ARCHIVE_EVIDENCE,
         **V012_ARCHIVE_EVIDENCE,
+        **V013_ARCHIVE_EVIDENCE,
     }.items():
         if (
             not original_name
@@ -161,17 +165,15 @@ def _archive_evidence_for_version(version: str) -> dict[str, tuple[str, str]]:
     mapping = dict(ARCHIVE_EVIDENCE)
     version_parts = version.split(".", 2)
     try:
-        is_v011 = (int(version_parts[0]), int(version_parts[1])) >= (0, 11)
+        release_series = (int(version_parts[0]), int(version_parts[1]))
     except (IndexError, ValueError):
-        is_v011 = False
-    if is_v011:
+        return mapping
+    if release_series >= (0, 11):
         mapping.update(V011_ARCHIVE_EVIDENCE)
-    try:
-        is_v012 = (int(version_parts[0]), int(version_parts[1])) >= (0, 12)
-    except (IndexError, ValueError):
-        is_v012 = False
-    if is_v012:
+    if release_series >= (0, 12):
         mapping.update(V012_ARCHIVE_EVIDENCE)
+    if release_series >= (0, 13):
+        mapping.update(V013_ARCHIVE_EVIDENCE)
     return mapping
 
 
