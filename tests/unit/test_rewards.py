@@ -254,6 +254,7 @@ def test_batch_reward_results_must_match_request_order_and_provider() -> None:
         score_reward_requests(MisboundProvider(), [request])
 
 
+@pytest.mark.torch
 def test_hf_reward_model_scores_batches_with_pinned_identity() -> None:
     import torch
 
