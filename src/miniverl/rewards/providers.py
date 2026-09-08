@@ -22,6 +22,7 @@ __all__ = [
     "BatchRewardProvider",
     "EnvironmentVerifierRewardProvider",
     "ExactAnswerRewardProvider",
+    "HFSequenceClassifierRewardProvider",
     "TargetLengthRewardProvider",
     "RewardProvider",
     "WeightedRewardProvider",
@@ -169,6 +170,149 @@ class WeightedRewardProvider:
 
     def score_batch(self, requests: Sequence[RewardRequest]) -> Sequence[RewardResult]:
         return [self.score(request) for request in requests]
+
+
+class HFSequenceClassifierRewardProvider:
+    """Deterministic, pinned local reward-model inference role."""
+
+    def __init__(self, config: Any, *, tokenizer: Any, model: Any, device: str) -> None:
+        self.config = config
+        self.tokenizer = tokenizer
+        self.model = model
+        self.device = device
+        identity_config = {
+            "model_id": config.model_id,
+            "revision": config.revision,
+            "tokenizer_id": config.tokenizer_id or config.model_id,
+            "tokenizer_revision": config.tokenizer_revision or config.revision,
+            "positive_class_index": config.positive_class_index,
+            "max_length": config.max_length,
+            "batch_size": config.batch_size,
+            "offload_between_phases": config.offload_between_phases,
+        }
+        self._identity = RewardProviderIdentity(
+            name="hf_sequence_classifier",
+            version="miniverl-hf-rm-v1",
+            config_digest=_config_digest(identity_config),
+            package_name="miniverl",
+            deterministic=True,
+        )
+
+    @classmethod
+    def load(
+        cls,
+        config: Any,
+        *,
+        device: str,
+        local_files_only: bool = False,
+    ) -> HFSequenceClassifierRewardProvider:
+        """Load the exact model/tokenizer revisions without config-driven imports."""
+        try:
+            import torch
+            from transformers import AutoModelForSequenceClassification, AutoTokenizer
+        except ImportError as exc:  # pragma: no cover - dependency guard exercised at CLI level
+            from miniverl.errors import MissingDependencyError
+
+            raise MissingDependencyError(
+                "transformers", "train", "the Hugging Face reward-model role"
+            ) from exc
+        tokenizer = AutoTokenizer.from_pretrained(
+            config.tokenizer_id or config.model_id,
+            revision=config.tokenizer_revision or config.revision,
+            trust_remote_code=config.trust_remote_code,
+            local_files_only=local_files_only,
+        )
+        model = AutoModelForSequenceClassification.from_pretrained(
+            config.model_id,
+            revision=config.revision,
+            trust_remote_code=config.trust_remote_code,
+            local_files_only=local_files_only,
+            dtype=(torch.float16 if device.startswith("cuda") else torch.float32),
+        )
+        model.eval()
+        initial_device = "cpu" if config.offload_between_phases else device
+        model.to(initial_device)
+        return cls(config, tokenizer=tokenizer, model=model, device=initial_device)
+
+    @property
+    def identity(self) -> RewardProviderIdentity:
+        return self._identity
+
+    def score(self, request: RewardRequest) -> RewardResult:
+        return self.score_batch([request])[0]
+
+    def score_batch(self, requests: Sequence[RewardRequest]) -> Sequence[RewardResult]:
+        import torch
+
+        started = time.perf_counter()
+        outputs: list[RewardResult] = []
+        for start in range(0, len(requests), self.config.batch_size):
+            if time.perf_counter() - started > self.config.timeout_seconds:
+                raise TimeoutError(
+                    f"reward-model scoring exceeded {self.config.timeout_seconds:g} seconds"
+                )
+            batch = list(requests[start : start + self.config.batch_size])
+            encoded = self.tokenizer(
+                [request.prompt_text for request in batch],
+                [request.response_text for request in batch],
+                padding=True,
+                truncation=True,
+                max_length=self.config.max_length,
+                return_tensors="pt",
+            )
+            encoded = {name: value.to(self.device) for name, value in encoded.items()}
+            with torch.inference_mode():
+                logits = self.model(**encoded).logits.to(torch.float32)
+            if time.perf_counter() - started > self.config.timeout_seconds:
+                raise TimeoutError(
+                    f"reward-model scoring exceeded {self.config.timeout_seconds:g} seconds"
+                )
+            if logits.ndim != 2 or logits.shape[0] != len(batch):
+                raise ValueError("reward model returned logits with an unexpected shape")
+            if logits.shape[1] == 1:
+                scores = logits[:, 0]
+            else:
+                index = self.config.positive_class_index
+                if index >= logits.shape[1]:
+                    raise ValueError(
+                        f"positive_class_index={index} exceeds reward-model labels={logits.shape[1]}"
+                    )
+                scores = torch.softmax(logits, dim=-1)[:, index]
+            for request, score in zip(batch, scores.tolist(), strict=True):
+                if not math.isfinite(float(score)):
+                    raise ValueError("reward model returned a non-finite score")
+                outputs.append(
+                    RewardResult(
+                        trajectory_id=request.trajectory_id,
+                        prompt_group_id=request.prompt_group_id,
+                        sample_index=request.sample_index,
+                        samples_per_prompt=request.samples_per_prompt,
+                        provider=self.identity,
+                        input_digest=request.input_digest,
+                        raw_reward=float(score),
+                        components=(
+                            RewardComponent(
+                                name="trained_reward_model",
+                                value=float(score),
+                                detail=f"{self.config.model_id}@{self.config.revision}",
+                            ),
+                        ),
+                        status=RewardStatus.OK,
+                        duration_ms=max((time.perf_counter() - started) * 1000.0, 0.0),
+                        deterministic=True,
+                    )
+                )
+        return outputs
+
+    def to_device(self, device: str) -> None:
+        """Place the reward role for its bounded inference phase."""
+        self.model.to(device)
+        self.device = device
+
+    def release(self) -> None:
+        """Move model state off the accelerator before trainer teardown."""
+        self.model.to("cpu")
+        self.device = "cpu"
 
 
 class ExactAnswerRewardProvider:

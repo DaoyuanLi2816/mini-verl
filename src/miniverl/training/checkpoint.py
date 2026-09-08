@@ -34,6 +34,8 @@ __all__ = [
 
 _ADAPTER = "adapter.safetensors"
 _OPTIMIZER = "optimizer.safetensors"
+_CRITIC = "critic.safetensors"
+_CRITIC_OPTIMIZER = "critic-optimizer.safetensors"
 _STATE = "state.json"
 _MANIFEST = "checkpoint.json"
 CHECKPOINT_SCHEMA_VERSION = 1
@@ -47,6 +49,8 @@ class CheckpointState:
     schema_version: int = CHECKPOINT_SCHEMA_VERSION
     miniverl_version: str = ""
     global_step: int = 0
+    actor_update_count: int = 0
+    critic_update_count: int = 0
     policy_version: int = 0
     # Explicit name used by v0.2.1+. ``policy_version`` remains the
     # backward-compatible serialized alias.
@@ -67,10 +71,14 @@ class CheckpointState:
     advantage_composer_version: str | None = None
     algorithm_identity: dict[str, Any] | None = None
     scheduler: dict[str, Any] = field(default_factory=dict)
+    critic_scheduler: dict[str, Any] = field(default_factory=dict)
     scaler: dict[str, Any] | None = None
     optimizer_param_groups: list[dict[str, Any]] = field(default_factory=list)
     optimizer_state_keys: list[str] = field(default_factory=list)
     optimizer_scalars: dict[str, Any] = field(default_factory=dict)
+    critic_optimizer_param_groups: list[dict[str, Any]] = field(default_factory=list)
+    critic_optimizer_state_keys: list[str] = field(default_factory=list)
+    critic_optimizer_scalars: dict[str, Any] = field(default_factory=dict)
     rng: dict[str, Any] = field(default_factory=dict)
     config_digest: str = ""
     resolved_config_digest: str = ""
@@ -85,6 +93,8 @@ class CheckpointState:
             "schema_version": self.schema_version,
             "miniverl_version": self.miniverl_version,
             "global_step": self.global_step,
+            "actor_update_count": self.actor_update_count,
+            "critic_update_count": self.critic_update_count,
             "policy_version": self.policy_version,
             "parameter_version": (
                 self.policy_version if self.parameter_version is None else self.parameter_version
@@ -113,10 +123,14 @@ class CheckpointState:
             "advantage_composer_version": self.advantage_composer_version,
             "algorithm_identity": self.algorithm_identity,
             "scheduler": self.scheduler,
+            "critic_scheduler": self.critic_scheduler,
             "scaler": self.scaler,
             "optimizer_param_groups": self.optimizer_param_groups,
             "optimizer_state_keys": self.optimizer_state_keys,
             "optimizer_scalars": self.optimizer_scalars,
+            "critic_optimizer_param_groups": self.critic_optimizer_param_groups,
+            "critic_optimizer_state_keys": self.critic_optimizer_state_keys,
+            "critic_optimizer_scalars": self.critic_optimizer_scalars,
             "rng": self.rng,
             "config_digest": self.config_digest,
             "resolved_config_digest": self.resolved_config_digest,
@@ -269,6 +283,8 @@ def save_checkpoint(
     state: CheckpointState,
     rng: RngSnapshot,
     identity: dict[str, Any] | None = None,
+    critic_trainable_state: dict[str, Any] | None = None,
+    critic_optimizer: Any | None = None,
 ) -> Path:
     """Write a complete checkpoint to a sibling temporary directory, then swap."""
     from safetensors.torch import save_file
@@ -289,6 +305,17 @@ def save_checkpoint(
             str(temporary / _ADAPTER),
             metadata={"miniverl": "adapter"},
         )
+        if critic_trainable_state is not None:
+            if not critic_trainable_state:
+                raise CheckpointError("cannot save an enabled critic without trainable weights")
+            save_file(
+                {
+                    key: value.detach().to("cpu").contiguous()
+                    for key, value in critic_trainable_state.items()
+                },
+                str(temporary / _CRITIC),
+                metadata={"miniverl": "critic"},
+            )
         tensors, groups, scalars, keys = _split_optimizer_state(optimizer)
         if tensors:
             save_file(
@@ -299,6 +326,21 @@ def save_checkpoint(
         state.optimizer_param_groups = groups
         state.optimizer_scalars = {key: _jsonable(value) for key, value in scalars.items()}
         state.optimizer_state_keys = keys
+        if critic_optimizer is not None:
+            critic_tensors, critic_groups, critic_scalars, critic_keys = _split_optimizer_state(
+                critic_optimizer
+            )
+            if critic_tensors:
+                save_file(
+                    critic_tensors,
+                    str(temporary / _CRITIC_OPTIMIZER),
+                    metadata={"miniverl": "critic-optimizer"},
+                )
+            state.critic_optimizer_param_groups = critic_groups
+            state.critic_optimizer_scalars = {
+                key: _jsonable(value) for key, value in critic_scalars.items()
+            }
+            state.critic_optimizer_state_keys = critic_keys
         state.rng = rng.to_dict()
         try:
             state_json = (
@@ -324,6 +366,8 @@ def save_checkpoint(
             "created_at": utc_now(),
             "miniverl_version": state.miniverl_version,
             "global_step": state.global_step,
+            "actor_update_count": state.actor_update_count,
+            "critic_update_count": state.critic_update_count,
             "policy_version": state.policy_version,
             "parameter_version": (
                 state.policy_version if state.parameter_version is None else state.parameter_version
@@ -430,6 +474,15 @@ def validate_checkpoint(directory: str | Path) -> ValidatedCheckpoint:
             raise CheckpointError(
                 f"checkpoint manifest is incomplete (missing {required}): {target}"
             )
+    if state.algorithm_identity and state.algorithm_identity.get("name") == "ppo":
+        required_files = [_CRITIC]
+        if state.critic_optimizer_state_keys:
+            required_files.append(_CRITIC_OPTIMIZER)
+        for required in required_files:
+            if required not in files:
+                raise CheckpointError(
+                    f"PPO checkpoint manifest is incomplete (missing {required}): {target}"
+                )
     for name, expected in files.items():
         path = target / name
         if not isinstance(name, str) or Path(name).name != name or not isinstance(expected, dict):
@@ -448,6 +501,10 @@ def validate_checkpoint(directory: str | Path) -> ValidatedCheckpoint:
             raise CheckpointError(f"checkpoint checksum validation failed for {name}")
     if manifest.get("global_step") != state.global_step:
         raise CheckpointError("checkpoint manifest and state disagree on global_step")
+    if manifest.get("actor_update_count", state.actor_update_count) != state.actor_update_count:
+        raise CheckpointError("checkpoint manifest and state disagree on actor_update_count")
+    if manifest.get("critic_update_count", state.critic_update_count) != state.critic_update_count:
+        raise CheckpointError("checkpoint manifest and state disagree on critic_update_count")
     if manifest.get("policy_version") != state.policy_version:
         raise CheckpointError("checkpoint manifest and state disagree on policy_version")
     for field_name in (
@@ -504,6 +561,8 @@ def load_checkpoint(
     include_rng: bool = True,
     expected_config_digest: str | None = None,
     expected_identity: dict[str, Any] | None = None,
+    critic_backend: Any | None = None,
+    critic_optimizer: Any | None = None,
 ) -> CheckpointState:
     """Validate fully, then restore weights and optional optimizer/RNG state."""
     from safetensors.torch import load_file
@@ -533,6 +592,7 @@ def load_checkpoint(
     target = validated.path
     adapter = load_file(str(target / _ADAPTER), device=device)
     optimizer_state: dict[str, Any] | None = None
+    critic_optimizer_state: dict[str, Any] | None = None
     if include_optimizer:
         if optimizer is None:
             raise CheckpointError(
@@ -547,10 +607,35 @@ def load_checkpoint(
                 state.optimizer_state_keys,
                 state.optimizer_param_groups,
             )
+        critic_optimizer_path = target / _CRITIC_OPTIMIZER
+        if critic_optimizer_path.is_file():
+            if critic_optimizer is None:
+                raise CheckpointError(
+                    "critic optimizer restoration was requested but no critic optimizer was provided"
+                )
+            critic_tensors = load_file(str(critic_optimizer_path), device=device)
+            critic_optimizer_state = _rebuild_optimizer_state(
+                critic_tensors,
+                state.critic_optimizer_scalars,
+                state.critic_optimizer_state_keys,
+                state.critic_optimizer_param_groups,
+            )
 
     backend.load_trainable_state_dict(adapter)
+    critic_path = target / _CRITIC
+    if critic_path.is_file():
+        if critic_backend is None:
+            if include_optimizer:
+                raise CheckpointError(
+                    "critic restoration was requested but no critic backend was provided"
+                )
+        else:
+            critic_backend.load_trainable_state_dict(load_file(str(critic_path), device=device))
     if optimizer_state is not None:
         optimizer.load_state_dict(optimizer_state)
+    if critic_optimizer_state is not None:
+        assert critic_optimizer is not None
+        critic_optimizer.load_state_dict(critic_optimizer_state)
     if include_rng and state.rng:
         restore_rng(RngSnapshot.from_dict(state.rng))
     return state

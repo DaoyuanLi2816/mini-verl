@@ -17,6 +17,7 @@ __all__ = [
     "resolve_device",
     "build_tokenizer",
     "build_student",
+    "build_critic",
     "build_teacher",
     "build_shared_backends",
 ]
@@ -146,6 +147,28 @@ def build_student(
         student_adapter_name=(
             "student" if models.runtime is ModelRuntime.SHARED_BACKBONE else "default"
         ),
+    )
+
+
+def build_critic(
+    config: RunConfig,
+    tokenizer: TokenizerLike,
+    *,
+    device: str,
+    local_files_only: bool = False,
+) -> Any:
+    """Build PPO's independently owned backbone and scalar value head."""
+    from miniverl.models.critic import ValueCritic
+
+    backbone = build_student(
+        config,
+        tokenizer,
+        device=device,
+        local_files_only=local_files_only,
+    )
+    return ValueCritic(
+        backbone,
+        head_seed=config.run.seed + config.critic.head_seed_offset,
     )
 
 

@@ -35,6 +35,7 @@ __all__ = [
     "TrainingMode",
     "RLAlgorithm",
     "AlgorithmConfig",
+    "CriticConfig",
     "AlignmentConfig",
     "AlignmentMethod",
     "GateConfig",
@@ -50,6 +51,7 @@ __all__ = [
     "TeacherContextMode",
     "LossMode",
     "RewardConfig",
+    "RewardModelConfig",
     "RewardProviderKind",
     "LossAggregation",
     "Divergence",
@@ -832,6 +834,22 @@ class RewardProviderKind(str, Enum):
     EXACT_ANSWER = "exact_answer"
     TARGET_LENGTH = "target_length"
     PYTHON_API = "python_api"
+    HF_SEQUENCE_CLASSIFIER = "hf_sequence_classifier"
+
+
+class RewardModelConfig(_Base):
+    """Pinned local Hugging Face sequence-classification reward role."""
+
+    model_id: str = Field(min_length=1)
+    revision: str = Field(pattern=r"^[0-9a-f]{40}$")
+    tokenizer_id: str | None = None
+    tokenizer_revision: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
+    positive_class_index: int = Field(default=1, ge=0)
+    max_length: int = Field(default=512, ge=8, le=131072)
+    batch_size: int = Field(default=4, ge=1, le=1024)
+    timeout_seconds: float = Field(default=120.0, gt=0.0, le=86400.0)
+    trust_remote_code: bool = False
+    offload_between_phases: bool = True
 
 
 class RewardConfig(_Base):
@@ -840,6 +858,18 @@ class RewardConfig(_Base):
     enabled: bool = False
     provider: RewardProviderKind | None = None
     error_policy: Literal["fail"] = "fail"
+    model: RewardModelConfig | None = None
+
+    @model_validator(mode="after")
+    def _bind_model_role(self) -> RewardConfig:
+        if self.provider is RewardProviderKind.HF_SEQUENCE_CLASSIFIER and self.model is None:
+            raise ValueError("hf_sequence_classifier requires reward.model")
+        if (
+            self.provider is not RewardProviderKind.HF_SEQUENCE_CLASSIFIER
+            and self.model is not None
+        ):
+            raise ValueError("reward.model applies only to provider=hf_sequence_classifier")
+        return self
 
 
 class AlgorithmConfig(_Base):
@@ -852,8 +882,31 @@ class AlgorithmConfig(_Base):
     epsilon: float = Field(default=1e-6, gt=0.0, le=1e-2)
     kl_coef: float = Field(default=0.0, ge=0.0)
     kl_penalty: Literal["kl", "abs", "mse", "low_var_kl"] = "kl"
+    actor_kl_coef: float = Field(default=0.0, ge=0.0)
+    actor_kl_penalty: Literal["kl", "abs", "mse", "low_var_kl"] = "kl"
+    entropy_coeff: float = Field(default=0.0, ge=0.0)
+    actor_ppo_epochs: int = Field(default=1, ge=1, le=64)
+    # Historical critic-free recipes serialize 0.5. PPO normalizes an omitted
+    # value to 1.0 because verl v0.9 optimizes its value loss directly.
     value_loss_coef: float = Field(default=0.5, ge=0.0)
     cliprange_value: float = Field(default=0.5, gt=0.0)
+
+
+class CriticConfig(_Base):
+    """Independent local value role used by executable PPO."""
+
+    enabled: bool = False
+    learning_rate: float = Field(default=1e-5, gt=0.0, le=1.0)
+    weight_decay: float = Field(default=0.0, ge=0.0, le=1.0)
+    max_grad_norm: float = Field(default=1.0, gt=0.0, le=1e4)
+    warmup_steps: int = Field(default=0, ge=0, le=100000)
+    lr_schedule: LRSchedule = LRSchedule.CONSTANT
+    optimizer: OptimizerName = OptimizerName.ADAMW
+    adam_beta1: float = Field(default=0.9, gt=0.0, lt=1.0)
+    adam_beta2: float = Field(default=0.95, gt=0.0, lt=1.0)
+    adam_eps: float = Field(default=1e-8, gt=0.0, lt=1.0)
+    ppo_epochs: int = Field(default=1, ge=1, le=64)
+    head_seed_offset: int = Field(default=1009, ge=1, le=2**31 - 1)
 
 
 class RunMeta(_Base):
@@ -896,6 +949,7 @@ class RunConfig(_Base):
     report: ReportConfig = Field(default_factory=ReportConfig)
     reward: RewardConfig = Field(default_factory=RewardConfig)
     algorithm: AlgorithmConfig = Field(default_factory=AlgorithmConfig)
+    critic: CriticConfig = Field(default_factory=CriticConfig)
     alignment: AlignmentConfig | None = None
 
     # -- cross-field validation ----------------------------------------
@@ -1064,10 +1118,11 @@ class RunConfig(_Base):
                     RewardProviderKind.EXACT_ANSWER,
                     RewardProviderKind.TARGET_LENGTH,
                     RewardProviderKind.PYTHON_API,
+                    RewardProviderKind.HF_SEQUENCE_CLASSIFIER,
                 }:
                     raise ValueError(
-                        "Parquet RL requires exact_answer, target_length, or an injected "
-                        "python_api provider"
+                        "Parquet RL requires exact_answer, target_length, "
+                        "hf_sequence_classifier, or an injected python_api provider"
                     )
             elif self.reward.provider is not RewardProviderKind.ENVIRONMENT_VERIFIER:
                 raise ValueError("environment RL requires reward.provider=environment_verifier")
@@ -1078,22 +1133,36 @@ class RunConfig(_Base):
                     "run.mode=rl requires algorithm.implementation_version="
                     f"{ADVANTAGE_IMPLEMENTATION_VERSION}"
                 )
+            if self.algorithm.name is RLAlgorithm.PPO and not self.critic.enabled:
+                raise ValueError("algorithm.name=ppo requires critic.enabled=true")
             if self.algorithm.name is RLAlgorithm.PPO:
-                raise ValueError(
-                    "algorithm.name=ppo is not executable yet; GAE and value-loss primitives are "
-                    "conformant, but the critic checkpoint/runtime contract is not complete"
-                )
-            if self.algorithm.kl_coef > 0.0:
+                if "value_loss_coef" not in self.algorithm.model_fields_set:
+                    self.algorithm = self.algorithm.model_copy(update={"value_loss_coef": 1.0})
+                elif self.algorithm.value_loss_coef != 1.0:
+                    raise ValueError(
+                        "verl v0.9 PPO has no separate value-loss coefficient; "
+                        "set algorithm.value_loss_coef=1.0"
+                    )
+            if self.algorithm.name is not RLAlgorithm.PPO and self.critic != CriticConfig():
+                raise ValueError("critic settings apply only to algorithm.name=ppo")
+            reference_required = self.algorithm.kl_coef > 0.0 or self.algorithm.actor_kl_coef > 0.0
+            if reference_required:
                 if self.models.reference is None:
-                    raise ValueError("algorithm.kl_coef > 0 requires models.reference")
+                    raise ValueError(
+                        "algorithm.kl_coef or actor_kl_coef > 0 requires models.reference"
+                    )
                 if self.models.runtime is not ModelRuntime.SHARED_BACKBONE:
                     raise ValueError("RL reference KL requires runtime=shared_backbone")
             elif self.models.reference is not None:
-                raise ValueError("models.reference requires algorithm.kl_coef > 0 in run.mode=rl")
-            if self.algorithm.value_loss_coef != 0.5 or self.algorithm.cliprange_value != 0.5:
                 raise ValueError(
-                    "algorithm.value_loss_coef and cliprange_value apply only to the "
-                    "not-yet-executable PPO critic path; keep their defaults"
+                    "models.reference requires algorithm.kl_coef or actor_kl_coef > 0 in run.mode=rl"
+                )
+            if self.algorithm.name is not RLAlgorithm.PPO and (
+                self.algorithm.value_loss_coef != 0.5 or self.algorithm.cliprange_value != 0.5
+            ):
+                raise ValueError(
+                    "algorithm.value_loss_coef and cliprange_value apply only to "
+                    "algorithm.name=ppo critic path; keep their defaults"
                 )
             if (
                 self.algorithm.name in {RLAlgorithm.GRPO, RLAlgorithm.DR_GRPO, RLAlgorithm.RLOO}
@@ -1116,7 +1185,7 @@ class RunConfig(_Base):
                 raise ValueError("run.mode=rl currently supports upstream vanilla policy loss")
         elif mode is TrainingMode.RL:
             raise ValueError("run.mode=rl requires loss.mode=verl_rl_policy")
-        elif self.algorithm != AlgorithmConfig():
+        elif self.algorithm != AlgorithmConfig() or self.critic != CriticConfig():
             raise ValueError("algorithm settings apply only to run.mode=rl")
 
         pg_modes = {LossMode.VERL_PG_K1, LossMode.VERL_PG_K1_REWARDED}
@@ -1252,6 +1321,7 @@ class RunConfig(_Base):
             mode in {TrainingMode.OPD, TrainingMode.RL}
             and self.train.opd_freshness is OPDFreshness.STRICT
             and steps_per_rollout_batch != 1
+            and not (mode is TrainingMode.RL and self.algorithm.name is RLAlgorithm.PPO)
         ):
             raise ValueError(
                 "train.opd_freshness=strict requires exactly one optimizer step per "
@@ -1378,7 +1448,10 @@ class RunConfig(_Base):
         return (
             self.run.mode in {TrainingMode.OPD, TrainingMode.RL}
             and self.train.opd_freshness is OPDFreshness.STRICT
-            and steps_per_batch == 1
+            and (
+                steps_per_batch == 1
+                or (self.run.mode is TrainingMode.RL and self.algorithm.name is RLAlgorithm.PPO)
+            )
             and self.cache.strict_policy_version
             and not self.cache.reuse_across_policy_versions
         )

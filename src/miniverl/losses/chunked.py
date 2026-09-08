@@ -34,6 +34,7 @@ from typing import Any, Protocol
 
 import torch
 
+from miniverl.algorithms.kl import KLPenalty
 from miniverl.losses.bucketed import (
     bucketed_divergence,
     bucketed_teacher_entropy,
@@ -272,6 +273,10 @@ class VerlRLTargetProvider:
     algorithm: str = "grpo"
     reward_kl_mean: float = 0.0
     reward_kl_coef: float = 0.0
+    reference_log_probs: torch.Tensor | None = None
+    actor_kl_coef: float = 0.0
+    actor_kl_penalty: KLPenalty = "kl"
+    entropy_coeff: float = 0.0
     kind: str = "verl_rl_policy"
     diagnostics: list[dict[str, torch.Tensor | float | str]] = field(default_factory=list)
 
@@ -295,6 +300,19 @@ class VerlRLTargetProvider:
             clip_ratio_high=self.clip_ratio_high,
             clip_ratio_c=self.clip_ratio_c,
         )
+        per_token_loss = output.per_token_loss - self.entropy_coeff * actor_entropy
+        actor_kl = torch.zeros_like(current)
+        if self.actor_kl_coef > 0.0:
+            if self.reference_log_probs is None:
+                raise ValueError("actor KL requires reference log-probabilities")
+            from miniverl.algorithms.kl import reference_kl_penalty
+
+            actor_kl = reference_kl_penalty(
+                current,
+                self.reference_log_probs[start:end].to(student_logits.device),
+                penalty=self.actor_kl_penalty,
+            )
+            per_token_loss = per_token_loss + self.actor_kl_coef * actor_kl
         self.diagnostics.append(
             {
                 "algorithm": self.algorithm,
@@ -303,10 +321,14 @@ class VerlRLTargetProvider:
                 "advantages": advantages.detach().cpu(),
                 "ratio": output.ratio.detach().cpu(),
                 "actor_entropy": float(actor_entropy.mean().detach()),
+                "entropy_coeff": self.entropy_coeff,
+                "actor_kl_mean": float(actor_kl.mean().detach()),
+                "actor_kl_coef": self.actor_kl_coef,
+                "metric_weight": float(end - start),
                 **output.metrics,
             }
         )
-        return output.per_token_loss
+        return per_token_loss
 
     def teacher_entropy(self, start: int, end: int) -> torch.Tensor:
         """Teacher entropy is not applicable to teacher-free RL."""

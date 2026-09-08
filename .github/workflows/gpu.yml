@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       qualification_level:
-        description: "Release smoke, or the complete v0.12 WSL2 qualification"
+        description: "Release smoke, or the complete WSL2 release qualification"
         type: choice
         required: true
         default: smoke
@@ -193,6 +193,13 @@ jobs:
             --output "$full_dir/v012-rl.json" \
             --work "$full_work/v012-rl" \
             "${offline[@]}"
+          "$QUALIFICATION_PYTHON" scripts/run_v013_ppo_qualification.py \
+            --commit "$GITHUB_SHA" \
+            --wheel "$QUALIFICATION_WHEEL" \
+            --wheel-sha256 "$QUALIFICATION_WHEEL_SHA256" \
+            --output "$full_dir/v013-ppo.json" \
+            --work "$full_work/v013-ppo" \
+            "${offline[@]}"
           test -z "$(git status --porcelain)"
           "$QUALIFICATION_PYTHON" scripts/benchmark_rollout_runtime_v2_selected.py \
             --backend hf_cached \
@@ -215,7 +222,8 @@ jobs:
             --hf-cached-runtime "$full_dir/hf-cached-runtime.json" \
             --vllm-runtime "$full_dir/vllm-runtime.json" \
             --hf-reference benchmarks/results/rollout-runtime-v2-hf-reference.json \
-            --v012-rl "$full_dir/v012-rl.json"
+            --v012-rl "$full_dir/v012-rl.json" \
+            --v013-ppo "$full_dir/v013-ppo.json"
       - name: Upload full qualification records
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ success() && inputs.qualification_level == 'full' }}

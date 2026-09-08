@@ -1,22 +1,10 @@
-"""The miniVERL trainer.
+"""Single-GPU training orchestration for SFT, KD, OPD and verl-shaped RL.
 
-One class runs all three modes, because they differ only in *where the
-trajectories come from* and *where the targets come from*:
-
-======================  ==========================  ==========================
-mode                    trajectories                targets
-======================  ==========================  ==========================
-``sft``                 environment oracle traces   the tokens themselves (CE)
-``offline_kd``          a fixed trajectory set      one frozen teacher cache
-``opd``                 sampled from the *current*  the teacher scoring those
-                        student every cycle         exact states, every cycle
-======================  ==========================  ==========================
-
-The distinction is enforced, not documented: ``opd`` requires
-``cache.strict_policy_version``, so a target produced under policy version *v*
-raises :class:`~miniverl.errors.StaleCacheError` if anything tries to consume it
-at version *v+1*.  ``offline_kd`` is the only mode that may set
-``cache.reuse_across_policy_versions``.
+The facade owns shared lifecycle, provenance and checkpoint concerns. Objective
+work is delegated to target providers and to :class:`PPOPhaseRuntime`, which
+coordinates independent actor and critic updates for PPO/GAE. On-policy modes
+bind every trajectory and target to the exact policy version that produced it;
+offline KD alone may reuse a frozen cache across policy versions.
 """
 
 from __future__ import annotations
@@ -64,6 +52,7 @@ from miniverl.errors import (
     MiniVerlError,
 )
 from miniverl.models.factory import (
+    build_critic,
     build_shared_backends,
     build_student,
     build_teacher,
@@ -152,6 +141,8 @@ class TrainResult:
     mode: str
     cycles_completed: int
     global_step: int
+    actor_update_count: int
+    critic_update_count: int
     policy_version: int
     parameter_version: int
     rollout_policy_version: int
@@ -171,6 +162,8 @@ class TrainResult:
             "cycles_completed": self.cycles_completed,
             "global_step": self.global_step,
             "global_optimizer_step": self.global_step,
+            "actor_update_count": self.actor_update_count,
+            "critic_update_count": self.critic_update_count,
             "policy_version": self.policy_version,
             "parameter_version": self.parameter_version,
             "rollout_policy_version": self.rollout_policy_version,
@@ -185,7 +178,7 @@ class TrainResult:
 
 
 class OPDTrainer:
-    """Runs SFT, offline KD or genuine on-policy distillation."""
+    """Run a validated local SFT, KD, OPD or RL plan."""
 
     def __init__(
         self,
@@ -203,10 +196,12 @@ class OPDTrainer:
         student: Any,
         teacher: Any | None,
         reference: Any | None,
+        critic: Any | None,
         plan: MemoryPlan,
         run_lock: RunLock,
         evaluation_only: bool = False,
         reward_provider: Any | None = None,
+        local_files_only: bool = False,
     ) -> None:
         self._closed = False
         self._state = TrainerState.READY
@@ -263,7 +258,9 @@ class OPDTrainer:
         from miniverl.runtime.roles import LocalArtifactBridge, LocalRoleGraph
 
         self.reference = reference
+        self.critic = critic
         self.reward_provider: Any | None = reward_provider
+        self._owns_reward_provider = False
         if config.loss.mode in {LossMode.VERL_PG_K1_REWARDED, LossMode.VERL_RL_POLICY}:
             from miniverl.rewards.providers import (
                 EnvironmentVerifierRewardProvider,
@@ -286,6 +283,19 @@ class OPDTrainer:
                 if environment is None:
                     raise ConfigError("environment_verifier requires a ToolEnvironment")
                 self.reward_provider = EnvironmentVerifierRewardProvider(environment)
+            elif config.reward.provider is RewardProviderKind.HF_SEQUENCE_CLASSIFIER:
+                if reward_provider is not None:
+                    raise ConfigError("an injected provider requires reward.provider=python_api")
+                from miniverl.rewards.providers import HFSequenceClassifierRewardProvider
+
+                if config.reward.model is None:  # pragma: no cover - RunConfig guard
+                    raise ConfigError("hf_sequence_classifier requires reward.model")
+                self.reward_provider = HFSequenceClassifierRewardProvider.load(
+                    config.reward.model,
+                    device=plan.device,
+                    local_files_only=local_files_only,
+                )
+                self._owns_reward_provider = True
             elif reward_provider is None or not isinstance(reward_provider, RewardProvider):
                 raise ConfigError(
                     "reward.provider=python_api requires a RewardProvider object passed to "
@@ -301,6 +311,7 @@ class OPDTrainer:
             rollout_runtime=self.rollout_runtime,
             teacher_policy=self.teacher,
             reference_policy=self.reference,
+            value_policy=self.critic,
             reward_or_verifier=cast(Any, self.reward_provider or self.environment),
             target_builder=self.scorer,
             update_runtime=self,
@@ -311,6 +322,11 @@ class OPDTrainer:
             None
             if evaluation_only
             else build_optimizer(student.trainable_parameters(), config.train)
+        )
+        self.critic_optimizer = (
+            build_optimizer(critic.trainable_parameters(), cast(Any, config.critic))
+            if critic is not None and not evaluation_only
+            else None
         )
         steps_per_cycle = self.optimizer_steps_per_cycle
         total_steps = max(
@@ -323,7 +339,30 @@ class OPDTrainer:
             warmup_steps=config.train.warmup_steps,
             total_steps=total_steps,
         )
+        self.critic_schedule = LearningRateSchedule(
+            kind=config.critic.lr_schedule,
+            base_lr=config.critic.learning_rate,
+            warmup_steps=config.critic.warmup_steps,
+            total_steps=max(
+                1,
+                config.train.cycles
+                * config.critic.ppo_epochs
+                * max(
+                    1,
+                    (
+                        config.train.rollouts_per_cycle * config.rollout.samples_per_prompt
+                        + config.train.gradient_accumulation_steps
+                        - 1
+                    )
+                    // config.train.gradient_accumulation_steps,
+                ),
+            ),
+        )
         self.global_step = 0
+        self.critic_update_count = 0
+        from miniverl.training.ppo import PPOPhaseRuntime
+
+        self._ppo_runtime = PPOPhaseRuntime(self)
         self.parameter_version = 0
         self.cycle = 0
         self._last_rollout_policy_version = 0
@@ -334,6 +373,7 @@ class OPDTrainer:
         self.offline_dataset_digest = ""
         self._offline_collection_checkpoint_digest: str | None = None
         self._teacher_on_device = teacher is not None and plan.strategy is MemoryStrategy.RESIDENT
+        self._critic_on_device = critic is not None and plan.strategy is MemoryStrategy.RESIDENT
         #: First cycle `train()` will execute. Set by `load_from_checkpoint` so a
         #: resumed run continues instead of redoing completed cycles.
         self._start_cycle = 0
@@ -362,7 +402,13 @@ class OPDTrainer:
             if self.config.run.mode is TrainingMode.RL
             else rollouts
         )
-        return max(1, (trajectories + accum - 1) // accum)
+        steps = max(1, (trajectories + accum - 1) // accum)
+        if (
+            self.config.run.mode is TrainingMode.RL
+            and self.config.algorithm.name is RLAlgorithm.PPO
+        ):
+            steps *= self.config.algorithm.actor_ppo_epochs
+        return steps
 
     @property
     def state(self) -> TrainerState:
@@ -394,6 +440,7 @@ class OPDTrainer:
         state.
         """
         self.global_step = state.global_step
+        self.critic_update_count = state.critic_update_count
         self.parameter_version = (
             state.policy_version if state.parameter_version is None else state.parameter_version
         )
@@ -555,6 +602,7 @@ class OPDTrainer:
         student: Any | None = None
         teacher: Any | None = None
         reference: Any | None = None
+        critic: Any | None = None
         loaded_teachers: list[Any] = []
         trainer: OPDTrainer | None = None
         try:
@@ -631,6 +679,14 @@ class OPDTrainer:
             else:
                 student = build_student(
                     config, tokenizer, device=device, local_files_only=local_files_only
+                )
+            if config.algorithm.name is RLAlgorithm.PPO:
+                critic_device = device if plan.strategy is MemoryStrategy.RESIDENT else "cpu"
+                critic = build_critic(
+                    config,
+                    tokenizer,
+                    device=critic_device,
+                    local_files_only=local_files_only,
                 )
             if quantized and config.memory.strategy is MemoryStrategy.AUTO:
                 plan.reason = (
@@ -720,10 +776,12 @@ class OPDTrainer:
                 student=student,
                 teacher=teacher,
                 reference=reference,
+                critic=critic,
                 plan=plan,
                 run_lock=run_lock,
                 evaluation_only=for_evaluation,
                 reward_provider=reward_provider,
+                local_files_only=local_files_only,
             )
             if write_artifacts and resume_options == 0:
                 trainer._write_startup_artifacts()
@@ -761,7 +819,7 @@ class OPDTrainer:
                 except LifecycleError as cleanup_error:
                     logger.warning("cleanup after trainer construction failure: %s", cleanup_error)
             else:
-                owned_teachers = [reference, teacher, *loaded_teachers]
+                owned_teachers = [critic, reference, teacher, *loaded_teachers]
                 seen: set[int] = set()
                 for backend in [*owned_teachers, student]:
                     if backend is None or id(backend) in seen:
@@ -779,6 +837,7 @@ class OPDTrainer:
                 loaded_teachers.clear()
                 teacher = None
                 reference = None
+                critic = None
                 student = None
                 if environment is not None:
                     closer = getattr(environment, "close", None)
@@ -883,6 +942,8 @@ class OPDTrainer:
                 "initial_memory": self.plan.to_dict(),
                 "global_step": 0,
                 "global_optimizer_step": 0,
+                "actor_update_count": 0,
+                "critic_update_count": 0,
                 "parameter_version": 0,
                 "policy_version": 0,
                 "rollout_iteration": 0,
@@ -1090,6 +1151,8 @@ class OPDTrainer:
             },
             "memory": self.plan.to_dict(),
             "global_optimizer_step": self.global_step,
+            "actor_update_count": self.global_step,
+            "critic_update_count": self.critic_update_count,
             "parameter_version": self.parameter_version,
             "policy_version": self.policy_version,
             "rollout_iteration": self._cycles_completed,
@@ -1117,6 +1180,7 @@ class OPDTrainer:
             ManifestFinalization(
                 status=status,
                 global_step=self.global_step,
+                critic_update_count=self.critic_update_count,
                 parameter_version=self.parameter_version,
                 policy_version=self.policy_version,
                 cycles_completed=self._cycles_completed,
@@ -1924,6 +1988,8 @@ class OPDTrainer:
             return
         if self.reward_provider is None:
             raise ConfigError("reward-driven policy training requires a configured reward provider")
+        if self.config.algorithm.name is RLAlgorithm.PPO:
+            self._score_critic_values(trajectories)
         from miniverl.rewards import (
             AdvantageComposer,
             AdvantageMode,
@@ -1957,6 +2023,20 @@ class OPDTrainer:
                 for span in trajectory.spans
                 if span.span_type in {SpanType.ASSISTANT_TEXT, SpanType.ASSISTANT_FINAL}
             )
+            first_generated = next(
+                (
+                    index
+                    for index, generated in enumerate(trajectory.model_generated_mask)
+                    if generated
+                ),
+                len(trajectory.token_ids),
+            )
+            decode = getattr(getattr(self, "tokenizer", None), "decode", None)
+            prompt_text = (
+                decode(trajectory.token_ids[:first_generated])
+                if callable(decode)
+                else str(metadata.get("prompt_text", ""))
+            )
             request = RewardRequest.create(
                 trajectory_id=trajectory.trajectory_id,
                 prompt_group_id=trajectory.prompt_group_id,
@@ -1964,15 +2044,35 @@ class OPDTrainer:
                 samples_per_prompt=trajectory.samples_per_prompt,
                 row_digest=row_digest,
                 response_text=response,
+                prompt_text=prompt_text,
                 reward_model=metadata.get("reward_model"),
                 ground_truth=ground_truth,
                 data_source=data_source,
             )
             pending.append((trajectory, request))
-        results = score_reward_requests(
-            self.reward_provider,
-            [request for _, request in pending],
-        )
+        reward_actor_state = None
+        reward_role = self.reward_provider
+        reward_model = self.config.reward.model
+        phased_reward = bool(reward_model is not None and reward_model.offload_between_phases)
+        try:
+            if phased_reward:
+                reward_actor_state = self._student_off_device()
+                mover = getattr(reward_role, "to_device", None)
+                if not callable(mover):  # pragma: no cover - built-in contract guard
+                    raise LifecycleError("phased reward model does not expose to_device")
+                mover(self.plan.device)
+            results = score_reward_requests(
+                reward_role,
+                [request for _, request in pending],
+            )
+        finally:
+            if phased_reward:
+                releaser = getattr(reward_role, "release", None)
+                if callable(releaser):
+                    releaser()
+                self._student_on_device()
+                if reward_actor_state is not None:
+                    self.student.load_trainable_state_dict(reward_actor_state)
         for (trajectory, _), result in zip(pending, results, strict=True):
             self.reward_log.write(result.model_dump(mode="json"))
             if result.status is not RewardStatus.OK or result.raw_reward is None:
@@ -2061,7 +2161,7 @@ class OPDTrainer:
             mask[row, :length] = 1.0
             rewards[row, length - 1] = float(result.raw_reward)
 
-        if self.config.algorithm.kl_coef > 0.0:
+        if self.config.algorithm.kl_coef > 0.0 or self.config.algorithm.actor_kl_coef > 0.0:
             if self.reference is None:  # pragma: no cover - RunConfig/build guard
                 raise ConfigError("RL reference KL requires a loaded reference policy")
             from miniverl.algorithms.kl import reference_kl_penalty
@@ -2102,7 +2202,8 @@ class OPDTrainer:
                 )
                 length = lengths[row]
                 kl_rows[row, :length] = penalty
-                rewards[row, :length] -= self.config.algorithm.kl_coef * penalty
+                if self.config.algorithm.kl_coef > 0.0:
+                    rewards[row, :length] -= self.config.algorithm.kl_coef * penalty
                 trajectory.metadata["reference_log_probs"] = reference_log_probs.tolist()
                 trajectory.metadata["reward_kl"] = {
                     "penalty": self.config.algorithm.kl_penalty,
@@ -2128,8 +2229,13 @@ class OPDTrainer:
                 mask,
                 gamma=self.config.algorithm.gamma,
             )
-        elif algorithm is RLAlgorithm.PPO:  # rejected by RunConfig until critic lifecycle ships
+        elif algorithm is RLAlgorithm.PPO:
             values = torch.zeros_like(rewards)
+            for row, (trajectory, _) in enumerate(ordered):
+                old_values = trajectory.metadata.get("critic_old_values")
+                if not isinstance(old_values, list) or len(old_values) != lengths[row]:
+                    raise ConfigError("PPO trajectory lacks aligned old critic values")
+                values[row, : lengths[row]] = torch.tensor(old_values, dtype=torch.float32)
             output = gae_advantage_return(
                 rewards,
                 values,
@@ -2145,6 +2251,10 @@ class OPDTrainer:
             advantages = [float(value) for value in output.advantages[row, :length].tolist()]
             trajectory.metadata["task_reward"] = result.model_dump(mode="json")
             trajectory.metadata["rl_advantages"] = advantages
+            if algorithm is RLAlgorithm.PPO:
+                trajectory.metadata["ppo_returns"] = [
+                    float(value) for value in output.returns[row, :length].tolist()
+                ]
             trajectory.metadata["advantage_estimator"] = {
                 "name": algorithm.value,
                 "implementation_version": self.config.algorithm.implementation_version,
@@ -2170,11 +2280,32 @@ class OPDTrainer:
                     "reward_provider_identity_digest": result.provider.digest,
                     "raw_task_reward": result.raw_reward,
                     "advantages": advantages,
+                    "returns": (
+                        trajectory.metadata.get("ppo_returns")
+                        if algorithm is RLAlgorithm.PPO
+                        else None
+                    ),
                     **trajectory.metadata["advantage_estimator"],
                 }
             )
 
     # -- optimization --------------------------------------------------------------
+
+    def _score_critic_values(self, trajectories: list[Trajectory]) -> None:
+        """Delegate old-value binding to the PPO phase runtime."""
+        self._ppo_runtime.score_old_values(trajectories)
+
+    def _compute_critic_group_gradients(self, group: list[TrainSample]) -> dict[str, Any]:
+        """Delegate one critic minibatch to the PPO phase runtime."""
+        return self._ppo_runtime.compute_group_gradients(group)
+
+    def _commit_critic_update(self) -> dict[str, float]:
+        """Delegate a critic optimizer commit to the PPO phase runtime."""
+        return self._ppo_runtime.commit_update()
+
+    def _optimize_critic(self, samples: list[TrainSample]) -> list[dict[str, Any]]:
+        """Delegate the complete critic phase to the PPO phase runtime."""
+        return self._ppo_runtime.optimize(samples)
 
     def _loss_by_span_type(
         self,
@@ -2445,14 +2576,20 @@ class OPDTrainer:
         if rl_advantages:
             advantages = torch.cat(rl_advantages).float()
             ratios = torch.cat(rl_ratios).float()
-            metric_names = sorted({key for row in rl_metric_rows for key in row})
+            metric_names = sorted(
+                {key for row in rl_metric_rows for key in row if key != "metric_weight"}
+            )
+            metric_weight = sum(row.get("metric_weight", 1.0) for row in rl_metric_rows)
             result["verl_rl"] = {
                 "algorithm": config.algorithm.name.value,
                 "advantage_mean": float(advantages.mean()),
                 "advantage_std": float(advantages.std(unbiased=False)),
                 "ratio_mean": float(ratios.mean()),
                 **{
-                    key: sum(row.get(key, 0.0) for row in rl_metric_rows) / len(rl_metric_rows)
+                    key: sum(
+                        row.get(key, 0.0) * row.get("metric_weight", 1.0) for row in rl_metric_rows
+                    )
+                    / metric_weight
                     for key in metric_names
                 },
             }
@@ -2493,7 +2630,14 @@ class OPDTrainer:
         optimizer.zero_grad(set_to_none=True)
         return {"grad_norm": grad_norm, "lr": lr}
 
-    def _optimize(self, samples: list[TrainSample], *, phase: str) -> list[dict[str, Any]]:
+    def _optimize(
+        self,
+        samples: list[TrainSample],
+        *,
+        phase: str,
+        allow_ppo_replay: bool = False,
+        ppo_epoch: int = 0,
+    ) -> list[dict[str, Any]]:
         accum = self.config.train.gradient_accumulation_steps
         records: list[dict[str, Any]] = []
         optimizer = self.optimizer
@@ -2515,6 +2659,7 @@ class OPDTrainer:
             self.config.run.mode in {TrainingMode.OPD, TrainingMode.RL}
             and self.config.train.opd_freshness is OPDFreshness.STRICT
             and rollout_policy_version != self.parameter_version
+            and not allow_ppo_replay
         ):
             raise LifecycleError(
                 "strict on-policy training requires rollout policy version to equal the current parameter "
@@ -2566,6 +2711,7 @@ class OPDTrainer:
                     "parameter_version": self.parameter_version,
                     "policy_version": self.policy_version,
                     "rollout_policy_version": rollout_policy_version,
+                    "ppo_epoch": ppo_epoch if self.config.run.mode is TrainingMode.RL else None,
                     "seconds": round(elapsed, 4),
                     "train_selected_tokens_per_second": record["selected_positions"] / elapsed,
                     "projection_chunk_size": self.plan.chunk_size,
@@ -2612,6 +2758,20 @@ class OPDTrainer:
     def _student_on_device(self) -> None:
         self.student.to_device(self.plan.device)
         move_optimizer_state(self.optimizer, self.plan.device)
+
+    def _critic_to_device(self) -> None:
+        if self.critic is None or self._critic_on_device:
+            return
+        self.critic.to_device(self.plan.device)
+        move_optimizer_state(self.critic_optimizer, self.plan.device)
+        self._critic_on_device = True
+
+    def _critic_off_device(self) -> None:
+        if self.critic is None or not self._critic_on_device:
+            return
+        move_optimizer_state(self.critic_optimizer, "cpu")
+        self.critic.release()
+        self._critic_on_device = False
 
     # -- public API -----------------------------------------------------------------
 
@@ -2839,6 +2999,8 @@ class OPDTrainer:
             mode=config.run.mode.value,
             cycles_completed=self._cycles_completed,
             global_step=self.global_step,
+            actor_update_count=self.global_step,
+            critic_update_count=self.critic_update_count,
             policy_version=self.policy_version,
             parameter_version=self.parameter_version,
             rollout_policy_version=self._last_rollout_policy_version,
@@ -2858,6 +3020,8 @@ class OPDTrainer:
             run_id=self.run_id,
             steps=self.global_step,
             global_optimizer_step=self.global_step,
+            actor_update_count=self.global_step,
+            critic_update_count=self.critic_update_count,
             parameter_version=self.parameter_version,
             policy_version=self.policy_version,
             rollout_iteration=self._cycles_completed,
@@ -2936,6 +3100,14 @@ class OPDTrainer:
                 algorithm=self.config.algorithm.name.value,
                 reward_kl_mean=float((trajectory.metadata.get("reward_kl") or {}).get("mean", 0.0)),
                 reward_kl_coef=self.config.algorithm.kl_coef,
+                reference_log_probs=(
+                    torch.tensor(trajectory.metadata["reference_log_probs"], dtype=torch.float32)
+                    if self.config.algorithm.actor_kl_coef > 0.0
+                    else None
+                ),
+                actor_kl_coef=self.config.algorithm.actor_kl_coef,
+                actor_kl_penalty=self.config.algorithm.actor_kl_penalty,
+                entropy_coeff=self.config.algorithm.entropy_coeff,
             )
             samples.append(
                 TrainSample(
@@ -3068,7 +3240,25 @@ class OPDTrainer:
             )
 
         try:
-            records = self._optimize(samples, phase=config.run.mode.value)
+            if mode is TrainingMode.RL and config.algorithm.name is RLAlgorithm.PPO:
+                critic_records = self._optimize_critic(samples)
+                records = []
+                for epoch in range(config.algorithm.actor_ppo_epochs):
+                    records.extend(
+                        self._optimize(
+                            samples,
+                            phase=config.run.mode.value,
+                            allow_ppo_replay=epoch > 0,
+                            ppo_epoch=epoch,
+                        )
+                    )
+                if records and critic_records:
+                    records[-1]["critic"] = {
+                        **critic_records[-1],
+                        "update_count": self.critic_update_count,
+                    }
+            else:
+                records = self._optimize(samples, phase=config.run.mode.value)
             if config.report.enabled and self.cycle == config.train.cycles - 1:
                 tokens = self._write_token_analysis(samples)
                 if tokens:
@@ -3621,7 +3811,7 @@ class OPDTrainer:
 
     def _checkpoint_identity(self) -> dict[str, Any]:
         student = self.config.models.student
-        return {
+        identity = {
             "backend": self.config.models.backend.value,
             "student_model_id": student.model_id,
             "student_revision": student.revision,
@@ -3631,6 +3821,9 @@ class OPDTrainer:
             "execution_plan_digest": self.config.run.execution_plan_digest,
             "profile_identity": self.config.run.profile_identity,
         }
+        if self.critic is not None:
+            identity["critic"] = self.critic.identity()
+        return identity
 
     def save_checkpoint(self, *, name: str | None = None) -> Path:
         """Write a resumable checkpoint when training does not own the model."""
@@ -3663,6 +3856,8 @@ class OPDTrainer:
         state = CheckpointState(
             miniverl_version=__version__,
             global_step=self.global_step,
+            actor_update_count=self.global_step,
+            critic_update_count=self.critic_update_count,
             policy_version=self.policy_version,
             parameter_version=self.parameter_version,
             cycle=self.cycle,
@@ -3695,6 +3890,7 @@ class OPDTrainer:
                 else None
             ),
             scheduler=self.schedule.state_dict(),
+            critic_scheduler=(self.critic_schedule.state_dict() if self.critic is not None else {}),
             config_digest=self._config_digest(),
             resolved_config_digest=self._resolved_config_digest(),
             execution_plan_digest=self.config.run.execution_plan_digest or "",
@@ -3708,6 +3904,10 @@ class OPDTrainer:
             state=state,
             rng=capture_rng(),
             identity=self._checkpoint_identity(),
+            critic_trainable_state=(
+                self.critic.trainable_state_dict() if self.critic is not None else None
+            ),
+            critic_optimizer=self.critic_optimizer,
         )
         self.events.emit("checkpoint_saved", path=str(target), step=self.global_step)
         return target
@@ -3807,6 +4007,8 @@ class OPDTrainer:
             device=self.student.device,
             expected_config_digest=digest,
             expected_identity=identity if validated.identity else None,
+            critic_backend=self.critic,
+            critic_optimizer=self.critic_optimizer,
         )
         self._apply_checkpoint_progress(state)
         self._start_cycle = self._cycles_completed
@@ -3819,6 +4021,8 @@ class OPDTrainer:
         }
         if state.scheduler:
             self.schedule = LearningRateSchedule.from_state_dict(state.scheduler)
+        if state.critic_scheduler:
+            self.critic_schedule = LearningRateSchedule.from_state_dict(state.critic_scheduler)
         self.events.emit("checkpoint_loaded", path=str(directory), step=self.global_step)
         return state
 
@@ -3915,6 +4119,39 @@ class OPDTrainer:
             cleanup("optimizer state clear", clear_optimizer)
         optimizer = None
 
+        critic_optimizer = self.critic_optimizer
+        self.critic_optimizer = None
+        if critic_optimizer is not None:
+            owned_critic_optimizer: Any = critic_optimizer
+            cleanup(
+                "critic optimizer gradient clear",
+                lambda: owned_critic_optimizer.zero_grad(set_to_none=True),
+            )
+
+            def clear_critic_optimizer() -> None:
+                owned_critic_optimizer.state.clear()
+                for group in owned_critic_optimizer.param_groups:
+                    group["params"] = []
+                owned_critic_optimizer.param_groups.clear()
+
+            cleanup("critic optimizer state clear", clear_critic_optimizer)
+        critic_optimizer = None
+
+        critic = self.critic
+        self.critic = None
+        if critic is not None:
+            cleanup("critic release", critic.release)
+        critic = None
+
+        reward_provider = self.reward_provider
+        self.reward_provider = None
+        if self._owns_reward_provider and reward_provider is not None:
+            releaser = getattr(reward_provider, "release", None)
+            if callable(releaser):
+                cleanup("reward model release", releaser)
+        reward_provider = None
+        self._owns_reward_provider = False
+
         reference = self.reference
         self.reference = None
         if reference is not None:
@@ -3951,6 +4188,7 @@ class OPDTrainer:
         self.metrics_log = None  # type: ignore[assignment]  # destructive close
         self.events = None  # type: ignore[assignment]  # destructive close
         self._teacher_on_device = False
+        self._critic_on_device = False
         cleanup("Python garbage collection", gc.collect)
         cleanup("CUDA allocator release", gpu.empty_cache)
         run_lock = self._run_lock

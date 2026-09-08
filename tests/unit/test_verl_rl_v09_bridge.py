@@ -9,7 +9,11 @@ import yaml
 from pydantic import ValidationError
 
 from miniverl.algorithms.contract import UPSTREAM_VERL_COMMIT
-from miniverl.bridge.rl_v09 import VERL_RL_V09_PROFILE, publish_imported_verl_rl_v09
+from miniverl.bridge.rl_v09 import (
+    VERL_RL_V09_PPO_PROFILE,
+    VERL_RL_V09_PROFILE,
+    publish_imported_verl_rl_v09,
+)
 from miniverl.config import RunConfig
 from miniverl.errors import ConfigError
 
@@ -194,6 +198,112 @@ def test_v09_fixed_reference_kl_lowers_to_shared_temporal_role(tmp_path: Path) -
     )
     assert config.algorithm.kl_coef == pytest.approx(0.02)
     assert config.algorithm.kl_penalty == "low_var_kl"
+
+
+def test_v09_v2_imports_executable_ppo_critic_entropy_and_actor_kl(tmp_path: Path) -> None:
+    payload = source_payload()
+    payload["algorithm"]["adv_estimator"] = "gae"
+    payload["actor_rollout_ref"]["actor"].update(
+        {
+            "ppo_epochs": 2,
+            "use_kl_loss": True,
+            "kl_loss_coef": 0.015,
+            "kl_loss_type": "low_var_kl",
+            "entropy_coeff": 0.002,
+        }
+    )
+    payload["critic"] = {
+        "enable": True,
+        "model": {"path": "Qwen/Qwen3-0.6B"},
+        "optim": {"lr": "2e-5", "weight_decay": 0.02, "lr_warmup_steps": 2},
+        "ppo_mini_batch_size": 8,
+        "ppo_epochs": 3,
+        "cliprange_value": 0.2,
+    }
+    payload["miniverl"]["critic"] = {"lora_enabled": True}
+    payload["miniverl"]["reference"] = {
+        "adapter_path": "reference-adapter",
+        "adapter_source": "local",
+    }
+    out = tmp_path / "ppo.yaml"
+
+    report = publish_imported_verl_rl_v09(
+        _write(tmp_path, payload),
+        out=out,
+        target_verl="v0.9.0",
+        profile=VERL_RL_V09_PPO_PROFILE,
+    )
+    config = RunConfig.from_yaml(out)
+
+    assert report["status"] == "accepted"
+    assert report["profile"] == VERL_RL_V09_PPO_PROFILE
+    assert config.algorithm.name.value == "ppo"
+    assert config.algorithm.actor_ppo_epochs == 2
+    assert config.algorithm.actor_kl_coef == pytest.approx(0.015)
+    assert config.algorithm.actor_kl_penalty == "low_var_kl"
+    assert config.algorithm.entropy_coeff == pytest.approx(0.002)
+    assert config.algorithm.cliprange_value == pytest.approx(0.2)
+    assert config.critic.enabled
+    assert config.critic.learning_rate == pytest.approx(2e-5)
+    assert config.critic.ppo_epochs == 3
+    assert config.train.opd_freshness.value == "strict"
+    assert config.is_on_policy is True
+
+
+def test_v09_v2_imports_pinned_trained_reward_model(tmp_path: Path) -> None:
+    payload = source_payload()
+    payload["miniverl"]["reward"] = {
+        "provider": "hf_sequence_classifier",
+        "revision": "a" * 40,
+        "tokenizer_revision": "b" * 40,
+        "positive_class_index": 0,
+        "max_length": 256,
+        "batch_size": 2,
+        "timeout_seconds": 30,
+    }
+    payload["reward_model"] = {
+        "enable": True,
+        "model": {"path": "org/trained-rm", "trust_remote_code": False},
+    }
+    out = tmp_path / "reward-model.yaml"
+
+    report = publish_imported_verl_rl_v09(
+        _write(tmp_path, payload),
+        out=out,
+        target_verl="v0.9.0",
+        profile=VERL_RL_V09_PPO_PROFILE,
+    )
+    config = RunConfig.from_yaml(out)
+
+    assert report["status"] == "accepted"
+    assert config.reward.provider.value == "hf_sequence_classifier"
+    assert config.reward.model is not None
+    assert config.reward.model.model_id == "org/trained-rm"
+    assert config.reward.model.revision == "a" * 40
+    assert config.reward.model.tokenizer_revision == "b" * 40
+    assert config.reward.model.positive_class_index == 0
+
+
+def test_v09_v2_trained_reward_requires_identity_and_revision(tmp_path: Path) -> None:
+    payload = source_payload()
+    payload["miniverl"]["reward"] = {"provider": "hf_sequence_classifier"}
+    out = tmp_path / "template.yaml"
+
+    report = publish_imported_verl_rl_v09(
+        _write(tmp_path, payload),
+        out=out,
+        target_verl="v0.9.0",
+        profile=VERL_RL_V09_PPO_PROFILE,
+    )
+
+    assert report["status"] == "needs_user_input"
+    required = {row["field"] for row in report["required_user_input"]}
+    assert required == {
+        "reward_model.enable",
+        "reward_model.model.path",
+        "miniverl.reward.revision",
+    }
+    assert not out.exists()
 
 
 def test_v09_import_emits_non_executable_template_when_choices_are_missing(tmp_path: Path) -> None:

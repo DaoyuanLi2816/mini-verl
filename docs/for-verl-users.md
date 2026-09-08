@@ -7,7 +7,7 @@ sequential local phases and recorded as a lowering decision.
 
 <picture>
   <source media="(max-width: 640px)" srcset="../verl-local-runtime-mobile.svg">
-  <img src="../verl-local-runtime.svg" alt="A resolved verl config compiles into a one-GPU plan; actor, reference, teacher and reward roles run in phases and publish portable artifacts with a readiness report.">
+  <img src="../verl-local-runtime.svg" alt="A resolved verl config compiles into a one-GPU plan; actor, critic, reference, teacher and reward roles run in phases and publish portable artifacts with a readiness report.">
 </picture>
 
 ## Start with the v0.9 RL profile

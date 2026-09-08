@@ -256,6 +256,28 @@ def test_identity_alignment_shifts_by_exactly_one():
     assert alignment.counts_by_span_type() == {"assistant_tool_call": 2, "assistant_final": 1}
 
 
+def test_ppo_value_sequence_carries_across_tool_observation_without_training_on_it():
+    """Observation tokens are context; adjacent model actions retain GAE continuity."""
+    torch = pytest.importorskip("torch")
+    from miniverl.algorithms.advantages import gae_advantage_return
+
+    trajectory = _trajectory()
+    targets = trajectory.model_token_positions()
+    assert targets == [8, 9, 10, 11, 16, 17, 18, 19]
+    assert not any(trajectory.model_generated_mask[12:16])
+
+    values = torch.zeros((1, len(targets)), dtype=torch.float32)
+    rewards = torch.zeros_like(values)
+    rewards[0, -1] = 1.0
+    mask = torch.ones_like(values)
+    result = gae_advantage_return(rewards, values, mask, gamma=1.0, lam=1.0)
+
+    # The final reward propagates through both assistant segments even though
+    # the intervening tool observation is never a value/loss target.
+    assert result.returns.tolist() == [[1.0] * len(targets)]
+    assert result.advantages.shape == (1, len(targets))
+
+
 def test_alignment_rejects_weight_count_mismatch():
     traj = _trajectory()
     with pytest.raises(AlignmentError, match="weights for"):

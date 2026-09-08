@@ -80,10 +80,22 @@ def test_rl_rejects_silent_teacher_and_missing_reward() -> None:
         RunConfig.model_validate(payload)
 
 
-def test_ppo_fails_closed_until_critic_lifecycle_is_complete() -> None:
+def test_ppo_requires_and_accepts_an_explicit_critic_lifecycle() -> None:
     payload = rl_config()
     payload["algorithm"]["name"] = "ppo"
-    with pytest.raises(ValidationError, match="critic checkpoint/runtime contract"):
+    with pytest.raises(ValidationError, match=r"critic\.enabled=true"):
+        RunConfig.model_validate(payload)
+
+    payload["critic"] = {"enabled": True, "learning_rate": 0.002}
+    config = RunConfig.model_validate(payload)
+
+    assert config.algorithm.name.value == "ppo"
+    assert config.critic.enabled is True
+    assert config.algorithm.value_loss_coef == 1.0
+    assert config.critic.learning_rate == pytest.approx(0.002)
+
+    payload["algorithm"]["value_loss_coef"] = 0.5
+    with pytest.raises(ValidationError, match="no separate value-loss coefficient"):
         RunConfig.model_validate(payload)
 
 
@@ -91,8 +103,8 @@ def test_ppo_fails_closed_until_critic_lifecycle_is_complete() -> None:
     ("field", "value", "match"),
     [
         ("kl_coef", 0.1, "requires models.reference"),
-        ("value_loss_coef", 0.7, "not-yet-executable PPO critic path"),
-        ("cliprange_value", 0.2, "not-yet-executable PPO critic path"),
+        ("value_loss_coef", 0.7, "apply only to algorithm.name=ppo"),
+        ("cliprange_value", 0.2, "apply only to algorithm.name=ppo"),
     ],
 )
 def test_rl_rejects_unwired_algorithm_controls(field: str, value: float, match: str) -> None:
@@ -124,3 +136,26 @@ def test_rl_reference_kl_requires_an_explicit_shared_reference_role() -> None:
     assert config.models.teacher is None
     assert config.models.reference is not None
     assert config.algorithm.kl_penalty == "kl"
+
+
+def test_actor_kl_and_entropy_are_executable_objective_controls() -> None:
+    payload = rl_config()
+    payload["models"] = {
+        "backend": "hf",
+        "runtime": "shared_backbone",
+        "device": "cpu",
+        "student": {"model_id": "org/base", "lora": {"enabled": True}},
+        "reference": {
+            "model_id": "org/base",
+            "adapter": {"path": "reference-adapter", "source": "local"},
+        },
+    }
+    payload["algorithm"].update(
+        {"actor_kl_coef": 0.01, "entropy_coeff": 0.005, "actor_ppo_epochs": 2}
+    )
+
+    config = RunConfig.model_validate(payload)
+
+    assert config.algorithm.actor_kl_coef == pytest.approx(0.01)
+    assert config.algorithm.entropy_coeff == pytest.approx(0.005)
+    assert config.algorithm.actor_ppo_epochs == 2

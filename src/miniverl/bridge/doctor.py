@@ -24,6 +24,7 @@ from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
 from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.bridge.preflight import preflight_bundle_tree
 from miniverl.bridge.reward_static import REWARD_LEVELS, inspect_reward_scaffold
+from miniverl.bridge.rl_v09 import VERL_RL_V09_PPO_PROFILE
 from miniverl.bridge.safetensors_check import SAFETENSORS_LEVELS, inspect_safetensors
 
 __all__ = [
@@ -97,16 +98,26 @@ def _sha256(path: Path) -> str:
 
 def _check_requirements(root: Path) -> dict[str, Any]:
     path = root / "recipe" / "REQUIRED_VERL.txt"
-    expected = {
-        "VERL_REPOSITORY": VERL_REPOSITORY,
-        "VERL_TAG": VERL_TAG,
-        "VERL_COMMIT": VERL_COMMIT,
-        "PROFILE": BRIDGE_PROFILE,
-    }
     try:
         values = dict(line.split("=", 1) for line in path.read_text(encoding="utf-8").splitlines())
     except (OSError, ValueError) as exc:
         return {"status": "fail", "detail": str(exc)}
+    if values.get("PROFILE") == VERL_RL_V09_PPO_PROFILE:
+        from miniverl.algorithms.contract import UPSTREAM_VERL_COMMIT, UPSTREAM_VERL_TAG
+
+        expected = {
+            "VERL_REPOSITORY": VERL_REPOSITORY,
+            "VERL_TAG": UPSTREAM_VERL_TAG,
+            "VERL_COMMIT": UPSTREAM_VERL_COMMIT,
+            "PROFILE": VERL_RL_V09_PPO_PROFILE,
+        }
+    else:
+        expected = {
+            "VERL_REPOSITORY": VERL_REPOSITORY,
+            "VERL_TAG": VERL_TAG,
+            "VERL_COMMIT": VERL_COMMIT,
+            "PROFILE": BRIDGE_PROFILE,
+        }
     mismatches = {
         key: values.get(key) for key, value in expected.items() if values.get(key) != value
     }
@@ -383,6 +394,66 @@ def _check_parquet(root: Path, *, require_reward_model: bool = True) -> dict[str
 
 
 def _check_config(root: Path) -> dict[str, Any]:
+    rl_path = root / "recipe" / "verl-rl-overrides.yaml"
+    if rl_path.is_file():
+        try:
+            payload = yaml.safe_load(rl_path.read_text(encoding="utf-8"))
+            adapter = json.loads(
+                (root / "model" / "adapter_config.json").read_text(encoding="utf-8")
+            )
+            base = json.loads((root / "model" / "base-model.json").read_text(encoding="utf-8"))
+            compatibility = json.loads(
+                (root / "provenance" / "compatibility-report.json").read_text(encoding="utf-8")
+            )
+        except (OSError, json.JSONDecodeError, yaml.YAMLError) as exc:
+            return {"status": "fail", "detail": str(exc)}
+        required_roots = {
+            "data",
+            "actor_rollout_ref",
+            "algorithm",
+            "trainer",
+            "custom_reward_function",
+        }
+        actual = set(payload) if isinstance(payload, dict) else set()
+        rl_problems: list[str] = []
+        if not required_roots.issubset(actual):
+            rl_problems.append("missing required RL root")
+        profile = compatibility.get("profile")
+        if profile != VERL_RL_V09_PPO_PROFILE:
+            rl_problems.append("unregistered verl v0.9 RL profile")
+        try:
+            model = payload["actor_rollout_ref"]["model"]
+            for field, expected in {
+                "path": "model/base",
+                "lora_adapter_path": "model",
+                "lora_rank": adapter["r"],
+                "lora_alpha": adapter["lora_alpha"],
+                "target_modules": adapter["target_modules"],
+            }.items():
+                if model.get(field) != expected:
+                    rl_problems.append(f"actor_rollout_ref.model.{field}")
+            if base.get("model_id") != adapter["base_model_name_or_path"]:
+                rl_problems.append("base-model.json model_id")
+            if base.get("revision") != adapter["revision"]:
+                rl_problems.append("base-model.json revision")
+            if payload["custom_reward_function"].get("path") != ("reward/reward_or_verifier.py"):
+                rl_problems.append("custom_reward_function.path")
+            if compatibility.get("algorithm") == "ppo":
+                critic = payload.get("critic") or {}
+                if critic.get("enable") is not True:
+                    rl_problems.append("critic.enable")
+                if (critic.get("model") or {}).get("path") != "model/base":
+                    rl_problems.append("critic.model.path")
+                if payload["algorithm"].get("adv_estimator") != "gae":
+                    rl_problems.append("algorithm.adv_estimator")
+        except (KeyError, TypeError):
+            rl_problems.append("invalid verl v0.9 RL handoff structure")
+        return {
+            "status": "ok" if not rl_problems else "fail",
+            "profile": profile,
+            "roots": sorted(actual),
+            "model_handoff_problems": rl_problems,
+        }
     opd_path = root / "recipe" / "verl-opd-overrides.yaml"
     if opd_path.is_file():
         try:
@@ -518,8 +589,28 @@ def _check_reward(root: Path, *, trust_and_import: bool = False) -> dict[str, An
             "code_executed": False,
             "detail": "task rewards are disabled by the pure-OPD profile",
         }
-    path = root / "reward" / "reward_or_verifier_scaffold.py"
+    path = (
+        root
+        / "reward"
+        / (
+            "reward_or_verifier.py"
+            if (root / "recipe" / "verl-rl-overrides.yaml").is_file()
+            else "reward_or_verifier_scaffold.py"
+        )
+    )
     return inspect_reward_scaffold(path, trust_and_import=trust_and_import)
+
+
+def _check_critic(root: Path, *, required: bool) -> dict[str, Any]:
+    path = root / "critic" / "critic.safetensors"
+    if not path.is_file():
+        return {
+            "status": "fail" if required else "ok",
+            "verification_level": "not_present",
+            "required": required,
+        }
+    result = inspect_safetensors(path, require_payload=False)
+    return {**result, "required": required, "path": "critic/critic.safetensors"}
 
 
 def _check_hashes(root: Path) -> dict[str, Any]:
@@ -993,7 +1084,7 @@ def _check_privacy(
     }
 
 
-def _installed_verl() -> dict[str, Any]:
+def _installed_verl(*, expected_commit: str = VERL_COMMIT) -> dict[str, Any]:
     try:
         version = importlib.metadata.version("verl")
         distribution = importlib.metadata.distribution("verl")
@@ -1023,10 +1114,10 @@ def _installed_verl() -> dict[str, Any]:
             except (OSError, subprocess.SubprocessError):
                 commit = None
     return {
-        "status": "ok" if commit == VERL_COMMIT else "unverified",
+        "status": "ok" if commit == expected_commit else "unverified",
         "version": version,
         "direct_url": direct_url,
-        "expected_commit": VERL_COMMIT,
+        "expected_commit": expected_commit,
     }
 
 
@@ -1149,7 +1240,9 @@ def _recompute_upstream_smoke(
         official = OmegaConf.load(generated)
         recipe = root / "recipe"
         override_path = (
-            recipe / "verl-opd-overrides.yaml"
+            recipe / "verl-rl-overrides.yaml"
+            if (recipe / "verl-rl-overrides.yaml").is_file()
+            else recipe / "verl-opd-overrides.yaml"
             if (recipe / "verl-opd-overrides.yaml").is_file()
             else recipe / "verl-overrides.yaml"
         )
@@ -1260,17 +1353,42 @@ def inspect_bridge_bundle(
         max_bytes=dataset_scan_max_bytes,
         require_complete_metadata_scan=require_complete_metadata_scan,
     )
-    installed = _installed_verl()
     compatibility_path = bundle / "provenance" / "compatibility-report.json"
     try:
         compatibility = json.loads(compatibility_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         compatibility = {}
+    expected_verl_commit = str(
+        (compatibility.get("target_verl") or {}).get("commit") or VERL_COMMIT
+    )
+    installed = (
+        _installed_verl()
+        if expected_verl_commit == VERL_COMMIT
+        else _installed_verl(expected_commit=expected_verl_commit)
+    )
+    critic = _check_critic(
+        bundle,
+        required=(
+            config.get("profile") == VERL_RL_V09_PPO_PROFILE
+            and compatibility.get("algorithm") == "ppo"
+        ),
+    )
     snapshot_required = (
         bool(compatibility.get("launchable")) or (bundle / "recipe/launch.sh").is_file()
     )
     snapshot_checks = (student_snapshot, teacher_snapshot) if snapshot_required else ()
-    checks = (target, model, tokenizer, parquet, config, reward, hashes, privacy, *snapshot_checks)
+    checks = (
+        target,
+        model,
+        tokenizer,
+        parquet,
+        config,
+        reward,
+        critic,
+        hashes,
+        privacy,
+        *snapshot_checks,
+    )
     artifact_failed = any(check.get("status") != "ok" for check in checks)
     opd_profile = config.get("profile") in {
         VERL_OPD_V08_PROFILE,
@@ -1315,6 +1433,7 @@ def inspect_bridge_bundle(
         "parquet_schema": parquet,
         "config_profile": config,
         "reward_scaffold_interface": reward,
+        "critic_checkpoint": critic,
         "reward_verification_level": reward["verification_level"],
         "reward_code_executed": bool(reward.get("code_executed", False)),
         # Copied from the bundle for the reader's information; the doctor did not

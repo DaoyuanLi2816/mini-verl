@@ -48,6 +48,14 @@ def _trainable_state(trainer) -> dict[str, Any]:  # type: ignore[no-untyped-def]
     }
 
 
+def _critic_state(trainer) -> dict[str, Any]:  # type: ignore[no-untyped-def]
+    assert trainer.critic is not None
+    return {
+        name: tensor.detach().cpu().clone()
+        for name, tensor in trainer.critic.trainable_state_dict().items()
+    }
+
+
 @pytest.mark.parametrize("algorithm", ["grpo", "dr_grpo", "rloo", "reinforce_plus_plus"])
 def test_teacher_free_rl_executes_current_policy_rollout_reward_and_update(
     tmp_path, algorithm: str
@@ -253,6 +261,254 @@ def test_grouped_rl_preserves_agent_tool_context_and_uses_recorded_verifier(tmp_
     assert len(rewards) == 2
     assert {row["provider"]["name"] for row in rewards} == {"environment:calculator"}
     assert result.global_step == 1
+
+
+def test_ppo_executes_actor_critic_gae_and_checkpoints_both_roles(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:  # type: ignore[no-untyped-def]
+    import torch
+
+    from miniverl.config import RunConfig
+    from miniverl.trainer import OPDTrainer
+    from miniverl.training.checkpoint import validate_checkpoint
+
+    train = tmp_path / "ppo.parquet"
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "prompt": "Choose one token.",
+                    "data_source": "unit",
+                    "reward_model": {"style": "exact", "ground_truth": "unused"},
+                    "extra_info": {"ground_truth": "unused"},
+                }
+            ]
+        ),
+        train,
+    )
+    payload = {
+        "run": {"name": "ppo", "mode": "rl", "seed": 23, "output_dir": str(tmp_path / "runs")},
+        "models": {
+            "backend": "toy",
+            "device": "cpu",
+            "student": {
+                "model_id": "toy-ppo",
+                "lora": {"enabled": False},
+                "toy": {
+                    "hidden_size": 16,
+                    "num_layers": 1,
+                    "num_heads": 2,
+                    "intermediate_size": 32,
+                    "max_position_embeddings": 128,
+                },
+            },
+        },
+        "source": {
+            "kind": "verl_parquet",
+            "train_files": [str(train)],
+            "allow_plain_string_prompts": True,
+            "shuffle": False,
+            "use_task_rewards": True,
+        },
+        "rollout": {
+            "backend": "hf_cached",
+            "samples_per_prompt": 2,
+            "temperature": 1.0,
+            "max_turns": 1,
+            "max_new_tokens_per_turn": 3,
+            "max_total_tokens": 64,
+            "record_logprobs": True,
+        },
+        "selection": {"selector": "all_model_tokens"},
+        "loss": {
+            "mode": "verl_rl_policy",
+            "aggregation": "token-mean",
+            "scale_by_temperature_squared": False,
+            "chunk_size": 16,
+        },
+        "algorithm": {
+            "name": "ppo",
+            "implementation_version": ADVANTAGE_IMPLEMENTATION_VERSION,
+            "gamma": 0.9,
+            "lam": 0.8,
+            "actor_ppo_epochs": 2,
+        },
+        "critic": {"enabled": True, "learning_rate": 0.002, "ppo_epochs": 2},
+        "reward": {"enabled": True, "provider": "python_api"},
+        "train": {
+            "cycles": 1,
+            "rollouts_per_cycle": 1,
+            "gradient_accumulation_steps": 2,
+            "trajectory_batch_size": 2,
+            "learning_rate": 0.001,
+        },
+        "memory": {"strategy": "resident", "oom_retries": 1},
+        "eval": {"enabled": False},
+        "report": {"enabled": False},
+    }
+    config = RunConfig.model_validate(payload)
+    trainer = OPDTrainer.from_config(config, run_id="ppo-e2e", reward_provider=_SampleIndexReward())
+    assert trainer.critic is not None
+    original_critic_gradients = trainer._ppo_runtime.compute_group_gradients
+    attempts = 0
+
+    def one_oom_then_succeed(group, *, physical_cap=None):  # type: ignore[no-untyped-def]
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("CUDA out of memory (fault injection)")
+        return original_critic_gradients(group, physical_cap=physical_cap)
+
+    monkeypatch.setattr(trainer._ppo_runtime, "compute_group_gradients", one_oom_then_succeed)
+    actor_before = _trainable_state(trainer)
+    critic_before = _critic_state(trainer)
+    try:
+        result = trainer.train()
+        actor_after = _trainable_state(trainer)
+        critic_after = _critic_state(trainer)
+        checkpoint = validate_checkpoint(result.run_dir / "checkpoints" / "final")
+    finally:
+        trainer.close()
+
+    assert result.final_metrics["verl_rl"]["algorithm"] == "ppo"
+    assert result.final_metrics["critic"]["value_loss"] >= 0.0
+    assert result.actor_update_count == 2
+    assert result.critic_update_count == 2
+    assert result.final_metrics["critic"]["update_count"] == 2
+    assert trainer._ppo_runtime.microbatch_size_history == [2]
+    assert any(not torch.equal(actor_before[name], actor_after[name]) for name in actor_before)
+    assert any(not torch.equal(critic_before[name], critic_after[name]) for name in critic_before)
+    assert "critic.safetensors" in checkpoint.manifest["files"]
+    assert "critic-optimizer.safetensors" in checkpoint.manifest["files"]
+
+
+def test_ppo_checkpoint_resume_restores_actor_critic_optimizers_and_versions(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    import torch
+
+    from miniverl.config import RunConfig
+    from miniverl.trainer import OPDTrainer
+    from miniverl.utils.seeding import seed_everything
+
+    train = tmp_path / "ppo-resume.parquet"
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "prompt": f"Choose one token for row {index}.",
+                    "data_source": "unit",
+                    "reward_model": {"style": "exact", "ground_truth": "unused"},
+                    "extra_info": {"ground_truth": "unused"},
+                }
+                for index in range(2)
+            ]
+        ),
+        train,
+    )
+    config = RunConfig.model_validate(
+        {
+            "run": {
+                "name": "ppo-resume",
+                "mode": "rl",
+                "seed": 29,
+                "output_dir": str(tmp_path / "runs"),
+            },
+            "models": {
+                "backend": "toy",
+                "device": "cpu",
+                "student": {
+                    "model_id": "toy-ppo-resume",
+                    "lora": {"enabled": False},
+                    "toy": {
+                        "hidden_size": 16,
+                        "num_layers": 1,
+                        "num_heads": 2,
+                        "intermediate_size": 32,
+                        "max_position_embeddings": 128,
+                    },
+                },
+            },
+            "source": {
+                "kind": "verl_parquet",
+                "train_files": [str(train)],
+                "allow_plain_string_prompts": True,
+                "shuffle": False,
+                "use_task_rewards": True,
+            },
+            "rollout": {
+                "backend": "hf_cached",
+                "samples_per_prompt": 2,
+                "temperature": 1.0,
+                "max_turns": 1,
+                "max_new_tokens_per_turn": 3,
+                "max_total_tokens": 64,
+                "record_logprobs": True,
+            },
+            "selection": {"selector": "all_model_tokens"},
+            "loss": {
+                "mode": "verl_rl_policy",
+                "aggregation": "token-mean",
+                "scale_by_temperature_squared": False,
+                "chunk_size": 16,
+            },
+            "algorithm": {
+                "name": "ppo",
+                "implementation_version": ADVANTAGE_IMPLEMENTATION_VERSION,
+                "gamma": 0.9,
+                "lam": 0.8,
+            },
+            "critic": {"enabled": True, "learning_rate": 0.002},
+            "reward": {"enabled": True, "provider": "python_api"},
+            "train": {
+                "cycles": 2,
+                "rollouts_per_cycle": 1,
+                "gradient_accumulation_steps": 2,
+                "learning_rate": 0.001,
+            },
+            "memory": {"strategy": "resident"},
+            "eval": {"enabled": False},
+            "report": {"enabled": False},
+        }
+    )
+
+    seed_everything(29, deterministic=True)
+    reference = OPDTrainer.from_config(
+        config, run_id="ppo-reference", reward_provider=_SampleIndexReward()
+    )
+    try:
+        reference_result = reference.train()
+        reference_actor = _trainable_state(reference)
+        reference_critic = _critic_state(reference)
+        reference_critic_updates = reference.critic_update_count
+    finally:
+        reference.close()
+
+    seed_everything(29, deterministic=True)
+    interrupted = OPDTrainer.from_config(
+        config, run_id="ppo-interrupted", reward_provider=_SampleIndexReward()
+    )
+    interrupted.cycle = 0
+    interrupted._run_cycle()
+    interrupted.save_checkpoint(name="interrupt")
+    interrupted_root = interrupted.paths.root
+    interrupted.close()
+
+    resumed = OPDTrainer.from_config(
+        config, resume=interrupted_root, reward_provider=_SampleIndexReward()
+    )
+    try:
+        resumed_result = resumed.train()
+        resumed_actor = _trainable_state(resumed)
+        resumed_critic = _critic_state(resumed)
+        resumed_critic_updates = resumed.critic_update_count
+    finally:
+        resumed.close()
+
+    assert resumed_result.global_step == reference_result.global_step == 2
+    assert resumed_critic_updates == reference_critic_updates == 2
+    for name in reference_actor:
+        assert torch.equal(reference_actor[name], resumed_actor[name]), name
+    for name in reference_critic:
+        assert torch.equal(reference_critic[name], resumed_critic[name]), name
 
 
 def test_rl_checkpoint_resume_matches_uninterrupted_policy_and_group_progress(tmp_path) -> None:  # type: ignore[no-untyped-def]

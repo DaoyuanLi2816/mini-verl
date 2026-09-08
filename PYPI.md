@@ -24,9 +24,11 @@ GPU.** Give it a resolved verl-shaped config and Parquet prompts; its versioned
 compiler produces a reviewable local plan, executes actor/reference/teacher/
 reward roles in phases, and publishes portable PEFT and data artifacts.
 
-The current development line adds critic-free RL against official verl
-`v0.9.0` (`483b8a00`): GRPO, Dr.GRPO, RLOO and REINFORCE++, grouped rollouts,
-task rewards and fixed reference-policy KL. The established verl `v0.8.0` OPD
+The current development line covers PPO/GAE, GRPO, Dr.GRPO, RLOO and
+REINFORCE++ against official verl `v0.9.0` (`483b8a00`). PPO uses an independent
+trainable critic with its own optimizer and checkpoint state; actor KL, entropy
+regularization, grouped rollouts, task rewards and a pinned sequence-classifier
+reward role share the same provenance model. The established verl `v0.8.0` OPD
 profiles remain available for direct GKD and sampled-k1 distillation.
 
 PyPI `v0.12.0` is stable; `main` is development.
@@ -38,13 +40,13 @@ Install the CUDA-enabled PyTorch build that matches your machine, then:
 ```bash
 python -m pip install "miniverl[train,cuda]"
 miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
-  --config examples/verl-rl-v0.9-single-gpu.yaml --out local-grpo.yaml
-miniverl validate local-grpo.yaml
-miniverl train local-grpo.yaml --dry-run
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
+  --config examples/verl-rl-v0.9-single-gpu-ppo.yaml --out local-ppo.yaml
+miniverl validate local-ppo.yaml
+miniverl train local-ppo.yaml --dry-run
 ```
 
-The importer writes `local-grpo.import-report.json` beside the native recipe.
+The importer writes `local-ppo.import-report.json` beside the native recipe.
 It accounts for every accepted source field and records how distributed
 resource settings lower to one process and one device. Remove `--dry-run` to
 load the pinned Qwen3-0.6B actor and execute the two-iteration example.
@@ -71,23 +73,24 @@ maintainer-measured RTX 4080 environment.
 
 <picture>
   <source media="(max-width: 640px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime-mobile.svg">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime.svg" alt="A resolved verl config compiles into a validated single-GPU execution plan; actor, reference, teacher and reward roles execute in phases and produce portable artifacts plus a readiness report.">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime.svg" alt="A resolved verl config compiles into a validated single-GPU plan; actor, critic, reference, teacher and reward roles run in phases and produce portable artifacts plus a readiness report.">
 </picture>
 
-One GPU is treated as a temporal scheduler for logical roles. Critic-free RL
-generates complete prompt groups, scores outcomes, computes the pinned
-advantage estimator, optionally evaluates a frozen reference adapter, and then
-updates the actor. OPD uses the same trajectory and checkpoint foundations,
-with a teacher-scoring phase in place of outcome-only rewards.
+One GPU is treated as a temporal scheduler for logical roles. RL generates
+complete prompt groups, scores outcomes, evaluates optional reference and
+reward-model roles, computes the pinned advantage estimator, and updates the
+actor. PPO adds a separate critic phase with clipped value updates. OPD uses
+the same trajectory and checkpoint foundations, with teacher targets supplying
+the learning signal.
 
 ## Choose your path
 
 | Goal | First command | Primary artifact | Next step |
 | --- | --- | --- | --- |
-| **Run local RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 --config verl-rl.yaml --out local.yaml` | native recipe + compatibility report | [RL quickstart](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-rl-runtime.md) |
+| **Run local RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 --config verl-ppo.yaml --out local.yaml` | native recipe + compatibility report | [RL quickstart](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-rl-runtime.md) |
 | **Run local OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | immutable execution plan | [OPD quickstart](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/opd-quickstart.md) |
 | **Fit your GPU** | `miniverl plan --config verl-opd.yaml --probe` | measured placement plan | [Hardware planning](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/hardware-planning.md) |
-| **Hand off artifacts** | `miniverl export-verl --run runs/my-run --target-verl v0.8.0 --out scaleout` | PEFT + Parquet + config bundle | [Scale-out contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-opd-scaleout.md) |
+| **Hand off artifacts** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor, critic, Parquet + config bundle | [Compatibility contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md) |
 
 Native recipes also support SFT, DPO and offline KD, plus calculator, JSON
 navigation, read-only SQLite and custom tool environments.
@@ -96,16 +99,16 @@ navigation, read-only SQLite and custom tool environments.
 
 | Experiment surface | Local status | Contract |
 | --- | --- | --- |
+| PPO / GAE | semantically conformant | independent critic, clipped value loss, actor/critic exact resume |
 | GRPO / Dr.GRPO | semantically conformant | verl v0.9 group statistics and vanilla clipped policy loss |
 | RLOO / REINFORCE++ | semantically conformant | verl v0.9 advantage and masking rules |
 | Grouped `n > 1` rollouts | supported | complete groups, stable sample seeds and behavior-policy identity |
-| Task rewards | supported | exact-answer/target-length built-ins, environment verifier, or trusted Python API |
-| Fixed reference KL | locally lowered | frozen adapter role on the shared actor backbone |
+| Task rewards and trained RM | supported | built-ins, environment verifier, trusted Python API, or pinned HF sequence classifier |
+| Actor KL and entropy | semantically conformant | sampled-token reference KL and entropy regularization |
 | Direct GKD / sampled-k1 OPD | supported | pinned verl v0.8 profiles with teacher targets |
-| PPO / GAE execution | not implemented | math is conformance-tested; a trainable critic lifecycle is not yet present |
 | Ray, FSDP/FSDP2, Megatron, TP/PP/DP > 1 | distributed-only | these change physical scale, not the local objective |
 
-The generated [v0.9 compatibility record](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/generated/verl-rl-v0.9-compatibility.json)
+The generated [v0.9 PPO compatibility record](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/generated/verl-rl-v0.9-ppo-compatibility.json)
 binds every example field to its source value, local target, classification and
 compiler-rule digest. `miniverl import-verl` accepts a resolved documented
 subset, rejects unknown algorithm-changing fields, and never substitutes a

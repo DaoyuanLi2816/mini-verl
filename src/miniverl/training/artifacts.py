@@ -20,6 +20,7 @@ class ManifestFinalization:
 
     status: Literal["completed", "failed", "interrupted"]
     global_step: int
+    critic_update_count: int
     parameter_version: int
     policy_version: int
     cycles_completed: int
@@ -75,6 +76,8 @@ class RunArtifactRecorder:
                 "started_at": self.started_at,
                 "global_step": finalization.global_step,
                 "global_optimizer_step": finalization.global_step,
+                "actor_update_count": finalization.global_step,
+                "critic_update_count": finalization.critic_update_count,
                 "parameter_version": finalization.parameter_version,
                 "policy_version": finalization.policy_version,
                 "rollout_iteration": finalization.cycles_completed,

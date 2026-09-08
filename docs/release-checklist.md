@@ -9,6 +9,22 @@ after the exact release commit and its remote checks are green.
 - [x] Begin from the verified v0.12.0 release and advance only the canonical
       development state to `0.12.1.dev0`.
 
+## v0.13.0 development
+
+- [x] Add the immutable `verl-rl-v0.9-single-gpu-v2` PPO compiler while
+      preserving the released v1 bytes and field-rule digest.
+- [x] Implement independent critic construction, GAE, clipped value updates,
+      actor KL/entropy and transactional actor/critic checkpoints.
+- [x] Add the pinned Hugging Face sequence-classifier reward role and phased
+      device offload.
+- [x] Export actor, critic, Parquet and semantics toward pinned verl v0.9 with
+      explicit non-launchable and distributed-not-tested states.
+- [ ] Complete exact-wheel RTX 4080 full qualification and merge only after all
+      hosted checks pass.
+- [ ] Run the non-publishing release acceptance, publish the identical wheel and
+      sdist through OIDC, verify public hashes/attestations/install, and advance
+      main to `0.13.1.dev0`.
+
 ## v0.12.0 development
 
 - [x] Pin the critic-free RL compiler and conformance fixtures to upstream verl

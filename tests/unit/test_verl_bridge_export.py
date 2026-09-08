@@ -192,6 +192,131 @@ def test_export_preserves_available_source_values_without_claiming_schedule_pari
     assert placeholders["trainer.total_epochs"]["source_run_intent"] is False
 
 
+def test_export_rl_v09_preserves_ppo_semantics_and_critic_boundary(tmp_path: Path) -> None:
+    from miniverl.algorithms.contract import UPSTREAM_VERL_TAG
+    from miniverl.bridge.export import export_verl_bundle
+
+    run = _run(tmp_path)
+    config = {
+        "run": {
+            "name": "local-ppo",
+            "mode": "rl",
+            "seed": 41,
+            "profile_identity": {"profile_name": "verl-rl-v0.9-single-gpu-v2"},
+        },
+        "models": {
+            "backend": "hf",
+            "runtime": "shared_backbone",
+            "device": "cuda",
+            "student": {
+                "model_id": "Qwen/Qwen3-0.6B",
+                "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+                "tokenizer_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+                "lora": {
+                    "enabled": True,
+                    "r": 4,
+                    "alpha": 8,
+                    "target_modules": ["q_proj"],
+                },
+            },
+            "reference": {
+                "model_id": "Qwen/Qwen3-0.6B",
+                "revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+                "adapter": {"path": "reference-adapter", "source": "local"},
+            },
+        },
+        "source": {
+            "kind": "verl_parquet",
+            "train_files": [str(run / "data" / "train.parquet")],
+            "val_files": [str(run / "data" / "val.parquet")],
+            "prompt_key": "prompt",
+            "max_prompt_length": 96,
+            "max_response_length": 24,
+            "shuffle": False,
+            "seed": 41,
+            "use_task_rewards": True,
+        },
+        "rollout": {
+            "backend": "hf_cached",
+            "samples_per_prompt": 2,
+            "temperature": 0.8,
+            "top_p": 0.9,
+            "top_k": 20,
+            "record_logprobs": True,
+        },
+        "selection": {"selector": "all_model_tokens"},
+        "loss": {
+            "mode": "verl_rl_policy",
+            "aggregation": "token-mean",
+            "scale_by_temperature_squared": False,
+            "clip_ratio": 0.2,
+            "clip_ratio_low": 0.1,
+            "clip_ratio_high": 0.3,
+            "clip_ratio_c": 3.0,
+        },
+        "algorithm": {
+            "name": "ppo",
+            "implementation_version": "verl-v0.9-advantages-v1",
+            "gamma": 0.99,
+            "lam": 0.95,
+            "actor_ppo_epochs": 2,
+            "actor_kl_coef": 0.01,
+            "actor_kl_penalty": "low_var_kl",
+            "entropy_coeff": 0.002,
+            "cliprange_value": 0.2,
+        },
+        "critic": {"enabled": True, "learning_rate": 2e-5, "ppo_epochs": 2},
+        "reward": {"enabled": True, "provider": "exact_answer"},
+        "train": {
+            "cycles": 3,
+            "rollouts_per_cycle": 1,
+            "gradient_accumulation_steps": 2,
+            "trajectory_batch_size": 1,
+            "learning_rate": 1e-5,
+            "weight_decay": 0.01,
+            "warmup_steps": 1,
+            "save_every_cycles": 1,
+            "eval_every_cycles": 0,
+        },
+    }
+    (run / "config.resolved.yaml").write_text(
+        yaml.safe_dump(config, sort_keys=False), encoding="utf-8"
+    )
+    checkpoint = run / "checkpoints" / "final"
+    checkpoint.mkdir(parents=True)
+    (checkpoint / "critic.safetensors").write_bytes(_safetensors_bytes())
+    (checkpoint / "state.json").write_text(
+        json.dumps({"actor_update_count": 3, "critic_update_count": 3}),
+        encoding="utf-8",
+    )
+    out = tmp_path / "rl-export"
+
+    report = export_verl_bundle(run, target_verl=UPSTREAM_VERL_TAG, out=out)
+    overrides = yaml.safe_load((out / "recipe" / "verl-rl-overrides.yaml").read_text())
+    from miniverl.bridge.doctor import inspect_bridge_bundle
+
+    diagnosis = inspect_bridge_bundle(out)
+
+    assert report["profile"] == "verl-rl-v0.9-single-gpu-v2"
+    assert report["artifact_bundle_complete"] is True
+    assert report["algorithm_semantic_parity"] is True
+    assert report["launchable"] is False
+    assert report["distributed_execution_tested"] is False
+    assert report["checkpoint_portability"]["critic_weights"] == "bundled"
+    assert overrides["algorithm"]["adv_estimator"] == "gae"
+    assert overrides["actor_rollout_ref"]["actor"]["ppo_epochs"] == 2
+    assert overrides["critic"]["enable"] is True
+    assert overrides["critic"]["cliprange_value"] == pytest.approx(0.2)
+    assert (out / "critic" / "critic.safetensors").is_file()
+    assert (out / "recipe" / "launch.template.sh").is_file()
+    assert not (out / "recipe" / "launch.sh").exists()
+    assert diagnosis["verdict"] == "ok"
+    assert diagnosis["target_verl"]["tag"] == "v0.9.0"
+    assert diagnosis["config_profile"]["profile"] == "verl-rl-v0.9-single-gpu-v2"
+    assert diagnosis["critic_checkpoint"]["status"] == "ok"
+    assert diagnosis["launchable"] is False
+
+
 def test_current_reward_scaffold_can_never_report_ready_to_launch(tmp_path: Path) -> None:
     from miniverl.bridge.contract import VERL_TAG
     from miniverl.bridge.doctor import inspect_bridge_bundle

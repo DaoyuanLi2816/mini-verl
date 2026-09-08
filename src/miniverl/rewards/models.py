@@ -67,6 +67,7 @@ class RewardRequest(_FrozenModel):
     samples_per_prompt: int = Field(ge=1)
     row_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     response_text: str
+    prompt_text: str = ""
     reward_model: Any
     ground_truth: Any
     data_source: str = Field(min_length=1)
@@ -82,6 +83,7 @@ class RewardRequest(_FrozenModel):
         samples_per_prompt: int,
         row_digest: str,
         response_text: str,
+        prompt_text: str = "",
         reward_model: Any,
         ground_truth: Any,
         data_source: str,
@@ -93,6 +95,7 @@ class RewardRequest(_FrozenModel):
             "samples_per_prompt": samples_per_prompt,
             "row_digest": row_digest,
             "response_text": response_text,
+            "prompt_text": prompt_text,
             "reward_model": reward_model,
             "ground_truth": ground_truth,
             "data_source": data_source,

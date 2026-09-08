@@ -6,25 +6,26 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-09-08.
 
-Canonical release state: stable `v0.12.0` (`94216828ecab77d5f87a541563f5c2d8951d5a33`), development `0.12.1.dev0`.
+Canonical release state: stable `v0.12.0` (`94216828ecab77d5f87a541563f5c2d8951d5a33`), development `0.13.0.dev0`.
 
 ## Release state
 
 - Stable release: `v0.12.0` at `94216828ecab77d5f87a541563f5c2d8951d5a33`.
-- Development line: `0.12.1.dev0`.
+- Development line: `0.13.0.dev0`.
 - Stable docs: <https://daoyuanli2816.github.io/mini-verl/>.
 - Development docs: <https://daoyuanli2816.github.io/mini-verl/dev/>.
 - Historical build log: [v0.1-v0.9 archive](docs/history/project-state-v0.1-v0.9.md).
 
 ## Current product boundary
 
-Development `0.12.1.dev0` has a closed typed profile compiler and adds
-`verl-rl-v0.9-single-gpu-v1`, a typed resolved
-subset of official verl `v0.9.0` at commit
-`483b8a009ba3a97563edee3a19887e4862b8094a`. It compiles GRPO, Dr.GRPO, RLOO
-and REINFORCE++ experiments into grouped one-GPU actor/reward/reference phases,
-with behavior-policy identity, fixed reference reward KL, transactional resume
-and a machine-readable field report.
+Development `0.13.0.dev0` has a closed typed profile compiler: it retains the v1 critic-free contract and adds
+`verl-rl-v0.9-single-gpu-v2`, a typed resolved PPO subset of official verl
+`v0.9.0` at commit `483b8a009ba3a97563edee3a19887e4862b8094a`.
+It compiles PPO/GAE into phased one-GPU actor, critic, reference and reward
+roles. The critic is independently trainable and owns its optimizer, schedule,
+checkpoint state and exact-resume identity. The same release line connects
+actor KL, entropy regularization and a pinned Hugging Face sequence-classifier
+reward provider.
 
 The established `verl-opd-v0.8-single-gpu-v1` family remains the teacher-based
 distillation path. It targets official verl `v0.8.0` at
@@ -52,12 +53,12 @@ Releases use a canonical, explicit evidence layout with four principal JSON
 records and one deterministic subordinate-evidence archive; historical v0.10.1
 asset names remain immutable.
 
-PPO/GAE execution remains unimplemented because the runtime has no trainable
-critic model/optimizer/checkpoint lifecycle; its mathematical primitives are
-conformance-tested. Ray, FSDP/FSDP2, Megatron, multi-GPU and multi-node
-execution are distributed-only. Arbitrary unresolved verl YAML and unknown
+The v0.9 export path preserves actor, critic, Parquet, recipe and provenance
+artifacts in a checksummed bundle. Its launch template stays inactive because
+miniVERL does not translate local optimizer state into upstream distributed
+checkpoints or run Ray/FSDP. Arbitrary unresolved verl YAML and unknown
 algorithm-changing fields remain outside the versioned compiler. The legacy
-environment/PPO artifact bridge is migration-only.
+v0.8 environment/PPO artifact bridge is migration-only.
 
 ## Current evidence
 
