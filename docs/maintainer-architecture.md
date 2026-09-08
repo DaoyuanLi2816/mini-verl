@@ -19,11 +19,12 @@ using their contents.
 
 ## Logical roles and physical placement
 
-Actor, teacher, reference, reward and future critic are distinct logical
+Actor, teacher, reference, reward and critic are distinct logical
 identities. Rollout generates with the current actor policy. OPD teacher
 scoring observes only visited positions; RL reward providers consume ordered
 trajectory identities; reference KL evaluates a frozen adapter before the
-actor is restored for update. Physical placement may be resident phased
+actor is restored for update. `PPOPhaseRuntime` owns old-value scoring and
+independent clipped critic updates. Physical placement may be resident phased
 models, an allowed unquantized swap, or a shared backbone with separate
 adapters. Quantized swap remains illegal.
 

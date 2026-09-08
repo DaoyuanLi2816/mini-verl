@@ -44,15 +44,16 @@ name.
 
 ## Which profile should I use?
 
-For critic-free RL, start with:
+For PPO, start with:
 
 ```bash
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
-  --config examples/verl-rl-v0.9-single-gpu.yaml --out local-grpo.yaml
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
+  --config examples/verl-rl-v0.9-single-gpu-ppo.yaml --out local-ppo.yaml
 ```
 
-It supports GRPO, Dr.GRPO, RLOO and REINFORCE++ against the pinned verl v0.9
-contract; read [Single-GPU verl RL](../verl-rl-runtime.md).
+It supports PPO/GAE with an independent critic against the pinned verl v0.9
+contract. The v1 profile remains available for GRPO, Dr.GRPO, RLOO and
+REINFORCE++; read [Single-GPU verl RL](../verl-rl-runtime.md).
 
 | Profile | Objective | Teacher target | Trade-off | Status |
 | --- | --- | --- | --- | --- |

@@ -1,22 +1,22 @@
 {
   "schema_version": 2,
-  "release": "0.12.0",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.12.0",
+  "release": "0.13.0",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.13.0",
   "local_validation": {
     "scope": "the maintainer's workstation, including Windows CUDA and network paths plus the exact official verl v0.9 checkout",
-    "commit": "b62436207dea666b6a5bd08e48655876c3999377",
-    "commit_relationship": "implementation and qualification-metadata hotfix commit; the following release commit changes versioned release metadata and this candidate record only",
-    "measured_at": "2026-09-08T06:06:12Z",
+    "commit": "afc37083152de7e90b71a61c4d0fe9b75fcd2c9d",
+    "commit_relationship": "implementation commit; subsequent candidate commits change version metadata and core-only test selection, not runtime semantics",
+    "measured_at": "2026-09-08T10:10:00Z",
     "platform": "Windows 11",
     "python": "CPython 3.10 for coverage, local CUDA tests and network tests",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2572,
-      "skipped": 10,
+      "passed": 2585,
+      "skipped": 14,
       "deselected": 24,
       "branch_coverage_percent": 83.0,
-      "skip_reason": "ten Windows platform or privilege skips; pinned verl v0.9 conformance executed from the exact checkout"
+      "skip_reason": "fourteen Windows platform or privilege skips; pinned verl v0.9 conformance executed separately from the exact checkout"
     },
     "gpu": {
       "passed": 10,
@@ -27,26 +27,26 @@
     }
   },
   "release_validation": {
-    "scope": "the exact v0.12.0 release commit",
-    "commit": "94216828ecab77d5f87a541563f5c2d8951d5a33",
+    "scope": "the exact v0.13.0 release commit",
+    "commit": "pending",
     "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34193726077",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34193726069",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34198700305",
-      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34198700339",
-      "gpu_full_qualification": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34193785555",
-      "release_dry_run": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34197998778",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34198700279"
+      "ci": "pending",
+      "build": "pending",
+      "docs": "pending",
+      "pinned_verl_bridge": "pending",
+      "gpu_full_qualification": "pending",
+      "release_dry_run": "pending",
+      "release": "pending"
     },
-    "conclusion": "passed",
-    "gpu_coverage": "attempt-1 full qualification of the exact release wheel on one WSL2 RTX 4080; 16 GRPO trajectories and two finite parameter-changing updates passed alongside the v0.11 regression matrix",
+    "conclusion": "pending",
+    "gpu_coverage": "pending exact-SHA attempt-1 full qualification on the WSL2 RTX 4080 runner",
     "publication": {
-      "pypi": "https://pypi.org/project/miniverl/0.12.0/",
-      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.12.0",
-      "documentation": "https://daoyuanli2816.github.io/mini-verl/",
-      "immutable_documentation_build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34198700305",
-      "wheel_sha256": "41a7d59b792b977bc4d81d644fc4429e303493b3c4417a6c213c68ad7b0b345f",
-      "sdist_sha256": "38b6f77f27e3986867b5d453c684f7a7b15205809643cfc8470a45e02e3e84ff"
+      "pypi": "pending",
+      "github_release": "pending",
+      "documentation": "pending",
+      "immutable_documentation_build": "pending",
+      "wheel_sha256": "pending",
+      "sdist_sha256": "pending"
     }
   }
 }

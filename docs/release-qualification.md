@@ -10,7 +10,7 @@ workflow is manual, not continuous GPU CI and not a pull-request required check.
 | level | cadence | executed scope |
 | --- | --- | --- |
 | release smoke | diagnostic use | install the hosted-runner candidate wheel, verify import/CLI origin, run CLI doctor/plan/dry-run, pinned Qwen actor and teacher, one rollout/score/update, PEFT export/reload and CUDA teardown |
-| full qualification | every formal release | release smoke, the three canonical resume workloads, the v0.11 rollout-backend matrix, and the v0.12 pinned-v0.9 GRPO workload |
+| full qualification | every formal release | release smoke, the canonical resume workloads, the v0.11 rollout-backend matrix, v0.12 GRPO, and v0.13 PPO/RM evidence |
 
 The smoke budget is intentionally small and is never substituted for a frozen
 full workload or a scientific benchmark. Both levels record runtime
@@ -49,6 +49,13 @@ must vary within at least one prompt group, produce nonzero advantages, commit
 two parameter-changing updates, remain below 14.5 GiB peak reserved memory and
 retain the runtime-only scientific scope.
 
+For v0.13 and later, promotion additionally requires the v2 PPO compiler,
+two Qwen3-0.6B actor updates, two independent critic updates, nontrivial GAE
+advantages and returns, complete actor/critic checkpoints, and tensor-exact
+interruption/resume for both roles. The same record exercises a pinned
+DistilBERT sequence-classifier reward role with deterministic nonconstant
+scores and post-phase CPU offload, plus a locally diagnosed v0.9 handoff bundle.
+
 Every dispatch is single-use. Both jobs reject `GITHUB_RUN_ATTEMPT` values
 other than `1`; if infrastructure fails, start a new `workflow_dispatch`
 instead of using GitHub's rerun button. This prevents a hosted candidate from
@@ -65,7 +72,8 @@ authorization, proxy authorization and cookies. It publishes the accepted
 wheel and sdist without rebuilding them. Future release runs retain the full
 qualification record, four principal workload JSON files and a deterministic
 subordinate-evidence archive. For v0.11, that archive also contains the three
-profile/backend qualification records; v0.12 adds the RL qualification record.
+profile/backend qualification records; v0.12 adds the critic-free RL record and
+v0.13 adds the PPO/RM/handoff record.
 A committed
 JSON file, manual upload, fork run, different workflow or cross-run artifact
 pair cannot satisfy this gate.

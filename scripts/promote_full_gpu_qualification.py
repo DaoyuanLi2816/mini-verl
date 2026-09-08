@@ -1,4 +1,4 @@
-"""Bind the three canonical full workloads into a strict qualification artifact."""
+"""Bind the canonical GPU workloads into a strict qualification artifact."""
 
 from __future__ import annotations
 
@@ -35,6 +35,13 @@ _V012_CHECKS = (
     "v012_pinned_verl_v09_compiler",
     "v012_grpo_nonconstant_reward_update",
     "v012_exact_wheel_rl_runtime",
+)
+_V013_CHECKS = (
+    "v013_pinned_verl_v09_ppo_compiler",
+    "v013_independent_actor_critic_updates",
+    "v013_exact_actor_critic_resume",
+    "v013_trained_reward_model",
+    "v013_exact_wheel_ppo_runtime",
 )
 _MAX_GPU_MEMORY_MIB = 14.5 * 1024
 _PREREGISTRATION_SHA256 = "8cc3ba738c69b59ed19c22c1de874fd00249404198a3e05983477dc8899bb7e5"
@@ -103,6 +110,162 @@ def _is_v012(version: str) -> bool:
         return (int(match[0]), int(match[1])) >= (0, 12)
     except (IndexError, ValueError):
         return False
+
+
+def _is_v013(version: str) -> bool:
+    match = version.split(".", 2)
+    try:
+        return (int(match[0]), int(match[1])) >= (0, 13)
+    except (IndexError, ValueError):
+        return False
+
+
+def _validate_digest_change(
+    workload: dict[str, Any], *, before: str, after: str, role: str
+) -> None:
+    initial = workload.get(before)
+    final = workload.get(after)
+    if (
+        not isinstance(initial, str)
+        or not isinstance(final, str)
+        or len(initial) != 64
+        or len(final) != 64
+        or initial == final
+    ):
+        raise ValueError(f"v0.13 PPO: {role} parameters did not change")
+
+
+def _validate_v013_ppo(payload: dict[str, Any], qualification: GPUQualification) -> None:
+    if payload.get("schema_version") != 1 or payload.get("status") != "passed":
+        raise ValueError("v0.13 PPO: unsupported schema or failed status")
+    if payload.get("kind") != "miniverl_v013_ppo_qualification":
+        raise ValueError("v0.13 PPO: unexpected evidence kind")
+    if payload.get("source_commit") != qualification.source_commit:
+        raise ValueError("v0.13 PPO: source commit does not match release smoke")
+    if payload.get("miniverl_version") != qualification.miniverl_version:
+        raise ValueError("v0.13 PPO: miniVERL version does not match release smoke")
+    if payload.get("wheel_sha256") != qualification.wheel.sha256:
+        raise ValueError("v0.13 PPO: wheel binding does not match release smoke")
+    hardware = payload.get("hardware") or {}
+    if hardware.get("gpu") != qualification.environment.gpu_name or hardware.get("gpu_count") != 1:
+        raise ValueError("v0.13 PPO: hardware does not match release smoke")
+    if "microsoft" not in str(hardware.get("platform", "")).lower():
+        raise ValueError("v0.13 PPO: execution was not measured under WSL2")
+    for field, expected in (
+        ("python", qualification.environment.python),
+        ("cuda_runtime", qualification.environment.cuda_runtime),
+        ("driver", qualification.environment.driver),
+        ("packages", qualification.environment.packages),
+    ):
+        if hardware.get(field) != expected:
+            raise ValueError(f"v0.13 PPO: environment {field} does not match release smoke")
+    upstream = payload.get("upstream") or {}
+    if (
+        upstream.get("tag") != "v0.9.0"
+        or upstream.get("commit") != "483b8a009ba3a97563edee3a19887e4862b8094a"
+        or upstream.get("profile") != "verl-rl-v0.9-single-gpu-v2"
+        or upstream.get("compiler_status") != "accepted"
+        or not isinstance(upstream.get("generated_recipe_sha256"), str)
+        or len(upstream["generated_recipe_sha256"]) != 64
+    ):
+        raise ValueError("v0.13 PPO: pinned v0.9 PPO compiler evidence did not pass")
+    workload = payload.get("workload") or {}
+    if (
+        workload.get("model_id") != "Qwen/Qwen3-0.6B"
+        or workload.get("model_revision") != "c1899de289a04d12100db370d81485cdf75e47ca"
+        or workload.get("algorithm") != "ppo"
+        or workload.get("reward_provider") != "builtin_target_length"
+        or workload.get("cycles") != 2
+        or workload.get("prompts_per_cycle") != 2
+        or workload.get("samples_per_prompt") != 2
+        or workload.get("trajectories") != 8
+        or workload.get("rewards") != 8
+        or workload.get("actor_updates") != 2
+        or workload.get("critic_updates") != 2
+    ):
+        raise ValueError("v0.13 PPO: workload shape or update counts are incomplete")
+    if float(workload.get("max_absolute_advantage", 0.0)) <= 0.0:
+        raise ValueError("v0.13 PPO: nonzero GAE advantages were not measured")
+    if float(workload.get("return_max", 0.0)) <= float(workload.get("return_min", 0.0)):
+        raise ValueError("v0.13 PPO: nonconstant returns were not measured")
+    for field in ("actor_losses", "critic_losses"):
+        losses = workload.get(field) or []
+        if len(losses) != 2 or any(not math.isfinite(float(value)) for value in losses):
+            raise ValueError(f"v0.13 PPO: {field} are incomplete or non-finite")
+    _validate_digest_change(
+        workload,
+        before="initial_actor_state_sha256",
+        after="actor_state_sha256",
+        role="actor",
+    )
+    _validate_digest_change(
+        workload,
+        before="initial_critic_state_sha256",
+        after="critic_state_sha256",
+        role="critic",
+    )
+    checkpoint = workload.get("checkpoint_sha256") or {}
+    required_checkpoint = {
+        "adapter.safetensors",
+        "optimizer.safetensors",
+        "critic.safetensors",
+        "critic-optimizer.safetensors",
+        "state.json",
+        "checkpoint.json",
+    }
+    if set(checkpoint) != required_checkpoint or any(
+        not isinstance(digest, str) or len(digest) != 64 for digest in checkpoint.values()
+    ):
+        raise ValueError("v0.13 PPO: final actor/critic checkpoint is incomplete")
+    resume = payload.get("resume") or {}
+    if (
+        resume.get("status") != "exact_match"
+        or resume.get("actor_tensor_digest_identical") is not True
+        or resume.get("critic_tensor_digest_identical") is not True
+        or resume.get("actor_update_count") != 2
+        or resume.get("critic_update_count") != 2
+    ):
+        raise ValueError("v0.13 PPO: exact actor/critic resume evidence did not pass")
+    rm = payload.get("trained_reward_model") or {}
+    identity = rm.get("identity") or {}
+    if (
+        rm.get("model_id") != "distilbert/distilbert-base-uncased-finetuned-sst-2-english"
+        or rm.get("revision") != "714eb0fa89d2f80546fda750413ed43d93601a13"
+        or identity.get("name") != "hf_sequence_classifier"
+        or rm.get("deterministic_repeat") is not True
+        or rm.get("offloaded_after_phase") is not True
+        or len(rm.get("scores") or []) != 2
+        or float(rm["scores"][0]) == float(rm["scores"][1])
+        or not math.isfinite(float(rm.get("peak_reserved_gib", math.inf)))
+    ):
+        raise ValueError("v0.13 PPO: trained reward-model evidence did not pass")
+    handoff = payload.get("handoff") or {}
+    if (
+        handoff.get("profile") != "verl-rl-v0.9-single-gpu-v2"
+        or handoff.get("artifact_bundle_complete") is not True
+        or handoff.get("critic_checkpoint_verified") is not True
+        or handoff.get("launchable") is not False
+        or handoff.get("distributed_execution_tested") is not False
+        or handoff.get("algorithm_semantic_parity") is not True
+        or not isinstance(handoff.get("adapter_manifest_sha256"), str)
+        or len(handoff["adapter_manifest_sha256"]) != 64
+        or not isinstance(handoff.get("bundle_sha256s_sha256"), str)
+        or len(handoff["bundle_sha256s_sha256"]) != 64
+    ):
+        raise ValueError("v0.13 PPO: v0.9 handoff evidence did not pass")
+    resource = payload.get("resource_contract") or {}
+    if (
+        resource.get("peak_reserved_within_limit") is not True
+        or float(resource.get("peak_reserved_gib", math.inf)) > 14.5
+    ):
+        raise ValueError("v0.13 PPO: VRAM resource contract did not pass")
+    scope = payload.get("scientific_scope") or {}
+    if (
+        scope.get("runtime_correctness_only") is not True
+        or scope.get("task_quality_evaluated") is not False
+        or scope.get("distributed_execution_tested") is not False
+    ):
+        raise ValueError("v0.13 PPO: scientific scope is not fail-closed")
 
 
 def _validate_v012_rl(payload: dict[str, Any], qualification: GPUQualification) -> None:
@@ -391,6 +554,7 @@ def promote(
     vllm_runtime: Path | None = None,
     hf_reference: Path | None = None,
     v012_rl: Path | None = None,
+    v013_ppo: Path | None = None,
 ) -> GPUQualification:
     problems = validate_qualification_file(qualification_path)
     if problems:
@@ -427,6 +591,12 @@ def promote(
             raise ValueError("v0.12 full qualification requires RL evidence")
         _validate_v012_rl(_load(v012_rl), qualification)
         v012_sources = {"v012_rl": v012_rl}
+    v013_sources: dict[str, Path] = {}
+    if _is_v013(qualification.miniverl_version):
+        if v013_ppo is None:
+            raise ValueError("v0.13 full qualification requires PPO evidence")
+        _validate_v013_ppo(_load(v013_ppo), qualification)
+        v013_sources = {"v013_ppo": v013_ppo}
 
     root = qualification_path.parent
     destination = root / "full"
@@ -443,6 +613,10 @@ def promote(
         shutil.copy2(source, target)
         additions.append((f"full_{name}_result", target))
     for name, source in v012_sources.items():
+        target = destination / f"{name.replace('_', '-')}.json"
+        shutil.copy2(source, target)
+        additions.append((f"full_{name}_result", target))
+    for name, source in v013_sources.items():
         target = destination / f"{name.replace('_', '-')}.json"
         shutil.copy2(source, target)
         additions.append((f"full_{name}_result", target))
@@ -468,6 +642,8 @@ def promote(
         payload["checks"]["executed"].extend(_V011_CHECKS)
     if v012_sources:
         payload["checks"]["executed"].extend(_V012_CHECKS)
+    if v013_sources:
+        payload["checks"]["executed"].extend(_V013_CHECKS)
     promoted = GPUQualification.model_validate(payload)
     write_json_atomic(qualification_path, promoted.model_dump(mode="json"))
     final_problems = validate_qualification_file(qualification_path)
@@ -487,6 +663,7 @@ def main() -> int:
     parser.add_argument("--vllm-runtime", type=Path)
     parser.add_argument("--hf-reference", type=Path)
     parser.add_argument("--v012-rl", type=Path)
+    parser.add_argument("--v013-ppo", type=Path)
     args = parser.parse_args()
     promoted = promote(
         args.qualification,
@@ -498,6 +675,7 @@ def main() -> int:
         vllm_runtime=args.vllm_runtime,
         hf_reference=args.hf_reference,
         v012_rl=args.v012_rl,
+        v013_ppo=args.v013_ppo,
     )
     print(json.dumps(promoted.model_dump(mode="json"), sort_keys=True, allow_nan=False))
     return 0

@@ -252,3 +252,127 @@ def test_batch_reward_results_must_match_request_order_and_provider() -> None:
 
     with pytest.raises(ConfigError, match="identity does not match"):
         score_reward_requests(MisboundProvider(), [request])
+
+
+@pytest.mark.torch
+def test_hf_reward_model_scores_batches_with_pinned_identity() -> None:
+    import torch
+
+    from miniverl.config import RewardModelConfig
+    from miniverl.rewards import HFSequenceClassifierRewardProvider, RewardRequest
+
+    class Tokenizer:
+        def __call__(self, prompts, responses, **kwargs):  # type: ignore[no-untyped-def]
+            assert kwargs["padding"] is True
+            values = [
+                [len(prompt), len(response)]
+                for prompt, response in zip(prompts, responses, strict=True)
+            ]
+            return {"input_ids": torch.tensor(values)}
+
+    class Model:
+        def __call__(self, *, input_ids):  # type: ignore[no-untyped-def]
+            from types import SimpleNamespace
+
+            return SimpleNamespace(
+                logits=torch.stack((-input_ids[:, 1], input_ids[:, 1]), dim=-1).float()
+            )
+
+        def to(self, _device):  # type: ignore[no-untyped-def]
+            return self
+
+    config = RewardModelConfig(
+        model_id="org/reward-model",
+        revision="a" * 40,
+        batch_size=2,
+    )
+    provider = HFSequenceClassifierRewardProvider(
+        config, tokenizer=Tokenizer(), model=Model(), device="cpu"
+    )
+    requests = [
+        RewardRequest.create(
+            trajectory_id=f"t{index}",
+            prompt_group_id="g",
+            sample_index=index,
+            samples_per_prompt=2,
+            row_digest="1" * 64,
+            prompt_text="prompt",
+            response_text="x" * (index + 1),
+            reward_model={},
+            ground_truth=None,
+            data_source="unit",
+        )
+        for index in range(2)
+    ]
+
+    results = provider.score_batch(requests)
+    provider.to_device("cpu")
+    provider.release()
+
+    assert len(results) == 2
+    assert results[1].raw_reward > results[0].raw_reward
+    assert provider.identity.name == "hf_sequence_classifier"
+    assert provider.identity.deterministic is True
+    assert all(result.provider == provider.identity for result in results)
+    assert provider.device == "cpu"
+
+
+def test_hf_reward_model_config_is_explicit_and_provider_bound() -> None:
+    from miniverl.config import RunConfig
+
+    payload = {
+        "run": {"mode": "rl"},
+        "models": {
+            "backend": "toy",
+            "device": "cpu",
+            "student": {"model_id": "actor", "lora": {"enabled": False}},
+        },
+        "source": {
+            "kind": "verl_parquet",
+            "train_files": ["train.parquet"],
+            "use_task_rewards": True,
+        },
+        "rollout": {
+            "backend": "hf_cached",
+            "samples_per_prompt": 2,
+            "temperature": 1.0,
+            "record_logprobs": True,
+        },
+        "selection": {"selector": "all_model_tokens"},
+        "loss": {
+            "mode": "verl_rl_policy",
+            "aggregation": "token-mean",
+            "scale_by_temperature_squared": False,
+        },
+        "algorithm": {
+            "name": "grpo",
+            "implementation_version": "verl-v0.9-advantages-v1",
+        },
+        "reward": {
+            "enabled": True,
+            "provider": "hf_sequence_classifier",
+            "model": {"model_id": "org/rm", "revision": "b" * 40},
+        },
+        "train": {"cycles": 1, "rollouts_per_cycle": 1},
+        "eval": {"enabled": False},
+    }
+
+    config = RunConfig.model_validate(payload)
+
+    assert config.reward.model is not None
+    assert config.reward.model.revision == "b" * 40
+
+
+def test_hf_reward_model_requires_immutable_revisions() -> None:
+    from pydantic import ValidationError
+
+    from miniverl.config import RewardModelConfig
+
+    with pytest.raises(ValidationError, match="revision"):
+        RewardModelConfig(model_id="org/rm", revision="main")
+    with pytest.raises(ValidationError, match="tokenizer_revision"):
+        RewardModelConfig(
+            model_id="org/rm",
+            revision="a" * 40,
+            tokenizer_revision="latest",
+        )

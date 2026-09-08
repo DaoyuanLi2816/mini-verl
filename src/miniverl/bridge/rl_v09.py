@@ -32,11 +32,13 @@ from miniverl.utils.privacy import portable_payload
 
 __all__ = [
     "VERL_RL_V09_PROFILE",
+    "VERL_RL_V09_PPO_PROFILE",
     "publish_imported_verl_rl_v09",
     "rl_v09_field_rules_digest",
 ]
 
 VERL_RL_V09_PROFILE: Final = "verl-rl-v0.9-single-gpu-v1"
+VERL_RL_V09_PPO_PROFILE: Final = "verl-rl-v0.9-single-gpu-v2"
 VERL_REPOSITORY: Final = "https://github.com/verl-project/verl"
 
 FieldClassification = Literal[
@@ -58,7 +60,7 @@ def _rule(
     return target, classification, reason
 
 
-_RULES: dict[str, tuple[str | None, FieldClassification, str]] = {
+_RULES_V1: dict[str, tuple[str | None, FieldClassification, str]] = {
     "data.train_files": _rule("source.train_files", "exact", "same Parquet inputs"),
     "data.val_files": _rule("source.val_files", "exact", "same Parquet inputs"),
     "data.prompt_key": _rule("source.prompt_key", "exact", "same Parquet column"),
@@ -223,6 +225,86 @@ _RULES: dict[str, tuple[str | None, FieldClassification, str]] = {
     ),
 }
 
+_RULES_V2 = dict(_RULES_V1)
+_RULES_V2.update(
+    {
+        "actor_rollout_ref.actor.ppo_epochs": _rule(
+            "algorithm.actor_ppo_epochs", "exact", "same actor passes over each rollout batch"
+        ),
+        "actor_rollout_ref.actor.use_kl_loss": _rule(
+            "algorithm.actor_kl_coef", "semantically_conformant", "same sampled-token actor KL"
+        ),
+        "actor_rollout_ref.actor.kl_loss_coef": _rule(
+            "algorithm.actor_kl_coef", "exact", "same actor-loss KL coefficient"
+        ),
+        "actor_rollout_ref.actor.kl_loss_type": _rule(
+            "algorithm.actor_kl_penalty", "semantically_conformant", "same pinned KL estimator"
+        ),
+        "actor_rollout_ref.actor.entropy_coeff": _rule(
+            "algorithm.entropy_coeff", "exact", "same token-mean entropy regularization"
+        ),
+        "critic.enable": _rule("critic.enabled", "exact", "explicit trainable value role"),
+        "critic.model.path": _rule(
+            "critic independent backbone", "semantically_conformant", "same pretrained identity"
+        ),
+        "critic.optim.lr": _rule("critic.learning_rate", "exact", "same optimizer learning rate"),
+        "critic.optim.weight_decay": _rule(
+            "critic.weight_decay", "exact", "same optimizer coefficient"
+        ),
+        "critic.optim.lr_warmup_steps": _rule(
+            "critic.warmup_steps", "exact", "same critic optimizer-step count"
+        ),
+        "critic.ppo_mini_batch_size": _rule(
+            "train.gradient_accumulation_steps",
+            "semantically_conformant",
+            "same logical minibatch; physical microbatching remains independent",
+        ),
+        "critic.ppo_epochs": _rule(
+            "critic.ppo_epochs", "exact", "same critic passes over each rollout batch"
+        ),
+        "critic.cliprange_value": _rule(
+            "algorithm.cliprange_value", "exact", "same old-value clipping interval"
+        ),
+        "miniverl.critic.lora_enabled": _rule(
+            "critic independent backbone",
+            "semantically_conformant",
+            "same explicit PEFT parameterization as the actor",
+        ),
+        "reward_model.enable": _rule(
+            "reward.provider", "semantically_conformant", "enables the trained local reward role"
+        ),
+        "reward_model.model.path": _rule(
+            "reward.model.model_id", "exact", "same trained reward-model identity"
+        ),
+        "reward_model.model.trust_remote_code": _rule(
+            "reward.model.trust_remote_code", "exact", "same explicit code-trust choice"
+        ),
+        "miniverl.reward.revision": _rule(
+            "reward.model.revision", "exact", "immutable reward-model snapshot"
+        ),
+        "miniverl.reward.tokenizer_revision": _rule(
+            "reward.model.tokenizer_revision", "exact", "immutable reward tokenizer snapshot"
+        ),
+        "miniverl.reward.positive_class_index": _rule(
+            "reward.model.positive_class_index", "exact", "same selected reward label"
+        ),
+        "miniverl.reward.max_length": _rule(
+            "reward.model.max_length", "locally_lowered", "local deterministic token bound"
+        ),
+        "miniverl.reward.batch_size": _rule(
+            "reward.model.batch_size", "locally_lowered", "physical one-GPU inference batch"
+        ),
+        "miniverl.reward.timeout_seconds": _rule(
+            "reward.model.timeout_seconds", "locally_lowered", "local fail-closed timeout"
+        ),
+        "miniverl.reward.offload_between_phases": _rule(
+            "reward.model.offload_between_phases",
+            "locally_lowered",
+            "single-GPU temporal reward-role placement",
+        ),
+    }
+)
+
 
 def _canonical_digest(value: Any) -> str:
     import json
@@ -231,13 +313,24 @@ def _canonical_digest(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def rl_v09_field_rules_digest() -> str:
+def rl_v09_field_rules_digest(profile: str = VERL_RL_V09_PROFILE) -> str:
+    rules = _rules_for_profile(profile)
     return _canonical_digest(
         [
             {"field": field, "target": target, "classification": kind, "reason": reason}
-            for field, (target, kind, reason) in sorted(_RULES.items())
+            for field, (target, kind, reason) in sorted(rules.items())
         ]
     )
+
+
+def _rules_for_profile(
+    profile: str,
+) -> dict[str, tuple[str | None, FieldClassification, str]]:
+    if profile == VERL_RL_V09_PROFILE:
+        return _RULES_V1
+    if profile == VERL_RL_V09_PPO_PROFILE:
+        return _RULES_V2
+    raise ConfigError(f"unknown verl v0.9 RL compiler profile {profile!r}")
 
 
 def _flatten(value: Mapping[str, Any], prefix: str = "") -> dict[str, Any]:
@@ -311,7 +404,12 @@ def _list(value: Any, field: str) -> list[str]:
     return values
 
 
-def _classify(flat: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+def _classify(
+    flat: Mapping[str, Any],
+    *,
+    profile: str,
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    rules = _rules_for_profile(profile)
     rows: list[dict[str, Any]] = []
     unsupported: list[str] = []
     unresolved: list[str] = []
@@ -322,7 +420,7 @@ def _classify(flat: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str],
         "algorithm.norm_adv_by_std_in_grpo": "grpo",
     }
     for field, value in sorted(flat.items()):
-        rule = _RULES.get(field)
+        rule = rules.get(field)
         if rule is None:
             target, kind, reason = None, "unsupported", "outside the versioned resolved subset"
             unsupported.append(field)
@@ -362,7 +460,7 @@ def _classify(flat: Mapping[str, Any]) -> tuple[list[dict[str, Any]], list[str],
     return rows, unsupported, unresolved
 
 
-def _algorithm(source: Mapping[str, Any]) -> str:
+def _algorithm(source: Mapping[str, Any], *, profile: str) -> str:
     estimator = str(_get(source, "algorithm.adv_estimator"))
     if estimator == "grpo":
         normalize = _bool(
@@ -372,6 +470,8 @@ def _algorithm(source: Mapping[str, Any]) -> str:
         return "grpo" if normalize else "dr_grpo"
     if estimator in {"rloo", "reinforce_plus_plus"}:
         return estimator
+    if estimator == "gae" and profile == VERL_RL_V09_PPO_PROFILE:
+        return "ppo"
     reason = (
         "PPO/GAE needs a critic lifecycle that miniVERL does not yet implement"
         if estimator == "gae"
@@ -380,7 +480,7 @@ def _algorithm(source: Mapping[str, Any]) -> str:
     raise ConfigError(reason)
 
 
-def _required_inputs(source: Mapping[str, Any]) -> list[dict[str, str]]:
+def _required_inputs(source: Mapping[str, Any], *, profile: str) -> list[dict[str, str]]:
     required: list[dict[str, str]] = []
     if _get(source, "trainer.total_training_steps", None) is None:
         required.append(
@@ -396,6 +496,17 @@ def _required_inputs(source: Mapping[str, Any]) -> list[dict[str, str]]:
                 "reason": "the source must name a trusted local reward implementation",
             }
         )
+    elif (
+        profile == VERL_RL_V09_PPO_PROFILE
+        and _get(source, "miniverl.reward.provider", None) == "hf_sequence_classifier"
+    ):
+        for field, reason in (
+            ("reward_model.enable", "the trained reward role must be enabled explicitly"),
+            ("reward_model.model.path", "the trained reward-model identity is required"),
+            ("miniverl.reward.revision", "the reward model must use an immutable revision"),
+        ):
+            if _get(source, field, None) is None:
+                required.append({"field": field, "reason": reason})
     if _get(source, "miniverl.actor.lora_enabled", None) is None:
         required.append(
             {
@@ -405,43 +516,67 @@ def _required_inputs(source: Mapping[str, Any]) -> list[dict[str, str]]:
         )
     if (
         _get(source, "algorithm.use_kl_in_reward", False) is True
-        and _get(source, "miniverl.reference.adapter_path", None) is None
-    ):
+        or (
+            profile == VERL_RL_V09_PPO_PROFILE
+            and _get(source, "actor_rollout_ref.actor.use_kl_loss", False) is True
+        )
+    ) and _get(source, "miniverl.reference.adapter_path", None) is None:
         required.append(
             {
                 "field": "miniverl.reference.adapter_path",
                 "reason": "reference KL needs an explicit frozen reference-policy adapter",
             }
         )
+    if (
+        profile == VERL_RL_V09_PPO_PROFILE
+        and _get(source, "algorithm.adv_estimator", None) == "gae"
+    ):
+        for field, reason in (
+            ("critic.enable", "PPO requires an explicit trainable critic role"),
+            ("critic.model.path", "PPO requires an explicit critic checkpoint identity"),
+            (
+                "miniverl.critic.lora_enabled",
+                "the local critic parameterization must be chosen explicitly",
+            ),
+        ):
+            if _get(source, field, None) is None:
+                required.append({"field": field, "reason": reason})
     return required
 
 
-def _recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    algorithm = _algorithm(source)
+def _recipe(
+    source: Mapping[str, Any], *, profile: str
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    algorithm = _algorithm(source, profile=profile)
     use_kl_in_reward = _bool(
         _get(source, "algorithm.use_kl_in_reward", False), "algorithm.use_kl_in_reward"
     )
-    if not use_kl_in_reward and _get(source, "miniverl.reference.adapter_path", None) is not None:
-        raise ConfigError("miniverl.reference is inactive unless algorithm.use_kl_in_reward=true")
-    if _bool(
+    actor_kl_enabled = _bool(
         _get(source, "actor_rollout_ref.actor.use_kl_loss", False),
         "actor_rollout_ref.actor.use_kl_loss",
+    )
+    if (
+        not use_kl_in_reward
+        and not actor_kl_enabled
+        and _get(source, "miniverl.reference.adapter_path", None) is not None
     ):
-        raise ConfigError("actor.use_kl_loss=true is not implemented by the local RL path")
+        raise ConfigError("miniverl.reference is inactive unless algorithm.use_kl_in_reward=true")
+    if actor_kl_enabled and profile != VERL_RL_V09_PPO_PROFILE:
+        raise ConfigError("actor.use_kl_loss=true is not implemented by this compiler profile")
     entropy = _number(
         _get(source, "actor_rollout_ref.actor.entropy_coeff", 0.0),
         "actor_rollout_ref.actor.entropy_coeff",
         minimum=0.0,
     )
-    if entropy != 0.0:
-        raise ConfigError("nonzero actor entropy_coeff is not implemented by the local RL path")
+    if entropy != 0.0 and profile != VERL_RL_V09_PPO_PROFILE:
+        raise ConfigError("nonzero actor entropy_coeff is not implemented by this compiler profile")
     ppo_epochs = _integer(
         _get(source, "actor_rollout_ref.actor.ppo_epochs", 1),
         "actor_rollout_ref.actor.ppo_epochs",
         minimum=1,
     )
-    if ppo_epochs != 1:
-        raise ConfigError("actor.ppo_epochs must be 1 for strict current-policy local RL")
+    if ppo_epochs != 1 and profile != VERL_RL_V09_PPO_PROFILE:
+        raise ConfigError("actor.ppo_epochs must be 1 in this compiler profile")
     aggregation = str(_get(source, "actor_rollout_ref.actor.loss_agg_mode", "token-mean"))
     if aggregation != "token-mean":
         raise ConfigError("only actor.loss_agg_mode=token-mean is semantically conformant locally")
@@ -469,11 +604,19 @@ def _recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[dict[str, A
         _get(source, "data.max_response_length"), "data.max_response_length", minimum=1
     )
     provider = str(_get(source, "miniverl.reward.provider"))
-    if provider not in {"exact_answer", "target_length"}:
+    allowed_providers = {"exact_answer", "target_length"}
+    if profile == VERL_RL_V09_PPO_PROFILE:
+        allowed_providers.add("hf_sequence_classifier")
+    if provider not in allowed_providers:
         raise ConfigError(
-            "the portable v0.9 profile accepts miniverl.reward.provider=exact_answer or "
-            "target_length; Python reward objects must be injected explicitly by the local API"
+            "this portable profile accepts built-in exact_answer, target_length, and (in v2) "
+            "hf_sequence_classifier rewards; Python reward objects must be injected explicitly "
+            "by the local API"
         )
+    if provider == "hf_sequence_classifier" and not _bool(
+        _get(source, "reward_model.enable"), "reward_model.enable"
+    ):
+        raise ConfigError("hf_sequence_classifier requires reward_model.enable=true")
     local_backend = str(_get(source, "miniverl.rollout.backend", "hf_cached"))
     if local_backend not in {"hf_cached", "hf_reference"}:
         raise ConfigError("miniverl.rollout.backend must be hf_cached or hf_reference")
@@ -490,10 +633,29 @@ def _recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[dict[str, A
     )
     nodes = _integer(_get(source, "trainer.nnodes", 1), "trainer.nnodes", minimum=1)
     lora_enabled = _bool(_get(source, "miniverl.actor.lora_enabled"), "miniverl.actor.lora_enabled")
-    if use_kl_in_reward and not lora_enabled:
+    if (use_kl_in_reward or actor_kl_enabled) and not lora_enabled:
         raise ConfigError(
             "reference-KL temporal lowering requires miniverl.actor.lora_enabled=true"
         )
+    if algorithm == "ppo":
+        if not _bool(_get(source, "critic.enable"), "critic.enable"):
+            raise ConfigError("PPO requires critic.enable=true")
+        critic_path = str(_get(source, "critic.model.path"))
+        actor_path = str(_get(source, "actor_rollout_ref.model.path"))
+        if critic_path != actor_path:
+            raise ConfigError(
+                "the single-GPU PPO profile currently requires critic.model.path to equal "
+                "actor_rollout_ref.model.path"
+            )
+        critic_lora = _bool(
+            _get(source, "miniverl.critic.lora_enabled"),
+            "miniverl.critic.lora_enabled",
+        )
+        if critic_lora != lora_enabled:
+            raise ConfigError(
+                "the local PPO profile requires actor and critic to use the same explicit "
+                "LoRA parameterization"
+            )
     kl_penalty = str(_get(source, "algorithm.kl_penalty", "kl"))
     if kl_penalty not in {"kl", "abs", "mse", "low_var_kl"}:
         raise ConfigError(f"algorithm.kl_penalty {kl_penalty!r} is not supported locally")
@@ -530,18 +692,20 @@ def _recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[dict[str, A
             "deterministic": True,
             "tags": [
                 str(_get(source, "trainer.project_name", "verl")),
-                VERL_RL_V09_PROFILE,
+                profile,
             ],
             "profile_identity": {
-                "profile_name": VERL_RL_V09_PROFILE,
+                "profile_name": profile,
                 "upstream_tag": UPSTREAM_VERL_TAG,
                 "upstream_commit": UPSTREAM_VERL_COMMIT,
-                "field_rules_sha256": rl_v09_field_rules_digest(),
+                "field_rules_sha256": rl_v09_field_rules_digest(profile),
             },
         },
         "models": {
             "backend": "hf",
-            "runtime": "shared_backbone" if use_kl_in_reward else "dual_model",
+            "runtime": "shared_backbone"
+            if (use_kl_in_reward or actor_kl_enabled)
+            else "dual_model",
             "device": "cuda",
             "student": {
                 "model_id": str(_get(source, "actor_rollout_ref.model.path")),
@@ -648,7 +812,9 @@ def _recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[dict[str, A
             "rollouts_per_cycle": prompt_batch,
             "gradient_accumulation_steps": mini_batch,
             "trajectory_batch_size": _get(source, "miniverl.update.trajectory_batch_size", 1),
-            "opd_freshness": "strict" if mini_batch == trajectory_count else "replay",
+            "opd_freshness": (
+                "strict" if algorithm == "ppo" or mini_batch == trajectory_count else "replay"
+            ),
             "learning_rate": _number(
                 _get(source, "actor_rollout_ref.actor.optim.lr"),
                 "actor_rollout_ref.actor.optim.lr",
@@ -669,7 +835,95 @@ def _recipe(source: Mapping[str, Any]) -> tuple[dict[str, Any], list[dict[str, A
         "memory": {"strategy": str(_get(source, "miniverl.memory.strategy", "auto"))},
         "eval": {"enabled": False},
     }
-    if use_kl_in_reward:
+    if profile == VERL_RL_V09_PPO_PROFILE:
+        recipe["algorithm"].update(
+            {
+                "actor_kl_coef": (
+                    _number(
+                        _get(source, "actor_rollout_ref.actor.kl_loss_coef", 0.001),
+                        "actor_rollout_ref.actor.kl_loss_coef",
+                        minimum=0.0,
+                    )
+                    if actor_kl_enabled
+                    else 0.0
+                ),
+                "actor_kl_penalty": str(_get(source, "actor_rollout_ref.actor.kl_loss_type", "kl")),
+                "entropy_coeff": entropy,
+                "actor_ppo_epochs": ppo_epochs,
+            }
+        )
+    if provider == "hf_sequence_classifier":
+        tokenizer_revision = _get(source, "miniverl.reward.tokenizer_revision", None)
+        recipe["reward"]["model"] = {
+            "model_id": str(_get(source, "reward_model.model.path")),
+            "revision": str(_get(source, "miniverl.reward.revision")),
+            "tokenizer_revision": tokenizer_revision,
+            "positive_class_index": _integer(
+                _get(source, "miniverl.reward.positive_class_index", 1),
+                "miniverl.reward.positive_class_index",
+                minimum=0,
+            ),
+            "max_length": _integer(
+                _get(source, "miniverl.reward.max_length", 512),
+                "miniverl.reward.max_length",
+                minimum=8,
+            ),
+            "batch_size": _integer(
+                _get(source, "miniverl.reward.batch_size", 4),
+                "miniverl.reward.batch_size",
+                minimum=1,
+            ),
+            "timeout_seconds": _number(
+                _get(source, "miniverl.reward.timeout_seconds", 120.0),
+                "miniverl.reward.timeout_seconds",
+                minimum=0.000001,
+            ),
+            "trust_remote_code": _bool(
+                _get(source, "reward_model.model.trust_remote_code", False),
+                "reward_model.model.trust_remote_code",
+            ),
+            "offload_between_phases": _bool(
+                _get(source, "miniverl.reward.offload_between_phases", True),
+                "miniverl.reward.offload_between_phases",
+            ),
+        }
+    if algorithm == "ppo":
+        critic_mini_batch = _integer(
+            _get(source, "critic.ppo_mini_batch_size", mini_batch),
+            "critic.ppo_mini_batch_size",
+            minimum=1,
+        )
+        if critic_mini_batch != mini_batch:
+            raise ConfigError(
+                "the local PPO profile currently requires critic.ppo_mini_batch_size to "
+                "equal actor_rollout_ref.actor.ppo_mini_batch_size"
+            )
+        recipe["critic"] = {
+            "enabled": True,
+            "learning_rate": _number(
+                _get(source, "critic.optim.lr"), "critic.optim.lr", minimum=0.0
+            ),
+            "weight_decay": _number(
+                _get(source, "critic.optim.weight_decay", 0.0),
+                "critic.optim.weight_decay",
+                minimum=0.0,
+            ),
+            "warmup_steps": _integer(
+                _get(source, "critic.optim.lr_warmup_steps", 0),
+                "critic.optim.lr_warmup_steps",
+            ),
+            "ppo_epochs": _integer(
+                _get(source, "critic.ppo_epochs", ppo_epochs),
+                "critic.ppo_epochs",
+                minimum=1,
+            ),
+        }
+        recipe["algorithm"]["cliprange_value"] = _number(
+            _get(source, "critic.cliprange_value", 0.5),
+            "critic.cliprange_value",
+            minimum=0.0,
+        )
+    if use_kl_in_reward or actor_kl_enabled:
         adapter_source = str(_get(source, "miniverl.reference.adapter_source", "local"))
         adapter: dict[str, Any] = {
             "path": str(_get(source, "miniverl.reference.adapter_path")),
@@ -720,11 +974,12 @@ def publish_imported_verl_rl_v09(
     target_verl: str,
     overwrite: bool = False,
     lock_timeout: float = DEFAULT_LOCK_TIMEOUT,
+    profile: str = VERL_RL_V09_PROFILE,
 ) -> dict[str, Any]:
     """Publish a native recipe, a user-input template, or a rejection report."""
     if target_verl not in {UPSTREAM_VERL_TAG, UPSTREAM_VERL_COMMIT}:
         raise ConfigError(
-            f"profile {VERL_RL_V09_PROFILE} targets {UPSTREAM_VERL_TAG} or "
+            f"profile {profile} targets {UPSTREAM_VERL_TAG} or "
             f"{UPSTREAM_VERL_COMMIT}, not {target_verl!r}"
         )
     source_path = Path(source)
@@ -737,13 +992,14 @@ def publish_imported_verl_rl_v09(
         raise ConfigError(f"cannot read verl config {source_path}: {exc}") from exc
     if not isinstance(payload, Mapping):
         raise ConfigError("verl config must contain one YAML mapping")
+    _rules_for_profile(profile)
     flat = _flatten(payload)
-    fields, unsupported, unresolved = _classify(flat)
-    required = _required_inputs(payload)
+    fields, unsupported, unresolved = _classify(flat, profile=profile)
+    required = _required_inputs(payload, profile=profile)
     common: dict[str, Any] = {
         "schema_version": 1,
-        "profile": VERL_RL_V09_PROFILE,
-        "profile_field_rules_sha256": rl_v09_field_rules_digest(),
+        "profile": profile,
+        "profile_field_rules_sha256": rl_v09_field_rules_digest(profile),
         "source_verl": {
             "repository": VERL_REPOSITORY,
             "tag": UPSTREAM_VERL_TAG,
@@ -784,7 +1040,7 @@ def publish_imported_verl_rl_v09(
                 "schema_version": 1,
                 "status": "needs_user_input",
                 "note": "Non-executable source template; supply every required field.",
-                "profile": VERL_RL_V09_PROFILE,
+                "profile": profile,
                 "source_values": portable_payload(dict(payload)),
                 "required_user_input": required,
             }
@@ -803,7 +1059,7 @@ def publish_imported_verl_rl_v09(
             transaction.commit()
             return report
         try:
-            recipe, lowering = _recipe(payload)
+            recipe, lowering = _recipe(payload, profile=profile)
             from miniverl.config import RunConfig
 
             validated = RunConfig.from_mapping(recipe)

@@ -28,6 +28,7 @@ def test_local_role_graph_names_every_runtime_boundary() -> None:
         "rollout_runtime": "SimpleNamespace",
         "teacher_policy": "SimpleNamespace",
         "reference_policy": "SimpleNamespace",
+        "value_policy": None,
         "reward_or_verifier": "SimpleNamespace",
         "target_builder": "SimpleNamespace",
         "update_runtime": "SimpleNamespace",

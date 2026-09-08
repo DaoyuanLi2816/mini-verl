@@ -128,6 +128,44 @@ def test_value_loss_clips_around_old_values_and_honors_mask() -> None:
     assert output.metrics["value_clipfrac"] == pytest.approx(0.5)
 
 
+def test_rl_actor_objective_adds_entropy_and_reference_kl_with_gradients() -> None:
+    from miniverl.algorithms.kl import reference_kl_penalty
+    from miniverl.algorithms.policy import clipped_policy_loss
+    from miniverl.losses.chunked import VerlRLTargetProvider
+
+    logits = torch.tensor([[0.2, -0.3, 0.8], [0.1, 0.4, -0.2]], requires_grad=True)
+    targets = torch.tensor([2, 1])
+    log_probs = torch.log_softmax(logits, dim=-1)
+    current = log_probs.gather(-1, targets[:, None]).squeeze(-1)
+    old = current.detach() - torch.tensor([0.1, -0.05])
+    reference = current.detach() - torch.tensor([0.2, 0.15])
+    advantages = torch.tensor([1.0, -0.5])
+    provider = VerlRLTargetProvider(
+        target_token_ids=targets,
+        old_actor_log_probs=old,
+        advantages=advantages,
+        reference_log_probs=reference,
+        actor_kl_coef=0.3,
+        entropy_coeff=0.2,
+    )
+
+    actual = provider.divergence(0, 2, logits)
+    policy = clipped_policy_loss(
+        current_log_probs=current,
+        old_log_probs=old,
+        advantages=advantages,
+        response_mask=torch.ones(2),
+    ).per_token_loss
+    entropy = -(log_probs.exp() * log_probs).sum(dim=-1)
+    expected = policy - 0.2 * entropy + 0.3 * reference_kl_penalty(current, reference)
+
+    torch.testing.assert_close(actual, expected)
+    assert provider.diagnostics[0]["metric_weight"] == 2.0
+    actual.mean().backward()
+    assert logits.grad is not None
+    assert torch.isfinite(logits.grad).all()
+
+
 @pytest.mark.parametrize("penalty", ["kl", "abs", "mse", "low_var_kl"])
 def test_reference_kl_estimators_are_finite_and_shape_preserving(penalty: str) -> None:
     from miniverl.algorithms.kl import reference_kl_penalty

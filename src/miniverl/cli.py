@@ -1646,9 +1646,9 @@ def import_verl_command(
         if selected_source is None:
             raise ConfigError("a resolved verl YAML path is required", hint="pass --config FILE")
         from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
-        from miniverl.bridge.rl_v09 import VERL_RL_V09_PROFILE
+        from miniverl.bridge.rl_v09 import VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PROFILE
 
-        if profile == VERL_RL_V09_PROFILE:
+        if profile in {VERL_RL_V09_PROFILE, VERL_RL_V09_PPO_PROFILE}:
             resolved_target_verl = target_verl or "v0.9.0"
             if overrides:
                 raise ConfigError(
@@ -1662,6 +1662,7 @@ def import_verl_command(
                 out=out,
                 target_verl=resolved_target_verl,
                 overwrite=overwrite,
+                profile=profile,
             )
         elif profile == VERL_OPD_V08_PROFILE:
             from miniverl.bridge.contract import validate_target_verl
@@ -1785,7 +1786,7 @@ def export_verl_command(
     out: Path = typer.Option(..., "--out", help="New scale-out bundle directory."),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
-    """Export a self-checking OPD bundle or the versioned legacy bridge profile."""
+    """Export a self-checking RL or OPD handoff bundle for a pinned verl target."""
     try:
         from miniverl.bridge.export import export_verl_bundle
 

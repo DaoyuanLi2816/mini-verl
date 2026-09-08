@@ -22,11 +22,13 @@
 verl 风格配置与 Parquet prompt，版本化编译器会生成可审阅的本地计划；actor、reference、
 teacher 与 reward 角色按阶段执行，最终发布可携带的 PEFT 与数据产物。
 
-当前开发线针对官方 verl `v0.9.0`（`483b8a00`）加入 critic-free RL：GRPO、
-Dr.GRPO、RLOO、REINFORCE++、grouped rollout、task reward 与固定 reference-policy
-KL。已有 verl `v0.8.0` OPD profile 继续提供 direct GKD 与 sampled-k1 蒸馏。
+当前开发线针对官方 verl `v0.9.0`（`483b8a00`）支持 PPO/GAE、GRPO、Dr.GRPO、
+RLOO 与 REINFORCE++。PPO 使用独立可训练 critic 及其 optimizer/checkpoint；actor KL、
+entropy regularization、grouped rollout、task reward 和固定 revision 的 sequence-classifier
+reward role 共用同一套 provenance。已有 verl `v0.8.0` OPD profile 继续提供 direct GKD
+与 sampled-k1 蒸馏。
 
-PyPI `v0.12.0` 是稳定版；`main` 是开发版。
+PyPI `v0.13.0` 是稳定版；`main` 是开发版。
 
 ## 60 秒开始
 
@@ -35,13 +37,13 @@ PyPI `v0.12.0` 是稳定版；`main` 是开发版。
 ```bash
 python -m pip install "miniverl[train,cuda]"
 miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
-  --config examples/verl-rl-v0.9-single-gpu.yaml --out local-grpo.yaml
-miniverl validate local-grpo.yaml
-miniverl train local-grpo.yaml --dry-run
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
+  --config examples/verl-rl-v0.9-single-gpu-ppo.yaml --out local-ppo.yaml
+miniverl validate local-ppo.yaml
+miniverl train local-ppo.yaml --dry-run
 ```
 
-Importer 会在原生 recipe 旁写入 `local-grpo.import-report.json`，逐项说明源字段及其
+Importer 会在原生 recipe 旁写入 `local-ppo.import-report.json`，逐项说明源字段及其
 本地效果，并记录分布式资源设置如何转换为一个进程、一张 GPU。移除 `--dry-run` 后，
 示例会加载固定 revision 的 Qwen3-0.6B actor 并执行两次 rollout iteration。
 
@@ -65,22 +67,22 @@ Importer 会在原生 recipe 旁写入 `local-grpo.import-report.json`，逐项�
 
 <picture>
   <source media="(max-width: 640px)" srcset="docs/verl-local-runtime-mobile.svg">
-  <img src="docs/verl-local-runtime.svg" alt="Resolved verl 配置被编译为经过验证的单卡执行计划；actor、reference、teacher 与 reward 角色分阶段执行，并生成可携带产物与 readiness report。">
+  <img src="docs/verl-local-runtime.svg" alt="Resolved verl 配置被编译为经过验证的单卡执行计划；actor、critic、reference、teacher 与 reward 角色分阶段执行，并生成可携带产物与 readiness report。">
 </picture>
 
-miniVERL 把一张 GPU 当作逻辑角色的时间调度器。Critic-free RL 先生成完整 prompt
-group，计算 outcome reward 和固定版本的 advantage estimator，按需运行冻结的 reference
-adapter，最后更新 actor。OPD 复用相同的 trajectory 与 checkpoint 基础设施，并以
-teacher-scoring 阶段提供训练信号。
+miniVERL 把一张 GPU 当作逻辑角色的时间调度器。RL 先生成完整 prompt group，计算
+outcome reward，按需运行 reference 与 reward-model 角色，再计算固定版本的 advantage
+estimator 并更新 actor。PPO 额外执行独立 critic 的 clipped value update。OPD 复用相同
+的 trajectory 与 checkpoint 基础设施，以 teacher target 提供学习信号。
 
 ## 选择你的路径
 
 | 目标 | 第一个命令 | 主要产物 | 下一步 |
 | --- | --- | --- | --- |
-| **本地 RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 --config verl-rl.yaml --out local.yaml` | 原生 recipe + 兼容报告 | [RL quickstart](docs/verl-rl-runtime.md) |
+| **本地 RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 --config verl-ppo.yaml --out local.yaml` | 原生 recipe + 兼容报告 | [RL quickstart](docs/verl-rl-runtime.md) |
 | **本地 OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | 不可变执行计划 | [OPD quickstart](docs/opd-quickstart.md) |
 | **适配显卡** | `miniverl plan --config verl-opd.yaml --probe` | 实测 placement plan | [硬件规划](docs/hardware-planning.md) |
-| **交接产物** | `miniverl export-verl --run runs/my-run --target-verl v0.8.0 --out scaleout` | PEFT + Parquet + config bundle | [Scale-out 契约](docs/verl-opd-scaleout.md) |
+| **交接产物** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor、critic、Parquet + config bundle | [兼容性契约](docs/compatibility.md) |
 
 原生 recipe 还支持 SFT、DPO、offline KD，以及 calculator、JSON navigation、只读
 SQLite 和自定义 tool environment。
@@ -89,16 +91,16 @@ SQLite 和自定义 tool environment。
 
 | 实验能力 | 本地状态 | 契约 |
 | --- | --- | --- |
+| PPO / GAE | 语义一致 | 独立 critic、clipped value loss、actor/critic 精确续训 |
 | GRPO / Dr.GRPO | 语义一致 | verl v0.9 group statistic 与 vanilla clipped policy loss |
 | RLOO / REINFORCE++ | 语义一致 | verl v0.9 advantage 与 masking 规则 |
 | Grouped `n > 1` rollout | 已支持 | 完整 group、稳定 sample seed 与 behavior-policy identity |
-| Task reward | 已支持 | exact-answer/target-length 内置奖励、environment verifier 或可信 Python API |
-| 固定 reference KL | 本地 lowering | 与 actor 共用 backbone 的冻结 adapter 角色 |
+| Task reward 与训练型 RM | 已支持 | 内置奖励、environment verifier、可信 Python API 或固定 HF sequence classifier |
+| Actor KL 与 entropy | 语义一致 | sampled-token reference KL 与 entropy regularization |
 | Direct GKD / sampled-k1 OPD | 已支持 | 固定 verl v0.8 profile 与 teacher target |
-| PPO / GAE 执行 | 尚未实现 | 数学原语已做一致性验证；还没有可训练 critic 生命周期 |
 | Ray、FSDP/FSDP2、Megatron、TP/PP/DP > 1 | 仅分布式 | 这些能力改变物理规模，不改变本地 objective |
 
-生成的 [v0.9 兼容记录](docs/generated/verl-rl-v0.9-compatibility.json)绑定示例中每个
+生成的 [v0.9 PPO 兼容记录](docs/generated/verl-rl-v0.9-ppo-compatibility.json)绑定示例中每个
 字段的源值、本地目标、分类与编译规则哈希。`miniverl import-verl` 接收 documented
 resolved subset；未知且会改变算法的字段会被拒绝，dataset 与 reward 实现不会被替换。
 

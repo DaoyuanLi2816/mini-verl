@@ -15,25 +15,26 @@ resolved verl-shaped config
 field report + validated native recipe
         ↓  temporal role scheduler
 actor rollout → reward / reference / teacher → actor update
+                 ↘ PPO critic/value update
         ↓
 PEFT + Parquet + config + typed provenance
 ```
 
 The current RL profile targets official verl `v0.9.0` at commit
-`483b8a009ba3a97563edee3a19887e4862b8094a`. It runs GRPO, Dr.GRPO,
-RLOO and REINFORCE++ with grouped samples, task rewards and optional fixed
-reference-policy KL. The existing verl `v0.8.0` profiles run direct GKD and
+`483b8a009ba3a97563edee3a19887e4862b8094a`. It runs PPO/GAE, GRPO, Dr.GRPO,
+RLOO and REINFORCE++ with grouped samples, task rewards, trained reward-model
+inference and optional fixed reference-policy KL. The existing verl `v0.8.0` profiles run direct GKD and
 sampled-k1 OPD with explicit teacher targets.
 
-## Start with GRPO
+## Start with PPO
 
 ```bash
 python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
 python -m pip install "miniverl[train,cuda]"
 miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
-  --config examples/verl-rl-v0.9-single-gpu.yaml --out local-grpo.yaml
-miniverl train local-grpo.yaml --dry-run
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
+  --config examples/verl-rl-v0.9-single-gpu-ppo.yaml --out local-ppo.yaml
+miniverl train local-ppo.yaml --dry-run
 ```
 
 The import report shows the value and disposition of every source field. The
@@ -48,11 +49,11 @@ with `miniverl validate local-grpo.yaml --json` before model weights are loaded.
 
 ### Prototype verl RL
 
-Bring a resolved v0.9-shaped config and run a critic-free algorithm with true
-grouped rollouts on one CUDA device.
+Bring a resolved v0.9-shaped config and run PPO or a grouped critic-free
+algorithm on one CUDA device.
 
 ```bash
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
   --config verl-rl.yaml --out local.yaml
 ```
 
@@ -103,11 +104,11 @@ miniverl export-verl --run runs/my-run --target-verl v0.8.0 --out scaleout
 
 | Surface | Local status |
 | --- | --- |
+| PPO/GAE | independent actor/critic updates with exact dual-role resume |
 | GRPO, Dr.GRPO, RLOO, REINFORCE++ | verl v0.9-conformant estimator and policy-loss semantics |
-| Grouped rollout, task rewards, fixed reference KL | supported and provenance-bound |
+| Grouped rollout, task rewards, trained RM, actor KL/entropy | supported and provenance-bound |
 | Direct GKD and sampled-k1 OPD | supported through pinned verl v0.8 profiles |
 | SFT, DPO, offline KD, tool environments | native recipe workflows |
-| PPO/GAE execution | value math tested; trainable critic lifecycle not yet implemented |
 | Ray, FSDP/FSDP2, Megatron, TP/PP/DP > 1 | distributed-only |
 
 Read [compatibility](compatibility.md) for the complete field and semantic

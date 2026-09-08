@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-The current supported stable line is `0.12.0`; security fixes land on `main` and
+The current supported stable line is `0.13.0`; security fixes land on `main` and
 in the next patch release. There are no separately maintained older branches.
 
 ## Reporting a vulnerability

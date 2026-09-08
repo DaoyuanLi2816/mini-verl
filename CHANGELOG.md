@@ -6,6 +6,35 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-08
+
+### PPO and full local RL
+
+- Added the immutable `verl-rl-v0.9-single-gpu-v2` compiler for PPO/GAE while
+  preserving the released v1 compiler and generated artifact bytes.
+- Added an independent trainable critic with a scalar value head, clipped value
+  updates, dedicated optimizer/schedule, physical-microbatch OOM retry and
+  transactional checkpoint state.
+- Connected actor-loss reference KL and entropy regularization to the sampled
+  policy objective, with scalar, gradient and optimizer-step conformance against
+  official verl v0.9.0 at `483b8a00`.
+- Added a pinned Hugging Face sequence-classifier reward role with deterministic
+  batching, typed identity and phased CPU/GPU residency.
+- Extended exact resume to reproduce actor and critic tensors and counters, and
+  extended the exact-wheel RTX 4080 release gate with PPO, reward-model and
+  v0.9 handoff evidence.
+
+### Compatibility and architecture
+
+- Added v0.9 RL export for actor PEFT, independent critic safetensors, Parquet,
+  resolved semantics and checksummed provenance. The launch template remains
+  inactive until upstream reward, base snapshots and distributed settings are
+  supplied.
+- Taught `bridge doctor` to identify and locally inspect the v0.9 PPO bundle,
+  including its pinned requirement file, critic checkpoint and reward interface.
+- Extracted PPO value/update phase ownership from the trainer facade into
+  `PPOPhaseRuntime`, preserving public trainer and checkpoint compatibility.
+
 ## [0.12.0] - 2026-09-07
 
 ### Single-GPU verl RL
@@ -1177,7 +1206,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.0...v0.10.1

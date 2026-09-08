@@ -24,11 +24,14 @@ still lowers to one device; those resource values are reported as
 
 ## verl v0.9 RL compiler
 
-Profile `verl-rl-v0.9-single-gpu-v1` targets official verl `v0.9.0` at
-`483b8a009ba3a97563edee3a19887e4862b8094a`.
+Profiles `verl-rl-v0.9-single-gpu-v1` and `verl-rl-v0.9-single-gpu-v2` target
+official verl `v0.9.0` at
+`483b8a009ba3a97563edee3a19887e4862b8094a`. v1 retains the released
+critic-free contract; v2 adds PPO and its value role.
 
 | Surface | Status | Local contract |
 | --- | --- | --- |
+| PPO/GAE | semantically conformant | independent causal-LM critic plus scalar head, GAE and clipped value updates |
 | GRPO | semantically conformant | sample-std group normalization, epsilon placement and masking match v0.9 |
 | Dr.GRPO | semantically conformant | GRPO centering without std normalization |
 | RLOO | semantically conformant | leave-one-out prompt-group baseline |
@@ -37,13 +40,13 @@ Profile `verl-rl-v0.9-single-gpu-v1` targets official verl `v0.9.0` at
 | grouped `rollout.n` | exact | complete prompt groups and stable sample identities |
 | behavior log-probability | semantically conformant | current rollout actor, temperature-scaled, recomputed current policy at update |
 | Parquet data and token bounds | exact | source files, key, shuffle, seed and limits drive local loading |
-| exact-answer / target-length rewards | exact | reward-bearing Parquet metadata and fail-closed deterministic scorers |
+| exact-answer / target-length rewards | exact | reward-bearing Parquet metadata and deterministic scorers |
+| HF sequence-classifier reward model | supported | pinned model/tokenizer revisions, deterministic batches and phased offload |
 | environment/Python reward providers | supported local API | trusted injection with ordered input and implementation identity |
 | fixed reference reward KL | locally lowered | frozen adapter is scheduled on the compatible actor backbone |
 | actor logical mini-batch | semantically conformant | one logical mini-batch, physically microbatched on the GPU |
 | TP/PP/DP, nodes, resource pools | distributed only | original values retained; execution uses one process/device |
-| PPO/GAE runtime | not implemented | conformance-tested math exists; trainable critic lifecycle does not |
-| nonzero entropy objective / actor-loss KL | not implemented | metrics/reference reward KL exist, but these objective terms are not connected |
+| actor-loss KL / entropy | semantically conformant | sampled-token reference KL and entropy enter the actor objective |
 
 The compiler accepts a resolved documented subset rather than arbitrary Hydra
 YAML. Missing reward or parameterization choices produce a non-executable
@@ -52,8 +55,9 @@ estimators and objective-changing values are rejected before publication. Every
 accepted runnable recipe is validated with `RunConfig` and published
 transactionally.
 
-The [machine-readable v0.9 report](generated/verl-rl-v0.9-compatibility.json)
-is generated from the shipped example and checked byte-for-byte in CI. The
+The [machine-readable v1 report](generated/verl-rl-v0.9-compatibility.json) and
+[v2 PPO report](generated/verl-rl-v0.9-ppo-compatibility.json) are generated
+from shipped examples and checked byte-for-byte in CI. The
 [RL runtime guide](verl-rl-runtime.md) covers execution and resume.
 
 ## verl v0.8 OPD profiles

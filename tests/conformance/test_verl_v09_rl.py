@@ -219,3 +219,70 @@ def test_reference_kl_estimators_match_pinned_upstream() -> None:
         expected = official.kl_penalty_forward(old, reference, upstream_name)
         actual = reference_kl_penalty(old, reference, penalty=local_name)
         torch.testing.assert_close(actual, expected)
+
+
+def test_combined_ppo_actor_and_critic_optimizer_steps_match_pinned_upstream() -> None:
+    official = _official()
+    mask = torch.tensor([[1.0, 1.0], [1.0, 1.0]])
+    rewards = torch.tensor([[0.0, 1.0], [0.0, 2.0]])
+    old_values = torch.tensor([[0.2, 0.3], [0.1, 0.4]])
+    advantages, returns = official.compute_gae_advantage_return(
+        rewards, old_values, mask, torch.tensor(0.9), torch.tensor(0.8)
+    )
+    old_log_probs = torch.tensor([[-1.0, -0.7], [-1.1, -0.8]])
+    reference = old_log_probs - 0.1
+    entropy = torch.tensor([[0.7, 0.8], [0.9, 1.0]])
+
+    upstream_actor = torch.nn.Parameter(old_log_probs.clone().add(0.05))
+    local_actor = torch.nn.Parameter(upstream_actor.detach().clone())
+    upstream_critic = torch.nn.Parameter(old_values.clone().add(0.1))
+    local_critic = torch.nn.Parameter(upstream_critic.detach().clone())
+    upstream_actor_optimizer = torch.optim.AdamW([upstream_actor], lr=3e-4, weight_decay=0.01)
+    local_actor_optimizer = torch.optim.AdamW([local_actor], lr=3e-4, weight_decay=0.01)
+    upstream_critic_optimizer = torch.optim.AdamW([upstream_critic], lr=2e-4, weight_decay=0.02)
+    local_critic_optimizer = torch.optim.AdamW([local_critic], lr=2e-4, weight_decay=0.02)
+
+    upstream_policy, _ = official.compute_policy_loss_vanilla(
+        old_log_probs, upstream_actor, advantages, mask, config=_Actor()
+    )
+    upstream_kl = official.kl_penalty_forward(upstream_actor, reference, "low_var_kl")
+    upstream_total = (
+        upstream_policy
+        - 0.02 * _Functional.masked_mean(entropy, mask)
+        + 0.03 * _Functional.masked_mean(upstream_kl, mask)
+    )
+    upstream_total.backward()
+    upstream_actor_optimizer.step()
+
+    local_policy = clipped_policy_loss(
+        current_log_probs=local_actor,
+        old_log_probs=old_log_probs,
+        advantages=advantages,
+        response_mask=mask,
+    ).loss
+    local_total = (
+        local_policy
+        - 0.02 * _Functional.masked_mean(entropy, mask)
+        + 0.03
+        * _Functional.masked_mean(
+            reference_kl_penalty(local_actor, reference, penalty="low_var_kl"), mask
+        )
+    )
+    local_total.backward()
+    local_actor_optimizer.step()
+
+    upstream_value_loss, _ = official.compute_value_loss(
+        upstream_critic, returns, old_values, mask, 0.2
+    )
+    upstream_value_loss.backward()
+    upstream_critic_optimizer.step()
+    local_value_loss = clipped_value_loss(
+        local_critic, old_values, returns, mask, cliprange_value=0.2
+    ).loss
+    local_value_loss.backward()
+    local_critic_optimizer.step()
+
+    torch.testing.assert_close(local_total, upstream_total)
+    torch.testing.assert_close(local_value_loss, upstream_value_loss)
+    torch.testing.assert_close(local_actor, upstream_actor)
+    torch.testing.assert_close(local_critic, upstream_critic)

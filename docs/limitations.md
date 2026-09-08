@@ -160,20 +160,18 @@ rollout batch. Physical trajectory batching remains separate. Changing a
 physical batch or OOM chunk must not change group membership, sample seed,
 reward or advantage.
 
-### PPO needs a complete critic lifecycle
+### PPO and reward-model memory
 
-The repository includes upstream-conformance tests for v0.9 GAE and clipped
-value-loss primitives, but does not expose an executable PPO recipe. A correct
-runtime needs an independently trainable critic/value head, its optimizer and
-checkpoint state, old/current value provenance, plus an
-actor/reference/critic phase schedule that survives interruption and OOM.
-Those pieces are not yet implemented. This is feasible single-GPU work, not a
-distributed-only feature.
+PPO owns an independent critic/value head, optimizer, checkpoint state and
+temporal phase runtime. The critic therefore adds another model-sized role to
+the memory plan. Its OOM retry changes only the physical trajectory microbatch;
+the logical PPO mini-batch and update semantics remain fixed.
 
-GRPO, Dr.GRPO, RLOO and REINFORCE++ do execute locally. Their portable profile
-supports exact-answer and target-length rewards; environment and trusted Python reward providers
-are available through explicit local API injection. There is no trained reward
-model inference role in this release.
+The trained reward-model provider is a pinned Hugging Face sequence classifier,
+not a generic reward-model serving system. It supports deterministic local
+batch inference and CPU offload between phases. Architectures that require
+remote code, custom multimodal processors or distributed inference need a new
+versioned provider contract.
 
 ### `swap` is unavailable whenever anything is quantized
 
@@ -452,10 +450,9 @@ projection have not been exercised beyond the pinned Qwen3 pair (which does have
 ### Execution boundary
 
 miniVERL has no distributed training, multi-GPU or multi-node execution,
-trainable PPO critic, trained reward-model role, vision-language path,
-cross-tokenizer distillation, or containerized/networked tool sandbox. It does
-run critic-free GRPO, Dr.GRPO, RLOO and REINFORCE++ objectives on one GPU. Ray,
-FSDP/FSDP2, Megatron and TP/PP/DP above one are distributed-only placement
+vision-language path, cross-tokenizer distillation, or containerized/networked
+tool sandbox. It runs PPO, GRPO, Dr.GRPO, RLOO and REINFORCE++ objectives on one
+GPU. Ray, FSDP/FSDP2, Megatron and TP/PP/DP above one are distributed placement
 systems.
 
 The built-in environments generate tasks in-process; Parquet conversion does
@@ -483,8 +480,9 @@ job. It does not convert optimizer state, distributed RNG, native sharded
 checkpoints, Ray runtime state or teacher caches into PPO reference caches.
 Unknown and distributed-only config fields fail by default. The
 miniVERL-defined label therefore means a validated scale-out bundle, not
-runtime parity or generic verl YAML support. Legacy PPO/reward-scaffold bundles
-remain non-launchable. A pure-OPD bundle can become `launchable: true` only
+runtime parity or generic verl YAML support. The v0.9 RL bundle carries actor
+and critic weights plus a fail-closed launch template; exact miniVERL optimizer
+resume remains local. A pure-OPD bundle can become `launchable: true` only
 after exact snapshots, the fixed upstream config merge and bounded local model
 loads pass; that status still does not say a distributed invocation succeeded.
 See the [current OPD runtime](verl-opd-runtime.md), [scale-out contract](verl-opd-scaleout.md),
@@ -553,6 +551,7 @@ These are future design directions rather than current runtime surfaces.
 - **Native multi-GPU or multi-node execution.** Not implemented. The v0.6
   bridge can export one documented profile to pinned verl, where scale-out
   remains the user's separately reviewed and executed operation.
-- **PPO critic execution.** GAE/value math is pinned and tested; critic model,
-  optimizer, checkpoint and temporal phase ownership remain to be built.
+- **Broader critic architectures.** The current PPO role mirrors the actor's
+  decoder-only base and LoRA parameterization. Dedicated value-model families
+  need their own compatibility and memory qualification.
 - **Additional tested architectures.** Only Qwen3 and Qwen2 are tested today.

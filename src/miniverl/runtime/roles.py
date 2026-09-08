@@ -15,6 +15,7 @@ __all__ = [
     "RolloutRuntime",
     "TeacherPolicy",
     "ReferencePolicy",
+    "ValuePolicy",
     "RewardOrVerifier",
     "TargetBuilder",
     "UpdateRuntime",
@@ -47,6 +48,14 @@ class ReferencePolicy(Protocol):
     """Frozen policy used as a policy-regularization reference."""
 
     def hidden_states_at(self, *args: Any, **kwargs: Any) -> Any: ...
+
+
+class ValuePolicy(Protocol):
+    """Trainable critic that predicts token-level values."""
+
+    def values_at(self, *args: Any, **kwargs: Any) -> Any: ...
+
+    def trainable_parameters(self) -> list[Any]: ...
 
 
 class RewardOrVerifier(Protocol):
@@ -103,6 +112,7 @@ class LocalRoleGraph:
     update_runtime: UpdateRuntime
     evaluation_runtime: EvaluationRuntime
     artifact_bridge: ArtifactBridge
+    value_policy: ValuePolicy | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -125,6 +135,7 @@ class LocalRoleGraph:
                 "rollout_runtime": kind(self.rollout_runtime),
                 "teacher_policy": kind(self.teacher_policy),
                 "reference_policy": kind(self.reference_policy),
+                "value_policy": kind(self.value_policy),
                 "reward_or_verifier": kind(self.reward_or_verifier),
                 "target_builder": kind(self.target_builder),
                 "update_runtime": kind(self.update_runtime),

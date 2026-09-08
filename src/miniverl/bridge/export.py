@@ -16,6 +16,7 @@ from typing import Any
 import yaml
 
 from miniverl import __version__
+from miniverl.algorithms.contract import UPSTREAM_VERL_COMMIT, UPSTREAM_VERL_TAG
 from miniverl.bridge.contract import (
     BRIDGE_PROFILE,
     COMPATIBILITY_LEVELS,
@@ -61,6 +62,23 @@ _UNSUPPORTED = (
     "GRPO group semantics",
 )
 _REVISION = re.compile(r"^[0-9a-f]{40}$")
+
+
+def _validate_rl_v09_target(value: str) -> None:
+    if value.strip() not in {UPSTREAM_VERL_TAG, UPSTREAM_VERL_COMMIT}:
+        raise ConfigError(
+            f"unsupported verl RL target {value!r}; expected {UPSTREAM_VERL_TAG!r} "
+            f"or commit {UPSTREAM_VERL_COMMIT}"
+        )
+
+
+def _required_verl_rl_v09_text() -> str:
+    return (
+        f"VERL_REPOSITORY={VERL_REPOSITORY}\n"
+        f"VERL_TAG={UPSTREAM_VERL_TAG}\n"
+        f"VERL_COMMIT={UPSTREAM_VERL_COMMIT}\n"
+        "PROFILE=verl-rl-v0.9-single-gpu-v2\n"
+    )
 
 
 def _sha256(path: Path) -> str:
@@ -435,6 +453,179 @@ def _write_hashes(root: Path) -> None:
     write_text(checksum, "\n".join(lines) + "\n")
 
 
+def _rl_reward_source(provider: str) -> tuple[str, bool, list[str]]:
+    """Return a safe upstream reward implementation or an explicit boundary."""
+    if provider == "exact_answer":
+        source = '''"""Generated deterministic exact-answer reward."""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+def compute_score(
+    data_source: str,
+    solution_str: str,
+    ground_truth: str,
+    extra_info: dict[str, Any] | None = None,
+) -> float:
+    del data_source, extra_info
+    return 1.0 if solution_str.strip() == str(ground_truth).strip() else 0.0
+'''
+        return source, True, []
+    return (
+        _reward_scaffold(),
+        False,
+        [f"reward provider {provider!r} requires an upstream implementation review"],
+    )
+
+
+def _rl_source_files(
+    run: Path, config: dict[str, Any]
+) -> tuple[dict[str, list[str]], dict[str, Any]]:
+    destination: dict[str, list[str]] = {"train": [], "val": []}
+    evidence: dict[str, Any] = {}
+    source = _get(config, "source")
+    if not isinstance(source, dict) or source.get("kind") != "verl_parquet":
+        raise ConfigError("RL export requires source.kind=verl_parquet")
+    for split, field in (("train", "train_files"), ("val", "val_files")):
+        values = source.get(field, [])
+        if not isinstance(values, list) or not all(isinstance(value, str) for value in values):
+            raise ConfigError(f"source.{field} must be a list of Parquet paths")
+        if split == "train" and not values:
+            raise ConfigError("RL export requires at least one training Parquet file")
+        rows: list[dict[str, Any]] = []
+        for index, raw in enumerate(values):
+            path = _resolve_source_file(run, raw)
+            name = f"{split}.parquet" if len(values) == 1 else f"{split}-{index:03d}.parquet"
+            bundle_path = f"data/{name}"
+            destination[split].append(bundle_path)
+            rows.append({"bundle_path": bundle_path, "path": path})
+        evidence[split] = rows
+    return destination, evidence
+
+
+def _latest_critic_state(run: Path) -> tuple[Path, Path | None]:
+    checkpoints = run / "checkpoints"
+    candidates = (
+        []
+        if not checkpoints.is_dir()
+        else [path for path in checkpoints.iterdir() if path.is_dir()]
+    )
+    candidates.sort(key=lambda path: (path.name == "final", path.name), reverse=True)
+    for checkpoint in candidates:
+        critic = checkpoint / "critic.safetensors"
+        if critic.is_file():
+            state = checkpoint / "state.json"
+            return critic, state if state.is_file() else None
+    raise ConfigError("PPO export requires a complete checkpoint containing critic.safetensors")
+
+
+def _rl_v09_overrides(
+    config: dict[str, Any],
+    adapter: dict[str, Any],
+    data_paths: dict[str, list[str]],
+) -> dict[str, Any]:
+    """Preserve supported RL experiment semantics in a pinned v0.9 override."""
+    algorithm = _get(config, "algorithm") or {}
+    train = _get(config, "train") or {}
+    rollout = _get(config, "rollout") or {}
+    source = _get(config, "source") or {}
+    loss = _get(config, "loss") or {}
+    critic = _get(config, "critic") or {}
+    name = str(algorithm.get("name"))
+    estimator = {
+        "ppo": "gae",
+        "grpo": "grpo",
+        "dr_grpo": "grpo",
+        "rloo": "rloo",
+        "reinforce_plus_plus": "reinforce_plus_plus",
+    }.get(name)
+    if estimator is None:
+        raise ConfigError(f"RL export does not support algorithm.name={name!r}")
+    samples = int(rollout.get("samples_per_prompt", 1))
+    prompts = int(train.get("rollouts_per_cycle", 1))
+    mini_batch = int(train.get("gradient_accumulation_steps", prompts * samples))
+    overrides: dict[str, Any] = {
+        "data": {
+            "train_files": data_paths["train"],
+            "val_files": data_paths["val"],
+            "prompt_key": str(source.get("prompt_key", "prompt")),
+            "train_batch_size": prompts,
+            "max_prompt_length": int(source.get("max_prompt_length", 512)),
+            "max_response_length": int(source.get("max_response_length", 128)),
+            "shuffle": bool(source.get("shuffle", True)),
+            "seed": int(source.get("seed", _get(config, "run.seed") or 0)),
+        },
+        "actor_rollout_ref": {
+            "model": {
+                "path": "model/base",
+                "lora_adapter_path": "model",
+                "lora_rank": adapter["rank"],
+                "lora_alpha": adapter["alpha"],
+                "target_modules": adapter["target_modules"],
+            },
+            "actor": {
+                "optim": {
+                    "lr": float(train.get("learning_rate", 1e-5)),
+                    "weight_decay": float(train.get("weight_decay", 0.0)),
+                    "lr_warmup_steps": int(train.get("warmup_steps", 0)),
+                },
+                "ppo_mini_batch_size": mini_batch,
+                "ppo_epochs": int(algorithm.get("actor_ppo_epochs", 1)),
+                "loss_agg_mode": "token-mean",
+                "clip_ratio": float(loss.get("clip_ratio", 0.2)),
+                "clip_ratio_low": float(loss.get("clip_ratio_low", 0.2)),
+                "clip_ratio_high": float(loss.get("clip_ratio_high", 0.2)),
+                "clip_ratio_c": float(loss.get("clip_ratio_c", 3.0)),
+                "use_kl_loss": float(algorithm.get("actor_kl_coef", 0.0)) > 0.0,
+                "kl_loss_coef": float(algorithm.get("actor_kl_coef", 0.0)),
+                "kl_loss_type": str(algorithm.get("actor_kl_penalty", "kl")),
+                "entropy_coeff": float(algorithm.get("entropy_coeff", 0.0)),
+            },
+            "rollout": {
+                "n": samples,
+                "temperature": float(rollout.get("temperature", 1.0)),
+                "top_p": float(rollout.get("top_p", 1.0)),
+                "top_k": int(rollout.get("top_k", 0)),
+            },
+        },
+        "algorithm": {
+            "adv_estimator": estimator,
+            "norm_adv_by_std_in_grpo": name != "dr_grpo",
+            "gamma": float(algorithm.get("gamma", 1.0)),
+            "lam": float(algorithm.get("lam", 1.0)),
+            "use_kl_in_reward": float(algorithm.get("kl_coef", 0.0)) > 0.0,
+            "kl_penalty": str(algorithm.get("kl_penalty", "kl")),
+            "kl_ctrl": {"type": "fixed", "kl_coef": float(algorithm.get("kl_coef", 0.0))},
+        },
+        "trainer": {
+            "total_training_steps": int(train.get("cycles", 1)),
+            "save_freq": int(train.get("save_every_cycles", 0)) or -1,
+            "test_freq": int(train.get("eval_every_cycles", 0)) or -1,
+            "experiment_name": str(_get(config, "run.name") or "miniverl-rl-export"),
+        },
+        "custom_reward_function": {
+            "path": "reward/reward_or_verifier.py",
+            "name": "compute_score",
+        },
+    }
+    if name == "ppo":
+        overrides["critic"] = {
+            "enable": True,
+            "model": {"path": "model/base"},
+            "optim": {
+                "lr": float(critic.get("learning_rate", 1e-5)),
+                "weight_decay": float(critic.get("weight_decay", 0.0)),
+                "lr_warmup_steps": int(critic.get("warmup_steps", 0)),
+            },
+            "ppo_mini_batch_size": mini_batch,
+            "ppo_epochs": int(critic.get("ppo_epochs", 1)),
+            "cliprange_value": float(algorithm.get("cliprange_value", 0.5)),
+        }
+    return overrides
+
+
 _PG_PROFILES = frozenset(
     {
         VERL_OPD_PG_K1_V08_PROFILE,
@@ -790,6 +981,166 @@ def _export_opd_bundle(
     return report
 
 
+def _export_rl_v09_bundle(
+    run: Path,
+    *,
+    manifest_path: Path,
+    model_source: Path,
+    adapter: dict[str, Any],
+    destination: Path,
+) -> dict[str, Any]:
+    """Export a fail-closed but semantically explicit RL handoff bundle."""
+    from miniverl.bridge.rl_v09 import VERL_RL_V09_PPO_PROFILE
+    from miniverl.config import RunConfig
+
+    config_path = run / "config.resolved.yaml"
+    if not config_path.is_file():
+        raise ConfigError("RL export requires config.resolved.yaml")
+    validated = RunConfig.from_yaml(config_path)
+    if validated.run.mode.value != "rl":
+        raise ConfigError("verl v0.9 export requires a completed run.mode=rl run")
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(config, dict):  # pragma: no cover - RunConfig already guards
+        raise ConfigError("resolved RL config must be a mapping")
+    model = validated.models.student
+    if model.model_id != adapter["base_model"] or model.revision != adapter["revision"]:
+        raise ConfigError("exported actor adapter identity differs from the resolved RL run")
+    data_paths, data_evidence = _rl_source_files(run, config)
+    overrides = _rl_v09_overrides(config, adapter, data_paths)
+    provider = validated.reward.provider.value if validated.reward.provider is not None else "none"
+    reward_source, reward_complete, reward_blockers = _rl_reward_source(provider)
+    critic_source: Path | None = None
+    critic_state: Path | None = None
+    if validated.algorithm.name.value == "ppo":
+        critic_source, critic_state = _latest_critic_state(run)
+    blockers = [
+        "actor and critic base snapshot is recorded by identity but not bundled",
+        "distributed verl execution was not tested",
+        "optimizer and distributed RNG state are not portable to upstream verl",
+        *reward_blockers,
+    ]
+    if validated.models.reference is not None:
+        blockers.append(
+            "the explicit miniVERL reference adapter is recorded but needs upstream rematerialization"
+        )
+    temporary = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
+    temporary.mkdir()
+    try:
+        _copy_model(model_source, temporary / "model")
+        write_json(
+            temporary / "model/base-model.json",
+            {
+                "model_id": adapter["base_model"],
+                "revision": adapter["revision"],
+                "materialized_path": "model/base",
+                "status": "identity only; exact snapshot is not bundled",
+            },
+        )
+        (temporary / "data").mkdir()
+        portable_evidence: dict[str, Any] = {}
+        for split, rows in data_evidence.items():
+            portable_evidence[split] = []
+            for row in rows:
+                target = temporary / row["bundle_path"]
+                shutil.copy2(row["path"], target)
+                portable_evidence[split].append(
+                    {
+                        "bundle_path": row["bundle_path"],
+                        "sha256": _sha256(target),
+                        "bytes": target.stat().st_size,
+                    }
+                )
+        if critic_source is not None:
+            critic_dir = temporary / "critic"
+            critic_dir.mkdir()
+            shutil.copy2(critic_source, critic_dir / "critic.safetensors")
+            if critic_state is not None:
+                shutil.copy2(critic_state, critic_dir / "checkpoint-state.json")
+        recipe = temporary / "recipe"
+        recipe.mkdir()
+        write_text(
+            recipe / "verl-rl-overrides.yaml",
+            yaml.safe_dump(overrides, sort_keys=False, allow_unicode=True, width=100),
+        )
+        write_text(
+            recipe / "launch.template.sh",
+            "#!/usr/bin/env bash\nset -euo pipefail\n"
+            "echo 'Template only: materialize exact roles and validate the pinned verl config.' >&2\n"
+            "exit 2\n",
+        )
+        write_text(recipe / "REQUIRED_VERL.txt", _required_verl_rl_v09_text())
+        reward_dir = temporary / "reward"
+        reward_dir.mkdir()
+        write_text(reward_dir / "reward_or_verifier.py", reward_source)
+        provenance = temporary / "provenance"
+        provenance.mkdir()
+        write_json(
+            provenance / "miniverl-manifest.json", portable_payload(read_json(manifest_path))
+        )
+        write_json(provenance / "source-config.json", portable_payload(config))
+        report: dict[str, Any] = {
+            "schema_version": 3,
+            "profile": VERL_RL_V09_PPO_PROFILE,
+            "target_verl": {
+                "repository": VERL_REPOSITORY,
+                "tag": UPSTREAM_VERL_TAG,
+                "commit": UPSTREAM_VERL_COMMIT,
+            },
+            "miniverl_version": __version__,
+            "algorithm": validated.algorithm.name.value,
+            "algorithm_semantic_parity": True,
+            "artifact_bundle_complete": True,
+            "upstream_config_parse_passed": False,
+            "model_data_load_smoke_passed": False,
+            "reward_implementation_complete": reward_complete,
+            "launchable": False,
+            "distributed_execution_tested": False,
+            "data_round_trip": portable_evidence,
+            "reward_implementation_requirement": {
+                "provider": provider,
+                "complete": reward_complete,
+            },
+            "reference_configuration": portable_payload(
+                validated.models.reference.model_dump(mode="json")
+                if validated.models.reference is not None
+                else None
+            ),
+            "critic_configuration": portable_payload(validated.critic.model_dump(mode="json")),
+            "checkpoint_portability": {
+                "actor_adapter": "bundled",
+                "critic_weights": "bundled" if critic_source is not None else "not_applicable",
+                "critic_optimizer": "not portable to upstream verl",
+                "rng": "not portable to distributed verl",
+            },
+            "miniVERL_only_execution_fields": [
+                "train.trajectory_batch_size",
+                "memory.strategy",
+            ],
+            "distributed_fields_to_reselect": [
+                "trainer.n_gpus_per_node",
+                "trainer.nnodes",
+                "actor_rollout_ref.rollout.tensor_model_parallel_size",
+            ],
+            "launch_blockers": blockers,
+            "distributed_execution_status": "not tested",
+        }
+        write_json(provenance / "compatibility-report.json", report)
+        write_text(
+            temporary / "README.md",
+            f"# miniVERL RL handoff\n\nThis bundle preserves a local "
+            f"`{validated.algorithm.name.value}` experiment for pinned `{UPSTREAM_VERL_TAG}`. "
+            "It contains the actor adapter, Parquet data, resolved semantics, and critic "
+            "weights when applicable. Review `provenance/compatibility-report.json`; the "
+            "launch template stays fail-closed until every scale-out requirement is met.\n",
+        )
+        _write_hashes(temporary)
+        temporary.replace(destination)
+    except BaseException:
+        shutil.rmtree(temporary, ignore_errors=True)
+        raise
+    return report
+
+
 def export_verl_bundle(
     run: str | Path,
     *,
@@ -797,22 +1148,31 @@ def export_verl_bundle(
     out: str | Path,
 ) -> dict[str, Any]:
     """Export one immutable, self-checking artifact bundle."""
-    validate_target_verl(target_verl)
     run_path = Path(run)
     manifest_path = run_path / "manifest.json"
     if not run_path.is_dir() or not manifest_path.is_file():
         raise ConfigError(f"miniVERL run is missing manifest.json: {run_path}")
     model_source = _model_source(run_path)
     adapter = _adapter_contract(model_source)
+    destination = Path(out)
+    if destination.exists():
+        raise ConfigError(
+            f"export destination already exists: {destination}",
+            hint="choose a new directory so an earlier verified bundle cannot be mixed in",
+        )
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if target_verl.strip() in {UPSTREAM_VERL_TAG, UPSTREAM_VERL_COMMIT}:
+        _validate_rl_v09_target(target_verl)
+        return _export_rl_v09_bundle(
+            run_path,
+            manifest_path=manifest_path,
+            model_source=model_source,
+            adapter=adapter,
+            destination=destination,
+        )
+    validate_target_verl(target_verl)
     opd_contract = _opd_run_contract(run_path)
     if opd_contract is not None:
-        destination = Path(out)
-        if destination.exists():
-            raise ConfigError(
-                f"export destination already exists: {destination}",
-                hint="choose a new directory so an earlier verified bundle cannot be mixed in",
-            )
-        destination.parent.mkdir(parents=True, exist_ok=True)
         source, compatibility = opd_contract
         return _export_opd_bundle(
             run_path,
@@ -831,13 +1191,6 @@ def export_verl_bundle(
         if not (data_source / split).is_file():
             raise ConfigError(f"run data is missing {split}: {data_source / split}")
 
-    destination = Path(out)
-    if destination.exists():
-        raise ConfigError(
-            f"export destination already exists: {destination}",
-            hint="choose a new directory so an earlier verified bundle cannot be mixed in",
-        )
-    destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
     temporary.mkdir()
     report: dict[str, Any] = {

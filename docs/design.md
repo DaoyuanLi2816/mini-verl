@@ -1,6 +1,6 @@
 # miniVERL design
 
-This document explains miniVERL's layers, critic-free RL and on-policy
+This document explains miniVERL's layers, PPO and critic-free RL, and on-policy
 distillation (OPD) cycles, and the invariants checked at each boundary. Module,
 function and field names follow the source tree; measured numbers link to their
 result artifacts.
@@ -629,15 +629,17 @@ quietly did no work.
 
 ## 7. Runtime scope
 
-**Critic-free RL.** `algorithms` contains pure GRPO, Dr.GRPO, RLOO,
+**RL objectives.** `algorithms` contains PPO/GAE, GRPO, Dr.GRPO, RLOO,
 REINFORCE++, reference-KL and clipped-policy primitives pinned to official verl
 v0.9. `rewards` owns deterministic scalar/batch provider contracts and trusted
 composition. The trainer publishes complete prompt groups, attaches rewards
 and token-aligned advantages, then updates the current actor.
 
-**PPO critic.** GAE and clipped value-loss mathematics are conformance-tested,
-but no executable PPO plan is published. A trainable value role still needs its
-own model/head, optimizer, checkpoint identity and temporal phase ownership.
+**PPO critic.** `ValueCritic` owns an independent causal-LM backbone and scalar
+value head. `PPOPhaseRuntime` scores old values, computes GAE, runs clipped
+critic epochs and schedules actor/critic device residency. Critic weights,
+optimizer, schedule and update counters participate in transactional checkpoint
+and exact-resume validation.
 
 **Distributed placement.** Ray, FSDP/FSDP2, Megatron-LM and parallel degrees
 above one remain upstream scale-out machinery. miniVERL compiles safe experiment
