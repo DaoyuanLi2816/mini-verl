@@ -74,15 +74,15 @@ def _identity(native: RunConfig, *, plan_digest: str, device: dict[str, Any]) ->
             "lora": native.models.student.lora.model_dump(mode="json"),
         },
         "teacher": {
-            "model_id": native.models.teacher.model_id,
-            "revision": native.models.teacher.revision,
-            "tokenizer_id": native.models.teacher.tokenizer_id,
-            "tokenizer_revision": native.models.teacher.tokenizer_revision,
-            "quantization": native.models.teacher.quantization.value,
-            "dtype": native.models.teacher.dtype.value,
+            "model_id": native.models.required_teacher.model_id,
+            "revision": native.models.required_teacher.revision,
+            "tokenizer_id": native.models.required_teacher.tokenizer_id,
+            "tokenizer_revision": native.models.required_teacher.tokenizer_revision,
+            "quantization": native.models.required_teacher.quantization.value,
+            "dtype": native.models.required_teacher.dtype.value,
             "adapter": (
-                native.models.teacher.adapter.model_dump(mode="json")
-                if native.models.teacher.adapter is not None
+                native.models.required_teacher.adapter.model_dump(mode="json")
+                if native.models.required_teacher.adapter is not None
                 else None
             ),
         },

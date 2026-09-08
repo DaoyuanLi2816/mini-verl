@@ -274,7 +274,11 @@ def load_shared_adapter_backends(
     from miniverl.models.adapter_io import validate_teacher_adapter
     from miniverl.models.hf import HFBackend
 
-    protocol_version = str(config.environment.params.get("protocol_version", "v1"))
+    protocol_version = (
+        str(config.environment.params.get("protocol_version", "v1"))
+        if config.environment is not None
+        else None
+    )
     owner = HFBackend.load(
         config.models.student,
         device=device,

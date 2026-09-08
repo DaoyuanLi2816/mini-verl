@@ -155,8 +155,8 @@ def evaluate_teacher_candidate(
             "test_tasks_generated": 0,
             "student_policy_used": False,
             "teacher": {
-                "model_id": config.models.teacher.model_id,
-                "revision": config.models.teacher.revision,
+                "model_id": config.models.required_teacher.model_id,
+                "revision": config.models.required_teacher.revision,
                 "adapter": getattr(teacher, "adapter_provenance", None),
             },
             "metrics": metrics,

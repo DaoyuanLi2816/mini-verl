@@ -253,8 +253,8 @@ def test_root_help_describes_the_current_product_without_promising_v08() -> None
 
     assert result.exit_code == 0
     collapsed = _collapse(result.stdout)
-    assert "documented subset of verl-style OPD on one consumer GPU" in collapsed
-    assert "teacher scoring and actor update locally" in collapsed
+    assert "supported verl experiment semantics for one consumer GPU" in collapsed
+    assert "reward/reference/teacher phases and actor updates" in collapsed
     assert "inspectable PEFT artifacts" in collapsed
     assert "distributed verl execution" not in collapsed
 

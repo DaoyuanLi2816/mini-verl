@@ -1,0 +1,87 @@
+# Resolved verl v0.9-shaped GRPO example for the
+# verl-rl-v0.9-single-gpu-v1 compatibility compiler.
+#
+# Create its deterministic reward-bearing input with:
+#   miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
+#
+# Compile and review it with:
+#   miniverl import-verl --config examples/verl-rl-v0.9-single-gpu.yaml \
+#     --profile verl-rl-v0.9-single-gpu-v1 --out recipes/qwen3_grpo_local.yaml
+#
+# The distributed resource fields are retained as source intent and classified
+# as distributed-only. The compiler lowers execution to one local CUDA process.
+
+data:
+  train_files: [data/rl-prompts.parquet]
+  val_files: []
+  prompt_key: prompt
+  train_batch_size: 2
+  max_prompt_length: 128
+  max_response_length: 24
+  truncation: error
+  shuffle: true
+  seed: 17
+
+actor_rollout_ref:
+  model:
+    path: Qwen/Qwen3-0.6B
+    enable_gradient_checkpointing: true
+    lora_rank: 16
+    lora_alpha: 32
+    target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+  actor:
+    optim:
+      lr: 1.0e-5
+      weight_decay: 0.01
+      lr_warmup_steps: 0
+    ppo_mini_batch_size: 8
+    ppo_epochs: 1
+    loss_agg_mode: token-mean
+    clip_ratio: 0.2
+    clip_ratio_low: 0.2
+    clip_ratio_high: 0.2
+    clip_ratio_c: 3.0
+    use_kl_loss: false
+    entropy_coeff: 0.0
+  rollout:
+    name: vllm
+    n: 4
+    temperature: 1.0
+    top_p: 1.0
+    top_k: 0
+    tensor_model_parallel_size: 8
+    gpu_memory_utilization: 0.6
+
+algorithm:
+  adv_estimator: grpo
+  norm_adv_by_std_in_grpo: true
+  gamma: 1.0
+  lam: 1.0
+  use_kl_in_reward: false
+
+trainer:
+  total_training_steps: 2
+  total_epochs: 1
+  project_name: mini-verl
+  experiment_name: qwen3-grpo-local
+  save_freq: 1
+  test_freq: -1
+  logger: [console]
+  n_gpus_per_node: 8
+  nnodes: 2
+
+miniverl:
+  reward:
+    provider: exact_answer
+  actor:
+    lora_enabled: true
+    revision: c1899de289a04d12100db370d81485cdf75e47ca
+    tokenizer_revision: c1899de289a04d12100db370d81485cdf75e47ca
+    dtype: auto
+    quantization: nf4
+  rollout:
+    backend: hf_cached
+  memory:
+    strategy: resident
+  update:
+    trajectory_batch_size: 1

@@ -246,3 +246,28 @@ def test_reset_observation_is_authoritative_and_reset_runs_once_per_episode() ->
     oracle_user = next(span for span in oracle.spans if span.span_type is SpanType.USER)
     assert oracle_user.env_state_id == "dynamic:7"
     assert oracle.metadata["initial_observation_state_id"] == "dynamic:7"
+
+
+def test_full_width_group_seed_is_bounded_before_backend_generation() -> None:
+    class _SeedCapturingBackend(_ScriptedBackend):
+        received_seed: int | None = None
+
+        def generate(self, prefix_token_ids, **kwargs) -> GenerationOutput:
+            self.received_seed = kwargs["seed"]
+            return super().generate(prefix_token_ids, **kwargs)
+
+    backend = _SeedCapturingBackend([(render_final("2"), "stop_sequence")])
+    runner = RolloutRunner(
+        backend=backend,
+        environment=CalculatorEnvironment(prompt_style="compact"),
+        config=RolloutConfig(max_turns=1, max_new_tokens_per_turn=32, max_total_tokens=1600),
+    )
+
+    runner.rollout(
+        Task(task_id="seed", prompt="Compute 1 + 1.", answer="2"),
+        policy_version=0,
+        seed=(1 << 63) - 1,
+    )
+
+    assert backend.received_seed is not None
+    assert 0 <= backend.received_seed <= (1 << 63) - 1

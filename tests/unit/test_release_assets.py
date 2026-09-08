@@ -17,14 +17,13 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
+def _fixture(tmp_path: Path, *, version: str = "0.11.0.dev0") -> tuple[Path, Path, Path, Path]:
     from miniverl.release_candidate import PINNED_BUILD_TOOLS
 
     candidate = tmp_path / "candidate"
     qualification = tmp_path / "qualification"
     candidate.mkdir(parents=True)
     qualification.mkdir(parents=True)
-    version = "0.11.0.dev0"
     commit = "a" * 40
     wheel = candidate / f"miniverl-{version}-py3-none-any.whl"
     sdist = candidate / f"miniverl-{version}.tar.gz"
@@ -84,6 +83,11 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
             b'{"kind":"vllm-runtime"}\n',
         ),
     }
+    if version.startswith("0.12."):
+        evidence["full_v012_rl_result"] = (
+            "full/v012-rl.json",
+            b'{"kind":"v012-rl"}\n',
+        )
     artifacts = []
     for name, (relative, content) in evidence.items():
         path = qualification / relative
@@ -195,6 +199,14 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
             "other_hardware_measured": False,
         },
     }
+    if version.startswith("0.12."):
+        payload["checks"]["executed"].extend(
+            [
+                "v012_pinned_verl_v09_compiler",
+                "v012_grpo_nonconstant_reward_update",
+                "v012_exact_wheel_rl_runtime",
+            ]
+        )
     qualification_path = qualification / "qualification.json"
     qualification_path.write_text(json.dumps(payload), encoding="utf-8")
     verification = tmp_path / "verification.json"
@@ -217,10 +229,10 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     return candidate, manifest_path, qualification, verification
 
 
-def _build(tmp_path: Path, *, name: str = "out") -> Path:
+def _build(tmp_path: Path, *, name: str = "out", version: str = "0.11.0.dev0") -> Path:
     from miniverl.release_assets import prepare_release_assets
 
-    candidate, manifest, qualification, verification = _fixture(tmp_path)
+    candidate, manifest, qualification, verification = _fixture(tmp_path, version=version)
     output = tmp_path / name
     prepare_release_assets(
         candidate_dir=candidate,
@@ -269,12 +281,24 @@ def test_release_evidence_mapping_is_versioned_for_historical_records() -> None:
 
     historical = _archive_evidence_for_version("0.10.1")
     current = _archive_evidence_for_version("0.11.0")
+    v012 = _archive_evidence_for_version("0.12.0")
     assert "full_v011_profiles_result" not in historical
     assert set(current) - set(historical) == {
         "full_v011_profiles_result",
         "full_hf_cached_runtime_result",
         "full_vllm_runtime_result",
     }
+    assert set(v012) - set(current) == {"full_v012_rl_result"}
+
+
+def test_v012_release_archive_includes_rl_qualification(tmp_path: Path) -> None:
+    from miniverl.release_assets import check_release_assets
+
+    output = _build(tmp_path, version="0.12.0")
+    manifest = json.loads((output / "qualification-evidence-manifest.json").read_text())
+
+    assert "v012_rl" in {member["semantic_role"] for member in manifest["members"]}
+    assert check_release_assets(output) == []
 
 
 def test_archive_and_manifest_are_reproducible_and_explicit(tmp_path: Path) -> None:

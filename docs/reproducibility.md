@@ -277,10 +277,11 @@ $ curl -s https://huggingface.co/api/models/Qwen/Qwen3-0.6B \
 apache-2.0
 ```
 
-Finally, verify the tokenizers behaviourally, which is what miniVERL actually
-checks. `HFTokenizerAdapter` computes a fingerprint from the tokenizer class,
-`len(tokenizer)`, the EOS and PAD ids, the added special tokens, and the token
-ids produced for a fixed probe string:
+Finally, verify tokenizer structural identity, which is miniVERL's primary
+new-run check. `HFTokenizerAdapter` canonicalizes and hashes the vocabulary,
+added vocabulary, special-token map, backend tokenizer and behavior-relevant
+configuration. It also retains the historical behavioral fingerprint for
+legacy artifacts that have no structural digest:
 
 ```console
 $ python -c "
@@ -288,12 +289,12 @@ from miniverl.models.tokenizers import HFTokenizerAdapter
 a = HFTokenizerAdapter.load('Qwen/Qwen3-0.6B', revision='c1899de289a04d12100db370d81485cdf75e47ca')
 b = HFTokenizerAdapter.load('Qwen/Qwen3-1.7B', revision='70d244cc86ccca08cf5af4e1e306ecf908b1ad5e')
 print('vocab_size', a.vocab_size, b.vocab_size)
-print('identical', a.fingerprint == b.fingerprint)
-print(a.fingerprint)
+print('structurally identical', a.identity.digest == b.identity.digest)
+print('legacy fingerprint equal', a.fingerprint == b.fingerprint)
 "
 vocab_size 151669 151669
-identical True
-f2f5e826dddc3ff1e2481111075f2ed6eced4e553168222d67650931d25be035
+structurally identical True
+legacy fingerprint equal True
 ```
 
 Note the two vocabulary numbers. `config.json` declares `vocab_size: 151936`
@@ -301,11 +302,10 @@ Note the two vocabulary numbers. `config.json` declares `vocab_size: 151936`
 records the tokenizer number as `models.tokenizer_vocab_size` in the manifest
 and uses the model's own `vocab_size` for the LM-head projection.
 
-The fingerprint value above was measured with transformers 5.14.1. It depends
-on the tokenizer class name and the added-token list, so a transformers upgrade
-can change it even when `tokenizer.json` does not. Compare fingerprints between
-student and teacher within one environment; do not compare a fingerprint across
-library versions.
+Structural identity intentionally removes local path spellings such as
+`name_or_path`, so identical snapshots loaded from different directories hash
+the same way. The legacy fingerprint depends on the tokenizer class and probe
+encoding; agreement is useful for old artifacts but is not an identity proof.
 
 ## What is not deterministic, and why
 

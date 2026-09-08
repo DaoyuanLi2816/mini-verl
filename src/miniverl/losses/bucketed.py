@@ -286,10 +286,16 @@ def bucketed_teacher_entropy(
     discards its internal spread.  Reports label it accordingly.
     """
     log_eps = math.log(tail_epsilon)
+    tail = to_float32(teacher_tail_log_prob)
+    # ``teacher_topk_targets`` uses -inf to represent the exactly empty tail
+    # when K covers the vocabulary.  Preserve that identity element instead of
+    # turning it into a phantom epsilon-probability bucket.  Apply the rule per
+    # row so mixed-vocabulary batches remain correct as well.
+    tail = torch.where(torch.isneginf(tail), tail, tail.clamp_min(log_eps))
     buckets = torch.cat(
         [
             to_float32(teacher_topk_log_probs),
-            to_float32(teacher_tail_log_prob).clamp_min(log_eps).unsqueeze(-1),
+            tail.unsqueeze(-1),
         ],
         dim=-1,
     )

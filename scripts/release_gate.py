@@ -80,6 +80,10 @@ def gate_plan(
             (python, "scripts/publish_verl_opd_compatibility.py", "--check"),
         ),
         Gate(
+            "generated_rl_v09_compatibility",
+            (python, "scripts/publish_verl_rl_v09_compatibility.py", "--check"),
+        ),
+        Gate(
             "generated_hardware_schema",
             (python, "scripts/publish_hardware_record_schema.py", "--check"),
         ),

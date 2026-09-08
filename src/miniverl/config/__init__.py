@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from miniverl.config.models import (
     AdapterSource,
+    AlgorithmConfig,
     AlignmentConfig,
     AlignmentMethod,
     CacheConfig,
@@ -33,6 +34,7 @@ from miniverl.config.models import (
     ReportConfig,
     RewardConfig,
     RewardProviderKind,
+    RLAlgorithm,
     RolloutConfig,
     RunConfig,
     RunMeta,
@@ -53,6 +55,7 @@ from miniverl.config.models import (
 
 __all__ = [
     "AdapterSource",
+    "AlgorithmConfig",
     "AlignmentConfig",
     "AlignmentMethod",
     "CacheConfig",
@@ -82,6 +85,7 @@ __all__ = [
     "RewardConfig",
     "RewardProviderKind",
     "ReportConfig",
+    "RLAlgorithm",
     "RolloutConfig",
     "RunConfig",
     "RunMeta",

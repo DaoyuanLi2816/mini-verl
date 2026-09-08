@@ -47,7 +47,7 @@ jobs:
           changed=$(git diff --name-only "origin/$BASE_REF"...HEAD)
           echo "changed files:"
           echo "$changed"
-          if echo "$changed" | grep -Eq '^(\.github/workflows/verl-bridge\.yml|pyproject\.toml|scripts/[^/]*verl_bridge[^/]*|src/miniverl/bridge/.*|src/miniverl/losses/verl_(topk|pg)\.py|tests/.*verl_(bridge|opd|pg).*|tests/conformance/test_verl_v08_(loss|pg_k1)\.py)$'; then
+          if echo "$changed" | grep -Eq '^(\.github/workflows/verl-bridge\.yml|pyproject\.toml|scripts/[^/]*verl_bridge[^/]*|src/miniverl/(algorithms|bridge)/.*|src/miniverl/losses/verl_(topk|pg)\.py|tests/.*verl_(bridge|opd|pg).*|tests/conformance/test_verl_v0(8_(loss|pg_k1)|9_rl)\.py)$'; then
             echo "bridge=true" >> "$GITHUB_OUTPUT"
           else
             echo "bridge=false" >> "$GITHUB_OUTPUT"
@@ -77,6 +77,14 @@ jobs:
         run: python -m pytest -q tests/conformance/test_verl_v08_loss.py -m verl_conformance
       - name: Compare sampled k1 policy-loss values, gradients and optimizer step
         run: python -m pytest -q tests/conformance/test_verl_v08_pg_k1.py -m verl_conformance
+      - name: Checkout the pinned verl v0.9.0 algorithm source
+        run: >-
+          git clone --depth 1 --branch v0.9.0
+          https://github.com/volcengine/verl.git _verl-v0.9.0
+      - name: Compare GRPO, Dr.GRPO, RLOO, REINFORCE++, GAE, policy and value math
+        env:
+          MINIVERL_VERL_V09_SOURCE: _verl-v0.9.0
+        run: python -m pytest -q tests/conformance/test_verl_v09_rl.py -m verl_conformance
       - name: Materialize and recheck a tiny launchable pure-OPD bundle
         run: >-
           python -m pytest -q tests/conformance/test_verl_v08_materialize.py

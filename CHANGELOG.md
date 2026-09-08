@@ -6,6 +6,40 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-07
+
+### Single-GPU verl RL
+
+- Added the versioned `verl-rl-v0.9-single-gpu-v1` compiler for a resolved
+  official verl v0.9 subset. It classifies every source field, lowers resource
+  placement to one process/device, validates runnable recipes, and publishes
+  the recipe/report pair transactionally.
+- Added critic-free GRPO, Dr.GRPO, RLOO and REINFORCE++ execution with complete
+  prompt groups, behavior-policy log-probabilities, vanilla dual-clipped policy
+  loss, outcome rewards and optional fixed reference-policy reward KL.
+- Added upstream-pinned conformance for estimator, reference-KL, policy-loss,
+  GAE and clipped-value mathematics against verl v0.9.0 at commit
+  `483b8a009ba3a97563edee3a19887e4862b8094a`.
+- Unified prompt and agent/tool trajectories through schema-v3 group/sample
+  identity, generated-token-only masks and recorded environment verifier
+  outcomes. Added exact interrupted/resume coverage for the RL path.
+- Added typed batch reward providers and weighted composition for trusted local
+  Python use, plus an explicit deterministic target-length provider, while
+  keeping YAML free of arbitrary imports.
+- Extended the exact-wheel RTX 4080 release chain with a compiled v0.9 GRPO
+  workload that requires within-group reward variance, nonzero advantages, two
+  parameter-changing updates and a bounded-memory evidence record.
+
+### Correctness and product surface
+
+- Fixed full-vocabulary bucketed teacher entropy so `K == V` preserves valid
+  zero-probability terms instead of creating non-finite values (fixes #89).
+- Made the RL compatibility compiler usable from the Torch-free core install
+  and generated a byte-checked v0.9 field report from the shipped example.
+- Rebuilt the README and documentation landing path around verl experiment
+  semantics compiled into a single-GPU plan, with RL and OPD capabilities shown
+  together and detailed boundaries consolidated in compatibility/limitations.
+
 ## [0.11.0] - 2026-08-29
 
 ### Rollout Runtime v2 baseline
@@ -1143,7 +1177,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.9.1...v0.10.0

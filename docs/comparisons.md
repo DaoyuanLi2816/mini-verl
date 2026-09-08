@@ -12,7 +12,7 @@ before making a long-lived infrastructure decision.
 
 | Your priority | Best starting point |
 | --- | --- |
-| Read, modify and audit OPD on one NVIDIA GPU | **miniVERL** |
+| Prototype and inspect supported verl RL or OPD on one NVIDIA GPU | **miniVERL** |
 | Scale training across accelerators and nodes | **verl** |
 | Add generalized-JSD distillation to a Transformers training workflow | **TRL GKD** |
 | Explore cross-tokenizer or multimodal KD | **KDFlow** |
@@ -23,9 +23,9 @@ before making a long-lived infrastructure decision.
 
 | Dimension | miniVERL | verl | TRL GKD | KDFlow | OPSD | plain SFT |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Design center** | Inspectable single-GPU OPD, plus local SFT/DPO/KD baselines | General RL and distillation post-training at scale | A distillation trainer inside the Transformers ecosystem | Distributed KD across policy, tokenizer and modality choices | Paper-oriented OPD experiments built on verl | Next-token learning on a fixed dataset |
+| **Design center** | Verl experiment semantics lowered to one GPU, plus native SFT/DPO/KD | General RL and distillation post-training at scale | A distillation trainer inside the Transformers ecosystem | Distributed KD across policy, tokenizer and modality choices | Paper-oriented OPD experiments built on verl | Next-token learning on a fixed dataset |
 | **Runtime shape** | One Python process; optional CUDA training stack | Ray with distributed model and rollout backends | Transformers Trainer + Accelerate | Ray + SGLang | verl-based | Framework-dependent |
-| **On-policy path** | Strict current-policy rollout → teacher score → actor update | First-class distributed distillation and agent-loop paths | Configurable student-generated sequences | Available | Available | Fixed dataset |
+| **On-policy path** | Grouped rollout → reward/reference or teacher → actor update | First-class distributed RL, distillation and agent-loop paths | Configurable student-generated sequences | Available | Available | Fixed dataset |
 | **Tool trajectories** | Calculator, JSON navigation, read-only SQLite and custom typed environments | Agent loop and tool parser | Chat-dataset training | Project-dependent | Tool-oriented experiments | Dataset-defined |
 | **Teacher artifacts** | Exact or top-k targets, sampled-k1 signals and sharded safetensors cache | Distributed trainer state | Teacher forward pass in the trainer; server distillation supports top-k + tail controls | Chunked/distributed target handling | Chunked divergence path | Target tokens |
 | **Primary output** | PEFT adapter, trajectories, cache, plan and portable provenance bundle | Distributed checkpoints and rollout/training artifacts | Transformers model or adapter | Project-defined model artifacts | Experiment artifacts | Model or adapter |
@@ -37,11 +37,12 @@ only within their original model, data and runtime setup.
 
 ## miniVERL's design center
 
-miniVERL concentrates on the parts of a local distillation run that benefit
+miniVERL concentrates on the parts of a local post-training run that benefit
 from explicit evidence:
 
 - a typed compiler that records how each source field affects local execution;
-- strict policy-version binding between rollouts and teacher targets;
+- group/sample and policy-version binding across rollout, rewards and targets;
+- verl v0.9-conformant GRPO, Dr.GRPO, RLOO and REINFORCE++ primitives;
 - token-span provenance created during generation;
 - exact, top-k and sampled-k1 teacher signals with checksummed cache identity;
 - transactional plans, checkpoints and export publication;
@@ -54,10 +55,10 @@ throughput.
 ## When scale is the main requirement
 
 verl is the natural continuation when the workload needs multi-GPU execution,
-high-throughput rollout engines, distributed checkpointing or RL objectives.
-miniVERL's export path prepares a pinned bundle of local artifacts for that
-workflow and reports artifact completeness, materialization and launchability
-as separate states.
+distributed checkpointing or the broader algorithm/runtime surface. miniVERL's
+export path prepares a pinned bundle of local artifacts for that workflow and
+reports artifact completeness, materialization and launchability as separate
+states.
 
 Use the [scale-out contract](verl-opd-scaleout.md) for that handoff. The full
 list of miniVERL's algorithm, architecture and evidence boundaries lives in

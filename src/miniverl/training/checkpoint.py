@@ -65,6 +65,7 @@ class CheckpointState:
     backend_sync_identity: str = ""
     reward_provider_identity_digest: str | None = None
     advantage_composer_version: str | None = None
+    algorithm_identity: dict[str, Any] | None = None
     scheduler: dict[str, Any] = field(default_factory=dict)
     scaler: dict[str, Any] | None = None
     optimizer_param_groups: list[dict[str, Any]] = field(default_factory=list)
@@ -110,6 +111,7 @@ class CheckpointState:
             "backend_sync_identity": self.backend_sync_identity,
             "reward_provider_identity_digest": self.reward_provider_identity_digest,
             "advantage_composer_version": self.advantage_composer_version,
+            "algorithm_identity": self.algorithm_identity,
             "scheduler": self.scheduler,
             "scaler": self.scaler,
             "optimizer_param_groups": self.optimizer_param_groups,

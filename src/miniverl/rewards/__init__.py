@@ -14,9 +14,13 @@ from miniverl.rewards.models import (
     RewardStatus,
 )
 from miniverl.rewards.providers import (
+    BatchRewardProvider,
     EnvironmentVerifierRewardProvider,
     ExactAnswerRewardProvider,
     RewardProvider,
+    TargetLengthRewardProvider,
+    WeightedRewardProvider,
+    score_reward_requests,
 )
 
 __all__ = [
@@ -24,12 +28,16 @@ __all__ = [
     "AdvantageComposition",
     "AdvantageComposer",
     "AdvantageMode",
+    "BatchRewardProvider",
     "EnvironmentVerifierRewardProvider",
     "ExactAnswerRewardProvider",
+    "TargetLengthRewardProvider",
     "RewardComponent",
     "RewardProvider",
     "RewardProviderIdentity",
     "RewardRequest",
     "RewardResult",
     "RewardStatus",
+    "WeightedRewardProvider",
+    "score_reward_requests",
 ]

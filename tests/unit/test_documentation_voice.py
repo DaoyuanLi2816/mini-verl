@@ -43,7 +43,8 @@ def test_complete_boundaries_have_canonical_destinations() -> None:
     limitations = _read("docs/limitations.md")
     assert "one machine" in limitations
     assert "multi-GPU" in limitations
-    assert "PPO/GRPO" in limitations
+    assert "PPO" in limitations
+    assert "GRPO" in limitations
     assert "## Evidence scope" in limitations
     assert "### Execution boundary" in limitations
 

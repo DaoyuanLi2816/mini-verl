@@ -300,11 +300,62 @@ def _v011_runtime_result(name: str) -> dict[str, object]:
     return payload
 
 
-def _promote_v011(tmp_path: Path, *, mutate=None):
+def _v012_rl_result() -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "kind": "miniverl_v012_rl_qualification",
+        "status": "passed",
+        "source_commit": "a" * 40,
+        "miniverl_version": "0.12.0",
+        "wheel_sha256": "4" * 64,
+        "hardware": _v011_profile_result()["hardware"],
+        "upstream": {
+            "tag": "v0.9.0",
+            "commit": "483b8a009ba3a97563edee3a19887e4862b8094a",
+            "profile": "verl-rl-v0.9-single-gpu-v1",
+            "compiler_status": "accepted",
+            "generated_recipe_validated": True,
+        },
+        "workload": {
+            "model_id": "Qwen/Qwen3-0.6B",
+            "model_revision": "c1899de289a04d12100db370d81485cdf75e47ca",
+            "algorithm": "grpo",
+            "reward_provider": "builtin_target_length",
+            "rollout_backend": "hf_cached",
+            "cycles": 2,
+            "prompts_per_cycle": 2,
+            "samples_per_prompt": 4,
+            "trajectories": 16,
+            "optimizer_updates": 2,
+            "policy_version": 2,
+            "selected_positions": 64,
+            "losses": [0.1, 0.2],
+            "reward_min": 0.1,
+            "reward_max": 1.0,
+            "max_within_prompt_reward_variance": 0.02,
+            "max_absolute_advantage": 1.2,
+            "initial_trainable_state_sha256": "1" * 64,
+            "final_trainable_state_sha256": "2" * 64,
+        },
+        "resource_contract": {
+            "peak_reserved_gib": 8.5,
+            "limit_gib": 14.5,
+            "peak_reserved_within_limit": True,
+        },
+        "scientific_scope": {
+            "runtime_correctness_only": True,
+            "task_quality_evaluated": False,
+            "distributed_execution_tested": False,
+            "other_hardware_measured": False,
+        },
+    }
+
+
+def _promote_v011(tmp_path: Path, *, mutate=None, version: str = "0.11.0"):
     from scripts.promote_full_gpu_qualification import promote
 
     payload, root = _payload(tmp_path)
-    payload["miniverl_version"] = "0.11.0"
+    payload["miniverl_version"] = version
     payload["environment"]["python"] = "3.12.13"  # type: ignore[index]
     payload["environment"]["packages"].update(  # type: ignore[index,union-attr]
         {
@@ -320,13 +371,20 @@ def _promote_v011(tmp_path: Path, *, mutate=None):
         name: _full_result(name) for name in ("direct", "pg_k1", "smollm2")
     }
     for result in results.values():
-        result["miniverl_version"] = "0.11.0"
+        result["miniverl_version"] = version
     results["v011_profiles"] = _v011_profile_result()
     results["hf_cached_runtime"] = _v011_runtime_result("hf_cached")
     results["vllm_runtime"] = _v011_runtime_result("vllm")
     results["v011_profiles"]["wheel_sha256"] = wheel_sha256
+    results["v011_profiles"]["miniverl_version"] = version
     results["hf_cached_runtime"]["source"]["wheel_sha256"] = wheel_sha256  # type: ignore[index]
     results["vllm_runtime"]["source"]["wheel_sha256"] = wheel_sha256  # type: ignore[index]
+    results["hf_cached_runtime"]["source"]["miniverl_version"] = version  # type: ignore[index]
+    results["vllm_runtime"]["source"]["miniverl_version"] = version  # type: ignore[index]
+    if version.startswith("0.12."):
+        results["v012_rl"] = _v012_rl_result()
+        results["v012_rl"]["miniverl_version"] = version
+        results["v012_rl"]["wheel_sha256"] = wheel_sha256
     if mutate is not None:
         mutate(results)
     for name, result in results.items():
@@ -342,6 +400,7 @@ def _promote_v011(tmp_path: Path, *, mutate=None):
         hf_cached_runtime=paths["hf_cached_runtime"],
         vllm_runtime=paths["vllm_runtime"],
         hf_reference=Path("benchmarks/results/rollout-runtime-v2-hf-reference.json"),
+        v012_rl=paths.get("v012_rl"),
     )
 
 
@@ -361,6 +420,43 @@ def test_v011_full_qualification_binds_profile_and_runtime_evidence(tmp_path: Pa
         "v011_policy_refresh_cache_invalidation",
         "v011_external_engine_teardown",
     }
+
+
+def test_v012_full_qualification_binds_nonconstant_grpo_evidence(tmp_path: Path) -> None:
+    promoted = _promote_v011(tmp_path, version="0.12.0")
+
+    assert {artifact.name for artifact in promoted.artifacts} >= {
+        "full_v012_rl_result",
+    }
+    assert set(promoted.checks.executed) >= {
+        "v012_pinned_verl_v09_compiler",
+        "v012_grpo_nonconstant_reward_update",
+        "v012_exact_wheel_rl_runtime",
+    }
+
+
+@pytest.mark.parametrize(
+    ("mutate", "message"),
+    [
+        (
+            lambda r: r["v012_rl"]["workload"].update(  # type: ignore[index,union-attr]
+                max_within_prompt_reward_variance=0.0
+            ),
+            "reward variation",
+        ),
+        (
+            lambda r: r["v012_rl"]["workload"].update(  # type: ignore[index,union-attr]
+                final_trainable_state_sha256="1" * 64
+            ),
+            "actor parameters",
+        ),
+    ],
+)
+def test_v012_full_qualification_rejects_empty_rl_evidence(
+    tmp_path: Path, mutate, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        _promote_v011(tmp_path, version="0.12.0", mutate=mutate)
 
 
 @pytest.mark.parametrize(

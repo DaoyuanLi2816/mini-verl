@@ -33,6 +33,8 @@ from miniverl.utils.runs import write_text
 
 __all__ = [
     "TrainingMode",
+    "RLAlgorithm",
+    "AlgorithmConfig",
     "AlignmentConfig",
     "AlignmentMethod",
     "GateConfig",
@@ -92,6 +94,18 @@ class TrainingMode(str, Enum):
     SFT = "sft"
     OFFLINE_KD = "offline_kd"
     OPD = "opd"
+    RL = "rl"
+
+
+class RLAlgorithm(str, Enum):
+    """Pinned upstream advantage estimator executed by the local RL path."""
+
+    NONE = "none"
+    GRPO = "grpo"
+    DR_GRPO = "dr_grpo"
+    RLOO = "rloo"
+    REINFORCE_PLUS_PLUS = "reinforce_plus_plus"
+    PPO = "ppo"
 
 
 class OfflineKDTrajectorySource(str, Enum):
@@ -162,6 +176,7 @@ class LossMode(str, Enum):
     VERL_FORWARD_KL_TOPK = "forward_kl_topk"
     VERL_PG_K1 = "verl_pg_k1"
     VERL_PG_K1_REWARDED = "verl_pg_k1_rewarded"
+    VERL_RL_POLICY = "verl_rl_policy"
 
 
 class LossAggregation(str, Enum):
@@ -385,8 +400,15 @@ class ModelsConfig(_Base):
     runtime: ModelRuntime = ModelRuntime.DUAL_MODEL
     device: str = Field(default="auto", pattern="^(auto|cpu|cuda)$")
     student: StudentModelConfig
-    teacher: TeacherModelConfig
+    teacher: TeacherModelConfig | None = None
     reference: ReferenceModelConfig | None = None
+
+    @property
+    def required_teacher(self) -> TeacherModelConfig:
+        """Return the configured teacher for a teacher-dependent execution path."""
+        if self.teacher is None:
+            raise ConfigError("this execution path requires models.teacher")
+        return self.teacher
 
     @model_validator(mode="after")
     def _validate_runtime(self) -> ModelsConfig:
@@ -400,42 +422,45 @@ class ModelsConfig(_Base):
             raise ValueError("shared_backbone requires a trainable student LoRA adapter")
         if self.student.prepare_kbit_training:
             self.student = self.student.model_copy(update={"prepare_kbit_training": False})
-        if self.teacher.adapter is None:
-            raise ValueError("shared_backbone requires a frozen teacher adapter")
-        if (self.student.model_id, self.student.revision) != (
-            self.teacher.model_id,
-            self.teacher.revision,
-        ):
-            raise ValueError(
-                "shared_backbone student and teacher must use the same model_id and revision"
-            )
         student_settings = (
             self.student.dtype,
             self.student.quantization,
             self.student.attn_implementation,
             self.student.trust_remote_code,
         )
-        teacher_settings = (
-            self.teacher.dtype,
-            self.teacher.quantization,
-            self.teacher.attn_implementation,
-            self.teacher.trust_remote_code,
-        )
-        if student_settings != teacher_settings:
-            raise ValueError(
-                "shared_backbone student and teacher must use identical precision, "
-                "quantization, attention and trust_remote_code settings"
-            )
         student_tokenizer = (
             self.student.tokenizer_id or self.student.model_id,
             self.student.tokenizer_revision or self.student.revision,
         )
-        teacher_tokenizer = (
-            self.teacher.tokenizer_id or self.teacher.model_id,
-            self.teacher.tokenizer_revision or self.teacher.revision,
-        )
-        if student_tokenizer != teacher_tokenizer:
-            raise ValueError("shared_backbone roles must use one tokenizer identity")
+        if self.teacher is None and self.reference is None:
+            raise ValueError("shared_backbone requires a frozen teacher or reference role")
+        if self.teacher is not None:
+            if self.teacher.adapter is None:
+                raise ValueError("shared_backbone requires a frozen teacher adapter")
+            if (self.student.model_id, self.student.revision) != (
+                self.teacher.model_id,
+                self.teacher.revision,
+            ):
+                raise ValueError(
+                    "shared_backbone student and teacher must use the same model_id and revision"
+                )
+            teacher_settings = (
+                self.teacher.dtype,
+                self.teacher.quantization,
+                self.teacher.attn_implementation,
+                self.teacher.trust_remote_code,
+            )
+            if student_settings != teacher_settings:
+                raise ValueError(
+                    "shared_backbone student and teacher must use identical precision, "
+                    "quantization, attention and trust_remote_code settings"
+                )
+            teacher_tokenizer = (
+                self.teacher.tokenizer_id or self.teacher.model_id,
+                self.teacher.tokenizer_revision or self.teacher.revision,
+            )
+            if student_tokenizer != teacher_tokenizer:
+                raise ValueError("shared_backbone roles must use one tokenizer identity")
         if self.reference is not None:
             if (self.reference.model_id, self.reference.revision) != (
                 self.student.model_id,
@@ -452,6 +477,12 @@ class ModelsConfig(_Base):
                 raise ValueError(
                     "shared_backbone reference must use the shared base runtime settings"
                 )
+            reference_tokenizer = (
+                self.reference.tokenizer_id or self.reference.model_id,
+                self.reference.tokenizer_revision or self.reference.revision,
+            )
+            if reference_tokenizer != student_tokenizer:
+                raise ValueError("shared_backbone reference must use the shared tokenizer")
         return self
 
 
@@ -799,6 +830,7 @@ class RewardProviderKind(str, Enum):
 
     ENVIRONMENT_VERIFIER = "environment_verifier"
     EXACT_ANSWER = "exact_answer"
+    TARGET_LENGTH = "target_length"
     PYTHON_API = "python_api"
 
 
@@ -808,6 +840,20 @@ class RewardConfig(_Base):
     enabled: bool = False
     provider: RewardProviderKind | None = None
     error_policy: Literal["fail"] = "fail"
+
+
+class AlgorithmConfig(_Base):
+    """Algorithm semantics kept separate from physical single-GPU controls."""
+
+    name: RLAlgorithm = RLAlgorithm.NONE
+    implementation_version: str | None = None
+    gamma: float = Field(default=1.0, ge=0.0, le=1.0)
+    lam: float = Field(default=1.0, ge=0.0, le=1.0)
+    epsilon: float = Field(default=1e-6, gt=0.0, le=1e-2)
+    kl_coef: float = Field(default=0.0, ge=0.0)
+    kl_penalty: Literal["kl", "abs", "mse", "low_var_kl"] = "kl"
+    value_loss_coef: float = Field(default=0.5, ge=0.0)
+    cliprange_value: float = Field(default=0.5, gt=0.0)
 
 
 class RunMeta(_Base):
@@ -849,6 +895,7 @@ class RunConfig(_Base):
     eval: EvalConfig = Field(default_factory=EvalConfig)
     report: ReportConfig = Field(default_factory=ReportConfig)
     reward: RewardConfig = Field(default_factory=RewardConfig)
+    algorithm: AlgorithmConfig = Field(default_factory=AlgorithmConfig)
     alignment: AlignmentConfig | None = None
 
     # -- cross-field validation ----------------------------------------
@@ -895,38 +942,52 @@ class RunConfig(_Base):
             )
         if self.source.kind is SourceKind.VERL_PARQUET and self.environment is not None:
             raise ValueError("source.kind=verl_parquet must not define environment")
-        if self.source.kind is SourceKind.ENVIRONMENT and self.rollout.samples_per_prompt != 1:
+        if (
+            self.source.kind is SourceKind.ENVIRONMENT
+            and self.rollout.samples_per_prompt != 1
+            and mode is not TrainingMode.RL
+        ):
             raise ValueError(
                 "rollout.samples_per_prompt > 1 currently requires source.kind=verl_parquet; "
                 "multi-turn tool episodes retain one trajectory per task"
             )
+        if mode in {TrainingMode.OPD, TrainingMode.OFFLINE_KD} and self.models.teacher is None:
+            raise ValueError(f"run.mode={mode.value} requires models.teacher")
+        if mode is TrainingMode.RL and self.models.teacher is not None:
+            raise ValueError("run.mode=rl is teacher-free; remove models.teacher")
         if self.source.kind is SourceKind.VERL_PARQUET:
-            if mode is not TrainingMode.OPD:
+            if mode not in {TrainingMode.OPD, TrainingMode.RL}:
                 raise ValueError(
-                    "source.kind=verl_parquet supports pure OPD in v0.8; it has no oracle "
+                    "source.kind=verl_parquet supports OPD or RL; it has no oracle "
                     "labels for sft or offline_kd"
                 )
             if self.train.sft_warmup_cycles:
                 raise ValueError(
                     "source.kind=verl_parquet cannot run sft_warmup_cycles without oracle labels"
                 )
-            if self.models.teacher.mode is not TeacherContextMode.STANDARD:
+            if (
+                self.models.teacher is not None
+                and self.models.teacher.mode is not TeacherContextMode.STANDARD
+            ):
                 raise ValueError(
                     "source.kind=verl_parquet requires the actor and teacher to score the "
                     "same rendered prompt; privileged_context is outside the v0.8 profile"
                 )
-            if self.source.use_task_rewards and self.loss.mode is not LossMode.VERL_PG_K1_REWARDED:
+            if self.source.use_task_rewards and self.loss.mode not in {
+                LossMode.VERL_PG_K1_REWARDED,
+                LossMode.VERL_RL_POLICY,
+            }:
                 raise ValueError(
                     "existing PG-k1 profile is reward-free; source.use_task_rewards=true "
                     "requires the explicit rewarded PG profile"
                 )
-        if mode is TrainingMode.OPD and self.cache.reuse_across_policy_versions:
+        if mode in {TrainingMode.OPD, TrainingMode.RL} and self.cache.reuse_across_policy_versions:
             raise ValueError(
                 "cache.reuse_across_policy_versions=true contradicts run.mode=opd: "
                 "reusing one teacher cache across policy versions is offline KD. "
                 "Set run.mode: offline_kd, or keep the cache strictly per-cycle."
             )
-        if mode is TrainingMode.OPD and not self.cache.strict_policy_version:
+        if mode in {TrainingMode.OPD, TrainingMode.RL} and not self.cache.strict_policy_version:
             raise ValueError(
                 "run.mode=opd requires cache.strict_policy_version=true so teacher "
                 "targets can never be consumed by a different policy version"
@@ -989,6 +1050,75 @@ class RunConfig(_Base):
                     "supported verl v0.8 profile"
                 )
 
+        if self.loss.mode is LossMode.VERL_RL_POLICY:
+            from miniverl.algorithms.contract import ADVANTAGE_IMPLEMENTATION_VERSION
+
+            if mode is not TrainingMode.RL:
+                raise ValueError("loss.mode=verl_rl_policy requires run.mode=rl")
+            if not self.reward.enabled:
+                raise ValueError("run.mode=rl requires task rewards and reward.enabled=true")
+            if self.source.kind is SourceKind.VERL_PARQUET:
+                if not self.source.use_task_rewards:
+                    raise ValueError("Parquet RL requires source.use_task_rewards=true")
+                if self.reward.provider not in {
+                    RewardProviderKind.EXACT_ANSWER,
+                    RewardProviderKind.TARGET_LENGTH,
+                    RewardProviderKind.PYTHON_API,
+                }:
+                    raise ValueError(
+                        "Parquet RL requires exact_answer, target_length, or an injected "
+                        "python_api provider"
+                    )
+            elif self.reward.provider is not RewardProviderKind.ENVIRONMENT_VERIFIER:
+                raise ValueError("environment RL requires reward.provider=environment_verifier")
+            if self.algorithm.name is RLAlgorithm.NONE:
+                raise ValueError("run.mode=rl requires an explicit algorithm.name")
+            if self.algorithm.implementation_version != ADVANTAGE_IMPLEMENTATION_VERSION:
+                raise ValueError(
+                    "run.mode=rl requires algorithm.implementation_version="
+                    f"{ADVANTAGE_IMPLEMENTATION_VERSION}"
+                )
+            if self.algorithm.name is RLAlgorithm.PPO:
+                raise ValueError(
+                    "algorithm.name=ppo is not executable yet; GAE and value-loss primitives are "
+                    "conformant, but the critic checkpoint/runtime contract is not complete"
+                )
+            if self.algorithm.kl_coef > 0.0:
+                if self.models.reference is None:
+                    raise ValueError("algorithm.kl_coef > 0 requires models.reference")
+                if self.models.runtime is not ModelRuntime.SHARED_BACKBONE:
+                    raise ValueError("RL reference KL requires runtime=shared_backbone")
+            elif self.models.reference is not None:
+                raise ValueError("models.reference requires algorithm.kl_coef > 0 in run.mode=rl")
+            if self.algorithm.value_loss_coef != 0.5 or self.algorithm.cliprange_value != 0.5:
+                raise ValueError(
+                    "algorithm.value_loss_coef and cliprange_value apply only to the "
+                    "not-yet-executable PPO critic path; keep their defaults"
+                )
+            if (
+                self.algorithm.name in {RLAlgorithm.GRPO, RLAlgorithm.DR_GRPO, RLAlgorithm.RLOO}
+                and self.rollout.samples_per_prompt < 2
+            ):
+                raise ValueError(
+                    f"algorithm.name={self.algorithm.name.value} requires samples_per_prompt > 1"
+                )
+            if not self.rollout.record_logprobs:
+                raise ValueError("run.mode=rl requires rollout.record_logprobs=true")
+            if self.rollout.temperature <= 0:
+                raise ValueError("run.mode=rl requires stochastic rollout.temperature > 0")
+            if self.selection.selector is not SelectorName.ALL_MODEL_TOKENS:
+                raise ValueError("run.mode=rl requires selection.selector=all_model_tokens")
+            if self.loss.aggregation is not LossAggregation.TOKEN_MEAN:
+                raise ValueError("run.mode=rl requires loss.aggregation=token-mean")
+            if self.loss.sampled_token_nll_weight != 0.0:
+                raise ValueError("run.mode=rl cannot mix sampled-token NLL")
+            if self.loss.policy_loss_mode != "vanilla":
+                raise ValueError("run.mode=rl currently supports upstream vanilla policy loss")
+        elif mode is TrainingMode.RL:
+            raise ValueError("run.mode=rl requires loss.mode=verl_rl_policy")
+        elif self.algorithm != AlgorithmConfig():
+            raise ValueError("algorithm settings apply only to run.mode=rl")
+
         pg_modes = {LossMode.VERL_PG_K1, LossMode.VERL_PG_K1_REWARDED}
         if self.loss.mode in pg_modes:
             from miniverl.bridge.opd_pg_contract import VERL_PG_K1_IMPLEMENTATION_VERSION
@@ -997,7 +1127,7 @@ class RunConfig(_Base):
                 raise ValueError("loss.mode=verl_pg_k1 requires run.mode=opd")
             if self.source.kind is not SourceKind.VERL_PARQUET:
                 raise ValueError("loss.mode=verl_pg_k1 requires source.kind=verl_parquet")
-            if self.models.teacher.mode is not TeacherContextMode.STANDARD:
+            if self.models.required_teacher.mode is not TeacherContextMode.STANDARD:
                 raise ValueError("loss.mode=verl_pg_k1 requires a standard same-prompt teacher")
             if self.loss.divergence is not Divergence.REVERSE_KL:
                 raise ValueError("loss.mode=verl_pg_k1 requires divergence=reverse_kl")
@@ -1064,10 +1194,12 @@ class RunConfig(_Base):
                     raise ValueError("loss.mode=verl_pg_k1_rewarded requires reward.enabled=true")
                 if self.reward.provider not in {
                     RewardProviderKind.EXACT_ANSWER,
+                    RewardProviderKind.TARGET_LENGTH,
                     RewardProviderKind.PYTHON_API,
                 }:
                     raise ValueError(
-                        "rewarded PG requires exact_answer or an injected python_api provider"
+                        "rewarded PG requires exact_answer, target_length, or an injected "
+                        "python_api provider"
                     )
                 if self.loss.advantage_composer_version != ADVANTAGE_COMPOSER_VERSION:
                     raise ValueError(
@@ -1091,7 +1223,7 @@ class RunConfig(_Base):
                         f"advantage_mode={self.loss.advantage_mode.value} requires "
                         "samples_per_prompt > 1"
                     )
-        elif (
+        elif mode is not TrainingMode.RL and (
             self.reward != RewardConfig()
             or self.loss.advantage_composer_version is not None
             or self.loss.advantage_mode is not AdvantageMode.NONE
@@ -1108,13 +1240,16 @@ class RunConfig(_Base):
                 "(explicit)"
             )
 
+        trajectories_per_rollout_batch = self.train.rollouts_per_cycle * (
+            self.rollout.samples_per_prompt if mode is TrainingMode.RL else 1
+        )
         steps_per_rollout_batch = max(
             1,
-            (self.train.rollouts_per_cycle + self.train.gradient_accumulation_steps - 1)
+            (trajectories_per_rollout_batch + self.train.gradient_accumulation_steps - 1)
             // self.train.gradient_accumulation_steps,
         )
         if (
-            mode is TrainingMode.OPD
+            mode in {TrainingMode.OPD, TrainingMode.RL}
             and self.train.opd_freshness is OPDFreshness.STRICT
             and steps_per_rollout_batch != 1
         ):
@@ -1137,12 +1272,15 @@ class RunConfig(_Base):
                     "the toy backend does not support quantization "
                     "(models.student.quantization must be 'none')"
                 )
-            if self.models.teacher.quantization is not Quantization.NONE:
+            if (
+                self.models.teacher is not None
+                and self.models.teacher.quantization is not Quantization.NONE
+            ):
                 raise ValueError(
                     "the toy backend does not support quantization "
                     "(models.teacher.quantization must be 'none')"
                 )
-            if self.models.teacher.adapter is not None:
+            if self.models.teacher is not None and self.models.teacher.adapter is not None:
                 raise ValueError(
                     "the toy backend cannot load a PEFT teacher adapter; use models.backend: hf"
                 )
@@ -1202,14 +1340,14 @@ class RunConfig(_Base):
                 )
             if (
                 alignment.teacher_mode is TeacherMode.POLICY_CONDITIONED
-                and self.models.teacher.mode is not TeacherContextMode.PRIVILEGED_CONTEXT
+                and self.models.required_teacher.mode is not TeacherContextMode.PRIVILEGED_CONTEXT
             ):
                 raise ValueError(
                     "policy_conditioned alignment requires models.teacher.mode=privileged_context"
                 )
             if (
                 alignment.teacher_mode is TeacherMode.ALIGNED_ADAPTER
-                and self.models.teacher.adapter is None
+                and self.models.required_teacher.adapter is None
             ):
                 raise ValueError(
                     "aligned_adapter alignment requires a frozen models.teacher.adapter"
@@ -1228,14 +1366,17 @@ class RunConfig(_Base):
 
     @property
     def is_on_policy(self) -> bool:
-        """``True`` only when the full strict OPD freshness contract holds."""
+        """``True`` when one fresh rollout batch feeds exactly one update."""
+        trajectories = self.train.rollouts_per_cycle * (
+            self.rollout.samples_per_prompt if self.run.mode is TrainingMode.RL else 1
+        )
         steps_per_batch = max(
             1,
-            (self.train.rollouts_per_cycle + self.train.gradient_accumulation_steps - 1)
+            (trajectories + self.train.gradient_accumulation_steps - 1)
             // self.train.gradient_accumulation_steps,
         )
         return (
-            self.run.mode is TrainingMode.OPD
+            self.run.mode in {TrainingMode.OPD, TrainingMode.RL}
             and self.train.opd_freshness is OPDFreshness.STRICT
             and steps_per_batch == 1
             and self.cache.strict_policy_version
@@ -1316,7 +1457,11 @@ class RunConfig(_Base):
     def resolved_for_runtime(self) -> RunConfig:
         """Return a deep copy with local paths resolved, without mutating provenance."""
         runtime = self.model_copy(deep=True)
-        for adapter in (runtime.models.student.adapter, runtime.models.teacher.adapter):
+        for adapter in (
+            runtime.models.student.adapter,
+            runtime.models.teacher.adapter if runtime.models.teacher is not None else None,
+            runtime.models.reference.adapter if runtime.models.reference is not None else None,
+        ):
             if adapter is not None and adapter.source is AdapterSource.LOCAL:
                 adapter_path = Path(adapter.path)
                 if not adapter_path.is_absolute():

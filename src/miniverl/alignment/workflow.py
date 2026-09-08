@@ -238,10 +238,10 @@ def _jsd(left: Mapping[str, float], right: Mapping[str, float]) -> float | None:
 def _teacher_identity(config: RunConfig) -> dict[str, Any] | None:
     if config.alignment is None or config.alignment.teacher_mode is None:
         return None
-    adapter = config.models.teacher.adapter
+    adapter = config.models.required_teacher.adapter
     return {
-        "id": config.models.teacher.model_id,
-        "revision": config.models.teacher.revision,
+        "id": config.models.required_teacher.model_id,
+        "revision": config.models.required_teacher.revision,
         "mode": config.alignment.teacher_mode.value,
         "adapter_revision": adapter.revision if adapter is not None else None,
     }

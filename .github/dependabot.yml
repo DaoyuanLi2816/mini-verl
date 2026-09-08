@@ -5,7 +5,9 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
-    open-pull-requests-limit: 5
+    # Dependency updates are reviewed and committed on first-party maintainer
+    # branches so automated authors never enter the contributor graph.
+    open-pull-requests-limit: 0
     groups:
       dev-tooling:
         patterns: ["ruff", "mypy", "pytest*", "hypothesis", "build", "twine", "types-*"]
@@ -22,4 +24,4 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0

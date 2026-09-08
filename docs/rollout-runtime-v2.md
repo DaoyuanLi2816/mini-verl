@@ -63,6 +63,12 @@ remain fixed at `n=1`; the grouped profiles are conformance-only until a later
 evidence stage measures them. Grouped rollouts currently require a Parquet
 prompt source. Environment-backed recipes remain `n=1`.
 
+The newer `verl-rl-v0.9-single-gpu-v1` profile consumes the same schema-v3
+group identity as actual algorithm input: GRPO, Dr.GRPO and RLOO compute their
+prompt-group baselines across the complete `n > 1` samples. Environment-backed
+RL also supports grouped episodes through the recorded verifier path. See
+[Single-GPU verl RL](verl-rl-runtime.md).
+
 ## Managed vLLM for direct GKD
 
 Install the optional engine in the same Linux or WSL2 environment as the

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "miniverl"
 dynamic = ["version"]
-description = "Inspectable verl-style on-policy distillation on one NVIDIA GPU."
+description = "Verl experiment semantics compiled for one NVIDIA GPU."
 readme = "PYPI.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
@@ -15,6 +15,8 @@ keywords = [
   "on-policy-distillation",
   "knowledge-distillation",
   "agentic-rl",
+  "grpo",
+  "rloo",
   "tool-use",
   "qlora",
   "consumer-gpu",

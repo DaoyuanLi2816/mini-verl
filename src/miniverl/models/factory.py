@@ -81,9 +81,11 @@ def build_tokenizer(config: RunConfig, *, local_files_only: bool = False) -> Tok
         trust_remote_code=student.trust_remote_code,
         local_files_only=local_files_only,
     )
-    teacher_id = teacher.tokenizer_id or teacher.model_id
     student_id = student.tokenizer_id or student.model_id
     student_revision = student.tokenizer_revision or student.revision
+    if teacher is None:
+        return student_tok
+    teacher_id = teacher.tokenizer_id or teacher.model_id
     teacher_revision = teacher.tokenizer_revision or teacher.revision
     if (teacher_id, teacher_revision) != (student_id, student_revision):
         teacher_tok = HFTokenizerAdapter.load(
@@ -156,6 +158,8 @@ def build_teacher(
 ) -> CausalLMBackend:
     """Load the frozen scoring model."""
     models = config.models
+    if models.teacher is None:
+        raise ConfigError("this training mode has no teacher role")
     if models.backend is ModelBackend.TOY:
         from miniverl.models.toy import ToyBackend
 

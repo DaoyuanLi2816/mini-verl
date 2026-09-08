@@ -4,7 +4,27 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
-## v0.11.1 development
+## v0.12.0 development
+
+- [x] Pin the critic-free RL compiler and conformance fixtures to upstream verl
+      v0.9.0 at `483b8a009ba3a97563edee3a19887e4862b8094a`.
+- [x] Implement grouped GRPO, Dr.GRPO, RLOO and REINFORCE++ with typed rewards,
+      behavior-policy log-probs, optional reference KL and exact resume.
+- [x] Add deterministic exact-answer, target-length, environment-verifier,
+      weighted-composite and explicit trusted Python API reward paths.
+- [x] Add a v0.12 exact-wheel RTX 4080 qualification record to the existing
+      full-release promotion and canonical evidence archive.
+- [x] Validate implementation commit
+      `feed761514c3925dd2290d855baac6d38c417e50`: 2,566 non-GPU/non-network
+      tests at 83% branch coverage, 10 local RTX 4080 GPU tests, 16 network
+      tests, pinned verl v0.9 conformance, strict docs and four browser widths.
+- [ ] Merge the reviewed release PR after all hosted checks pass.
+- [ ] Run the exact-release-SHA WSL2 full qualification on attempt 1.
+- [ ] Complete the non-publishing release dry run and OIDC publication.
+- [ ] Verify PyPI, GitHub Release, stable/dev docs and clean installation.
+- [ ] Advance main to `0.12.1.dev0` in a state-sync PR.
+
+## v0.11.1 development (superseded by v0.12 scope)
 
 - [x] Begin from the verified v0.11.0 release and advance only the canonical
       development state to `0.11.1.dev0`.

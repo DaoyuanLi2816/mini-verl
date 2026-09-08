@@ -33,6 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #: Every subpackage that must exist in an installed distribution.
 REQUIRED_SUBPACKAGES = (
     "agent",
+    "algorithms",
     "alignment",
     "alignment_external",
     "bridge",
@@ -67,6 +68,8 @@ TORCH_FREE_MODULES = (
     "miniverl.bridge.doctor",
     "miniverl.bridge.export",
     "miniverl.bridge.profiles",
+    "miniverl.bridge.rl_v09",
+    "miniverl.algorithms.contract",
     "miniverl.commands",
     "miniverl.commands.compat",
     "miniverl.commands.qualification",
@@ -420,8 +423,8 @@ def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
     assert "1× CUDA GPU" in banner
     assert "BF16 / FP16 auto" in banner
     assert "typed provenance" in banner
-    assert "Run verl-style OPD on one consumer GPU" in banner
-    assert "actor rollout · teacher score · actor update" in banner
+    assert "Run verl experiment semantics on one consumer GPU" in banner
+    assert "actor rollout · reward / ref / teacher · update" in banner
     assert "PEFT · Parquet · targets · metrics · provenance" in banner
     assert 'pip install "miniverl[train,cuda]"' not in banner
     assert "the GPU you have" not in banner

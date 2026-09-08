@@ -1,114 +1,94 @@
 # For verl users
 
-miniVERL brings five closed verl v0.8 OPD profiles into a local, inspectable
-workflow; two have measured systems records and three are conformance-only.
-Familiar field names and Parquet data flow through a typed compiler,
-which turns resource intent into sequential phases on one CUDA GPU and records
-every local mapping in the resulting plan.
-
-Inspect the closed, versioned registry with `miniverl profiles list`; use
-`miniverl compat explain` before assuming that an accepted field is effective.
-The [profile registry guide](profiles/index.md) documents the identity carried
-by plans, caches, checkpoints and exports.
+miniVERL turns supported experiment semantics from a resolved verl-shaped
+config into a validated one-GPU plan. Field names, datasets, logical batches,
+algorithms and artifacts remain recognizable; cluster placement is replaced by
+sequential local phases and recorded as a lowering decision.
 
 <picture>
   <source media="(max-width: 640px)" srcset="../verl-local-runtime-mobile.svg">
-  <img src="../verl-local-runtime.svg" alt="verl-shaped YAML, overrides and Parquet prompts pass through a typed compiler; one CUDA GPU runs actor rollout, teacher scoring and actor update; portable artifacts form a pinned scale-out handoff.">
+  <img src="../verl-local-runtime.svg" alt="A resolved verl config compiles into a one-GPU plan; actor, reference, teacher and reward roles run in phases and publish portable artifacts with a readiness report.">
 </picture>
 
-## Supported input shape
+## Start with the v0.9 RL profile
 
-- A resolved YAML using the `verl-opd-v0.8-single-gpu-v1` field subset.
-- Verl-style Parquet prompts with structured chat messages; the rewarded
-  profile additionally requires bound deterministic exact-answer metadata.
-- One actor, one teacher, token-mean aggregation, and either direct
-  forward-top-k GKD or sampled-k1 vanilla policy loss. The measured profiles
-  remain `n=1`; their grouped counterparts accept independent `n>1` samples.
-- Immutable Hugging Face revisions, PEFT adapters and tokenizer snapshots.
-- Familiar fields such as `actor_rollout_ref.model.path`,
-  `distillation.teacher_models.teacher_model.model_path`, response bounds,
-  learning rate and LoRA configuration.
+```bash
+miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
+  --config examples/verl-rl-v0.9-single-gpu.yaml --out local-grpo.yaml
+miniverl validate local-grpo.yaml --json
+miniverl train local-grpo.yaml --dry-run
+```
 
-The profile compiler accepts a resolved, documented subset and classifies every
-field before execution. [Compatibility profiles](profiles/index.md) contains
-the field contract; [limitations](limitations.md) collects the algorithms and
-distributed runtime surfaces covered by other tools.
+This profile pins official verl `v0.9.0` at
+`483b8a009ba3a97563edee3a19887e4862b8094a`. It accepts a resolved documented
+subset for GRPO, Dr.GRPO, RLOO or REINFORCE++, then writes both a native recipe
+and `*.import-report.json`. Scientific-notation strings such as `1e-5` are
+accepted when finite; `${...}`, NaN, infinity and unknown fields fail before a
+runnable recipe is published.
+
+The [single-GPU RL guide](verl-rl-runtime.md) documents every algorithm and
+lowering. The committed [example report](generated/verl-rl-v0.9-compatibility.json)
+shows the exact machine-readable output.
 
 ## Command mapping
 
 | verl action | miniVERL action |
 | --- | --- |
-| compose or capture a resolved config | provide resolved YAML to `--config` |
-| add a Hydra-style override | repeat `--set`, use `--overrides-file`, or place tokens after `--` |
-| inspect resolved intent | `miniverl plan --json` |
-| launch OPD | `miniverl run` |
-| read prompt Parquet | use the file directly |
-| allocate resource pools | compile to sequential local phases |
-| hand artifacts back | `miniverl export-verl` |
+| capture a resolved Hydra config | provide it to `import-verl --config` |
+| inspect field semantics | read `*.import-report.json` |
+| validate the local plan | `miniverl validate local.yaml --json` |
+| run actor/reward/reference phases | `miniverl train local.yaml` |
+| read prompt Parquet | retain `data.train_files` and `data.prompt_key` directly |
+| lower resource pools | record one process/device plus original source intent |
+| inspect trajectories | `miniverl inspect runs/<id>/trajectories.jsonl` |
+
+## What maps into the RL runtime
+
+- `data.train_files`, `val_files`, `prompt_key`, prompt/response limits,
+  shuffle and seed drive the local Parquet source.
+- `data.train_batch_size × rollout.n` is the logical trajectory count per
+  rollout iteration.
+- `actor.ppo_mini_batch_size` controls how that logical batch is divided into
+  actor updates; physical trajectory batching remains a separate `miniverl`
+  execution control.
+- Actor model, revision, LoRA, optimizer, sampling, clipping and schedule
+  fields feed the native recipe with their source units recorded.
+- `trainer.total_training_steps` is the rollout-iteration cap. Epoch-only
+  scheduling is not guessed because it depends on dataset traversal semantics.
+- Task rewards are explicit. The portable compiler accepts the built-in
+  exact-answer and target-length providers; trusted Python and environment
+  providers are injected through the local API.
+- Fixed reference KL requires an explicit frozen reference adapter. The
+  compiler never creates an unqualified same-base reference policy.
+
+Distributed resource counts can be larger than one in the source config. They
+are classified `distributed_only`, preserved in the report, and lowered to one
+local process/device. Unknown algorithm or objective fields remain rejected.
+
+## Existing v0.8 OPD profiles
+
+The OPD compiler targets official verl `v0.8.0` at
+`7aed6b230776f963fa09509c10d9c3a767d1102c`. It supports direct forward-top-k
+GKD and sampled-k1 policy-gradient distillation, including measured profiles
+and grouped/rewarded conformance variants.
 
 ```bash
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
   --config verl-opd.yaml \
   --set 'data.train_files=["data/train.parquet"]' \
-  --set actor_rollout_ref.actor.optim.lr=1e-5
+  --set actor_rollout_ref.actor.optim.lr=1e-5 \
+  --accept-local-reinterpretations --out plan.json
+miniverl run --profile verl-opd-v0.8-single-gpu-v1 --plan plan.json --dry-run
 ```
 
-Planning is weight-free and offline. Use `--json` to retain the complete field
-matrix. The CLI records repeated `--set`, override files and
-trailing tokens with deterministic precedence. Resolve `${...}` composition in
-the trusted source workflow first; see [Config overrides](config-overrides.md).
+`plan.json` binds the source YAML, ordered overrides, scanned Parquet bytes,
+profile identity and native config. Use [immutable plans](immutable-plans.md)
+and the [OPD quickstart](opd-quickstart.md) for that workflow.
 
-For a serious run, add `--accept-local-reinterpretations --out plan.json`,
-inspect the immutable artifact, then execute `miniverl run --plan plan.json`.
-This binds the source YAML, overrides and scanned Parquet bytes to the exact
-native config; see [Immutable execution plans](immutable-plans.md).
+## Artifact handoff
 
-## Same fields, different placement
-
-An upstream-shaped fragment can stay recognizable:
-
-```yaml
-actor_rollout_ref:
-  model: {path: Qwen/Qwen3-0.6B}
-  rollout: {name: vllm, n: 1}
-distillation:
-  teacher_models:
-    teacher_model:
-      model_path: Qwen/Qwen3-1.7B
-      inference: {name: vllm}
-```
-
-The `vllm` values remain visible as source intent. The compiler classifies them
-as local reinterpretations, runs Hugging Face generation and teacher scoring
-sequentially, and preserves the source value, local meaning and risk in the
-compatibility report.
-
-## Data mapping
-
-`data.train_files`, `data.val_files`, `data.prompt_key`, prompt and response
-bounds, shuffle and seed feed the native Parquet source directly. Each prompt
-row preserves its structured messages and source metadata. Run
-`miniverl data sample --out prompts.parquet` for a valid small file, or use
-`miniverl convert-dataset` when crossing the native trajectory boundary.
-
-Parquet paths are direct execution inputs, so a missing file produces an
-actionable error when execution begins. Dataset bytes and schema are copied
-into export provenance.
-
-## Actor, teacher and reference roles
-
-The actor is the trainable PEFT policy. In the direct-GKD profile the teacher
-produces top-k token IDs and log-probabilities on actor-generated tokens;
-top-k mass and overlap are diagnostics, not an explicit tail bucket. In the PG
-k1 profile the target is only the sampled token's teacher log-probability,
-bound to the rollout actor log-probability and policy version; current actor
-log-probability is recomputed at update time. The rewarded PG profile adds a
-separately logged task advantage from the closed exact-answer provider; it has
-no critic, value model or GRPO semantics. Local runtime strategies
-may keep quantized roles resident, swap movable unquantized roles, or share a
-compatible backbone while preserving distinct role identities in provenance.
-
-## Export boundary
+Completed OPD runs can produce a pinned scale-out bundle:
 
 ```bash
 miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
@@ -116,35 +96,17 @@ miniverl bridge materialize scaleout --download --offline
 miniverl bridge doctor scaleout --json
 ```
 
-The export bundle carries PEFT, Parquet, config and provenance artifacts,
-but is reported as `launchable: false` until exact base snapshots are materialized and
-the pinned upstream checks pass. Read the [materialization workflow](scaleout-materialization.md).
-Upstream parse/load smoke, artifact completeness, launchability and distributed
-execution are separate statuses, so the report shows exactly how far a bundle
-has progressed.
+The report separates artifact completeness, upstream config parse, model/data
+load smoke, reward implementation, launchability, distributed execution and
+algorithm parity. Read the [scale-out contract](verl-opd-scaleout.md).
 
-## Common errors
+## Practical diagnostics
 
-- **Unknown field:** capture a resolved config and remove fields outside the
-  documented profile; inspect-only compilation can still explain known
-  unsupported values.
-- **Algorithm field rejected:** select the explicit PG-k1 profile for its
-  narrow sampled policy-loss path, or a grouped profile for Parquet `n>1`.
-  Arbitrary reward code, critics, value models, KL penalties, multiple teachers
-  and distributed counts remain unsupported.
-- **Interpolation rejected:** resolve Hydra/OmegaConf in your trusted verl
-  environment first. miniVERL will not execute `${...}`.
-- **High-risk reinterpretation not accepted:** inspect `miniverl plan`, then
-  pass `--accept-local-reinterpretations` for an external config. Packaged
-  profiles carry reviewed acceptance metadata.
-- **Prompt schema mismatch:** validate the Parquet `prompt` column as structured
-  role/content messages, or convert it explicitly.
-- **Tokenizer mismatch:** actor and teacher scoring require structural identity
-  for the shared token space; a legacy behavioral fingerprint is not proof.
-- **CUDA out of memory:** reduce context, response length or physical batches;
-  keep logical update semantics unchanged. See [single-GPU planning](single-gpu-guide.md).
-- **Bundle not launchable:** materialize exact snapshots and install the pinned
-  verl commit; inspect the reported blocker. Read [scale-out materialization](scaleout-materialization.md).
-
-Next: follow the [OPD quickstart](opd-quickstart.md), inspect the
-[compatibility policy](compatibility.md), or review [all limitations](limitations.md).
+- Use `miniverl doctor` to inspect the CUDA stack.
+- Resolve Hydra interpolation in the trusted upstream environment before
+  importing.
+- Keep immutable model and tokenizer revisions in portable configs.
+- Reduce context or physical trajectory batch size on OOM; logical group and
+  objective semantics remain unchanged.
+- Read [compatibility](compatibility.md) for field status and
+  [limitations](limitations.md) for the consolidated boundaries.
