@@ -106,5 +106,9 @@ in miniVERL; it is not an upstream sharded checkpoint.
 These commands demonstrate the training and recovery workflow, not improvement
 on an external task benchmark. The length reward is an understandable example
 objective, not a quality judge. Compare each run's actual metrics with its
-exact-wheel RTX 4080 release qualification. Other VRAM classes retain an
+exact-wheel [RTX 4080 release qualification](release-qualification.md). The
+[v0.14.0 release assets](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.14.0)
+publish the measured per-case rewards, losses, runtime and peak VRAM in
+`qualification-evidence.tar.gz` → `v014/product-workflows.json` after the
+exact-candidate gate passes. Other VRAM classes retain an
 [evidence-scoped planning status](hardware-planning.md).

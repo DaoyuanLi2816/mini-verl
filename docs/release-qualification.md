@@ -10,7 +10,7 @@ workflow is manual, not continuous GPU CI and not a pull-request required check.
 | level | cadence | executed scope |
 | --- | --- | --- |
 | release smoke | diagnostic use | install the hosted-runner candidate wheel, verify import/CLI origin, run CLI doctor/plan/dry-run, pinned Qwen actor and teacher, one rollout/score/update, PEFT export/reload and CUDA teardown |
-| full qualification | every formal release | release smoke, the canonical resume workloads, the v0.11 rollout-backend matrix, v0.12 GRPO, and v0.13 PPO/RM evidence |
+| full qualification | every formal release | release smoke, canonical resume workloads, rollout-backend matrix, GRPO/PPO/RM evidence and installed PPO/GRPO product workflows |
 
 The smoke budget is intentionally small and is never substituted for a frozen
 full workload or a scientific benchmark. Both levels record runtime
@@ -55,6 +55,16 @@ advantages and returns, complete actor/critic checkpoints, and tensor-exact
 interruption/resume for both roles. The same record exercises a pinned
 DistilBERT sequence-classifier reward role with deterministic nonconstant
 scores and post-phase CPU offload, plus a locally diagnosed v0.9 handoff bundle.
+
+For v0.14 and later, promotion also requires the installed-package
+[PPO/GRPO walkthrough](local-rl-workflow.md), executed from a fresh working
+directory outside the checkout. Both cases import packaged upstream-derived
+inputs, validate/plan, train, inspect/report, replay from a checkpoint, export
+and diagnose the handoff. The gate verifies the candidate wheel hash, compiler
+identity, all 25 CLI invocations, exact actor/critic/optimizer tensor replay,
+unduplicated records and measured VRAM. The release evidence archive contains
+`v014/product-workflows.json` with per-case rewards, losses, time, peak memory,
+model revisions and transcript. A dirty-tree rehearsal cannot satisfy this gate.
 
 Every dispatch is single-use. Both jobs reject `GITHUB_RUN_ATTEMPT` values
 other than `1`; if infrastructure fails, start a new `workflow_dispatch`
