@@ -1,18 +1,18 @@
 {
   "schema_version": 2,
   "release": "0.14.0",
-  "status": "candidate",
+  "status": "released",
   "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.14.0",
   "local_validation": {
     "scope": "P0 implementation and CLI compatibility regression on the maintainer workstation",
-    "commit": "39de76ad4399318d4b19e82f7a4f0d90316054c7",
-    "commit_relationship": "implementation commit; release metadata and citation wording follow in the candidate commit",
-    "measured_at": "2026-09-09T05:55:00Z",
+    "commit": "f128c98456929cdc53f9f094f5ecf8a791690aed",
+    "commit_relationship": "final PR head; the squash release commit has the same tree",
+    "measured_at": "2026-09-09T06:05:10Z",
     "platform": "Windows 11",
     "python": "CPython 3.10.11",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2655,
+      "passed": 2656,
       "skipped": 14,
       "deselected": 24,
       "branch_coverage_percent": 83.0,
@@ -24,10 +24,24 @@
     "docs_visual": {"viewports": 4, "rendered_svg_instances": 44}
   },
   "release_validation": {
-    "commit": "pending",
-    "gpu_coverage": "pending exact-release-SHA full qualification",
+    "commit": "60afc63da1257e3e22aa6056607a63a90d4d90f1",
+    "gpu_coverage": "attempt-1 full qualification; installed PPO and GRPO command workflows, exact tensor resume, v0.9 handoff and historical regression matrix passed on one WSL2 RTX 4080",
     "scope": "exact release candidate wheel",
-    "conclusion": "pending",
-    "required": "attempt-1 full RTX 4080 qualification, installed PPO/GRPO workflows, exact-byte release dry run and public artifact verification"
+    "conclusion": "passed",
+    "workflows": {
+      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34318072752",
+      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34318072732",
+      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34328973019",
+      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34318072653",
+      "gpu_full_qualification": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34318236880",
+      "release_dry_run": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34325442958",
+      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34328973021"
+    },
+    "publication": {
+      "pypi": "https://pypi.org/project/miniverl/0.14.0/",
+      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.14.0",
+      "wheel_sha256": "f44e607acb2b20608ac217891862374743f7dd443d934664dd8c0349250fbf26",
+      "sdist_sha256": "fe9584bb9450a183372151dc1dea463d268a01cc3b6181afb4aaf54046825324"
+    }
   }
 }

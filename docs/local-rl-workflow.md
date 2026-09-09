@@ -112,3 +112,19 @@ publish the measured per-case rewards, losses, runtime and peak VRAM in
 `qualification-evidence.tar.gz` → `v014/product-workflows.json` after the
 exact-candidate gate passes. Other VRAM classes retain an
 [evidence-scoped planning status](hardware-planning.md).
+
+### Published v0.14.0 qualification
+
+The accepted wheel `f44e607a…` was measured on one WSL2 RTX 4080. These are
+single bounded systems runs, not throughput medians or a quality comparison.
+
+| Example | Trajectories | Actor / critic updates | Peak reserved VRAM | Reported train duration |
+| --- | ---: | ---: | ---: | ---: |
+| PPO | 8 | 4 / 4 | 2.7266 GiB | 15.688 s |
+| GRPO | 8 | 2 / 0 | 1.5020 GiB | 8.923 s |
+
+Both cases reproduced actor/critic/optimizer tensors after checkpoint replay;
+inspection counts and handoff checks passed. The per-case reward means were
+0.40017 and 0.36372 for the example length reward; they are not external
+task-quality scores. See the checksummed product record in the release archive
+for the full transcript, exact revisions, losses and runtime environment.

@@ -4,40 +4,38 @@ Current maintainer handoff for **miniVERL** (`mini-verl` package, `miniverl`
 CLI). `release-state.yaml` is the canonical version source; this page indexes
 current product and evidence state rather than repeating release history.
 
-Last updated: 2026-09-08.
+Last updated: 2026-09-09.
 
-Canonical release state: releasing `v0.14.0`.
+Canonical release state: stable `v0.14.0` (`60afc63da1257e3e22aa6056607a63a90d4d90f1`), development `0.14.1.dev0`.
 
 ## Release state
 
-- Active work: `v0.14.0-p0-productization`, based on verified main `cdc608f`.
-  The next release focuses on upstream configuration coverage, packaged PPO/GRPO
-  walkthroughs, run inspection and system-level recovery. Implementation is
-  settled; release metadata is finalized for exact-candidate qualification.
+- v0.14.0 productization is published: upstream configuration coverage,
+  packaged PPO/GRPO walkthroughs, strict run inspection and system-level recovery.
 - Upstream drift check: GitHub's latest stable release is still `v0.9.0`
   (published 2026-08-14); existing compiler targets remain appropriate.
 - Implemented: v3 prompt-minibatch units and explicit physical lowerings;
   six upstream scripts/seven resolved cases with complete field accounting;
   installed PPO/GRPO templates and adaptation ledgers; strict run inspection;
   PPO value/behavior identity guards and checkpoint-bound log recovery.
-- Development rehearsal: both wheel-installed workflows completed on RTX 4080;
-  PPO 4 actor/4 critic updates and GRPO 2 actor updates, with exact tensor resume
-  and inspected handoff. This dirty-tree rehearsal is not release evidence.
-- Pending: final exact-commit qualification, publication and state sync.
-- Local regression: 2,655 non-GPU/non-network tests passed at 83% branch
+- Exact-release qualification run `34318236880` passed on attempt 1, followed
+  by non-publishing gate `34325442958` and OIDC release `34328973021`.
+  PPO 4 actor/4 critic updates and GRPO 2 actor updates passed exact tensor
+  replay and inspected handoff from the installed candidate wheel.
+- Local regression: 2,656 non-GPU/non-network tests passed at 83% branch
   coverage; 10 RTX 4080 GPU and 16 network tests passed. Four pinned upstream
   conformance tests and four-viewport documentation browser checks passed.
 
-- Stable release: `v0.13.0` at
-  `8e7bc3b5ff1145ae502cca893b7fffca3e12b6a8`.
-- Release candidate line: `0.14.0`.
+- Stable release: `v0.14.0` at
+  `60afc63da1257e3e22aa6056607a63a90d4d90f1`.
+- Current development line: `0.14.1.dev0`.
 - Stable docs: <https://daoyuanli2816.github.io/mini-verl/>.
 - Development docs: <https://daoyuanli2816.github.io/mini-verl/dev/>.
 - Historical build log: [v0.1-v0.9 archive](docs/history/project-state-v0.1-v0.9.md).
 
 ## Current product boundary
 
-Release `0.14.0` has a closed typed profile compiler: it retains v1/v2 and adds
+Development `0.14.1.dev0` has a closed typed profile compiler: it retains v1/v2 and adds
 `verl-rl-v0.9-single-gpu-v3`, a typed resolved RL subset of official verl
 `v0.9.0` at commit `483b8a009ba3a97563edee3a19887e4862b8094a`.
 It compiles PPO/GAE into phased one-GPU actor, critic, reference and reward
@@ -83,6 +81,8 @@ v0.8 environment/PPO artifact bridge is migration-only.
 
 | Evidence | Status |
 | --- | --- |
+| Installed PPO product workflow | Qwen3-0.6B, 8 trajectories, 4 actor/4 critic updates, 2.7266 GiB peak reserved, 15.688 s reported train duration; exact tensor replay and handoff passed |
+| Installed GRPO product workflow | Qwen3-0.6B, 8 trajectories, 2 actor updates, 1.502 GiB peak reserved, 8.923 s reported train duration; exact tensor replay and handoff passed |
 | Qwen3-0.6B/1.7B developer workload | 32 prompts, 8 current-policy updates, 3.1914 GiB peak reserved on one RTX 4080; matched interruption/resume was byte-identical |
 | Qwen3 sampled-k1 PG | 32 prompts, 8 updates, exact interruption/resume, 3.1914 GiB peak reserved; no quality comparison |
 | SmolLM2-360M/1.7B direct GKD | 32 prompts, 8 updates, 1.4961 GiB peak reserved; exact resume, PEFT reload and materialized export passed |
@@ -96,11 +96,11 @@ calculator schema-v2 source stays at SHA-256
 
 ## Maintainer entry points
 
-- [Current local runtime](docs/verl-opd-runtime.md)
+- [Installed PPO/GRPO workflow](docs/local-rl-workflow.md)
 - [Single-GPU verl RL](docs/verl-rl-runtime.md)
-- [Current scale-out contract](docs/verl-opd-scaleout.md)
+- [Current scale-out contract](docs/verl-rl-runtime.md#scale-out-handoff)
 - [Compatibility policy](docs/compatibility.md)
 - [Measured workload](docs/verl-opd-reference-workload.md)
 - [Limitations](docs/limitations.md)
-- Active roadmap: [issue #39](https://github.com/DaoyuanLi2816/mini-verl/issues/39)
-  and [issue #64](https://github.com/DaoyuanLi2816/mini-verl/issues/64)
+- Active research roadmap: [issue #39](https://github.com/DaoyuanLi2816/mini-verl/issues/39).
+  Additional compiler lowerings are indexed by the [upstream corpus](docs/verl-compatibility-corpus.md).

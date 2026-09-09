@@ -4,6 +4,11 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.14.1 development
+
+- [x] Begin from verified v0.14.0 and advance the canonical development version
+      to `0.14.1.dev0`, retaining stable docs on the immutable release tag.
+
 ## v0.14.0 productization
 
 - [x] Package PPO/GRPO workflows and adaptation ledgers; CI-gate six upstream
@@ -99,6 +104,24 @@ after the exact release commit and its remote checks are green.
       workflow; release smoke alone cannot authorize publication.
 
 ## Publication record
+
+### v0.14.0
+
+- [x] [PR #118](https://github.com/DaoyuanLi2816/mini-verl/pull/118) merged after
+      all checks passed, at `60afc63da1257e3e22aa6056607a63a90d4d90f1`.
+- [x] Attempt-1 full RTX 4080 qualification
+      [`34318236880`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34318236880)
+      passed, including both installed PPO/GRPO workflows.
+- [x] Non-publishing gate
+      [`34325442958`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34325442958)
+      accepted the same qualified bytes without rebuilding.
+- [x] OIDC release
+      [`34328973021`](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34328973021)
+      verified public PyPI hashes, attestations and clean installation, then
+      created the [GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.14.0).
+- [x] Wheel SHA-256: `f44e607acb2b20608ac217891862374743f7dd443d934664dd8c0349250fbf26`.
+      Sdist SHA-256: `fe9584bb9450a183372151dc1dea463d268a01cc3b6181afb4aaf54046825324`.
+- [x] This state-sync advances main to `0.14.1.dev0`; merge only with green checks.
 
 ### v0.13.0
 
