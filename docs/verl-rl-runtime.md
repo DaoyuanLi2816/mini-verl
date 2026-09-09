@@ -119,6 +119,10 @@ tensor-for-tensor for both trainable roles.
 Run artifacts include schema-v3 trajectories, JSONL reward and metric records,
 transactional checkpoints, the resolved recipe and final PEFT adapter. Use
 `miniverl inspect` for trajectories and metrics.
+For a run directory, `miniverl inspect runs/local-ppo --json` verifies checkpoint
+and log integrity before reporting counters and reward/advantage statistics.
+Checkpoint-bound log prefixes keep resumed reports consistent with the restored
+actor and critic; any replayed tail is retained under `recovery-tails/`.
 
 ## Scale-out handoff
 

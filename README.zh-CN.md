@@ -28,7 +28,7 @@ entropy regularization、grouped rollout、task reward 和固定 revision 的 se
 reward role 共用同一套 provenance。已有 verl `v0.8.0` OPD profile 继续提供 direct GKD
 与 sampled-k1 蒸馏。
 
-PyPI `v0.13.0` 是稳定版；`main` 是开发版。
+PyPI `v0.14.0` 是稳定版；`main` 是开发版。
 
 ## 第一个本地实验
 

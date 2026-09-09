@@ -6,14 +6,14 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-09-08.
 
-Canonical release state: stable `v0.13.0` (`8e7bc3b5ff1145ae502cca893b7fffca3e12b6a8`), development `0.13.1.dev0`.
+Canonical release state: releasing `v0.14.0`.
 
 ## Release state
 
 - Active work: `v0.14.0-p0-productization`, based on verified main `cdc608f`.
   The next release focuses on upstream configuration coverage, packaged PPO/GRPO
-  walkthroughs, run inspection and system-level recovery. Version metadata stays
-  on the existing development version until the implementation scope is settled.
+  walkthroughs, run inspection and system-level recovery. Implementation is
+  settled; release metadata is finalized for exact-candidate qualification.
 - Upstream drift check: GitHub's latest stable release is still `v0.9.0`
   (published 2026-08-14); existing compiler targets remain appropriate.
 - Implemented: v3 prompt-minibatch units and explicit physical lowerings;
@@ -24,17 +24,20 @@ Canonical release state: stable `v0.13.0` (`8e7bc3b5ff1145ae502cca893b7fffca3e12
   PPO 4 actor/4 critic updates and GRPO 2 actor updates, with exact tensor resume
   and inspected handoff. This dirty-tree rehearsal is not release evidence.
 - Pending: final exact-commit qualification, publication and state sync.
+- Local regression: 2,655 non-GPU/non-network tests passed at 83% branch
+  coverage; 10 RTX 4080 GPU and 16 network tests passed. Four pinned upstream
+  conformance tests and four-viewport documentation browser checks passed.
 
 - Stable release: `v0.13.0` at
   `8e7bc3b5ff1145ae502cca893b7fffca3e12b6a8`.
-- Current development line: `0.13.1.dev0`.
+- Release candidate line: `0.14.0`.
 - Stable docs: <https://daoyuanli2816.github.io/mini-verl/>.
 - Development docs: <https://daoyuanli2816.github.io/mini-verl/dev/>.
 - Historical build log: [v0.1-v0.9 archive](docs/history/project-state-v0.1-v0.9.md).
 
 ## Current product boundary
 
-Development `0.13.1.dev0` has a closed typed profile compiler: it retains v1/v2 and adds
+Release `0.14.0` has a closed typed profile compiler: it retains v1/v2 and adds
 `verl-rl-v0.9-single-gpu-v3`, a typed resolved RL subset of official verl
 `v0.9.0` at commit `483b8a009ba3a97563edee3a19887e4862b8094a`.
 It compiles PPO/GAE into phased one-GPU actor, critic, reference and reward

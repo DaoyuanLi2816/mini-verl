@@ -1,52 +1,31 @@
 {
   "schema_version": 2,
-  "release": "0.13.0",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.13.0",
+  "release": "0.14.0",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.14.0",
   "local_validation": {
-    "scope": "the maintainer's workstation, including Windows CUDA and network paths plus the exact official verl v0.9 checkout",
-    "commit": "afc37083152de7e90b71a61c4d0fe9b75fcd2c9d",
-    "commit_relationship": "implementation commit; subsequent candidate commits change version metadata and core-only test selection, not runtime semantics",
-    "measured_at": "2026-09-08T10:10:00Z",
+    "scope": "P0 implementation and CLI compatibility regression on the maintainer workstation",
+    "commit": "39de76a",
+    "commit_relationship": "implementation commit; release metadata and citation wording follow in the candidate commit",
+    "measured_at": "2026-09-09T05:55:00Z",
     "platform": "Windows 11",
-    "python": "CPython 3.10 for coverage, local CUDA tests and network tests",
+    "python": "CPython 3.10.11",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2585,
+      "passed": 2655,
       "skipped": 14,
       "deselected": 24,
       "branch_coverage_percent": 83.0,
-      "skip_reason": "fourteen Windows platform or privilege skips; pinned verl v0.9 conformance executed separately from the exact checkout"
+      "skip_reason": "10 Windows platform/privilege skips and 4 pinned conformance cases executed separately"
     },
-    "gpu": {
-      "passed": 10,
-      "hardware": "NVIDIA GeForce RTX 4080"
-    },
-    "network": {
-      "passed": 16
-    }
+    "gpu": {"passed": 10, "hardware": "NVIDIA GeForce RTX 4080"},
+    "network": {"passed": 16},
+    "pinned_upstream_conformance": {"passed": 4, "tag": "v0.9.0"},
+    "docs_visual": {"viewports": 4, "rendered_svg_instances": 44}
   },
   "release_validation": {
-    "scope": "the exact v0.13.0 release commit",
-    "commit": "8e7bc3b5ff1145ae502cca893b7fffca3e12b6a8",
-    "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34224400200",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34224400239",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34231102850",
-      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34231102799",
-      "gpu_full_qualification": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34224643106",
-      "release_dry_run": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34230187298",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34231102925"
-    },
-    "conclusion": "passed",
-    "gpu_coverage": "attempt-1 full qualification of the exact release wheel on one WSL2 RTX 4080; eight PPO trajectories, two actor updates, two critic updates, exact actor/critic resume and the pinned trained reward-model role passed alongside the historical regression matrix",
-    "publication": {
-      "pypi": "https://pypi.org/project/miniverl/0.13.0/",
-      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.13.0",
-      "documentation": "https://daoyuanli2816.github.io/mini-verl/",
-      "immutable_documentation_build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34231102850",
-      "wheel_sha256": "1284d47c3b981ce1c74bc431254ca49e123ae144b2b49a728d42ff4efdff3a9e",
-      "sdist_sha256": "886c2813a31fd58e84370bdf68bab765b8e92f8800cf54cc7f19ad84d9f32c91"
-    }
+    "scope": "exact release candidate wheel",
+    "conclusion": "pending",
+    "required": "attempt-1 full RTX 4080 qualification, installed PPO/GRPO workflows, exact-byte release dry run and public artifact verification"
   }
 }
