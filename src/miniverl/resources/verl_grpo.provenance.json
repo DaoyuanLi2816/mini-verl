@@ -499,7 +499,7 @@
     "commit": "483b8a009ba3a97563edee3a19887e4862b8094a",
     "path": "examples/grpo_trainer/run_qwen3_4b_fsdp.sh",
     "repository": "https://github.com/verl-project/verl",
-    "source_sha256": "da32ef802be5f33a05616b237b7c286fbef026f4736172f200239269880c787f",
+    "source_sha256": "5fe291d80aeecc94d35f78ae0f2576bb80daac4cc804df18009e0109739f5a9d",
     "tag": "v0.9.0"
   }
 }

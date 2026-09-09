@@ -106,6 +106,11 @@ def resolve(upstream: Path, arguments: list[str]) -> tuple[dict[str, Any], dict[
     return dict(full), dict(OmegaConf.to_container(explicit, resolve=True))
 
 
+def source_blob(upstream: Path, path: str) -> bytes:
+    """Hash repository bytes, independent of checkout autocrlf configuration."""
+    return subprocess.check_output(["git", "show", f"{UPSTREAM_VERL_COMMIT}:{path}"], cwd=upstream)
+
+
 def generate(upstream: Path) -> dict[str, str]:
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=upstream, text=True).strip()
     if commit != UPSTREAM_VERL_COMMIT:
@@ -116,12 +121,12 @@ def generate(upstream: Path) -> dict[str, str]:
     results = []
     with tempfile.TemporaryDirectory(prefix="miniverl-corpus-") as temporary:
         for name, path in CASES.items():
-            content = (upstream / path).read_bytes()
+            content = source_blob(upstream, path)
             arguments = launch_arguments(content.decode("utf-8"))
             documentation = None
             if name == "dr-grpo":
                 doc_path = "examples/grpo_trainer/README.md"
-                doc_bytes = (upstream / doc_path).read_bytes()
+                doc_bytes = source_blob(upstream, doc_path)
                 additions = [
                     "actor_rollout_ref.actor.loss_agg_mode=seq-mean-token-sum-norm",
                     "actor_rollout_ref.actor.use_kl_loss=False",

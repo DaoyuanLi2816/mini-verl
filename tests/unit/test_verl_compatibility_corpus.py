@@ -39,3 +39,17 @@ def test_shell_reader_never_executes_command_substitutions():
         launch_arguments(
             'X=$(touch /tmp/not-permitted)\nDATA=(\n x=$X\n)\npython3 -m verl.trainer.main_ppo "${DATA[@]}"'
         )
+
+
+def test_upstream_hashes_use_git_blobs_not_checkout_line_endings(tmp_path, monkeypatch):
+    from scripts.publish_verl_compatibility_corpus import UPSTREAM_VERL_COMMIT, source_blob
+
+    (tmp_path / "example.sh").write_bytes(b"line\r\n")
+
+    def git(command, *, cwd):
+        assert command == ["git", "show", f"{UPSTREAM_VERL_COMMIT}:example.sh"]
+        assert cwd == tmp_path
+        return b"line\n"
+
+    monkeypatch.setattr("scripts.publish_verl_compatibility_corpus.subprocess.check_output", git)
+    assert source_blob(tmp_path, "example.sh") == b"line\n"

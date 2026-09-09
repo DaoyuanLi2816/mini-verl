@@ -575,7 +575,7 @@
     "commit": "483b8a009ba3a97563edee3a19887e4862b8094a",
     "path": "examples/ppo_trainer/run_qwen3_8b_fsdp.sh",
     "repository": "https://github.com/verl-project/verl",
-    "source_sha256": "d45613937191acfb314935d5030fe14c1c8e5fc4bed7932263a5989ae4965ed4",
+    "source_sha256": "6923473eb21475130725e9194120c18536dea3e107b01cda9d82ba4785eed6de",
     "tag": "v0.9.0"
   }
 }
