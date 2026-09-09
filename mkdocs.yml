@@ -43,6 +43,8 @@ nav:
   - Home: index.md
   - Choose a stack: comparisons.md
   - For verl users: for-verl-users.md
+  - PPO and GRPO walkthrough: local-rl-workflow.md
+  - Upstream compatibility corpus: verl-compatibility-corpus.md
   - Single-GPU verl RL: verl-rl-runtime.md
   - Compatibility profiles: profiles/index.md
   - PG-k1 semantic ADR: adr/0010-verl-v0.8-pg-k1-contract.md

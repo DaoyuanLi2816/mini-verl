@@ -299,6 +299,17 @@ class GPUQualification(_Strict):
                     raise ValueError(
                         "v0.13 full qualification evidence is missing: " + ", ".join(details)
                     )
+            if requires_v013 and (int(version_parts[0]), int(version_parts[1])) >= (0, 14):
+                from miniverl.qualification_product import PRODUCT_CHECKS
+
+                missing_product = set(PRODUCT_CHECKS) - set(self.checks.executed)
+                if "full_v014_product_result" not in {artifact.name for artifact in self.artifacts}:
+                    missing_product.add("full_v014_product_result")
+                if missing_product:
+                    raise ValueError(
+                        "v0.14 full qualification evidence is missing: "
+                        + ", ".join(sorted(missing_product))
+                    )
         return self
 
 

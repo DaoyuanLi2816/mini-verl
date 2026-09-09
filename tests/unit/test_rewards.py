@@ -219,7 +219,8 @@ def test_weighted_reward_preserves_named_components_and_identity() -> None:
     assert len(provider.identity.digest) == 64
 
 
-def test_batch_reward_results_must_match_request_order_and_provider() -> None:
+@pytest.mark.parametrize("mismatch", ["trajectory", "provider"])
+def test_batch_reward_results_must_match_request_order_and_provider(mismatch: str) -> None:
     request = _request()
 
     class MisboundProvider:
@@ -233,11 +234,15 @@ def test_batch_reward_results_must_match_request_order_and_provider() -> None:
         def score_batch(self, requests):  # type: ignore[no-untyped-def]
             return [
                 RewardResult(
-                    trajectory_id="another-trajectory",
+                    trajectory_id="another-trajectory"
+                    if mismatch == "trajectory"
+                    else item.trajectory_id,
                     prompt_group_id=item.prompt_group_id,
                     sample_index=item.sample_index,
                     samples_per_prompt=item.samples_per_prompt,
-                    provider=self.identity,
+                    provider=self.identity
+                    if mismatch == "trajectory"
+                    else self.identity.model_copy(update={"config_digest": "c" * 64}),
                     input_digest=item.input_digest,
                     raw_reward=1.0,
                     status=RewardStatus.OK,
@@ -255,7 +260,8 @@ def test_batch_reward_results_must_match_request_order_and_provider() -> None:
 
 
 @pytest.mark.torch
-def test_hf_reward_model_scores_batches_with_pinned_identity() -> None:
+@pytest.mark.parametrize("failure", [None, "timeout", "model_failure"])
+def test_hf_reward_model_scores_batches_with_pinned_identity(monkeypatch, failure) -> None:
     import torch
 
     from miniverl.config import RewardModelConfig
@@ -305,6 +311,21 @@ def test_hf_reward_model_scores_batches_with_pinned_identity() -> None:
         for index in range(2)
     ]
 
+    if failure == "timeout":
+        times = iter([0.0, 0.0, 10000.0])
+        monkeypatch.setattr("miniverl.rewards.providers.time.perf_counter", lambda: next(times))
+        with pytest.raises(TimeoutError, match="exceeded"):
+            provider.score_batch(requests)
+        return
+    if failure == "model_failure":
+
+        def fail(**kwargs):
+            raise RuntimeError("injected reward forward failure")
+
+        provider.model = fail
+        with pytest.raises(ConfigError, match="injected reward"):
+            score_reward_requests(provider, requests)
+        return
     results = provider.score_batch(requests)
     provider.to_device("cpu")
     provider.release()

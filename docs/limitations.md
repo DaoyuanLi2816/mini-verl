@@ -10,7 +10,22 @@ figures include the published calculator runs, hardware probes and
 RecoveryBench v1 plus Alignment Lab v1. Their source artifacts, methods and caveats are linked from
 the corresponding sections below.
 
-## Modelling and objective
+## Current local RL boundary
+
+The v3 compiler accepts a resolved, versioned profile subset. The seven
+[real upstream configuration cases](verl-compatibility-corpus.md) currently
+reject as complete inputs: unsupported engine settings, automatic prompt
+filtering, rollout-based RM execution or sequence-normalized losses require
+explicit adaptation. The packaged PPO/GRPO examples retain a field-by-field
+adaptation ledger and run from the installed wheel.
+
+PPO and GRPO qualification measures update integrity, memory, resume and
+handoff on the RTX 4080. Its bounded length reward is a systems workload, not
+task-quality evidence. Other VRAM classes remain unknown until measured.
+Handoff preserves portable actor/critic/data artifacts; distributed optimizer
+state and cluster execution remain the recipient's responsibility.
+
+## Distillation modelling and objective
 
 ### Same tokenizer on both sides, with no fallback
 

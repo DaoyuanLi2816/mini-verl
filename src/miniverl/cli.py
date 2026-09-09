@@ -164,11 +164,22 @@ def data_sample_command(
         "--task-rewards",
         help="Add deterministic exact-answer reward metadata for local RL examples.",
     ),
+    reward_profile: Optional[str] = typer.Option(
+        None,
+        "--reward-profile",
+        help="Educational reward: exact-answer or target-length.",
+    ),
 ) -> None:
     """Create a small verl-style Parquet prompt dataset."""
     if format_name != "verl-parquet":
         _fail(ConfigError("--format must be verl-parquet"))
         return
+    if reward_profile not in {None, "exact-answer", "target-length"} or (
+        task_rewards and reward_profile
+    ):
+        _fail(ConfigError("choose --task-rewards or --reward-profile exact-answer/target-length"))
+        return
+    task_rewards = task_rewards or reward_profile is not None
     try:
         import pyarrow as pa
         import pyarrow.parquet as pq
@@ -218,6 +229,18 @@ def data_sample_command(
         if ground_truth is not None:
             record["reward_model"] = {"style": "exact", "ground_truth": ground_truth}
             extra_info["ground_truth"] = ground_truth
+        if reward_profile == "target-length":
+            target = (12, 24, 48, 72)[index % 4]
+            record["prompt"] = [
+                {"role": "system", "content": "Answer briefly and directly. /no_think"},
+                {
+                    "role": "user",
+                    "content": f"Describe checkpoint item {index + 1} in about {target} characters. /no_think",
+                },
+            ]
+            record["reward_model"] = {"style": "target_length", "characters": target}
+            record["ability"] = "target_length"
+            record["extra_info"] = {"sample_index": index, "target_characters": target}
         records.append(record)
     out.parent.mkdir(parents=True, exist_ok=True)
     pq.write_table(pa.Table.from_pylist(records), out)
@@ -1395,7 +1418,7 @@ def train(
         True, "--report/--no-report", help="Render report.html when the run finishes."
     ),
 ) -> None:
-    """Train a student with SFT, offline KD or on-policy distillation."""
+    """Train with PPO/GRPO, SFT, offline KD or on-policy distillation."""
     from miniverl.config import RunConfig
 
     try:
@@ -1432,6 +1455,8 @@ def train(
             (trajectories_per_cycle + config.train.gradient_accumulation_steps - 1)
             // config.train.gradient_accumulation_steps,
         )
+        if config.run.mode.value == "rl" and config.algorithm.name.value == "ppo":
+            steps_per_cycle *= config.algorithm.actor_ppo_epochs
         plan = {
             "dry_run": True,
             "recipe": str(recipe),
@@ -1451,6 +1476,14 @@ def train(
             * (config.train.cycles + config.train.sft_warmup_cycles),
             "planned_prompt_groups": config.train.rollouts_per_cycle * config.train.cycles,
             "planned_rollouts": trajectories_per_cycle * config.train.cycles,
+            "planned_critic_updates": (
+                steps_per_cycle
+                // config.algorithm.actor_ppo_epochs
+                * config.critic.ppo_epochs
+                * config.train.cycles
+                if config.run.mode.value == "rl" and config.algorithm.name.value == "ppo"
+                else 0
+            ),
             "output_dir": str(output or config.run.output_dir),
             "resume": str(resume) if resume is not None else None,
             "resume_from": str(resume_from) if resume_from is not None else None,
@@ -1608,6 +1641,11 @@ def import_verl_command(
     config: Optional[Path] = typer.Option(
         None, "--config", help="Resolved verl YAML configuration (v2 spelling)."
     ),
+    example: Optional[str] = typer.Option(
+        None,
+        "--example",
+        help="Import the packaged ppo or grpo educational workflow.",
+    ),
     profile: str = typer.Option(..., "--profile", help="Documented bridge profile."),
     target_verl: Optional[str] = typer.Option(
         None,
@@ -1643,12 +1681,26 @@ def import_verl_command(
         if source is not None and config is not None:
             raise ConfigError("pass the verl YAML once, as a positional path or --config")
         selected_source = config or source
+        example_provenance = None
+        if example is not None:
+            if selected_source is not None or example not in {"ppo", "grpo"}:
+                raise ConfigError("choose --example ppo/grpo or a source YAML, not both")
+            if profile != "verl-rl-v0.9-single-gpu-v3":
+                raise ConfigError(
+                    "packaged RL examples require --profile verl-rl-v0.9-single-gpu-v3"
+                )
+            selected_source = Path(__file__).parent / "resources" / f"verl_{example}.yaml"
+            example_provenance = selected_source.with_suffix(".provenance.json").read_bytes()
         if selected_source is None:
             raise ConfigError("a resolved verl YAML path is required", hint="pass --config FILE")
         from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
-        from miniverl.bridge.rl_v09 import VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PROFILE
+        from miniverl.bridge.rl_v09 import (
+            VERL_RL_V09_PPO_PROFILE,
+            VERL_RL_V09_PRODUCT_PROFILE,
+            VERL_RL_V09_PROFILE,
+        )
 
-        if profile in {VERL_RL_V09_PROFILE, VERL_RL_V09_PPO_PROFILE}:
+        if profile in {VERL_RL_V09_PROFILE, VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE}:
             resolved_target_verl = target_verl or "v0.9.0"
             if overrides:
                 raise ConfigError(
@@ -1663,6 +1715,8 @@ def import_verl_command(
                 target_verl=resolved_target_verl,
                 overwrite=overwrite,
                 profile=profile,
+                include_source=example is not None,
+                example_provenance=example_provenance,
             )
         elif profile == VERL_OPD_V08_PROFILE:
             from miniverl.bridge.contract import validate_target_verl
@@ -1710,6 +1764,22 @@ def import_verl_command(
     console.print(f"[{style}]verl profile {report['status']}[/{style}] {_esc(written)}")
     console.print(f"  profile {_esc(profile)}")
     console.print(f"  report  {_esc(report_file)}")
+    classifications: dict[str, int] = {}
+    classified = report.get("field_classification", [])
+    # The legacy migration report keys decisions by field instead of listing rows.
+    for row in classified.values() if isinstance(classified, dict) else classified:
+        category = row["classification"]
+        classifications[category] = classifications.get(category, 0) + 1
+    if classifications:
+        console.print(
+            "  fields  "
+            + "; ".join(
+                f"{_esc(name.replace('_', ' '))}: {count}"
+                for name, count in sorted(classifications.items())
+            )
+        )
+    for requirement in report.get("required_user_input", []):
+        console.print(f"  required  {_esc(requirement)}")
 
 
 @app.command("convert-dataset")
@@ -2125,7 +2195,7 @@ def benchmark(
 
 @app.command("inspect")
 def inspect_command(
-    path: Path = typer.Argument(..., help="Path to a trajectories.jsonl file."),
+    path: Path = typer.Argument(..., help="Run directory or trajectories.jsonl file."),
     limit: int = typer.Option(5, "--limit", help="Number of trajectories to show."),
     trajectory: Optional[str] = typer.Option(
         None, "--trajectory", help="Inspect one trajectory id."
@@ -2133,8 +2203,27 @@ def inspect_command(
     show_spans: bool = typer.Option(False, "--spans", help="Print the span table of --trajectory."),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
 ) -> None:
-    """Validate and summarize trajectories, including token provenance."""
+    """Inspect a training run or validate trajectory token provenance."""
     try:
+        if path.is_dir():
+            from miniverl.reporting.inspection import inspect_run
+            from miniverl.utils.locking import RunLock
+
+            if trajectory is not None or show_spans:
+                raise MiniVerlError("use a trajectories.jsonl file with --trajectory/--spans")
+            with RunLock(path.parent, path.name, timeout=0.0):
+                payload = inspect_run(path)
+            if as_json:
+                _emit_json(payload)
+            else:
+                console.print(
+                    f"[bold]{_esc(payload['run_id'])}[/bold]: {_esc(payload['algorithm'])} | {_esc(payload['status'])}"
+                )
+                from miniverl.reporting.inspection import human_summary
+
+                for line in human_summary(payload):
+                    console.print(_esc(line))
+            return
         from miniverl.inspection import iter_spans_for_display, summarize_file
 
         summary = summarize_file(path, limit=limit, trajectory_id=trajectory)

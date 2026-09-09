@@ -6,6 +6,34 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-08
+
+### Installed local RL workflows
+
+- Package upstream-derived PPO and GRPO examples with exact source/adaptation
+  ledgers, import reports, native recipes and a complete inspect/resume/handoff
+  walkthrough. No checkout is required by their user commands.
+- Add run-directory inspection and RL reports with actor/critic counters,
+  rewards, advantages, losses, memory, local lowerings and checkpoint history.
+- Gate releases on both installed-candidate workflows, exact tensor replay and
+  checked v0.9 handoff, alongside the existing full RTX 4080 qualification.
+
+### Compatibility and recovery
+
+- Add the immutable v3 compiler profile: upstream prompt minibatches expand by
+  rollout count; physical offload hints are recorded; unimplemented reductions
+  and repeated non-PPO epochs reject explicitly. Published v1/v2 rules remain
+  unchanged.
+- Add six upstream-owned scripts and seven Hydra-resolved configuration cases
+  with CI-gated field accounting, pinned source hashes and precise rejections.
+- Bind PPO old values and RL behavior log-probabilities to their source roles;
+  restore RNG on critic OOM retry and reject nonfinite critic gradients.
+- Bind RL checkpoint log prefixes, archive post-checkpoint tails on resume and
+  reject corrupt/inconsistent inspection artifacts. Add interruption coverage
+  across rollout, reward, old-value, actor and critic phases.
+- Foreground the current local RL workflow in English/Chinese documentation;
+  retain frozen scientific results and evidence-scoped hardware claims.
+
 ## [0.13.0] - 2026-09-08
 
 ### PPO and full local RL

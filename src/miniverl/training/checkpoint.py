@@ -86,6 +86,7 @@ class CheckpointState:
     profile_identity: dict[str, Any] = field(default_factory=dict)
     offline_dataset_digest: str = ""
     metrics: dict[str, Any] = field(default_factory=dict)
+    artifact_cursors: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-friendly view."""
@@ -136,6 +137,7 @@ class CheckpointState:
             "resolved_config_digest": self.resolved_config_digest,
             "offline_dataset_digest": self.offline_dataset_digest,
             "metrics": self.metrics,
+            "artifact_cursors": self.artifact_cursors,
         }
         if self.execution_plan_digest:
             payload["execution_plan_digest"] = self.execution_plan_digest

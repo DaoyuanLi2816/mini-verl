@@ -7,6 +7,13 @@ result artifacts.
 
 For the mathematics of the objectives see [math.md](math.md).
 
+For the user-facing path see the [installed PPO/GRPO walkthrough](local-rl-workflow.md).
+The versioned compiler accounts for every source field; the runtime binds
+behavior-policy and critic identities before updates. RL checkpoints also
+bind log-prefix hashes. Resume verifies those prefixes, archives uncommitted
+tails and restores counters so inspection reflects the same history as the
+restored actor and critic tensors.
+
 ---
 
 ## 1. The problem

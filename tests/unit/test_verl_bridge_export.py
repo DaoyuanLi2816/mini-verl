@@ -192,7 +192,10 @@ def test_export_preserves_available_source_values_without_claiming_schedule_pari
     assert placeholders["trainer.total_epochs"]["source_run_intent"] is False
 
 
-def test_export_rl_v09_preserves_ppo_semantics_and_critic_boundary(tmp_path: Path) -> None:
+@pytest.mark.parametrize("profile_version", [2, 3])
+def test_export_rl_v09_preserves_ppo_semantics_and_critic_boundary(
+    tmp_path: Path, profile_version: int
+) -> None:
     from miniverl.algorithms.contract import UPSTREAM_VERL_TAG
     from miniverl.bridge.export import export_verl_bundle
 
@@ -202,7 +205,7 @@ def test_export_rl_v09_preserves_ppo_semantics_and_critic_boundary(tmp_path: Pat
             "name": "local-ppo",
             "mode": "rl",
             "seed": 41,
-            "profile_identity": {"profile_name": "verl-rl-v0.9-single-gpu-v2"},
+            "profile_identity": {"profile_name": f"verl-rl-v0.9-single-gpu-v{profile_version}"},
         },
         "models": {
             "backend": "hf",
@@ -297,7 +300,11 @@ def test_export_rl_v09_preserves_ppo_semantics_and_critic_boundary(tmp_path: Pat
 
     diagnosis = inspect_bridge_bundle(out)
 
-    assert report["profile"] == "verl-rl-v0.9-single-gpu-v2"
+    assert report["profile"] == f"verl-rl-v0.9-single-gpu-v{profile_version}"
+    assert overrides["actor_rollout_ref"]["actor"]["ppo_mini_batch_size"] == (
+        1 if profile_version == 3 else 2
+    )
+    assert overrides["critic"]["ppo_mini_batch_size"] == (1 if profile_version == 3 else 2)
     assert report["artifact_bundle_complete"] is True
     assert report["algorithm_semantic_parity"] is True
     assert report["launchable"] is False
@@ -312,7 +319,7 @@ def test_export_rl_v09_preserves_ppo_semantics_and_critic_boundary(tmp_path: Pat
     assert not (out / "recipe" / "launch.sh").exists()
     assert diagnosis["verdict"] == "ok"
     assert diagnosis["target_verl"]["tag"] == "v0.9.0"
-    assert diagnosis["config_profile"]["profile"] == "verl-rl-v0.9-single-gpu-v2"
+    assert diagnosis["config_profile"]["profile"] == f"verl-rl-v0.9-single-gpu-v{profile_version}"
     assert diagnosis["critic_checkpoint"]["status"] == "ok"
     assert diagnosis["launchable"] is False
 

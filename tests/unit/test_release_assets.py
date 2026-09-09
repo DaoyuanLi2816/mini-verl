@@ -94,6 +94,11 @@ def _fixture(tmp_path: Path, *, version: str = "0.11.0.dev0") -> tuple[Path, Pat
             "full/v013-ppo.json",
             b'{"kind":"v013-ppo"}\n',
         )
+    if version_key >= (0, 14):
+        evidence["full_v014_product_result"] = (
+            "full/v014-product.json",
+            b'{"kind":"v014-product"}\n',
+        )
     artifacts = []
     for name, (relative, content) in evidence.items():
         path = qualification / relative
@@ -224,6 +229,10 @@ def _fixture(tmp_path: Path, *, version: str = "0.11.0.dev0") -> tuple[Path, Pat
             ]
         )
     qualification_path = qualification / "qualification.json"
+    if version_key >= (0, 14):
+        from miniverl.qualification_product import PRODUCT_CHECKS
+
+        payload["checks"]["executed"].extend(PRODUCT_CHECKS)
     qualification_path.write_text(json.dumps(payload), encoding="utf-8")
     verification = tmp_path / "verification.json"
     verification.write_text(
@@ -319,13 +328,16 @@ def test_v012_release_archive_includes_rl_qualification(tmp_path: Path) -> None:
     assert check_release_assets(output) == []
 
 
-def test_v013_release_archive_includes_ppo_qualification(tmp_path: Path) -> None:
+@pytest.mark.parametrize("version,role", [("0.13.0", "v013_ppo"), ("0.14.0", "v014_product")])
+def test_current_release_archive_includes_qualification(
+    tmp_path: Path, version: str, role: str
+) -> None:
     from miniverl.release_assets import check_release_assets
 
-    output = _build(tmp_path, version="0.13.0")
+    output = _build(tmp_path, version=version)
     manifest = json.loads((output / "qualification-evidence-manifest.json").read_text())
 
-    assert "v013_ppo" in {member["semantic_role"] for member in manifest["members"]}
+    assert role in {member["semantic_role"] for member in manifest["members"]}
     assert check_release_assets(output) == []
 
 

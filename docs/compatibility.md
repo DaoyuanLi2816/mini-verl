@@ -24,16 +24,20 @@ still lowers to one device; those resource values are reported as
 
 ## verl v0.9 RL compiler
 
-Profiles `verl-rl-v0.9-single-gpu-v1` and `verl-rl-v0.9-single-gpu-v2` target
+The current `verl-rl-v0.9-single-gpu-v3` profile and preserved v1/v2 profiles target
 official verl `v0.9.0` at
 `483b8a009ba3a97563edee3a19887e4862b8094a`. v1 retains the released
-critic-free contract; v2 adds PPO and its value role.
+critic-free contract; v2 adds PPO and its value role. v3 binds upstream prompt
+minibatch units, records physical offload lowerings and rejects unsupported
+loss reductions and repeated non-PPO epochs. Start with the
+[installed PPO/GRPO workflow](local-rl-workflow.md); the
+[upstream corpus](verl-compatibility-corpus.md) accounts for complete real configs.
 
 | Surface | Status | Local contract |
 | --- | --- | --- |
 | PPO/GAE | semantically conformant | independent causal-LM critic plus scalar head, GAE and clipped value updates |
 | GRPO | semantically conformant | sample-std group normalization, epsilon placement and masking match v0.9 |
-| Dr.GRPO | semantically conformant | GRPO centering without std normalization |
+| Dr.GRPO advantage estimator | semantically conformant | GRPO centering without std normalization; upstream sequence-normalized loss recipe is not implemented |
 | RLOO | semantically conformant | leave-one-out prompt-group baseline |
 | REINFORCE++ | semantically conformant | discounted token returns plus masked whitening |
 | vanilla dual-clipped policy objective | semantically conformant | token-mean reduction, clipping and diagnostics match v0.9 |

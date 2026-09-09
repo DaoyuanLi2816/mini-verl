@@ -33,26 +33,39 @@ profiles remain available for direct GKD and sampled-k1 distillation.
 
 PyPI `v0.13.0` is stable; `main` is development.
 
-## Start in 60 seconds
+## Your first local experiment
 
 Install the CUDA-enabled PyTorch build that matches your machine, then:
 
 ```bash
-python -m pip install "miniverl[train,cuda]"
-miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
-  --config examples/verl-rl-v0.9-single-gpu-ppo.yaml --out local-ppo.yaml
+python -m pip install "miniverl[train]"
+miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
+  --example ppo --out local-ppo.yaml
 miniverl validate local-ppo.yaml
 miniverl train local-ppo.yaml --dry-run
 ```
 
-The importer writes `local-ppo.import-report.json` beside the native recipe.
-It accounts for every accepted source field and records how distributed
-resource settings lower to one process and one device. Remove `--dry-run` to
-load the pinned Qwen3-0.6B actor and execute the two-iteration example.
+Both PPO and GRPO examples ship in the wheel. The importer writes the original
+input, compatibility report, native recipe and an upstream-adaptation ledger.
+Remove `--dry-run` to run two iterations with the pinned Qwen3-0.6B model.
+Then inspect, resume and export:
 
-The `[train,cuda]` extra installs the ML and quantization stack; select PyTorch's
-CUDA build separately with the [PyTorch installer](https://pytorch.org/get-started/locally/).
+```bash
+miniverl train local-ppo.yaml --run-id local-ppo
+miniverl inspect runs/local-ppo
+miniverl train local-ppo.yaml --resume-from runs/local-ppo/checkpoints/step-000002
+miniverl export-adapter --run runs/local-ppo --out runs/local-ppo/model
+miniverl export-verl --run runs/local-ppo --target-verl v0.9.0 --out ppo-handoff
+miniverl bridge doctor ppo-handoff --json
+```
+
+The [five-minute workflow](docs/for-verl-users.md) explains each artifact and
+offers the matching GRPO commands. These are small length-reward exercises;
+their reward is directly inspectable in `rewards.jsonl`.
+
+`[train]` supplies the ML stack; `[cuda]` additionally supplies quantization.
+Select PyTorch's CUDA build with the [PyTorch installer](https://pytorch.org/get-started/locally/).
 The [single-GPU guide](docs/single-gpu-guide.md) covers memory planning and the
 maintainer-measured RTX 4080 environment.
 
@@ -87,7 +100,7 @@ the learning signal.
 
 | Goal | First command | Primary artifact | Next step |
 | --- | --- | --- | --- |
-| **Run local RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 --config verl-ppo.yaml --out local.yaml` | native recipe + compatibility report | [RL quickstart](docs/verl-rl-runtime.md) |
+| **Run local RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 --example grpo --out local.yaml` | native recipe + compatibility report | [RL quickstart](docs/verl-rl-runtime.md) |
 | **Run local OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | immutable execution plan | [OPD quickstart](docs/opd-quickstart.md) |
 | **Fit your GPU** | `miniverl plan --config verl-opd.yaml --probe` | measured placement plan | [Hardware planning](docs/hardware-planning.md) |
 | **Hand off artifacts** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor, critic, Parquet + config bundle | [Compatibility contract](docs/compatibility.md) |
@@ -108,11 +121,9 @@ navigation, read-only SQLite and custom tool environments.
 | Direct GKD / sampled-k1 OPD | supported | pinned verl v0.8 profiles with teacher targets |
 | Ray, FSDP/FSDP2, Megatron, TP/PP/DP > 1 | distributed-only | these change physical scale, not the local objective |
 
-The generated [v0.9 PPO compatibility record](docs/generated/verl-rl-v0.9-ppo-compatibility.json)
-binds every example field to its source value, local target, classification and
-compiler-rule digest. `miniverl import-verl` accepts a resolved documented
-subset, rejects unknown algorithm-changing fields, and never substitutes a
-dataset or reward implementation.
+The [upstream compatibility corpus](docs/verl-compatibility-corpus.md) resolves
+real verl examples and records every field's outcome. The v3 profile preserves
+prompt-based minibatch units; v1/v2 remain available for existing recipes.
 
 ## Measured systems evidence
 

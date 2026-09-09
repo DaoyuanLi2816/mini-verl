@@ -7,6 +7,7 @@ version checks, and actor/critic temporal placement.
 
 from __future__ import annotations
 
+import math
 import time
 from typing import Any
 
@@ -161,12 +162,14 @@ class PPOPhaseRuntime:
     def _compute_with_oom_retry(self, group: list[Any]) -> dict[str, Any]:
         """Reduce only physical critic microbatching after a CUDA OOM."""
         from miniverl.utils import gpu
+        from miniverl.utils.seeding import capture_rng, restore_rng
 
         host = self.host
         configured = host.config.train.trajectory_batch_size
         cap = len(group) if configured == "auto" else min(int(configured), len(group))
         attempts = host.config.memory.oom_retries + 1
         last_error: BaseException | None = None
+        retry_rng = capture_rng()
         for attempt in range(attempts):
             try:
                 return self.compute_group_gradients(group, physical_cap=cap)
@@ -176,6 +179,7 @@ class PPOPhaseRuntime:
                 last_error = exc
                 if host.critic_optimizer is not None:
                     host.critic_optimizer.zero_grad(set_to_none=True)
+                restore_rng(retry_rng)
                 gpu.empty_cache()
                 next_cap = max(1, cap // 2)
                 if next_cap == cap or attempt == attempts - 1:
@@ -205,6 +209,9 @@ class PPOPhaseRuntime:
                 host.critic.trainable_parameters(), host.config.critic.max_grad_norm
             )
         )
+        if not math.isfinite(grad_norm):
+            host.critic_optimizer.zero_grad(set_to_none=True)
+            raise LifecycleError("PPO critic gradients must be finite before an optimizer step")
         lr = host.critic_schedule.lr_at(host.critic_update_count)
         for parameter_group in host.critic_optimizer.param_groups:
             parameter_group["lr"] = lr
@@ -218,14 +225,30 @@ class PPOPhaseRuntime:
         host = self.host
         if host.critic is None:
             raise LifecycleError("PPO has no critic role")
-        expected_versions = {
-            int(sample.trajectory.metadata["critic_provenance"]["version"]) for sample in samples
-        }
         starting_version = host.critic_update_count
-        if expected_versions != {starting_version}:
-            raise LifecycleError(
-                "PPO old values were not produced by the current pre-update critic version"
-            )
+        if not samples:
+            raise LifecycleError("PPO critic update requires non-empty rollout samples")
+        identity = host.critic.identity()
+        for sample in samples:
+            trajectory = sample.trajectory
+            provenance = trajectory.metadata.get("critic_provenance")
+            if (
+                not isinstance(provenance, dict)
+                or provenance.get("identity") != identity
+                or type(provenance.get("version")) is not int
+                or provenance["version"] != starting_version
+            ):
+                raise LifecycleError(
+                    "PPO old values disagree with the pre-update critic identity/version"
+                )
+            if (
+                type(provenance.get("rollout_policy_version")) is not int
+                or provenance["rollout_policy_version"] != trajectory.policy_version
+                or trajectory.policy_version != host.parameter_version
+            ):
+                raise LifecycleError(
+                    "PPO old values disagree with the current rollout policy version"
+                )
         swap = host.plan.strategy is MemoryStrategy.SWAP
         actor_state = None
         if swap:

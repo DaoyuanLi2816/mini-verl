@@ -10,6 +10,21 @@ Canonical release state: stable `v0.13.0` (`8e7bc3b5ff1145ae502cca893b7fffca3e12
 
 ## Release state
 
+- Active work: `v0.14.0-p0-productization`, based on verified main `cdc608f`.
+  The next release focuses on upstream configuration coverage, packaged PPO/GRPO
+  walkthroughs, run inspection and system-level recovery. Version metadata stays
+  on the existing development version until the implementation scope is settled.
+- Upstream drift check: GitHub's latest stable release is still `v0.9.0`
+  (published 2026-08-14); existing compiler targets remain appropriate.
+- Implemented: v3 prompt-minibatch units and explicit physical lowerings;
+  six upstream scripts/seven resolved cases with complete field accounting;
+  installed PPO/GRPO templates and adaptation ledgers; strict run inspection;
+  PPO value/behavior identity guards and checkpoint-bound log recovery.
+- Development rehearsal: both wheel-installed workflows completed on RTX 4080;
+  PPO 4 actor/4 critic updates and GRPO 2 actor updates, with exact tensor resume
+  and inspected handoff. This dirty-tree rehearsal is not release evidence.
+- Pending: final exact-commit qualification, publication and state sync.
+
 - Stable release: `v0.13.0` at
   `8e7bc3b5ff1145ae502cca893b7fffca3e12b6a8`.
 - Current development line: `0.13.1.dev0`.
@@ -19,8 +34,8 @@ Canonical release state: stable `v0.13.0` (`8e7bc3b5ff1145ae502cca893b7fffca3e12
 
 ## Current product boundary
 
-Development `0.13.1.dev0` has a closed typed profile compiler: it retains the v1 critic-free contract and adds
-`verl-rl-v0.9-single-gpu-v2`, a typed resolved PPO subset of official verl
+Development `0.13.1.dev0` has a closed typed profile compiler: it retains v1/v2 and adds
+`verl-rl-v0.9-single-gpu-v3`, a typed resolved RL subset of official verl
 `v0.9.0` at commit `483b8a009ba3a97563edee3a19887e4862b8094a`.
 It compiles PPO/GAE into phased one-GPU actor, critic, reference and reward
 roles. The critic is independently trainable and owns its optimizer, schedule,

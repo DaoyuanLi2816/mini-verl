@@ -711,7 +711,14 @@ class RolloutRunner:
                 "split": task.split,
                 "initial_observation_state_id": initial_observation.state_id,
                 **self.environment.trajectory_metadata(task),
-                **({"actor_rollout_log_probs": generated_logprobs} if cfg.record_logprobs else {}),
+                **(
+                    {
+                        "actor_rollout_log_probs": generated_logprobs,
+                        "actor_rollout_policy_version": policy_version,
+                    }
+                    if cfg.record_logprobs
+                    else {}
+                ),
                 **({"environment_error": metadata_error} if metadata_error else {}),
             },
         )

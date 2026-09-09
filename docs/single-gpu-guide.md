@@ -2,7 +2,20 @@
 
 miniVERL is a **single-GPU CUDA LLM post-training** stack. One process uses one
 CUDA device, and the model pair, sequence budget and runtime strategy determine
-how the recipe fits.
+how the recipe fits. Start with the installed PPO/GRPO examples:
+
+```bash
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 --example ppo --out local-ppo.yaml
+miniverl train local-ppo.yaml --dry-run --json
+```
+
+The [complete walkthrough](local-rl-workflow.md) includes installation, data,
+inspection, resume and export. These examples use unquantized Qwen3-0.6B LoRA,
+not the historical calculator recipe's two-model NF4 configuration. PPO's
+independent critic owns additional parameters and optimizer state. Its physical
+microbatch size can shrink without changing the logical prompt group.
+
+## Distillation recipe defaults
 
 The shipped Qwen3 recipe follows a device-name-agnostic CUDA path and has a
 measured RTX 4080 reference. Its portable defaults are:
@@ -37,8 +50,8 @@ not select a CUDA-enabled PyTorch build on its own.
 For the exact stack measured by the maintainer on one RTX 4080, use the
 machine-readable
 [`environments/known-good-rtx4080-cu130.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/environments/known-good-rtx4080-cu130.json)
-is the historical Windows v0.10.1 record. The active v0.11 release
-qualification uses
+is the historical Windows v0.10.1 record. Current release
+qualification uses the WSL2 stack in
 [`environments/known-good-rtx4080-wsl2-cu130.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/environments/known-good-rtx4080-wsl2-cu130.json)
 and its constraints:
 
