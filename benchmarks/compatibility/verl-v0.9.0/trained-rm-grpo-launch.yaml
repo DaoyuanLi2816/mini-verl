@@ -1,0 +1,52 @@
+actor_rollout_ref:
+  actor:
+    optim:
+      lr: 1.0e-06
+    ppo_micro_batch_size_per_gpu: 10
+    ppo_mini_batch_size: 128
+    use_kl_loss: false
+  model:
+    enable_gradient_checkpointing: true
+    path: mistralai/Mistral-Nemo-Instruct-2407
+  rollout:
+    gpu_memory_utilization: 0.7
+    log_prob_micro_batch_size_per_gpu: 10
+    n: 5
+    name: vllm
+    tensor_model_parallel_size: 4
+algorithm:
+  adv_estimator: grpo
+  use_kl_in_reward: false
+data:
+  filter_overlong_prompts: true
+  max_prompt_length: 4096
+  max_response_length: 2048
+  prompt_key: prompt
+  return_raw_chat: true
+  train_batch_size: 512
+  train_files: data/full_hh_rlhf/rl/train.parquet
+  truncation: error
+  val_files: data/full_hh_rlhf/rl/train.parquet
+reward:
+  num_workers: 8
+  reward_model:
+    enable: true
+    model_path: Skywork/Skywork-Reward-Llama-3.1-8B
+    rollout:
+      gpu_memory_utilization: 0.8
+      name: vllm
+      prompt_length: 8192
+      response_length: 4096
+      tensor_model_parallel_size: 1
+trainer:
+  experiment_name: grpo_mistral13B-skyworkLlama8b-hhrlhf
+  logger:
+  - console
+  - wandb
+  n_gpus_per_node: 8
+  nnodes: 1
+  project_name: verl_full_hh_rlhf_examples
+  save_freq: 10
+  test_freq: -1
+  total_epochs: 5
+  val_before_train: false

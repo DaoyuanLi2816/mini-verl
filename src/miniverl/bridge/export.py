@@ -72,12 +72,12 @@ def _validate_rl_v09_target(value: str) -> None:
         )
 
 
-def _required_verl_rl_v09_text() -> str:
+def _required_verl_rl_v09_text(profile: str = "verl-rl-v0.9-single-gpu-v2") -> str:
     return (
         f"VERL_REPOSITORY={VERL_REPOSITORY}\n"
         f"VERL_TAG={UPSTREAM_VERL_TAG}\n"
         f"VERL_COMMIT={UPSTREAM_VERL_COMMIT}\n"
-        "PROFILE=verl-rl-v0.9-single-gpu-v2\n"
+        f"PROFILE={profile}\n"
     )
 
 
@@ -546,6 +546,12 @@ def _rl_v09_overrides(
     samples = int(rollout.get("samples_per_prompt", 1))
     prompts = int(train.get("rollouts_per_cycle", 1))
     mini_batch = int(train.get("gradient_accumulation_steps", prompts * samples))
+    if _get(config, "run.profile_identity.profile_name") == "verl-rl-v0.9-single-gpu-v3":
+        if mini_batch % samples:
+            raise ConfigError(
+                "logical trajectory minibatch must divide by rollout.n for upstream handoff"
+            )
+        mini_batch //= samples
     overrides: dict[str, Any] = {
         "data": {
             "train_files": data_paths["train"],
@@ -990,13 +996,18 @@ def _export_rl_v09_bundle(
     destination: Path,
 ) -> dict[str, Any]:
     """Export a fail-closed but semantically explicit RL handoff bundle."""
-    from miniverl.bridge.rl_v09 import VERL_RL_V09_PPO_PROFILE
+    from miniverl.bridge.rl_v09 import VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE
     from miniverl.config import RunConfig
 
     config_path = run / "config.resolved.yaml"
     if not config_path.is_file():
         raise ConfigError("RL export requires config.resolved.yaml")
     validated = RunConfig.from_yaml(config_path)
+    profile = (
+        VERL_RL_V09_PRODUCT_PROFILE
+        if validated.run.profile_identity.get("profile_name") == VERL_RL_V09_PRODUCT_PROFILE
+        else VERL_RL_V09_PPO_PROFILE
+    )
     if validated.run.mode.value != "rl":
         raise ConfigError("verl v0.9 export requires a completed run.mode=rl run")
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -1068,7 +1079,7 @@ def _export_rl_v09_bundle(
             "echo 'Template only: materialize exact roles and validate the pinned verl config.' >&2\n"
             "exit 2\n",
         )
-        write_text(recipe / "REQUIRED_VERL.txt", _required_verl_rl_v09_text())
+        write_text(recipe / "REQUIRED_VERL.txt", _required_verl_rl_v09_text(profile))
         reward_dir = temporary / "reward"
         reward_dir.mkdir()
         write_text(reward_dir / "reward_or_verifier.py", reward_source)
@@ -1080,7 +1091,7 @@ def _export_rl_v09_bundle(
         write_json(provenance / "source-config.json", portable_payload(config))
         report: dict[str, Any] = {
             "schema_version": 3,
-            "profile": VERL_RL_V09_PPO_PROFILE,
+            "profile": profile,
             "target_verl": {
                 "repository": VERL_REPOSITORY,
                 "tag": UPSTREAM_VERL_TAG,

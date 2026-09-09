@@ -39,7 +39,25 @@ def render_markdown(data: ReportData) -> str:
     objective = manifest.get("objective") or {}
     gpu = manifest.get("gpu") or {}
     throughput = data.throughput()
-    lines: list[str] = [
+    if data.mode == "rl":
+        training = data.run_inspection
+        lines: list[str] = [
+            f"# miniVERL run `{data.run_id}`",
+            "",
+            f"Algorithm: **{training.get('algorithm')}**. Status: `{training.get('status')}`.",
+            "",
+            "| Signal | Count | Mean | First | Last |",
+            "| --- | ---: | ---: | ---: | ---: |",
+        ]
+        for key in ("rewards", "policy_loss", "value_loss", "advantages", "returns"):
+            stat = training.get(key) or {}
+            lines.append(
+                f"| {key} | {stat.get('count', 0)} | {_num(stat.get('mean'), 4)} | {_num(stat.get('first'), 4)} | {_num(stat.get('last'), 4)} |"
+            )
+        for key in ("profile", "updates", "memory", "checkpoint", "resumed_from", "export"):
+            lines += ["", f"- {key}: `{training.get(key)}`"]
+        return "\n".join(lines) + "\n"
+    lines = [
         f"# miniVERL run `{data.run_id}`",
         "",
         f"- mode: **{data.mode}**"
@@ -170,4 +188,5 @@ def render_summary_json(data: ReportData) -> dict[str, Any]:
         "termination_reasons": dict(data.termination_counts()),
         "selected_by_span_type": dict(data.selection_counts()),
         "benchmark": data.benchmark,
+        "training": data.run_inspection,
     }

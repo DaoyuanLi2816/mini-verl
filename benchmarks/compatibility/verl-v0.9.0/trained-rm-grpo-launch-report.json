@@ -1,0 +1,364 @@
+{
+  "executable": false,
+  "field_classification": [
+    {
+      "classification": "exact",
+      "local_target": "train.learning_rate",
+      "reason": "same optimizer learning rate",
+      "resolution_status": "resolved",
+      "source_value": 1e-06,
+      "upstream_field": "actor_rollout_ref.actor.optim.lr"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": 10,
+      "upstream_field": "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu"
+    },
+    {
+      "classification": "semantically_conformant",
+      "local_target": "train.gradient_accumulation_steps",
+      "reason": "upstream prompt minibatch times rollout.n yields the logical trajectory minibatch",
+      "resolution_status": "resolved",
+      "source_value": 128,
+      "upstream_field": "actor_rollout_ref.actor.ppo_mini_batch_size"
+    },
+    {
+      "classification": "exact",
+      "local_target": "algorithm.actor_kl_coef",
+      "reason": "actor-loss KL is disabled in both runtimes",
+      "resolution_status": "resolved",
+      "source_value": false,
+      "upstream_field": "actor_rollout_ref.actor.use_kl_loss"
+    },
+    {
+      "classification": "semantically_conformant",
+      "local_target": "models.student.gradient_checkpointing",
+      "reason": "same activation-memory technique",
+      "resolution_status": "resolved",
+      "source_value": true,
+      "upstream_field": "actor_rollout_ref.model.enable_gradient_checkpointing"
+    },
+    {
+      "classification": "exact",
+      "local_target": "models.student.model_id",
+      "reason": "same actor checkpoint identity",
+      "resolution_status": "resolved",
+      "source_value": "mistralai/Mistral-Nemo-Instruct-2407",
+      "upstream_field": "actor_rollout_ref.model.path"
+    },
+    {
+      "classification": "locally_lowered",
+      "local_target": "memory planner",
+      "reason": "recorded as an upstream engine hint; local placement is planned separately",
+      "resolution_status": "resolved",
+      "source_value": 0.7,
+      "upstream_field": "actor_rollout_ref.rollout.gpu_memory_utilization"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": 10,
+      "upstream_field": "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu"
+    },
+    {
+      "classification": "exact",
+      "local_target": "rollout.samples_per_prompt",
+      "reason": "same grouped sample count",
+      "resolution_status": "resolved",
+      "source_value": 5,
+      "upstream_field": "actor_rollout_ref.rollout.n"
+    },
+    {
+      "classification": "locally_lowered",
+      "local_target": "rollout.backend",
+      "reason": "distributed engine selection becomes a validated local HF backend",
+      "resolution_status": "resolved",
+      "source_value": "vllm",
+      "upstream_field": "actor_rollout_ref.rollout.name"
+    },
+    {
+      "classification": "distributed_only",
+      "local_target": null,
+      "reason": "tensor parallel placement is not part of one-GPU semantics",
+      "resolution_status": "resolved",
+      "source_value": 4,
+      "upstream_field": "actor_rollout_ref.rollout.tensor_model_parallel_size"
+    },
+    {
+      "classification": "semantically_conformant",
+      "local_target": "algorithm.name",
+      "reason": "pinned estimator implementation",
+      "resolution_status": "resolved",
+      "source_value": "grpo",
+      "upstream_field": "algorithm.adv_estimator"
+    },
+    {
+      "classification": "exact",
+      "local_target": "algorithm.kl_coef",
+      "reason": "reference-policy reward KL is disabled in both runtimes",
+      "resolution_status": "resolved",
+      "source_value": false,
+      "upstream_field": "algorithm.use_kl_in_reward"
+    },
+    {
+      "classification": "not_implemented",
+      "local_target": null,
+      "reason": "upstream prefiltering changes dataset membership; local truncation is not a substitute",
+      "resolution_status": "resolved",
+      "source_value": true,
+      "upstream_field": "data.filter_overlong_prompts"
+    },
+    {
+      "classification": "exact",
+      "local_target": "source.max_prompt_length",
+      "reason": "same token bound",
+      "resolution_status": "resolved",
+      "source_value": 4096,
+      "upstream_field": "data.max_prompt_length"
+    },
+    {
+      "classification": "exact",
+      "local_target": "source.max_response_length",
+      "reason": "same token bound",
+      "resolution_status": "resolved",
+      "source_value": 2048,
+      "upstream_field": "data.max_response_length"
+    },
+    {
+      "classification": "exact",
+      "local_target": "source.prompt_key",
+      "reason": "same Parquet column",
+      "resolution_status": "resolved",
+      "source_value": "prompt",
+      "upstream_field": "data.prompt_key"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": true,
+      "upstream_field": "data.return_raw_chat"
+    },
+    {
+      "classification": "semantically_conformant",
+      "local_target": "train.rollouts_per_cycle",
+      "reason": "same logical prompts per rollout",
+      "resolution_status": "resolved",
+      "source_value": 512,
+      "upstream_field": "data.train_batch_size"
+    },
+    {
+      "classification": "exact",
+      "local_target": "source.train_files",
+      "reason": "same Parquet inputs",
+      "resolution_status": "resolved",
+      "source_value": "data/full_hh_rlhf/rl/train.parquet",
+      "upstream_field": "data.train_files"
+    },
+    {
+      "classification": "semantically_conformant",
+      "local_target": "source.truncation",
+      "reason": "same policy",
+      "resolution_status": "resolved",
+      "source_value": "error",
+      "upstream_field": "data.truncation"
+    },
+    {
+      "classification": "exact",
+      "local_target": "source.val_files",
+      "reason": "same Parquet inputs",
+      "resolution_status": "resolved",
+      "source_value": "data/full_hh_rlhf/rl/train.parquet",
+      "upstream_field": "data.val_files"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": 8,
+      "upstream_field": "reward.num_workers"
+    },
+    {
+      "classification": "not_implemented",
+      "local_target": null,
+      "reason": "upstream rollout-based reward execution is not the local pinned sequence-classifier provider",
+      "resolution_status": "resolved",
+      "source_value": true,
+      "upstream_field": "reward.reward_model.enable"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": "Skywork/Skywork-Reward-Llama-3.1-8B",
+      "upstream_field": "reward.reward_model.model_path"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": 0.8,
+      "upstream_field": "reward.reward_model.rollout.gpu_memory_utilization"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": "vllm",
+      "upstream_field": "reward.reward_model.rollout.name"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": 8192,
+      "upstream_field": "reward.reward_model.rollout.prompt_length"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": 4096,
+      "upstream_field": "reward.reward_model.rollout.response_length"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": 1,
+      "upstream_field": "reward.reward_model.rollout.tensor_model_parallel_size"
+    },
+    {
+      "classification": "exact",
+      "local_target": "run.name",
+      "reason": "same run label",
+      "resolution_status": "resolved",
+      "source_value": "grpo_mistral13B-skyworkLlama8b-hhrlhf",
+      "upstream_field": "trainer.experiment_name"
+    },
+    {
+      "classification": "informational_only",
+      "local_target": null,
+      "reason": "external logging is not activated",
+      "resolution_status": "resolved",
+      "source_value": [
+        "console",
+        "wandb"
+      ],
+      "upstream_field": "trainer.logger"
+    },
+    {
+      "classification": "distributed_only",
+      "local_target": null,
+      "reason": "resource placement lowers to one local CUDA device",
+      "resolution_status": "resolved",
+      "source_value": 8,
+      "upstream_field": "trainer.n_gpus_per_node"
+    },
+    {
+      "classification": "distributed_only",
+      "local_target": null,
+      "reason": "resource placement lowers to one local process",
+      "resolution_status": "resolved",
+      "source_value": 1,
+      "upstream_field": "trainer.nnodes"
+    },
+    {
+      "classification": "semantically_conformant",
+      "local_target": "run.tags",
+      "reason": "same provenance label",
+      "resolution_status": "resolved",
+      "source_value": "verl_full_hh_rlhf_examples",
+      "upstream_field": "trainer.project_name"
+    },
+    {
+      "classification": "exact",
+      "local_target": "train.save_every_cycles",
+      "reason": "same rollout-iteration interval",
+      "resolution_status": "resolved",
+      "source_value": 10,
+      "upstream_field": "trainer.save_freq"
+    },
+    {
+      "classification": "exact",
+      "local_target": "train.eval_every_cycles",
+      "reason": "same rollout-iteration interval",
+      "resolution_status": "resolved",
+      "source_value": -1,
+      "upstream_field": "trainer.test_freq"
+    },
+    {
+      "classification": "informational_only",
+      "local_target": null,
+      "reason": "recorded but not used when total_training_steps supplies the exact optimizer-step cap",
+      "resolution_status": "resolved",
+      "source_value": 5,
+      "upstream_field": "trainer.total_epochs"
+    },
+    {
+      "classification": "unsupported",
+      "local_target": null,
+      "reason": "outside the versioned resolved subset",
+      "resolution_status": "resolved",
+      "source_value": false,
+      "upstream_field": "trainer.val_before_train"
+    }
+  ],
+  "generated_path": "trained-rm-grpo-launch-local.import-report.json",
+  "input_contract": "resolved documented verl v0.9 RL subset; not arbitrary Hydra YAML",
+  "profile": "verl-rl-v0.9-single-gpu-v3",
+  "profile_field_rules_sha256": "23fead38dd5341034b39ce90828cdb0148315a815625865a81d0f293e23b7d10",
+  "reason": "unsupported fields",
+  "report_path": "trained-rm-grpo-launch-local.import-report.json",
+  "required_user_input": [
+    {
+      "field": "trainer.total_training_steps",
+      "reason": "an exact rollout-iteration cap is required; epochs are dataset-dependent"
+    },
+    {
+      "field": "miniverl.reward.provider",
+      "reason": "the source must name a trusted local reward implementation"
+    },
+    {
+      "field": "miniverl.actor.lora_enabled",
+      "reason": "PEFT versus full-parameter training is an explicit experiment choice"
+    }
+  ],
+  "schema_version": 1,
+  "source_config_sha256": "9b0b6e1f6b3bbd6e3a84f583161dbf5ad1b31fd47456c042d1061a49c081573e",
+  "source_verl": {
+    "commit": "483b8a009ba3a97563edee3a19887e4862b8094a",
+    "repository": "https://github.com/verl-project/verl",
+    "tag": "v0.9.0"
+  },
+  "status": "rejected",
+  "unresolved_fields": [],
+  "unsupported_fields": [
+    "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu",
+    "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu",
+    "data.filter_overlong_prompts",
+    "data.return_raw_chat",
+    "reward.num_workers",
+    "reward.reward_model.enable",
+    "reward.reward_model.model_path",
+    "reward.reward_model.rollout.gpu_memory_utilization",
+    "reward.reward_model.rollout.name",
+    "reward.reward_model.rollout.prompt_length",
+    "reward.reward_model.rollout.response_length",
+    "reward.reward_model.rollout.tensor_model_parallel_size",
+    "trainer.val_before_train"
+  ]
+}

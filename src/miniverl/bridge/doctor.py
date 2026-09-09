@@ -24,7 +24,7 @@ from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
 from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.bridge.preflight import preflight_bundle_tree
 from miniverl.bridge.reward_static import REWARD_LEVELS, inspect_reward_scaffold
-from miniverl.bridge.rl_v09 import VERL_RL_V09_PPO_PROFILE
+from miniverl.bridge.rl_v09 import VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE
 from miniverl.bridge.safetensors_check import SAFETENSORS_LEVELS, inspect_safetensors
 
 __all__ = [
@@ -102,14 +102,14 @@ def _check_requirements(root: Path) -> dict[str, Any]:
         values = dict(line.split("=", 1) for line in path.read_text(encoding="utf-8").splitlines())
     except (OSError, ValueError) as exc:
         return {"status": "fail", "detail": str(exc)}
-    if values.get("PROFILE") == VERL_RL_V09_PPO_PROFILE:
+    if values.get("PROFILE") in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE}:
         from miniverl.algorithms.contract import UPSTREAM_VERL_COMMIT, UPSTREAM_VERL_TAG
 
         expected = {
             "VERL_REPOSITORY": VERL_REPOSITORY,
             "VERL_TAG": UPSTREAM_VERL_TAG,
             "VERL_COMMIT": UPSTREAM_VERL_COMMIT,
-            "PROFILE": VERL_RL_V09_PPO_PROFILE,
+            "PROFILE": values["PROFILE"],
         }
     else:
         expected = {
@@ -419,7 +419,7 @@ def _check_config(root: Path) -> dict[str, Any]:
         if not required_roots.issubset(actual):
             rl_problems.append("missing required RL root")
         profile = compatibility.get("profile")
-        if profile != VERL_RL_V09_PPO_PROFILE:
+        if profile not in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE}:
             rl_problems.append("unregistered verl v0.9 RL profile")
         try:
             model = payload["actor_rollout_ref"]["model"]
@@ -1369,7 +1369,7 @@ def inspect_bridge_bundle(
     critic = _check_critic(
         bundle,
         required=(
-            config.get("profile") == VERL_RL_V09_PPO_PROFILE
+            config.get("profile") in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE}
             and compatibility.get("algorithm") == "ppo"
         ),
     )

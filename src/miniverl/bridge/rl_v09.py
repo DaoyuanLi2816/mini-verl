@@ -39,6 +39,7 @@ __all__ = [
 
 VERL_RL_V09_PROFILE: Final = "verl-rl-v0.9-single-gpu-v1"
 VERL_RL_V09_PPO_PROFILE: Final = "verl-rl-v0.9-single-gpu-v2"
+VERL_RL_V09_PRODUCT_PROFILE: Final = "verl-rl-v0.9-single-gpu-v3"
 VERL_REPOSITORY: Final = "https://github.com/verl-project/verl"
 
 FieldClassification = Literal[
@@ -306,6 +307,54 @@ _RULES_V2.update(
 )
 
 
+_RULES_V3 = dict(_RULES_V2)
+for _role in ("actor_rollout_ref.actor", "critic"):
+    _RULES_V3[f"{_role}.ppo_mini_batch_size"] = _rule(
+        "train.gradient_accumulation_steps",
+        "semantically_conformant",
+        "upstream prompt minibatch times rollout.n yields the logical trajectory minibatch",
+    )
+for _role in ("actor_rollout_ref.actor", "actor_rollout_ref.ref", "critic"):
+    for _field in ("param_offload", "optimizer_offload"):
+        _RULES_V3[f"{_role}.fsdp_config.{_field}"] = _rule(
+            "memory.strategy",
+            "locally_lowered",
+            "distributed offload hint recorded; explicit local role placement governs execution",
+        )
+    for _field in ("use_dynamic_bsz", "log_prob_use_dynamic_bsz"):
+        _RULES_V3[f"{_role}.{_field}"] = _rule(
+            "train.trajectory_batch_size",
+            "locally_lowered",
+            "physical batching is planned independently of the logical minibatch",
+        )
+_RULES_V3["algorithm.gamma"] = _rule(
+    "algorithm.gamma",
+    "exact",
+    "same discount for GAE and REINFORCE++",
+)
+
+
+_RULES_V3["data.filter_overlong_prompts"] = _rule(
+    None,
+    "not_implemented",
+    "upstream prefiltering changes dataset membership; local truncation is not a substitute",
+)
+_RULES_V3["reward.reward_model.enable"] = _rule(
+    None,
+    "not_implemented",
+    "upstream rollout-based reward execution is not the local pinned sequence-classifier provider",
+)
+_RULES_V3["trainer.critic_warmup"] = _rule(
+    None,
+    "not_implemented",
+    "critic-only warmup iterations are not part of the local schedule",
+)
+
+
+def _supports_ppo(profile: str) -> bool:
+    return profile in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE}
+
+
 def _canonical_digest(value: Any) -> str:
     import json
 
@@ -330,6 +379,8 @@ def _rules_for_profile(
         return _RULES_V1
     if profile == VERL_RL_V09_PPO_PROFILE:
         return _RULES_V2
+    if profile == VERL_RL_V09_PRODUCT_PROFILE:
+        return _RULES_V3
     raise ConfigError(f"unknown verl v0.9 RL compiler profile {profile!r}")
 
 
@@ -437,7 +488,15 @@ def _classify(
             if is_zero:
                 kind = "exact"
                 reason = "entropy regularization is disabled in both runtimes"
-        elif field in estimator_specific and estimator != estimator_specific[field]:
+        elif (
+            field in estimator_specific
+            and estimator != estimator_specific[field]
+            and not (
+                profile == VERL_RL_V09_PRODUCT_PROFILE
+                and field == "algorithm.gamma"
+                and estimator == "gae"
+            )
+        ):
             target = None
             kind = "informational_only"
             reason = f"not consumed by the {estimator!s} estimator"
@@ -445,6 +504,25 @@ def _classify(
             kind = "exact"
             reason = "reference-policy reward KL is disabled in both runtimes"
         findings = audit_interpolation(value, label=field)
+        if profile == VERL_RL_V09_PRODUCT_PROFILE:
+            if (field == "data.filter_overlong_prompts" and value is False) or (
+                field == "trainer.critic_warmup" and type(value) is int and value == 0
+            ):
+                kind, target, reason = "exact", None, "disabled in both runtimes"
+            if field == "actor_rollout_ref.actor.loss_agg_mode" and value != "token-mean":
+                kind, target, reason = (
+                    "not_implemented",
+                    None,
+                    "local RL currently implements token-mean aggregation only",
+                )
+            if field == "actor_rollout_ref.actor.ppo_epochs" and estimator != "gae" and value != 1:
+                kind, target, reason = (
+                    "not_implemented",
+                    None,
+                    "repeated actor epochs are implemented only for PPO",
+                )
+            if kind == "not_implemented" and field not in unsupported:
+                unsupported.append(field)
         if findings:
             unresolved.append(field)
         rows.append(
@@ -470,7 +548,7 @@ def _algorithm(source: Mapping[str, Any], *, profile: str) -> str:
         return "grpo" if normalize else "dr_grpo"
     if estimator in {"rloo", "reinforce_plus_plus"}:
         return estimator
-    if estimator == "gae" and profile == VERL_RL_V09_PPO_PROFILE:
+    if estimator == "gae" and _supports_ppo(profile):
         return "ppo"
     reason = (
         "PPO/GAE needs a critic lifecycle that miniVERL does not yet implement"
@@ -497,7 +575,7 @@ def _required_inputs(source: Mapping[str, Any], *, profile: str) -> list[dict[st
             }
         )
     elif (
-        profile == VERL_RL_V09_PPO_PROFILE
+        _supports_ppo(profile)
         and _get(source, "miniverl.reward.provider", None) == "hf_sequence_classifier"
     ):
         for field, reason in (
@@ -517,7 +595,7 @@ def _required_inputs(source: Mapping[str, Any], *, profile: str) -> list[dict[st
     if (
         _get(source, "algorithm.use_kl_in_reward", False) is True
         or (
-            profile == VERL_RL_V09_PPO_PROFILE
+            _supports_ppo(profile)
             and _get(source, "actor_rollout_ref.actor.use_kl_loss", False) is True
         )
     ) and _get(source, "miniverl.reference.adapter_path", None) is None:
@@ -527,10 +605,7 @@ def _required_inputs(source: Mapping[str, Any], *, profile: str) -> list[dict[st
                 "reason": "reference KL needs an explicit frozen reference-policy adapter",
             }
         )
-    if (
-        profile == VERL_RL_V09_PPO_PROFILE
-        and _get(source, "algorithm.adv_estimator", None) == "gae"
-    ):
+    if _supports_ppo(profile) and _get(source, "algorithm.adv_estimator", None) == "gae":
         for field, reason in (
             ("critic.enable", "PPO requires an explicit trainable critic role"),
             ("critic.model.path", "PPO requires an explicit critic checkpoint identity"),
@@ -561,21 +636,21 @@ def _recipe(
         and _get(source, "miniverl.reference.adapter_path", None) is not None
     ):
         raise ConfigError("miniverl.reference is inactive unless algorithm.use_kl_in_reward=true")
-    if actor_kl_enabled and profile != VERL_RL_V09_PPO_PROFILE:
+    if actor_kl_enabled and not _supports_ppo(profile):
         raise ConfigError("actor.use_kl_loss=true is not implemented by this compiler profile")
     entropy = _number(
         _get(source, "actor_rollout_ref.actor.entropy_coeff", 0.0),
         "actor_rollout_ref.actor.entropy_coeff",
         minimum=0.0,
     )
-    if entropy != 0.0 and profile != VERL_RL_V09_PPO_PROFILE:
+    if entropy != 0.0 and not _supports_ppo(profile):
         raise ConfigError("nonzero actor entropy_coeff is not implemented by this compiler profile")
     ppo_epochs = _integer(
         _get(source, "actor_rollout_ref.actor.ppo_epochs", 1),
         "actor_rollout_ref.actor.ppo_epochs",
         minimum=1,
     )
-    if ppo_epochs != 1 and profile != VERL_RL_V09_PPO_PROFILE:
+    if ppo_epochs != 1 and not _supports_ppo(profile):
         raise ConfigError("actor.ppo_epochs must be 1 in this compiler profile")
     aggregation = str(_get(source, "actor_rollout_ref.actor.loss_agg_mode", "token-mean"))
     if aggregation != "token-mean":
@@ -593,6 +668,11 @@ def _recipe(
         minimum=1,
     )
     trajectory_count = prompt_batch * n
+    source_mini_batch = mini_batch
+    if profile == VERL_RL_V09_PRODUCT_PROFILE:
+        mini_batch *= n
+        if prompt_batch % source_mini_batch:
+            raise ConfigError("data.train_batch_size must be divisible by the prompt minibatch")
     if mini_batch > trajectory_count:
         raise ConfigError(
             "actor.ppo_mini_batch_size cannot exceed data.train_batch_size * rollout.n"
@@ -605,7 +685,7 @@ def _recipe(
     )
     provider = str(_get(source, "miniverl.reward.provider"))
     allowed_providers = {"exact_answer", "target_length"}
-    if profile == VERL_RL_V09_PPO_PROFILE:
+    if _supports_ppo(profile):
         allowed_providers.add("hf_sequence_classifier")
     if provider not in allowed_providers:
         raise ConfigError(
@@ -835,7 +915,7 @@ def _recipe(
         "memory": {"strategy": str(_get(source, "miniverl.memory.strategy", "auto"))},
         "eval": {"enabled": False},
     }
-    if profile == VERL_RL_V09_PPO_PROFILE:
+    if _supports_ppo(profile):
         recipe["algorithm"].update(
             {
                 "actor_kl_coef": (
@@ -889,11 +969,11 @@ def _recipe(
         }
     if algorithm == "ppo":
         critic_mini_batch = _integer(
-            _get(source, "critic.ppo_mini_batch_size", mini_batch),
+            _get(source, "critic.ppo_mini_batch_size", source_mini_batch),
             "critic.ppo_mini_batch_size",
             minimum=1,
         )
-        if critic_mini_batch != mini_batch:
+        if critic_mini_batch != source_mini_batch:
             raise ConfigError(
                 "the local PPO profile currently requires critic.ppo_mini_batch_size to "
                 "equal actor_rollout_ref.actor.ppo_mini_batch_size"
@@ -964,6 +1044,15 @@ def _recipe(
             "kind": "distributed_only",
         },
     ]
+    if profile == VERL_RL_V09_PRODUCT_PROFILE:
+        recipe["run"]["profile_identity"]["local_lowering"] = lowering
+        for field, value in _flatten(source).items():
+            if (
+                field not in _RULES_V2
+                and field in _RULES_V3
+                and _RULES_V3[field][1] == "locally_lowered"
+            ):
+                _bool(value, field)
     return recipe, lowering
 
 
@@ -975,6 +1064,8 @@ def publish_imported_verl_rl_v09(
     overwrite: bool = False,
     lock_timeout: float = DEFAULT_LOCK_TIMEOUT,
     profile: str = VERL_RL_V09_PROFILE,
+    include_source: bool = False,
+    example_provenance: bytes | None = None,
 ) -> dict[str, Any]:
     """Publish a native recipe, a user-input template, or a rejection report."""
     if target_verl not in {UPSTREAM_VERL_TAG, UPSTREAM_VERL_COMMIT}:
@@ -984,6 +1075,10 @@ def publish_imported_verl_rl_v09(
         )
     source_path = Path(source)
     targets = import_output_targets(out)
+    if include_source:
+        targets["source"] = targets["recipe"].with_suffix(".verl.yaml")
+    if example_provenance is not None:
+        targets["example_provenance"] = targets["recipe"].with_suffix(".example-provenance.json")
     reject_source_output_alias({"source config": source_path}, targets)
     try:
         source_bytes = source_path.read_bytes()
@@ -1021,6 +1116,10 @@ def publish_imported_verl_rl_v09(
         lock_timeout=lock_timeout,
     ).begin()
     try:
+        if include_source:
+            transaction.write_bytes("source", source_bytes)
+        if example_provenance is not None:
+            transaction.write_bytes("example_provenance", example_provenance)
         if unsupported or unresolved:
             reason = "unsupported fields" if unsupported else "unresolved interpolation"
             report = {

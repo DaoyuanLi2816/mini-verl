@@ -1,5 +1,28 @@
 # Hardware planning and bounded probes
 
+## Evidence before a fit claim
+
+The maintained qualification device is one RTX 4080. For the new PPO/GRPO
+workflow, `train local.yaml --dry-run --json` reports logical prompts,
+trajectories, actor updates and critic updates before model loading.
+It is a schedule/configuration plan, not a measured VRAM prediction.
+
+| VRAM class | PPO/GRPO planning status | Useful evidence |
+| --- | --- | --- |
+| 8 GB | unknown until measured for the exact recipe | `doctor`, token bounds, actual peak/retries |
+| 12 GB | unknown until measured for the exact recipe | same recipe and stack identity |
+| 16 GB | maintainer RTX 4080 qualification for named workloads | exact-wheel release record and `inspect` |
+| 24 GB | unknown on other devices until measured | community submissions stay unreviewed |
+
+Capacity alone does not establish kernel, dtype or model compatibility.
+Measured numbers bind the model/revision, algorithm, role strategy, token
+bounds, package versions and GPU. Estimates must identify their method;
+absence stays unknown. Quantized roles cannot swap, and PPO cannot share a
+trainable critic adapter as though it were a frozen teacher. Illegal placement
+is rejected before training.
+
+## OPD calibration
+
 Normal planning is CPU-safe and weight-free. It labels memory as estimated and
 time as unknown:
 

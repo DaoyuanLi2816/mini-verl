@@ -1,0 +1,581 @@
+{
+  "changes": [
+    {
+      "field": "actor_rollout_ref.actor.clip_ratio",
+      "local": 0.2,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.actor.clip_ratio_c",
+      "local": 3.0,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.actor.clip_ratio_high",
+      "local": 0.2,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.actor.clip_ratio_low",
+      "local": 0.2,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.actor.entropy_coeff",
+      "local": 0.001,
+      "local_present": true,
+      "upstream": 0,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.actor.fsdp_config.optimizer_offload",
+      "local": null,
+      "local_present": false,
+      "upstream": false,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.actor.fsdp_config.param_offload",
+      "local": null,
+      "local_present": false,
+      "upstream": false,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.actor.loss_agg_mode",
+      "local": "token-mean",
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.actor.optim.lr",
+      "local": 1e-05,
+      "local_present": true,
+      "upstream": 1e-06,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.actor.optim.lr_warmup_steps",
+      "local": 0,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.actor.optim.weight_decay",
+      "local": 0.01,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.actor.ppo_epochs",
+      "local": 2,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.actor.ppo_max_token_len_per_gpu",
+      "local": null,
+      "local_present": false,
+      "upstream": 24576,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.actor.ppo_mini_batch_size",
+      "local": 2,
+      "local_present": true,
+      "upstream": 256,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.actor.use_dynamic_bsz",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.actor.use_kl_loss",
+      "local": false,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.model.lora_alpha",
+      "local": 32,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.model.lora_rank",
+      "local": 16,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.model.path",
+      "local": "Qwen/Qwen3-0.6B",
+      "local_present": true,
+      "upstream": "Qwen/Qwen3-8B",
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.model.target_modules",
+      "local": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+      ],
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.model.use_remove_padding",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.ref.fsdp_config.param_offload",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.ref.log_prob_max_token_len_per_gpu",
+      "local": null,
+      "local_present": false,
+      "upstream": 24576,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.ref.log_prob_use_dynamic_bsz",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu",
+      "local": null,
+      "local_present": false,
+      "upstream": 24576,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.rollout.log_prob_use_dynamic_bsz",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.rollout.n",
+      "local": 2,
+      "local_present": true,
+      "upstream": 1,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.rollout.temperature",
+      "local": 1.0,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.rollout.tensor_model_parallel_size",
+      "local": 8,
+      "local_present": true,
+      "upstream": 2,
+      "upstream_present": true
+    },
+    {
+      "field": "actor_rollout_ref.rollout.top_k",
+      "local": 0,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "actor_rollout_ref.rollout.top_p",
+      "local": 1.0,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "algorithm.gamma",
+      "local": 0.99,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "algorithm.lam",
+      "local": 0.95,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "algorithm.norm_adv_by_std_in_grpo",
+      "local": true,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "algorithm.use_kl_in_reward",
+      "local": false,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "critic.cliprange_value",
+      "local": 0.5,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "critic.enable",
+      "local": true,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "critic.fsdp.optimizer_offload",
+      "local": null,
+      "local_present": false,
+      "upstream": false,
+      "upstream_present": true
+    },
+    {
+      "field": "critic.fsdp.param_offload",
+      "local": null,
+      "local_present": false,
+      "upstream": false,
+      "upstream_present": true
+    },
+    {
+      "field": "critic.model.enable_gradient_checkpointing",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "critic.model.path",
+      "local": "Qwen/Qwen3-0.6B",
+      "local_present": true,
+      "upstream": "Qwen/Qwen3-8B",
+      "upstream_present": true
+    },
+    {
+      "field": "critic.model.use_remove_padding",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "critic.optim.lr",
+      "local": 2e-05,
+      "local_present": true,
+      "upstream": 1e-05,
+      "upstream_present": true
+    },
+    {
+      "field": "critic.optim.lr_warmup_steps",
+      "local": 0,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "critic.optim.weight_decay",
+      "local": 0.01,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "critic.ppo_epochs",
+      "local": 2,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "critic.ppo_max_token_len_per_gpu",
+      "local": null,
+      "local_present": false,
+      "upstream": 24576,
+      "upstream_present": true
+    },
+    {
+      "field": "critic.ppo_mini_batch_size",
+      "local": 2,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "critic.use_dynamic_bsz",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "data.filter_overlong_prompts",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "data.max_prompt_length",
+      "local": 128,
+      "local_present": true,
+      "upstream": 1024,
+      "upstream_present": true
+    },
+    {
+      "field": "data.max_response_length",
+      "local": 24,
+      "local_present": true,
+      "upstream": 2048,
+      "upstream_present": true
+    },
+    {
+      "field": "data.prompt_key",
+      "local": "prompt",
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "data.seed",
+      "local": 23,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "data.shuffle",
+      "local": true,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "data.train_batch_size",
+      "local": 2,
+      "local_present": true,
+      "upstream": 1024,
+      "upstream_present": true
+    },
+    {
+      "field": "data.train_files",
+      "local": [
+        "data/rl-prompts.parquet"
+      ],
+      "local_present": true,
+      "upstream": [
+        "/upstream-home/data/gsm8k/train.parquet",
+        "/upstream-home/data/math/train.parquet"
+      ],
+      "upstream_present": true
+    },
+    {
+      "field": "data.val_files",
+      "local": [],
+      "local_present": true,
+      "upstream": [
+        "/upstream-home/data/gsm8k/test.parquet",
+        "/upstream-home/data/math/test.parquet"
+      ],
+      "upstream_present": true
+    },
+    {
+      "field": "miniverl.actor.dtype",
+      "local": "auto",
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "miniverl.actor.lora_enabled",
+      "local": true,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "miniverl.actor.quantization",
+      "local": "none",
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "miniverl.actor.revision",
+      "local": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "miniverl.actor.tokenizer_revision",
+      "local": "c1899de289a04d12100db370d81485cdf75e47ca",
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "miniverl.critic.lora_enabled",
+      "local": true,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "miniverl.memory.strategy",
+      "local": "resident",
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "miniverl.reward.provider",
+      "local": "target_length",
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "miniverl.rollout.backend",
+      "local": "hf_cached",
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "miniverl.update.trajectory_batch_size",
+      "local": 1,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    },
+    {
+      "field": "trainer.balance_batch",
+      "local": null,
+      "local_present": false,
+      "upstream": true,
+      "upstream_present": true
+    },
+    {
+      "field": "trainer.critic_warmup",
+      "local": null,
+      "local_present": false,
+      "upstream": 0,
+      "upstream_present": true
+    },
+    {
+      "field": "trainer.experiment_name",
+      "local": "local-ppo",
+      "local_present": true,
+      "upstream": "qwen3_8b_ppo_vllm_fsdp_19700101_0000",
+      "upstream_present": true
+    },
+    {
+      "field": "trainer.logger",
+      "local": [
+        "console"
+      ],
+      "local_present": true,
+      "upstream": [
+        "console",
+        "wandb"
+      ],
+      "upstream_present": true
+    },
+    {
+      "field": "trainer.nnodes",
+      "local": 2,
+      "local_present": true,
+      "upstream": 1,
+      "upstream_present": true
+    },
+    {
+      "field": "trainer.project_name",
+      "local": "mini-verl",
+      "local_present": true,
+      "upstream": "verl_ppo_gsm8k_math",
+      "upstream_present": true
+    },
+    {
+      "field": "trainer.save_freq",
+      "local": 1,
+      "local_present": true,
+      "upstream": 20,
+      "upstream_present": true
+    },
+    {
+      "field": "trainer.test_freq",
+      "local": -1,
+      "local_present": true,
+      "upstream": 5,
+      "upstream_present": true
+    },
+    {
+      "field": "trainer.total_epochs",
+      "local": null,
+      "local_present": false,
+      "upstream": 15,
+      "upstream_present": true
+    },
+    {
+      "field": "trainer.total_training_steps",
+      "local": 2,
+      "local_present": true,
+      "upstream": null,
+      "upstream_present": false
+    }
+  ],
+  "kind": "educational_local_adaptation",
+  "schema_version": 1,
+  "scope": "A new bounded length-reward exercise, not an execution of the original GSM8K/MATH experiment.",
+  "upstream": {
+    "commit": "483b8a009ba3a97563edee3a19887e4862b8094a",
+    "path": "examples/ppo_trainer/run_qwen3_8b_fsdp.sh",
+    "repository": "https://github.com/verl-project/verl",
+    "source_sha256": "6923473eb21475130725e9194120c18536dea3e107b01cda9d82ba4785eed6de",
+    "tag": "v0.9.0"
+  }
+}

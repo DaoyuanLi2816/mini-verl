@@ -63,12 +63,17 @@ footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--line);
 
 <h1>miniVERL run <span class="mono">{{ data.run_id }}</span></h1>
 <p class="sub">
+  {% if data.mode == "rl" %}
+  {{ data.run_inspection.algorithm }} &middot; {{ data.run_inspection.status }}
+  &middot; generated {{ generated_at }}
+  {% else %}
   {{ data.mode }} &middot; {{ manifest.environment.name if manifest.environment else "?" }}
   &middot; {{ manifest.objective.divergence if manifest.objective else "?" }}
   ({{ manifest.objective.loss_mode if manifest.objective else "?" }})
   &middot; generated {{ generated_at }}
   {% if data.is_on_policy %}<span class="badge ok">on-policy</span>
   {% else %}<span class="badge warn">not on-policy ({{ data.mode }})</span>{% endif %}
+  {% endif %}
 </p>
 
 <div class="grid">
@@ -80,6 +85,20 @@ footer { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--line);
   </div>
   {% endfor %}
 </div>
+
+{% if data.mode == "rl" %}
+<h2>Training signals</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>Signal</th><th>Count</th><th>Mean</th><th>First</th><th>Last</th></tr></thead>
+<tbody>{% for key in ["rewards", "policy_loss", "value_loss", "advantages", "returns"] %}
+{% set stat = data.run_inspection[key] %}
+<tr><td>{{ key }}</td><td>{{ stat.count }}</td><td>{{ num(stat.mean, 4) }}</td><td>{{ num(stat.first, 4) }}</td><td>{{ num(stat.last, 4) }}</td></tr>
+{% endfor %}</tbody></table></div>
+<details><summary>Compatibility, checkpoint and handoff</summary>
+{% for key in ["profile", "updates", "checkpoint", "resumed_from", "export"] %}
+<p><strong>{{ key }}</strong></p><pre>{{ data.run_inspection[key] }}</pre>
+{% endfor %}</details>
+{% endif %}
 
 <h2>Baseline comparison</h2>
 {% if comparison %}

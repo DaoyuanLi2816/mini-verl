@@ -957,6 +957,7 @@ def test_render_summary_json_top_level_keys(report_data: ReportData) -> None:
         "termination_reasons",
         "selected_by_span_type",
         "benchmark",
+        "training",
     }
     assert payload["run_id"] == RUN_ID
     assert payload["mode"] == "opd"

@@ -66,6 +66,31 @@ def _event_detail(event: dict[str, Any]) -> str:
 
 
 def _tiles(data: ReportData) -> list[dict[str, str]]:
+    if data.mode == "rl":
+        training = data.run_inspection
+        updates = training.get("updates") or {}
+        return [
+            {
+                "label": "algorithm",
+                "value": str(training.get("algorithm")),
+                "note": str(training.get("status")),
+            },
+            {
+                "label": "actor / critic updates",
+                "value": f"{updates.get('actor_updates')} / {updates.get('critic_updates')}",
+                "note": f"policy version {updates.get('policy_version')}",
+            },
+            {
+                "label": "mean reward",
+                "value": _num((training.get("rewards") or {}).get("mean"), 4),
+                "note": "recorded training rewards",
+            },
+            {
+                "label": "peak VRAM (reserved)",
+                "value": _mem((training.get("memory") or {}).get("peak_reserved_gib")),
+                "note": "CUDA allocator measurement",
+            },
+        ]
     summary = data.summary
     final = summary.get("eval") or {}
     baseline = summary.get("baseline_eval") or {}
@@ -174,7 +199,7 @@ def _manifest_rows(data: ReportData) -> list[tuple[str, str]]:
                 f"context {teacher.get('context_mode')}"
             )
             if teacher
-            else "none (SFT run)",
+            else "none",
         ),
         ("tokenizer fingerprint", str(models.get("tokenizer_fingerprint", ""))[:32] + "..."),
         ("tokenizer vocab", str(models.get("tokenizer_vocab_size"))),

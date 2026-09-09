@@ -555,6 +555,7 @@ def promote(
     hf_reference: Path | None = None,
     v012_rl: Path | None = None,
     v013_ppo: Path | None = None,
+    v014_product: Path | None = None,
 ) -> GPUQualification:
     problems = validate_qualification_file(qualification_path)
     if problems:
@@ -597,6 +598,16 @@ def promote(
             raise ValueError("v0.13 full qualification requires PPO evidence")
         _validate_v013_ppo(_load(v013_ppo), qualification)
         v013_sources = {"v013_ppo": v013_ppo}
+    product_sources: dict[str, Path] = {}
+    if tuple(int(part) for part in qualification.miniverl_version.split(".")[:2]) >= (0, 14):
+        from miniverl.qualification_product import validate_product_evidence
+
+        if v014_product is None:
+            raise ValueError(
+                "v0.14 full qualification requires installed product workflow evidence"
+            )
+        validate_product_evidence(_load(v014_product), qualification)
+        product_sources = {"v014_product": v014_product}
 
     root = qualification_path.parent
     destination = root / "full"
@@ -616,7 +627,7 @@ def promote(
         target = destination / f"{name.replace('_', '-')}.json"
         shutil.copy2(source, target)
         additions.append((f"full_{name}_result", target))
-    for name, source in v013_sources.items():
+    for name, source in {**v013_sources, **product_sources}.items():
         target = destination / f"{name.replace('_', '-')}.json"
         shutil.copy2(source, target)
         additions.append((f"full_{name}_result", target))
@@ -644,6 +655,10 @@ def promote(
         payload["checks"]["executed"].extend(_V012_CHECKS)
     if v013_sources:
         payload["checks"]["executed"].extend(_V013_CHECKS)
+    if product_sources:
+        from miniverl.qualification_product import PRODUCT_CHECKS
+
+        payload["checks"]["executed"].extend(PRODUCT_CHECKS)
     promoted = GPUQualification.model_validate(payload)
     write_json_atomic(qualification_path, promoted.model_dump(mode="json"))
     final_problems = validate_qualification_file(qualification_path)
@@ -664,6 +679,7 @@ def main() -> int:
     parser.add_argument("--hf-reference", type=Path)
     parser.add_argument("--v012-rl", type=Path)
     parser.add_argument("--v013-ppo", type=Path)
+    parser.add_argument("--v014-product", type=Path)
     args = parser.parse_args()
     promoted = promote(
         args.qualification,
@@ -676,6 +692,7 @@ def main() -> int:
         hf_reference=args.hf_reference,
         v012_rl=args.v012_rl,
         v013_ppo=args.v013_ppo,
+        v014_product=args.v014_product,
     )
     print(json.dumps(promoted.model_dump(mode="json"), sort_keys=True, allow_nan=False))
     return 0

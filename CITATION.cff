@@ -1,46 +1,24 @@
 cff-version: 1.2.0
-title: "miniVERL: A bounded single-GPU runtime for verl-style OPD"
+title: "miniVERL: Run verl experiment semantics on one GPU"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
-version: 0.13.0
+version: 0.14.0
 date-released: 2026-09-08
 license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
 url: "https://github.com/DaoyuanLi2816/mini-verl"
 abstract: >-
-  miniVERL runs a documented subset of verl-style on-policy distillation on one
-  consumer GPU. It is a local single-GPU runtime for a documented subset of verl v0.8
-  on-policy distillation. It consumes typed verl-shaped configuration and
-  Parquet prompts, executes actor rollout, teacher scoring and actor update in
-  one inspectable process, and exports standard PEFT, Parquet and configuration
-  artifacts through a fail-closed pinned bridge. Its native core also supports
-  multi-turn, tool-aware on-policy distillation: a student language
-  model samples its own tool-using trajectories against deterministic local
-  environments, a teacher scores exactly the states the student visited, and
-  the student is updated with token-level distributional supervision on its own
-  generated tokens only. It implements exact full-vocabulary forward KL,
-  reverse KL and Jensen-Shannon divergences as well as a compressed top-k plus
-  tail coarse-graining, enforces per-token provenance so that tool output can
-  never become a training label, and stores teacher targets in a versioned,
-  checksummed, pickle-free cache with policy-version enforcement.
-  Around that core it provides supervised fine-tuning, recorded-provenance
-  preference optimization and knowledge distillation; shared-backbone
-  execution that switches student, teacher and reference
-  roles across adapters on one set of base weights to fit low-memory hardware;
-  padded update batching; deterministic replay; transactional checkpoints and
-  cross-process run locks; and mechanism studies such as RecoveryBench that are
-  published with their negative and mixed results intact. A fail-closed
-  artifact bridge exchanges configs, LoRA adapters, tokenizers and Parquet
-  datasets with one pinned verl profile, verifying what it can and refusing to
-  imply the rest: it does not launch distributed jobs or establish broad
-  algorithmic parity. miniVERL is designed for one personal CUDA GPU,
-  automatically selects bf16 or fp16, and requires neither Ray nor a cluster.
-  Published performance is measured on one RTX 4080; other GPU models use the
-  same code path but remain unmeasured. The v0.7 external-alignment study
-  terminated at its preregistered checkpoint-selection gate: two declared
-  lineages and eight candidates all scored 0/64 retained JSONNav utility, so
-  no teacher qualification, continuation method comparison or reserved final
-  test was run.
+  miniVERL compiles supported verl experiment semantics for one NVIDIA GPU.
+  Its versioned profiles consume resolved configuration and Parquet prompts,
+  run PPO with an independent critic or critic-free reward-driven algorithms,
+  and support on-policy distillation with explicit teachers. Typed trajectories,
+  role identities, transactional checkpoints and exact replay make local runs
+  inspectable and resumable. Portable PEFT, critic, Parquet and provenance
+  bundles support handoff toward pinned upstream verl. Installed PPO and GRPO
+  walkthroughs exercise the complete workflow. Runtime qualification is measured
+  on one RTX 4080 and kept separate from task-quality research; distributed
+  execution is outside the local runtime. Frozen studies preserve their original
+  negative and mixed results.
 authors:
   - family-names: Li
     given-names: Daoyuan

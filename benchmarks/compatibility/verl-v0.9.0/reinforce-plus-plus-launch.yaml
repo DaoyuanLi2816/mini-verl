@@ -1,0 +1,56 @@
+actor_rollout_ref:
+  actor:
+    entropy_coeff: 0
+    fsdp_config:
+      optimizer_offload: false
+      param_offload: false
+    optim:
+      lr: 3.0e-06
+    ppo_max_token_len_per_gpu: 24576
+    ppo_mini_batch_size: 1024
+    use_dynamic_bsz: true
+    use_kl_loss: false
+  model:
+    enable_gradient_checkpointing: true
+    path: Qwen/Qwen3-8B
+    use_remove_padding: true
+  ref:
+    fsdp_config:
+      param_offload: true
+    log_prob_max_token_len_per_gpu: 24576
+    log_prob_use_dynamic_bsz: true
+  rollout:
+    gpu_memory_utilization: 0.6
+    log_prob_max_token_len_per_gpu: 24576
+    log_prob_use_dynamic_bsz: true
+    n: 8
+    name: vllm
+    tensor_model_parallel_size: 2
+algorithm:
+  adv_estimator: reinforce_plus_plus
+  use_kl_in_reward: true
+data:
+  filter_overlong_prompts: true
+  max_prompt_length: 1024
+  max_response_length: 2048
+  train_batch_size: 1024
+  train_files:
+  - /upstream-home/data/gsm8k/train.parquet
+  - /upstream-home/data/math/train.parquet
+  truncation: error
+  val_files:
+  - /upstream-home/data/gsm8k/test.parquet
+  - /upstream-home/data/math/test.parquet
+trainer:
+  balance_batch: true
+  critic_warmup: 0
+  experiment_name: qwen3_8b_vllm_fsdp
+  logger:
+  - console
+  - wandb
+  n_gpus_per_node: 8
+  nnodes: 1
+  project_name: verl_reinforce_plus_plus_gsm8k_math
+  save_freq: 20
+  test_freq: 5
+  total_epochs: 15

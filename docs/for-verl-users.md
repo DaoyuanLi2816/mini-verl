@@ -10,26 +10,27 @@ sequential local phases and recorded as a lowering decision.
   <img src="../verl-local-runtime.svg" alt="A resolved verl config compiles into a one-GPU plan; actor, critic, reference, teacher and reward roles run in phases and publish portable artifacts with a readiness report.">
 </picture>
 
-## Start with the v0.9 RL profile
+## Start with the installed PPO/GRPO workflow
 
 ```bash
-miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v1 \
-  --config examples/verl-rl-v0.9-single-gpu.yaml --out local-grpo.yaml
+miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
+  --example grpo --out local-grpo.yaml
 miniverl validate local-grpo.yaml --json
 miniverl train local-grpo.yaml --dry-run
 ```
 
 This profile pins official verl `v0.9.0` at
 `483b8a009ba3a97563edee3a19887e4862b8094a`. It accepts a resolved documented
-subset for GRPO, Dr.GRPO, RLOO or REINFORCE++, then writes both a native recipe
+subset for PPO/GAE, GRPO, Dr.GRPO, RLOO or REINFORCE++, then writes both a native recipe
 and `*.import-report.json`. Scientific-notation strings such as `1e-5` are
 accepted when finite; `${...}`, NaN, infinity and unknown fields fail before a
 runnable recipe is published.
 
-The [single-GPU RL guide](verl-rl-runtime.md) documents every algorithm and
-lowering. The committed [example report](generated/verl-rl-v0.9-compatibility.json)
-shows the exact machine-readable output.
+Follow the [complete installed workflow](local-rl-workflow.md) to run, inspect,
+resume and export both examples. The [real upstream corpus](verl-compatibility-corpus.md)
+records complete configuration outcomes; the [RL reference](verl-rl-runtime.md)
+explains the algorithms and local execution model.
 
 ## Command mapping
 
@@ -41,7 +42,9 @@ shows the exact machine-readable output.
 | run actor/reward/reference phases | `miniverl train local.yaml` |
 | read prompt Parquet | retain `data.train_files` and `data.prompt_key` directly |
 | lower resource pools | record one process/device plus original source intent |
-| inspect trajectories | `miniverl inspect runs/<id>/trajectories.jsonl` |
+| inspect training and versions | `miniverl inspect runs/<id> --json` |
+| recover an interrupted experiment | `miniverl train local.yaml --resume runs/<id>` |
+| export actor/critic and data | `miniverl export-verl --run runs/<id> --target-verl v0.9.0 --out handoff` |
 
 ## What maps into the RL runtime
 
@@ -49,9 +52,9 @@ shows the exact machine-readable output.
   shuffle and seed drive the local Parquet source.
 - `data.train_batch_size × rollout.n` is the logical trajectory count per
   rollout iteration.
-- `actor.ppo_mini_batch_size` controls how that logical batch is divided into
-  actor updates; physical trajectory batching remains a separate `miniverl`
-  execution control.
+- v3 treats `actor.ppo_mini_batch_size` as prompts, multiplying by `rollout.n`
+  to obtain the logical trajectory minibatch. Physical trajectory batching
+  remains a separate `miniverl` execution control.
 - Actor model, revision, LoRA, optimizer, sampling, clipping and schedule
   fields feed the native recipe with their source units recorded.
 - `trainer.total_training_steps` is the rollout-iteration cap. Epoch-only
@@ -88,17 +91,19 @@ and the [OPD quickstart](opd-quickstart.md) for that workflow.
 
 ## Artifact handoff
 
-Completed OPD runs can produce a pinned scale-out bundle:
+Completed RL runs first export a standard adapter, then a pinned handoff bundle:
 
 ```bash
-miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
-miniverl bridge materialize scaleout --download --offline
+miniverl export-adapter --run runs/my-rl --out runs/my-rl/model
+miniverl export-verl --run runs/my-rl --target-verl v0.9.0 --out scaleout
 miniverl bridge doctor scaleout --json
 ```
 
 The report separates artifact completeness, upstream config parse, model/data
 load smoke, reward implementation, launchability, distributed execution and
-algorithm parity. Read the [scale-out contract](verl-opd-scaleout.md).
+algorithm parity. Read the [RL workflow](local-rl-workflow.md) for the remaining
+cluster steps, or the [OPD scale-out contract](verl-opd-scaleout.md) for the
+separately supported v0.8 distillation path.
 
 ## Practical diagnostics
 

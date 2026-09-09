@@ -28,26 +28,38 @@ entropy regularization、grouped rollout、task reward 和固定 revision 的 se
 reward role 共用同一套 provenance。已有 verl `v0.8.0` OPD profile 继续提供 direct GKD
 与 sampled-k1 蒸馏。
 
-PyPI `v0.13.0` 是稳定版；`main` 是开发版。
+PyPI `v0.14.0` 是稳定版；`main` 是开发版。
 
-## 60 秒开始
+## 第一个本地实验
 
 先安装与本机匹配的 CUDA PyTorch，再运行：
 
 ```bash
-python -m pip install "miniverl[train,cuda]"
-miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
-  --config examples/verl-rl-v0.9-single-gpu-ppo.yaml --out local-ppo.yaml
+python -m pip install "miniverl[train]"
+miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
+  --example ppo --out local-ppo.yaml
 miniverl validate local-ppo.yaml
 miniverl train local-ppo.yaml --dry-run
 ```
 
-Importer 会在原生 recipe 旁写入 `local-ppo.import-report.json`，逐项说明源字段及其
-本地效果，并记录分布式资源设置如何转换为一个进程、一张 GPU。移除 `--dry-run` 后，
-示例会加载固定 revision 的 Qwen3-0.6B actor 并执行两次 rollout iteration。
+PPO 与 GRPO 示例都包含在安装包里。Importer 输出原始输入、兼容报告、原生 recipe
+及相对上游示例的改动清单。移除 `--dry-run` 即可用固定 revision 的 Qwen3-0.6B
+运行两个 iteration。接着检查、恢复并导出：
 
-`[train,cuda]` extra 安装训练与量化依赖；CUDA PyTorch build 仍需通过
+```bash
+miniverl train local-ppo.yaml --run-id local-ppo
+miniverl inspect runs/local-ppo
+miniverl train local-ppo.yaml --resume-from runs/local-ppo/checkpoints/step-000002
+miniverl export-adapter --run runs/local-ppo --out runs/local-ppo/model
+miniverl export-verl --run runs/local-ppo --target-verl v0.9.0 --out ppo-handoff
+miniverl bridge doctor ppo-handoff --json
+```
+
+[五分钟工作流](docs/for-verl-users.md)解释每个产物，并给出对应的 GRPO 命令。
+这是小规模长度奖励练习，奖励值可以直接在 `rewards.jsonl` 中检查。
+
+`[train]` 安装训练依赖，`[cuda]` 额外安装量化依赖；CUDA PyTorch build 通过
 [PyTorch 安装器](https://pytorch.org/get-started/locally/)单独选择。
 [单卡指南](docs/single-gpu-guide.md)包含显存规划与维护者实测的 RTX 4080 环境。
 
@@ -79,7 +91,7 @@ estimator 并更新 actor。PPO 额外执行独立 critic 的 clipped value upda
 
 | 目标 | 第一个命令 | 主要产物 | 下一步 |
 | --- | --- | --- | --- |
-| **本地 RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 --config verl-ppo.yaml --out local.yaml` | 原生 recipe + 兼容报告 | [RL quickstart](docs/verl-rl-runtime.md) |
+| **本地 RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 --example grpo --out local.yaml` | 原生 recipe + 兼容报告 | [RL quickstart](docs/verl-rl-runtime.md) |
 | **本地 OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | 不可变执行计划 | [OPD quickstart](docs/opd-quickstart.md) |
 | **适配显卡** | `miniverl plan --config verl-opd.yaml --probe` | 实测 placement plan | [硬件规划](docs/hardware-planning.md) |
 | **交接产物** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor、critic、Parquet + config bundle | [兼容性契约](docs/compatibility.md) |
@@ -100,9 +112,8 @@ SQLite 和自定义 tool environment。
 | Direct GKD / sampled-k1 OPD | 已支持 | 固定 verl v0.8 profile 与 teacher target |
 | Ray、FSDP/FSDP2、Megatron、TP/PP/DP > 1 | 仅分布式 | 这些能力改变物理规模，不改变本地 objective |
 
-生成的 [v0.9 PPO 兼容记录](docs/generated/verl-rl-v0.9-ppo-compatibility.json)绑定示例中每个
-字段的源值、本地目标、分类与编译规则哈希。`miniverl import-verl` 接收 documented
-resolved subset；未知且会改变算法的字段会被拒绝，dataset 与 reward 实现不会被替换。
+[上游兼容语料库](docs/verl-compatibility-corpus.md)解析真实 verl 示例，逐项记录字段结果。
+v3 profile 保留以上游 prompt 数定义的 minibatch 单位；v1/v2 继续用于已有 recipe。
 
 ## 实测系统证据
 

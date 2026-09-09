@@ -30,6 +30,8 @@ from typing import Any
 
 VIEWPORTS = ((1440, 900), (1024, 768), (820, 1000), (390, 844))
 PAGES = (
+    "/local-rl-workflow/",
+    "/verl-compatibility-corpus/",
     "/",
     "/for-verl-users/",
     "/config-overrides/",

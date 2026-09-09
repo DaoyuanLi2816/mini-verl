@@ -4,6 +4,21 @@ This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
 
+## v0.14.0 productization
+
+- [x] Package PPO/GRPO workflows and adaptation ledgers; CI-gate six upstream
+      sources/seven resolved cases with full field accounting.
+- [x] Preserve v1/v2 identities and add v3 prompt-minibatch semantics and
+      explicit unsupported objective variants.
+- [x] Verify checkpoint-consistent log recovery, behavior/critic identities,
+      OOM RNG replay, reward failure handling and strict run inspection.
+- [x] Run local non-GPU regression (2,655 passed, 83% branch coverage), 10 GPU
+      tests, 16 network tests, pinned conformance and four browser viewports.
+- [x] Require an attempt-1 exact-release-SHA full RTX 4080 qualification,
+      including both installed product workflows, before publication.
+- [x] Require the non-publishing gate to consume the same qualified candidate
+      bytes, and require green hosted checks before integration/publication.
+
 ## v0.13.1 development
 
 - [x] Begin from the verified v0.13.0 release and advance only the canonical

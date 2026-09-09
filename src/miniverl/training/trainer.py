@@ -3064,6 +3064,15 @@ class OPDTrainer:
         samples: list[TrainSample] = []
         selections: list[SelectionStats] = []
         for trajectory in trajectories:
+            behavior_version = trajectory.metadata.get("actor_rollout_policy_version")
+            if (
+                type(behavior_version) is not int
+                or behavior_version != trajectory.policy_version
+                or behavior_version != self.parameter_version
+            ):
+                raise LifecycleError(
+                    "RL behavior log-probabilities must bind the current rollout policy version"
+                )
             selection = select_positions(
                 trajectory,
                 self.config.selection,
@@ -3897,6 +3906,10 @@ class OPDTrainer:
             profile_identity=self.config.run.profile_identity,
             offline_dataset_digest=self.offline_dataset_digest,
         )
+        if self.config.run.mode is TrainingMode.RL:
+            from miniverl.training.journal import capture_logs
+
+            state.artifact_cursors = capture_logs(self.paths.root)
         save_checkpoint(
             target,
             trainable_state=self.student.trainable_state_dict(),
@@ -4010,6 +4023,9 @@ class OPDTrainer:
             critic_backend=self.critic,
             critic_optimizer=self.critic_optimizer,
         )
+        from miniverl.training.journal import restore_logs
+
+        restore_logs(self.paths.root, state.artifact_cursors)
         self._apply_checkpoint_progress(state)
         self._start_cycle = self._cycles_completed
         self._resumed = True

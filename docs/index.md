@@ -4,7 +4,7 @@ Compile supported verl experiment semantics into a validated execution plan for
 one NVIDIA GPU. The same local runtime produces policy-bound trajectories,
 transactional checkpoints and portable PEFT/Parquet artifacts.
 
-[Run verl-shaped RL locally](verl-rl-runtime.md){ .md-button .md-button--primary }
+[Run PPO or GRPO locally](local-rl-workflow.md){ .md-button .md-button--primary }
 [Choose a workflow](comparisons.md){ .md-button }
 
 ## From a verl config to one GPU
@@ -30,16 +30,18 @@ sampled-k1 OPD with explicit teacher targets.
 
 ```bash
 python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
-python -m pip install "miniverl[train,cuda]"
-miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
-  --config examples/verl-rl-v0.9-single-gpu-ppo.yaml --out local-ppo.yaml
+python -m pip install "miniverl[train]"
+miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
+  --example ppo --out local-ppo.yaml
 miniverl train local-ppo.yaml --dry-run
 ```
 
 The import report shows the value and disposition of every source field. The
 generated recipe has already passed `RunConfig` validation and can be inspected
-with `miniverl validate local-grpo.yaml --json` before model weights are loaded.
+with `miniverl validate local-ppo.yaml --json` before model weights are loaded.
+The examples ship with the package: no checkout is needed. Continue with
+[run → inspect → resume → handoff](local-rl-workflow.md).
 
 ## Three ways to use miniVERL
 
@@ -53,7 +55,7 @@ Bring a resolved v0.9-shaped config and run PPO or a grouped critic-free
 algorithm on one CUDA device.
 
 ```bash
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
   --config verl-rl.yaml --out local.yaml
 ```
 
@@ -89,12 +91,12 @@ Package a local run into standard PEFT, safetensors, Parquet and config
 artifacts with a separate readiness report.
 
 ```bash
-miniverl export-verl --run runs/my-run --target-verl v0.8.0 --out scaleout
+miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout
 ```
 
 **Artifact:** checksummed portable bundle and compatibility states.
 
-**Next:** [Scale-out contract](verl-opd-scaleout.md)
+**Next:** [Inspect and hand off](local-rl-workflow.md)
 
 </div>
 

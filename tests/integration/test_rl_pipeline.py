@@ -382,7 +382,20 @@ def test_ppo_executes_actor_critic_gae_and_checkpoints_both_roles(
     assert "critic-optimizer.safetensors" in checkpoint.manifest["files"]
 
 
-def test_ppo_checkpoint_resume_restores_actor_critic_optimizers_and_versions(tmp_path) -> None:  # type: ignore[no-untyped-def]
+@pytest.mark.parametrize(
+    "interruption",
+    [
+        None,
+        "_collect",
+        "_score_task_rewards",
+        "_score_critic_values",
+        "_optimize_critic",
+        "_commit_update",
+    ],
+)
+def test_ppo_checkpoint_resume_restores_actor_critic_optimizers_and_versions(
+    tmp_path, monkeypatch, interruption
+) -> None:  # type: ignore[no-untyped-def]
     import torch
 
     from miniverl.config import RunConfig
@@ -490,6 +503,18 @@ def test_ppo_checkpoint_resume_restores_actor_critic_optimizers_and_versions(tmp
     interrupted._run_cycle()
     interrupted.save_checkpoint(name="interrupt")
     interrupted_root = interrupted.paths.root
+    if interruption is not None:
+        interrupted.cycle = 1
+        original = getattr(interrupted, interruption)
+
+        def fail_after_phase(*args, **kwargs):
+            original(*args, **kwargs)
+            raise RuntimeError("injected phase interruption")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(interrupted, interruption, fail_after_phase)
+            with pytest.raises(RuntimeError, match="phase interruption"):
+                interrupted._run_cycle()
     interrupted.close()
 
     resumed = OPDTrainer.from_config(
@@ -509,6 +534,14 @@ def test_ppo_checkpoint_resume_restores_actor_critic_optimizers_and_versions(tmp
         assert torch.equal(reference_actor[name], resumed_actor[name]), name
     for name in reference_critic:
         assert torch.equal(reference_critic[name], resumed_critic[name]), name
+    from miniverl.reporting.inspection import inspect_run
+
+    summary = inspect_run(resumed_result.run_dir)
+    assert summary["algorithm"] == "ppo"
+    assert summary["updates"]["actor_records"] == 2
+    assert summary["updates"]["critic_records"] == 2
+    assert summary["checkpoint"]["actor_updates"] == 2
+    assert summary["resumed_from"]
 
 
 def test_rl_checkpoint_resume_matches_uninterrupted_policy_and_group_progress(tmp_path) -> None:  # type: ignore[no-untyped-def]

@@ -1,8 +1,9 @@
 # Single-GPU verl RL
 
-The v1 and v2 compilers translate a resolved, documented verl v0.9 RL subset
-into a native miniVERL recipe. v1 covers critic-free estimators; v2 adds
-PPO/GAE, an independent critic, actor KL and entropy. Distributed placement
+The v3 compiler translates a resolved, documented verl v0.9 RL subset
+into a native miniVERL recipe. It covers PPO/GAE, critic-free estimators,
+an independent critic, actor KL and entropy. v3 uses upstream prompt-based
+minibatch units; earlier v1/v2 profiles remain available. Distributed placement
 becomes an explicit temporal schedule for one process and one CUDA GPU.
 
 ## Quickstart
@@ -10,14 +11,16 @@ becomes an explicit temporal schedule for one process and one CUDA GPU.
 Create a reward-bearing Parquet file and compile the shipped PPO example:
 
 ```bash
-miniverl data sample --task-rewards --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v2 \
-  --config examples/verl-rl-v0.9-single-gpu-ppo.yaml --out local-ppo.yaml
+miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
+miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
+  --example ppo --out local-ppo.yaml
 miniverl validate local-ppo.yaml --json
 miniverl train local-ppo.yaml --dry-run
 ```
 
-The importer publishes two files:
+The [complete workflow](local-rl-workflow.md) exercises both packaged examples,
+inspection, checkpoint replay and artifact handoff. Alongside the original input
+and adaptation ledger, the importer publishes:
 
 - `local-ppo.yaml`: a validated native recipe;
 - `local-ppo.import-report.json`: every source field, source value, local
@@ -116,6 +119,10 @@ tensor-for-tensor for both trainable roles.
 Run artifacts include schema-v3 trajectories, JSONL reward and metric records,
 transactional checkpoints, the resolved recipe and final PEFT adapter. Use
 `miniverl inspect` for trajectories and metrics.
+For a run directory, `miniverl inspect runs/local-ppo --json` verifies checkpoint
+and log integrity before reporting counters and reward/advantage statistics.
+Checkpoint-bound log prefixes keep resumed reports consistent with the restored
+actor and critic; any replayed tail is retained under `recovery-tails/`.
 
 ## Scale-out handoff
 

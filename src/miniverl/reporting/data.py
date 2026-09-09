@@ -59,6 +59,7 @@ class ReportData:
     token_analysis: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     cache_stats: dict[str, Any] | None = None
     benchmark: dict[str, Any] | None = None
+    run_inspection: dict[str, Any] = field(default_factory=dict)
 
     # -- loading ---------------------------------------------------------
 
@@ -68,16 +69,22 @@ class ReportData:
     ) -> ReportData:
         """Read a run directory into a report model."""
         paths = RunPaths.open(run_dir)
-        manifest = portable_payload(read_json(paths.manifest))
+        from miniverl.reporting.inspection import inspect_artifacts, read_object, read_records
+
+        raw_manifest = read_object(paths.manifest)
+        raw_metrics = read_records(paths.metrics)
+        raw_events = read_records(paths.events)
+        run_inspection = inspect_artifacts(paths.root, raw_manifest, raw_metrics, raw_events)
+        manifest = portable_payload(raw_manifest)
         environment = (
             portable_payload(read_json(paths.environment)) if paths.environment.is_file() else {}
         )
         summary = portable_payload(read_json(paths.eval_json)) if paths.eval_json.is_file() else {}
-        metrics = portable_payload(read_jsonl(paths.metrics))
-        events = portable_payload(read_jsonl(paths.events))
+        metrics = portable_payload(raw_metrics)
+        events = portable_payload(raw_events)
 
         step_metrics = [
-            m for m in metrics if m.get("phase") in {"sft", "offline_kd", "opd", "sft_warmup"}
+            m for m in metrics if m.get("phase") in {"sft", "offline_kd", "opd", "sft_warmup", "rl"}
         ]
         cycle_metrics = [m for m in metrics if str(m.get("phase", "")).endswith("_cycle")]
         eval_metrics = [m for m in metrics if m.get("phase") == "eval"]
@@ -130,6 +137,7 @@ class ReportData:
             token_analysis=token_analysis,
             cache_stats=cache_stats,
             benchmark=benchmark,
+            run_inspection=run_inspection,
         )
 
     @staticmethod
