@@ -6,7 +6,7 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
-## [0.14.0] - 2026-09-08
+## [0.14.0] - 2026-09-09
 
 ### Installed local RL workflows
 
