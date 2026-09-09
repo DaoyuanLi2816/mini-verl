@@ -5,7 +5,7 @@
   "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.14.0",
   "local_validation": {
     "scope": "P0 implementation and CLI compatibility regression on the maintainer workstation",
-    "commit": "39de76a",
+    "commit": "39de76ad4399318d4b19e82f7a4f0d90316054c7",
     "commit_relationship": "implementation commit; release metadata and citation wording follow in the candidate commit",
     "measured_at": "2026-09-09T05:55:00Z",
     "platform": "Windows 11",
@@ -24,6 +24,8 @@
     "docs_visual": {"viewports": 4, "rendered_svg_instances": 44}
   },
   "release_validation": {
+    "commit": "pending",
+    "gpu_coverage": "pending exact-release-SHA full qualification",
     "scope": "exact release candidate wheel",
     "conclusion": "pending",
     "required": "attempt-1 full RTX 4080 qualification, installed PPO/GRPO workflows, exact-byte release dry run and public artifact verification"
