@@ -190,6 +190,8 @@ class HFSequenceClassifierRewardProvider:
             "batch_size": config.batch_size,
             "offload_between_phases": config.offload_between_phases,
         }
+        if config.input_format != "paired_text":
+            identity_config["input_format"] = config.input_format
         self._identity = RewardProviderIdentity(
             name="hf_sequence_classifier",
             version="miniverl-hf-rm-v1",
@@ -252,14 +254,39 @@ class HFSequenceClassifierRewardProvider:
                     f"reward-model scoring exceeded {self.config.timeout_seconds:g} seconds"
                 )
             batch = list(requests[start : start + self.config.batch_size])
-            encoded = self.tokenizer(
-                [request.prompt_text for request in batch],
-                [request.response_text for request in batch],
-                padding=True,
-                truncation=True,
-                max_length=self.config.max_length,
-                return_tensors="pt",
-            )
+            if self.config.input_format == "verl_chat":
+                chats = []
+                for request in batch:
+                    if request.raw_prompt is None:
+                        raise ValueError("verl classifier requires the original chat messages")
+                    chats.append(
+                        self.tokenizer.apply_chat_template(
+                            [
+                                *request.raw_prompt,
+                                {"role": "assistant", "content": request.response_text},
+                            ],
+                            tokenize=False,
+                            add_generation_prompt=False,
+                        )
+                    )
+                encoded = self.tokenizer(
+                    chats,
+                    padding=True,
+                    truncation=False,
+                    add_special_tokens=False,
+                    return_tensors="pt",
+                )
+                if encoded["input_ids"].shape[1] > self.config.max_length:
+                    raise ValueError("reward chat exceeds configured context; no silent truncation")
+            else:
+                encoded = self.tokenizer(
+                    [request.prompt_text for request in batch],
+                    [request.response_text for request in batch],
+                    padding=True,
+                    truncation=True,
+                    max_length=self.config.max_length,
+                    return_tensors="pt",
+                )
             encoded = {name: value.to(self.device) for name, value in encoded.items()}
             with torch.inference_mode():
                 logits = self.model(**encoded).logits.to(torch.float32)
@@ -269,7 +296,9 @@ class HFSequenceClassifierRewardProvider:
                 )
             if logits.ndim != 2 or logits.shape[0] != len(batch):
                 raise ValueError("reward model returned logits with an unexpected shape")
-            if logits.shape[1] == 1:
+            if self.config.input_format == "verl_chat":
+                scores = logits[:, -1]  # upstream classify(use_activation=False)
+            elif logits.shape[1] == 1:
                 scores = logits[:, 0]
             else:
                 index = self.config.positive_class_index

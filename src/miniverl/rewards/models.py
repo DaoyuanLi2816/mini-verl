@@ -72,6 +72,8 @@ class RewardRequest(_FrozenModel):
     ground_truth: Any
     data_source: str = Field(min_length=1)
     input_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    raw_prompt: list[dict[str, str]] | None = None
+    extra_info: Any = None
 
     @classmethod
     def create(
@@ -87,6 +89,8 @@ class RewardRequest(_FrozenModel):
         reward_model: Any,
         ground_truth: Any,
         data_source: str,
+        raw_prompt: list[dict[str, str]] | None = None,
+        extra_info: Any = None,
     ) -> RewardRequest:
         inputs = {
             "trajectory_id": trajectory_id,
@@ -100,13 +104,22 @@ class RewardRequest(_FrozenModel):
             "ground_truth": ground_truth,
             "data_source": data_source,
         }
+        if raw_prompt is not None:
+            inputs["raw_prompt"] = raw_prompt
+        if extra_info is not None:
+            inputs["extra_info"] = extra_info
         return cls(**inputs, input_digest=_digest(inputs))
 
     @model_validator(mode="after")
     def _identity_is_consistent(self) -> RewardRequest:
         if self.sample_index >= self.samples_per_prompt:
             raise ValueError("sample_index must be smaller than samples_per_prompt")
-        expected = _digest(self.model_dump(mode="json", exclude={"schema_version", "input_digest"}))
+        excluded = {"schema_version", "input_digest"}
+        if self.raw_prompt is None:
+            excluded.add("raw_prompt")
+        if self.extra_info is None:
+            excluded.add("extra_info")
+        expected = _digest(self.model_dump(mode="json", exclude=excluded))
         if self.input_digest != expected:
             raise ValueError("reward input_digest does not bind the request inputs")
         return self

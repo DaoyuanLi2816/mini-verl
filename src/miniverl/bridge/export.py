@@ -546,7 +546,8 @@ def _rl_v09_overrides(
     samples = int(rollout.get("samples_per_prompt", 1))
     prompts = int(train.get("rollouts_per_cycle", 1))
     mini_batch = int(train.get("gradient_accumulation_steps", prompts * samples))
-    if _get(config, "run.profile_identity.profile_name") == "verl-rl-v0.9-single-gpu-v3":
+    direct = _get(config, "run.profile_identity.profile_name") == "verl-rl-v0.9-single-gpu-v4"
+    if direct or _get(config, "run.profile_identity.profile_name") == "verl-rl-v0.9-single-gpu-v3":
         if mini_batch % samples:
             raise ConfigError(
                 "logical trajectory minibatch must divide by rollout.n for upstream handoff"
@@ -629,6 +630,42 @@ def _rl_v09_overrides(
             "ppo_epochs": int(critic.get("ppo_epochs", 1)),
             "cliprange_value": float(algorithm.get("cliprange_value", 0.5)),
         }
+    if direct:
+        overrides["data"].update(
+            filter_overlong_prompts=source.get("filter_overlong_prompts", False),
+            validation_shuffle=source.get("validation_shuffle", False),
+            truncation=source.get("truncation", "error"),
+        )
+        actor = overrides["actor_rollout_ref"]["actor"]
+        actor["loss_agg_mode"] = loss["aggregation"]
+        actor["loss_scale_factor"] = loss.get("loss_scale_factor")
+        evaluation = config.get("eval", {})
+        overrides["actor_rollout_ref"]["rollout"]["val_kwargs"] = {
+            "n": evaluation.get("samples_per_prompt", 1),
+            "do_sample": evaluation.get("temperature", 0.0) > 0,
+            "temperature": evaluation.get("temperature", 0.0),
+            "top_p": evaluation.get("top_p", 1.0),
+            "top_k": evaluation.get("top_k", 0),
+        }
+        overrides["trainer"]["val_before_train"] = evaluation.get("baseline_enabled", False)
+        for role, local in ((actor, train), (overrides.get("critic"), critic)):
+            if role is not None:
+                role["optim"].update(
+                    betas=[local.get("adam_beta1", 0.9), local.get("adam_beta2", 0.999)],
+                    lr_scheduler_type=local.get("lr_schedule", "constant"),
+                )
+                role["grad_clip"] = local.get("max_grad_norm", 1.0)
+        if name == "ppo":
+            critic_model = critic.get("model") or config["models"]["student"]
+            overrides["critic"]["model"]["path"] = "critic/base"
+            overrides["critic"]["model"].update(
+                lora_rank=critic_model["lora"]["r"] if critic_model["lora"]["enabled"] else 0,
+                lora_alpha=critic_model["lora"]["alpha"],
+                target_modules=critic_model["lora"]["target_modules"],
+            )
+            overrides["critic"]["ppo_mini_batch_size"] = (
+                int(critic.get("gradient_accumulation_steps") or mini_batch * samples) // samples
+            )
     return overrides
 
 
@@ -1003,11 +1040,11 @@ def _export_rl_v09_bundle(
     if not config_path.is_file():
         raise ConfigError("RL export requires config.resolved.yaml")
     validated = RunConfig.from_yaml(config_path)
-    profile = (
-        VERL_RL_V09_PRODUCT_PROFILE
-        if validated.run.profile_identity.get("profile_name") == VERL_RL_V09_PRODUCT_PROFILE
-        else VERL_RL_V09_PPO_PROFILE
-    )
+    from miniverl.bridge.direct import DIRECT_PROFILE
+
+    profile = validated.run.profile_identity.get("profile_name")
+    if profile not in {VERL_RL_V09_PRODUCT_PROFILE, DIRECT_PROFILE}:
+        profile = VERL_RL_V09_PPO_PROFILE
     if validated.run.mode.value != "rl":
         raise ConfigError("verl v0.9 export requires a completed run.mode=rl run")
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
@@ -1032,7 +1069,7 @@ def _export_rl_v09_bundle(
     ]
     if validated.models.reference is not None:
         blockers.append(
-            "the explicit miniVERL reference adapter is recorded but needs upstream rematerialization"
+            "the explicit miniVERL frozen reference role is recorded but needs upstream rematerialization"
         )
     temporary = destination.parent / f".{destination.name}.{uuid.uuid4().hex}.tmp"
     temporary.mkdir()

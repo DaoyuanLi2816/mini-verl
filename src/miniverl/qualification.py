@@ -310,6 +310,17 @@ class GPUQualification(_Strict):
                         "v0.14 full qualification evidence is missing: "
                         + ", ".join(sorted(missing_product))
                     )
+            if requires_v013 and (int(version_parts[0]), int(version_parts[1])) >= (0, 15):
+                from miniverl.qualification_direct import DIRECT_CHECKS
+
+                missing_direct = set(DIRECT_CHECKS) - set(self.checks.executed)
+                if "full_v015_direct_result" not in {artifact.name for artifact in self.artifacts}:
+                    missing_direct.add("full_v015_direct_result")
+                if missing_direct:
+                    raise ValueError(
+                        "v0.15 direct qualification evidence is missing: "
+                        + ", ".join(sorted(missing_direct))
+                    )
         return self
 
 

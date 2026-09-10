@@ -186,6 +186,10 @@ class LossAggregation(str, Enum):
 
     NATIVE_PER_TRAJECTORY = "native_per_trajectory"
     TOKEN_MEAN = "token-mean"
+    TOKEN_SUM = "token-sum"
+    SEQ_MEAN_TOKEN_SUM = "seq-mean-token-sum"
+    SEQ_MEAN_TOKEN_MEAN = "seq-mean-token-mean"
+    SEQ_MEAN_TOKEN_SUM_NORM = "seq-mean-token-sum-norm"
 
 
 class Divergence(str, Enum):
@@ -382,7 +386,7 @@ class TeacherModelConfig(_Base):
 
 
 class ReferenceModelConfig(_Base):
-    """Optional frozen policy-reference adapter on a shared base model."""
+    """Frozen reference: an explicit adapter or the original pretrained base."""
 
     model_id: str
     revision: str | None = None
@@ -392,7 +396,14 @@ class ReferenceModelConfig(_Base):
     quantization: Quantization = Quantization.NONE
     attn_implementation: str = Field(default="sdpa", pattern="^(sdpa|eager)$")
     trust_remote_code: bool = False
-    adapter: TeacherAdapterConfig
+    adapter: TeacherAdapterConfig | None = None
+    frozen_base: bool = False
+
+    @model_validator(mode="after")
+    def _reference_identity(self) -> ReferenceModelConfig:
+        if (self.adapter is None) != self.frozen_base:
+            raise ValueError("reference requires either an adapter or explicit frozen_base=true")
+        return self
 
 
 class ModelsConfig(_Base):
@@ -416,7 +427,27 @@ class ModelsConfig(_Base):
     def _validate_runtime(self) -> ModelsConfig:
         if self.runtime is ModelRuntime.DUAL_MODEL:
             if self.reference is not None:
-                raise ValueError("models.reference is supported only with runtime=shared_backbone")
+                if not self.reference.frozen_base:
+                    raise ValueError("reference adapters require runtime=shared_backbone")
+                if self.backend is not ModelBackend.HF:
+                    raise ValueError("independent frozen-base reference requires the HF backend")
+                if (self.reference.model_id, self.reference.revision) != (
+                    self.student.model_id,
+                    self.student.revision,
+                ):
+                    raise ValueError(
+                        "frozen reference must preserve the actor's initial base identity"
+                    )
+                if self.reference.quantization is not Quantization.NONE:
+                    raise ValueError("CPU frozen reference requires unquantized weights")
+                if (
+                    self.reference.tokenizer_id or self.reference.model_id,
+                    self.reference.tokenizer_revision or self.reference.revision,
+                ) != (
+                    self.student.tokenizer_id or self.student.model_id,
+                    self.student.tokenizer_revision or self.student.revision,
+                ):
+                    raise ValueError("frozen reference must use the actor's tokenizer identity")
             return self
         if self.backend is not ModelBackend.HF:
             raise ValueError("shared_backbone is available only for the Hugging Face backend")
@@ -464,6 +495,8 @@ class ModelsConfig(_Base):
             if student_tokenizer != teacher_tokenizer:
                 raise ValueError("shared_backbone roles must use one tokenizer identity")
         if self.reference is not None:
+            if self.reference.adapter is None:
+                raise ValueError("shared_backbone reference requires an adapter")
             if (self.reference.model_id, self.reference.revision) != (
                 self.student.model_id,
                 self.student.revision,
@@ -493,6 +526,7 @@ class LossConfig(_Base):
 
     mode: LossMode = LossMode.BUCKETED_TOPK_TAIL
     aggregation: LossAggregation = LossAggregation.NATIVE_PER_TRAJECTORY
+    loss_scale_factor: float | None = Field(default=None, gt=0.0)
     divergence: Divergence = Divergence.REVERSE_KL
     temperature: float = Field(default=1.0, gt=0.0, le=20.0)
     scale_by_temperature_squared: bool = True
@@ -649,6 +683,11 @@ class VerlParquetSourceConfig(_Base):
     prompt_key: str = Field(default="prompt", min_length=1)
     allow_plain_string_prompts: bool = False
     use_task_rewards: bool = False
+    filter_overlong_prompts: bool = False
+    drop_last: bool = False
+    validation_shuffle: bool | None = None
+    reward_metadata_mode: Literal["builtin", "upstream"] = "builtin"
+    unsupported_input_columns: list[str] = Field(default_factory=list)
     max_prompt_length: int = Field(default=512, ge=1, le=131072)
     max_response_length: int = Field(default=256, ge=1, le=131072)
     truncation: PromptTruncation = PromptTruncation.ERROR
@@ -700,7 +739,7 @@ class TrainConfig(_Base):
     rollouts_per_cycle: int = Field(default=8, ge=1, le=8192)
     #: Trajectories per optimizer step. This remains the mathematical effective
     #: batch size independently of the padded forward micro-batch below.
-    gradient_accumulation_steps: int = Field(default=8, ge=1, le=1024)
+    gradient_accumulation_steps: int = Field(default=8, ge=1, le=1048576)
     #: Trajectories per padded backbone forward. ``1`` preserves the sequential
     #: reference path; ``auto`` uses the full optimizer group. The objective and
     #: effective optimizer batch remain independent of this physical batch.
@@ -721,6 +760,8 @@ class TrainConfig(_Base):
     max_grad_norm: float = Field(default=1.0, gt=0.0, le=1e4)
     warmup_steps: int = Field(default=0, ge=0, le=100000)
     lr_schedule: LRSchedule = LRSchedule.CONSTANT
+    lr_step_unit: Literal["optimizer_update", "rollout_iteration"] = "optimizer_update"
+    zero_indexed_warmup: bool = False
     optimizer: OptimizerName = OptimizerName.ADAMW
     adam_beta1: float = Field(default=0.9, gt=0.0, lt=1.0)
     adam_beta2: float = Field(default=0.95, gt=0.0, lt=1.0)
@@ -817,6 +858,9 @@ class EvalConfig(_Base):
     temperature: float = Field(default=0.0, ge=0.0, le=5.0)
     max_turns: int | None = Field(default=None, ge=1)
     seed: int = Field(default=0, ge=0)
+    top_p: float | None = Field(default=None, gt=0.0, le=1.0)
+    top_k: int | None = Field(default=None, ge=0)
+    samples_per_prompt: int = Field(default=1, ge=1, le=128)
 
 
 class ReportConfig(_Base):
@@ -850,6 +894,7 @@ class RewardModelConfig(_Base):
     timeout_seconds: float = Field(default=120.0, gt=0.0, le=86400.0)
     trust_remote_code: bool = False
     offload_between_phases: bool = True
+    input_format: Literal["paired_text", "verl_chat"] = "paired_text"
 
 
 class RewardConfig(_Base):
@@ -896,11 +941,15 @@ class CriticConfig(_Base):
     """Independent local value role used by executable PPO."""
 
     enabled: bool = False
+    model: StudentModelConfig | None = None
+    gradient_accumulation_steps: int | None = Field(default=None, ge=1, le=1048576)
     learning_rate: float = Field(default=1e-5, gt=0.0, le=1.0)
     weight_decay: float = Field(default=0.0, ge=0.0, le=1.0)
     max_grad_norm: float = Field(default=1.0, gt=0.0, le=1e4)
     warmup_steps: int = Field(default=0, ge=0, le=100000)
     lr_schedule: LRSchedule = LRSchedule.CONSTANT
+    lr_step_unit: Literal["optimizer_update", "rollout_iteration"] = "optimizer_update"
+    zero_indexed_warmup: bool = False
     optimizer: OptimizerName = OptimizerName.ADAMW
     adam_beta1: float = Field(default=0.9, gt=0.0, lt=1.0)
     adam_beta2: float = Field(default=0.95, gt=0.0, lt=1.0)
@@ -1061,6 +1110,15 @@ class RunConfig(_Base):
                 "input and the divergence is identically zero."
             )
 
+        if mode is not TrainingMode.RL and (
+            self.loss.aggregation
+            not in {LossAggregation.TOKEN_MEAN, LossAggregation.NATIVE_PER_TRAJECTORY}
+            or self.loss.loss_scale_factor is not None
+        ):
+            raise ValueError(
+                "verl sequence/sum loss reductions and loss_scale_factor require run.mode=rl"
+            )
+
         if self.loss.mode is LossMode.EXACT_FULL_VOCAB:
             if self.cache.dtype != "float32":
                 raise ValueError(
@@ -1112,7 +1170,10 @@ class RunConfig(_Base):
             if not self.reward.enabled:
                 raise ValueError("run.mode=rl requires task rewards and reward.enabled=true")
             if self.source.kind is SourceKind.VERL_PARQUET:
-                if not self.source.use_task_rewards:
+                if (
+                    not self.source.use_task_rewards
+                    and self.source.reward_metadata_mode != "upstream"
+                ):
                     raise ValueError("Parquet RL requires source.use_task_rewards=true")
                 if self.reward.provider not in {
                     RewardProviderKind.EXACT_ANSWER,
@@ -1151,8 +1212,6 @@ class RunConfig(_Base):
                     raise ValueError(
                         "algorithm.kl_coef or actor_kl_coef > 0 requires models.reference"
                     )
-                if self.models.runtime is not ModelRuntime.SHARED_BACKBONE:
-                    raise ValueError("RL reference KL requires runtime=shared_backbone")
             elif self.models.reference is not None:
                 raise ValueError(
                     "models.reference requires algorithm.kl_coef or actor_kl_coef > 0 in run.mode=rl"
@@ -1177,8 +1236,8 @@ class RunConfig(_Base):
                 raise ValueError("run.mode=rl requires stochastic rollout.temperature > 0")
             if self.selection.selector is not SelectorName.ALL_MODEL_TOKENS:
                 raise ValueError("run.mode=rl requires selection.selector=all_model_tokens")
-            if self.loss.aggregation is not LossAggregation.TOKEN_MEAN:
-                raise ValueError("run.mode=rl requires loss.aggregation=token-mean")
+            if self.loss.aggregation is LossAggregation.NATIVE_PER_TRAJECTORY:
+                raise ValueError("run.mode=rl requires an explicit verl loss aggregation")
             if self.loss.sampled_token_nll_weight != 0.0:
                 raise ValueError("run.mode=rl cannot mix sampled-token NLL")
             if self.loss.policy_loss_mode != "vanilla":

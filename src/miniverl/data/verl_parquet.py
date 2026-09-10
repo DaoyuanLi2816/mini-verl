@@ -133,8 +133,9 @@ class RenderedPrompt:
 class VerlParquetDataset:
     """Read prompt rows by record batch; never load a complete table."""
 
-    def __init__(self, config: VerlParquetSourceConfig) -> None:
+    def __init__(self, config: VerlParquetSourceConfig, *, tokenizer: Any = None) -> None:
         self.config = config
+        self.tokenizer = tokenizer
 
     def _files(self, split: SplitName) -> list[Path]:
         raw = self.config.train_files if split == "train" else self.config.val_files
@@ -164,6 +165,11 @@ class VerlParquetDataset:
             columns = [
                 prompt_key,
                 *[name for name in _PRESERVED_FIELDS if name in parquet.schema_arrow.names],
+                *[
+                    name
+                    for name in self.config.unsupported_input_columns
+                    if name in parquet.schema_arrow.names
+                ],
             ]
             try:
                 batches = parquet.iter_batches(
@@ -171,7 +177,19 @@ class VerlParquetDataset:
                 )
                 for batch in batches:
                     for row in batch.to_pylist():
-                        yield self._validate_row(row, path=path, source_index=source_index)
+                        record = self._validate_row(row, path=path, source_index=source_index)
+                        if self.config.filter_overlong_prompts:
+                            if self.tokenizer is None:
+                                raise ConfigError("prompt filtering requires the actor tokenizer")
+                            text = (
+                                _apply_chat_template(self.tokenizer, record.prompt)
+                                if isinstance(record.prompt, list)
+                                else record.prompt
+                            )
+                            if len(self.tokenizer.encode(text)) > self.config.max_prompt_length:
+                                source_index += 1
+                                continue
+                        yield record
                         source_index += 1
             except ConfigError:
                 raise
@@ -184,6 +202,13 @@ class VerlParquetDataset:
     def _validate_row(self, row: dict[str, Any], *, path: Path, source_index: int) -> PromptRecord:
         prompt = row.get(self.config.prompt_key)
         location = f"{path} row {source_index}"
+        if any(
+            row.get(name) is not None and row[name] != []
+            for name in self.config.unsupported_input_columns
+        ):
+            raise ConfigError(
+                f"{location} contains unsupported multimodal input; it cannot be dropped"
+            )
         if isinstance(prompt, str):
             if not self.config.allow_plain_string_prompts:
                 raise ConfigError(
@@ -198,6 +223,13 @@ class VerlParquetDataset:
             for index, message in enumerate(prompt):
                 if not isinstance(message, dict):
                     raise ConfigError(f"{location} prompt message {index} is not a mapping")
+                if self.config.reward_metadata_mode == "upstream" and set(message) - {
+                    "role",
+                    "content",
+                }:
+                    raise ConfigError(
+                        f"{location} has additional chat-message fields requiring explicit preprocessing"
+                    )
                 role = message.get("role")
                 content = message.get("content")
                 if not isinstance(role, str) or not role or not isinstance(content, str):
@@ -212,7 +244,12 @@ class VerlParquetDataset:
                 " or an explicitly enabled plain string"
             )
         preserved = {name: row.get(name) for name in _PRESERVED_FIELDS}
-        if self.config.use_task_rewards:
+        if self.config.reward_metadata_mode == "upstream":
+            if not isinstance(preserved["data_source"], str) or not preserved["data_source"]:
+                raise ConfigError(f"{location} requires data_source for upstream reward dispatch")
+            if not isinstance(preserved["reward_model"], dict):
+                raise ConfigError(f"{location} requires upstream reward_model metadata")
+        elif self.config.use_task_rewards:
             _validate_task_reward_metadata(preserved, location=location)
         payload = {"prompt": validated, **preserved}
         canonical = _canonical(payload)
@@ -228,7 +265,10 @@ class VerlParquetDataset:
     def iter_split(self, split: SplitName, *, epoch: int = 0) -> Iterator[PromptRecord]:
         """Yield all rows, optionally with a deterministic bounded-buffer shuffle."""
         records = self._records(split)
-        if not self.config.shuffle:
+        shuffle = self.config.shuffle
+        if split == "val" and self.config.validation_shuffle is not None:
+            shuffle = self.config.validation_shuffle
+        if not shuffle:
             yield from records
             return
         rng = random.Random(self.config.seed ^ epoch ^ (0x56414C if split == "val" else 0))
@@ -256,6 +296,12 @@ class VerlParquetDataset:
                 files.append(str(path))
                 parquet = pq.ParquetFile(path)
                 schema_items.append({"split": split, "schema": str(parquet.schema_arrow)})
+                if self.config.filter_overlong_prompts:
+                    # Bind excluded rows too: edits to a filtered-out prompt are
+                    # still changes to the source experiment's dataset.
+                    with path.open("rb") as stream:
+                        for block in iter(lambda: stream.read(1024 * 1024), b""):
+                            content.update(block)
             for record in self._records(typed_split):
                 rows[split] += 1
                 content.update(split.encode("ascii"))

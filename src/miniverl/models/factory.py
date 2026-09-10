@@ -160,6 +160,31 @@ def build_critic(
     """Build PPO's independently owned backbone and scalar value head."""
     from miniverl.models.critic import ValueCritic
 
+    if config.critic.model is not None:
+        critic_model = config.critic.model
+        actor = config.models.student
+        if (
+            critic_model.tokenizer_id or critic_model.model_id,
+            critic_model.tokenizer_revision or critic_model.revision,
+        ) != (actor.tokenizer_id or actor.model_id, actor.tokenizer_revision or actor.revision):
+            critic_tokenizer = HFTokenizerAdapter.load(
+                critic_model.tokenizer_id or critic_model.model_id,
+                revision=critic_model.tokenizer_revision or critic_model.revision,
+                trust_remote_code=critic_model.trust_remote_code,
+                local_files_only=local_files_only,
+            )
+            assert_same_tokenizer(tokenizer, critic_tokenizer)
+        config = config.model_copy(
+            update={
+                "models": config.models.model_copy(
+                    update={
+                        "student": critic_model,
+                        "runtime": ModelRuntime.DUAL_MODEL,
+                        "reference": None,
+                    }
+                )
+            }
+        )
     backbone = build_student(
         config,
         tokenizer,
@@ -169,6 +194,28 @@ def build_critic(
     return ValueCritic(
         backbone,
         head_seed=config.run.seed + config.critic.head_seed_offset,
+    )
+
+
+def build_frozen_reference(
+    config: RunConfig, tokenizer: TokenizerLike, *, local_files_only: bool = False
+) -> CausalLMBackend:
+    """Keep an independent initial base on CPU; never share actor parameters."""
+    from miniverl.config.models import TeacherModelConfig
+    from miniverl.models.hf import HFBackend
+
+    reference = config.models.reference
+    if reference is None or not reference.frozen_base:
+        raise ConfigError("independent reference requires an explicit frozen base")
+    teacher = TeacherModelConfig.model_validate(
+        reference.model_dump(mode="json", exclude={"frozen_base"})
+    )
+    return HFBackend.load(
+        teacher,
+        device="cpu",
+        tokenizer=tokenizer,
+        trainable=False,
+        local_files_only=local_files_only,
     )
 
 

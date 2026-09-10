@@ -312,6 +312,7 @@ def load_shared_adapter_backends(
 
         reference = config.models.reference
         if reference is not None:
+            assert reference.adapter is not None  # validated shared-backbone role
             reference_spec = TeacherModelConfig(
                 model_id=reference.model_id,
                 revision=reference.revision,

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import math
 import os
 import subprocess
 from collections import defaultdict
@@ -27,6 +28,46 @@ from miniverl.algorithms.policy import clipped_policy_loss
 from miniverl.algorithms.value import clipped_value_loss
 
 pytestmark = [pytest.mark.torch, pytest.mark.verl_conformance]
+
+
+@pytest.mark.parametrize("kind", ["constant", "cosine"])
+@pytest.mark.parametrize("warmup", [0, 3])
+def test_direct_rollout_iteration_schedule_matches_upstream(kind, warmup):
+    from miniverl.config.models import LRSchedule
+    from miniverl.training.optim import LearningRateSchedule
+
+    root = Path(os.environ.get("MINIVERL_VERL_V09_SOURCE", ".audit/upstream-verl-v0.9.0"))
+    if not (root / ".git").exists():
+        pytest.skip("pinned verl v0.9.0 source checkout is unavailable")
+    source = subprocess.check_output(
+        ["git", "show", f"{UPSTREAM_VERL_COMMIT}:verl/utils/torch_functional.py"],
+        cwd=root,
+        text=True,
+    )
+    name = f"get_{kind}_schedule_with_warmup"
+    selected = next(
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == name
+    )
+    module = ast.Module(
+        body=[
+            ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0),
+            selected,
+        ],
+        type_ignores=[],
+    )
+    ast.fix_missing_locations(module)
+    namespace = {"math": math, "LambdaLR": torch.optim.lr_scheduler.LambdaLR}
+    exec(compile(module, "pinned-verl-torch-functional", "exec"), namespace)
+    optimizer = torch.optim.AdamW([torch.nn.Parameter(torch.zeros(1))], lr=1e-5)
+    options = {"num_training_steps": 10} if kind == "cosine" else {}
+    scheduler = namespace[name](optimizer, num_warmup_steps=warmup, **options)
+    local = LearningRateSchedule(LRSchedule(kind), 1e-5, warmup, 10, zero_indexed_warmup=True)
+    for iteration in range(10):
+        assert local.lr_at(iteration) == pytest.approx(scheduler.get_last_lr()[0], abs=1e-14)
+        optimizer.step()
+        scheduler.step()
 
 
 class _Functional:
@@ -118,6 +159,56 @@ class _Actor:
 
     def get(self, name, default):  # type: ignore[no-untyped-def]
         return getattr(self, name, default)
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "token-mean",
+        "token-sum",
+        "seq-mean-token-sum",
+        "seq-mean-token-mean",
+        "seq-mean-token-sum-norm",
+    ],
+)
+@pytest.mark.parametrize("scale", [None, 7])
+def test_direct_reduction_scalar_gradient_optimizer_against_upstream(mode, scale):
+    from miniverl.losses.reduction import rl_reduction_weights
+
+    official = _official()
+    old = torch.tensor([[-1.0, -0.7, -2.0], [-1.1, -0.8, -1.5]])
+    mask = torch.tensor([[1.0, 1.0, 0.0], [1.0, 1.0, 1.0]])
+    advantages = torch.tensor([[1.0, 2.0, 0.0], [-1.0, -2.0, -3.0]])
+    local = torch.nn.Parameter(old.clone() + 0.15)
+    upstream = torch.nn.Parameter(local.detach().clone())
+    actor = _Actor()
+    actor.global_batch_info = {"loss_scale_factor": scale}
+    expected, metrics = official.compute_policy_loss_vanilla(
+        old,
+        upstream,
+        advantages,
+        mask,
+        loss_agg_mode=mode,
+        config=actor,
+    )
+    output = clipped_policy_loss(
+        current_log_probs=local, old_log_probs=old, advantages=advantages, response_mask=mask
+    )
+    rows, denominator = rl_reduction_weights(
+        list(mask), mode, response_length=3, loss_scale_factor=scale
+    )
+    actual = sum(
+        (loss * weight).sum() / denominator
+        for loss, weight in zip(output.per_token_loss, rows, strict=True)
+    )
+    expected.backward()
+    actual.backward()
+    torch.testing.assert_close(actual, expected)
+    torch.testing.assert_close(local.grad, upstream.grad)
+    assert output.metrics["pg_clipfrac"] == pytest.approx(metrics["actor/pg_clipfrac"])
+    torch.optim.AdamW([local], lr=3e-4).step()
+    torch.optim.AdamW([upstream], lr=3e-4).step()
+    torch.testing.assert_close(local, upstream)
 
 
 def test_advantage_estimators_match_pinned_upstream() -> None:

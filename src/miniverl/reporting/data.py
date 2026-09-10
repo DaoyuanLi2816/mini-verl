@@ -249,8 +249,8 @@ class ReportData:
 
     @property
     def is_on_policy(self) -> bool:
-        """``True`` only for genuine OPD."""
-        return self.mode == "opd"
+        """RL and OPD collect current-policy trajectories; offline KD does not."""
+        return self.mode in {"opd", "rl"}
 
     def loss_series(self) -> list[tuple[str, list[float], list[float]]]:
         """Loss curves grouped by training phase."""
@@ -264,8 +264,9 @@ class ReportData:
 
     def eval_series(self) -> list[tuple[str, list[float], list[float]]]:
         """Success rate against optimizer step."""
-        xs = [float(m.get("global_step", 0)) for m in self.eval_metrics]
-        ys = [float(m.get("success_rate", 0.0)) for m in self.eval_metrics]
+        measured = [m for m in self.eval_metrics if m.get("success_rate") is not None]
+        xs = [float(m.get("global_step", 0)) for m in measured]
+        ys = [float(m["success_rate"]) for m in measured]
         if not xs:
             return []
         return [("task success rate", xs, ys)]

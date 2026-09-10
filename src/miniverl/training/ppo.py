@@ -212,7 +212,11 @@ class PPOPhaseRuntime:
         if not math.isfinite(grad_norm):
             host.critic_optimizer.zero_grad(set_to_none=True)
             raise LifecycleError("PPO critic gradients must be finite before an optimizer step")
-        lr = host.critic_schedule.lr_at(host.critic_update_count)
+        lr = host.critic_schedule.lr_at(
+            host.cycle
+            if host.config.critic.lr_step_unit == "rollout_iteration"
+            else host.critic_update_count
+        )
         for parameter_group in host.critic_optimizer.param_groups:
             parameter_group["lr"] = lr
         host.critic_optimizer.step()
@@ -256,7 +260,10 @@ class PPOPhaseRuntime:
             host._critic_to_device()
         records: list[dict[str, Any]] = []
         try:
-            accum = host.config.train.gradient_accumulation_steps
+            accum = (
+                host.config.critic.gradient_accumulation_steps
+                or host.config.train.gradient_accumulation_steps
+            )
             for epoch in range(host.config.critic.ppo_epochs):
                 for start in range(0, len(samples), accum):
                     group = samples[start : start + accum]

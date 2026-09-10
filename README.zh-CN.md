@@ -18,9 +18,9 @@
   <a href="README.md">English</a>
 </p>
 
-**miniVERL 在一张 NVIDIA GPU 上运行经过验证的 verl 实验语义子集。** 输入 resolved
-verl 风格配置与 Parquet prompt，版本化编译器会生成可审阅的本地计划；actor、reference、
-teacher 与 reward 角色按阶段执行，最终发布可携带的 PEFT 与数据产物。
+**在一张 NVIDIA GPU 上直接运行常见 verl PPO／GRPO 配置。** 把 resolved 上游 YAML
+交给 miniVERL，再绑定本地数据或奖励代码。版本化编译器保留实验语义，让 actor、critic、
+reference 和 reward 按阶段共用显卡，无需另外维护一套配置语言。
 
 当前开发线针对官方 verl `v0.9.0`（`483b8a00`）支持 PPO/GAE、GRPO、Dr.GRPO、
 RLOO 与 REINFORCE++。PPO 使用独立可训练 critic 及其 optimizer/checkpoint；actor KL、
@@ -28,7 +28,7 @@ entropy regularization、grouped rollout、task reward 和固定 revision 的 se
 reward role 共用同一套 provenance。已有 verl `v0.8.0` OPD profile 继续提供 direct GKD
 与 sampled-k1 蒸馏。
 
-PyPI `v0.14.0` 是稳定版；`main` 是开发版。
+PyPI `v0.15.0` 是稳定版；`main` 是开发版。
 
 ## 第一个本地实验
 
@@ -37,20 +37,19 @@ PyPI `v0.14.0` 是稳定版；`main` 是开发版。
 ```bash
 python -m pip install "miniverl[train]"
 miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
-  --example ppo --out local-ppo.yaml
-miniverl validate local-ppo.yaml
-miniverl train local-ppo.yaml --dry-run
+miniverl run --example ppo --bind reward.provider=target_length --dry-run
+miniverl run --example ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
-PPO 与 GRPO 示例都包含在安装包里。Importer 输出原始输入、兼容报告、原生 recipe
-及相对上游示例的改动清单。移除 `--dry-run` 即可用固定 revision 的 Qwen3-0.6B
-运行两个 iteration。接着检查、恢复并导出：
+PPO 与 GRPO 示例以**上游格式**包含在安装包里，用 Qwen3-0.6B 运行两个 iteration；
+显式 binding 选择小规模长度奖励练习。使用自己的配置时，把 `--example ppo` 换成
+`resolved-verl.yaml`。每次运行保存原始字节、逐字段决策、binding、解析后的模型快照、
+硬件计划和内部 IR。接着检查、恢复并导出：
 
 ```bash
-miniverl train local-ppo.yaml --run-id local-ppo
 miniverl inspect runs/local-ppo
-miniverl train local-ppo.yaml --resume-from runs/local-ppo/checkpoints/step-000002
+miniverl run --example ppo --bind reward.provider=target_length \
+  --resume-from runs/local-ppo/checkpoints/step-000002
 miniverl export-adapter --run runs/local-ppo --out runs/local-ppo/model
 miniverl export-verl --run runs/local-ppo --target-verl v0.9.0 --out ppo-handoff
 miniverl bridge doctor ppo-handoff --json
@@ -91,7 +90,7 @@ estimator 并更新 actor。PPO 额外执行独立 critic 的 clipped value upda
 
 | 目标 | 第一个命令 | 主要产物 | 下一步 |
 | --- | --- | --- | --- |
-| **本地 RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 --example grpo --out local.yaml` | 原生 recipe + 兼容报告 | [RL quickstart](docs/verl-rl-runtime.md) |
+| **本地 RL** | `miniverl run resolved-verl.yaml --dry-run` | 语义报告 + 本地执行计划 | [直接运行配置](docs/direct-verl-config.md) |
 | **本地 OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | 不可变执行计划 | [OPD quickstart](docs/opd-quickstart.md) |
 | **适配显卡** | `miniverl plan --config verl-opd.yaml --probe` | 实测 placement plan | [硬件规划](docs/hardware-planning.md) |
 | **交接产物** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor、critic、Parquet + config bundle | [兼容性契约](docs/compatibility.md) |
@@ -113,7 +112,8 @@ SQLite 和自定义 tool environment。
 | Ray、FSDP/FSDP2、Megatron、TP/PP/DP > 1 | 仅分布式 | 这些能力改变物理规模，不改变本地 objective |
 
 [上游兼容语料库](docs/verl-compatibility-corpus.md)解析真实 verl 示例，逐项记录字段结果。
-v3 profile 保留以上游 prompt 数定义的 minibatch 单位；v1/v2 继续用于已有 recipe。
+v4 直接编译器保留上游 prompt minibatch 单位，支持多种损失归约、prompt 过滤及 epoch 调度。
+报告分别列出语义兼容、所需本地输入与硬件容量；v1/v2/v3 继续用于已有 recipe。
 
 ## 实测系统证据
 

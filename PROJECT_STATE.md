@@ -4,11 +4,24 @@ Current maintainer handoff for **miniVERL** (`mini-verl` package, `miniverl`
 CLI). `release-state.yaml` is the canonical version source; this page indexes
 current product and evidence state rather than repeating release history.
 
-Last updated: 2026-09-09.
+Last updated: 2026-09-10.
 
-Canonical release state: stable `v0.14.0` (`60afc63da1257e3e22aa6056607a63a90d4d90f1`), development `0.14.1.dev0`.
+Canonical release state: releasing `v0.15.0`.
 
 ## Release state
+
+- v0.15.0 is preparing the direct-config release. Implementation and installed
+  development-wheel PPO/GRPO rehearsals pass; formal candidate qualification
+  and OIDC publication are pending.
+- v4 semantically accepts all seven complete pinned upstream configurations.
+  Five derived stress cases add two accepted and three explicit rejections.
+  Exact production-model execution is not claimed by static compilation.
+- The installed direct rehearsal completed four actor updates in both cases,
+  four PPO critic updates, reward validation, exact tensor replay and handoff.
+- Local full regression: 2,725 passed, 82.01% branch coverage, plus 18 pinned
+  upstream conformance cases and four documentation viewports.
+
+### Prior stable release (historical)
 
 - v0.14.0 productization is published: upstream configuration coverage,
   packaged PPO/GRPO walkthroughs, strict run inspection and system-level recovery.
@@ -35,8 +48,8 @@ Canonical release state: stable `v0.14.0` (`60afc63da1257e3e22aa6056607a63a90d4d
 
 ## Current product boundary
 
-Development `0.14.1.dev0` has a closed typed profile compiler: it retains v1/v2 and adds
-`verl-rl-v0.9-single-gpu-v3`, a typed resolved RL subset of official verl
+Release `0.15.0` has a closed typed profile compiler: it retains v1/v2/v3 and adds
+`verl-rl-v0.9-single-gpu-v4`, direct execution of resolved RL inputs from official verl
 `v0.9.0` at commit `483b8a009ba3a97563edee3a19887e4862b8094a`.
 It compiles PPO/GAE into phased one-GPU actor, critic, reference and reward
 roles. The critic is independently trainable and owns its optimizer, schedule,

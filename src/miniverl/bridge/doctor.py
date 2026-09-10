@@ -20,6 +20,7 @@ from miniverl.bridge.contract import (
     VERL_REPOSITORY,
     VERL_TAG,
 )
+from miniverl.bridge.direct import DIRECT_PROFILE
 from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
 from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.bridge.preflight import preflight_bundle_tree
@@ -102,7 +103,11 @@ def _check_requirements(root: Path) -> dict[str, Any]:
         values = dict(line.split("=", 1) for line in path.read_text(encoding="utf-8").splitlines())
     except (OSError, ValueError) as exc:
         return {"status": "fail", "detail": str(exc)}
-    if values.get("PROFILE") in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE}:
+    if values.get("PROFILE") in {
+        VERL_RL_V09_PPO_PROFILE,
+        VERL_RL_V09_PRODUCT_PROFILE,
+        DIRECT_PROFILE,
+    }:
         from miniverl.algorithms.contract import UPSTREAM_VERL_COMMIT, UPSTREAM_VERL_TAG
 
         expected = {
@@ -419,7 +424,7 @@ def _check_config(root: Path) -> dict[str, Any]:
         if not required_roots.issubset(actual):
             rl_problems.append("missing required RL root")
         profile = compatibility.get("profile")
-        if profile not in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE}:
+        if profile not in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE, DIRECT_PROFILE}:
             rl_problems.append("unregistered verl v0.9 RL profile")
         try:
             model = payload["actor_rollout_ref"]["model"]
@@ -442,7 +447,9 @@ def _check_config(root: Path) -> dict[str, Any]:
                 critic = payload.get("critic") or {}
                 if critic.get("enable") is not True:
                     rl_problems.append("critic.enable")
-                if (critic.get("model") or {}).get("path") != "model/base":
+                if (critic.get("model") or {}).get("path") != (
+                    "critic/base" if profile == DIRECT_PROFILE else "model/base"
+                ):
                     rl_problems.append("critic.model.path")
                 if payload["algorithm"].get("adv_estimator") != "gae":
                     rl_problems.append("algorithm.adv_estimator")
@@ -1369,7 +1376,8 @@ def inspect_bridge_bundle(
     critic = _check_critic(
         bundle,
         required=(
-            config.get("profile") in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE}
+            config.get("profile")
+            in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE, DIRECT_PROFILE}
             and compatibility.get("algorithm") == "ppo"
         ),
     )

@@ -57,8 +57,10 @@ def _critic_state(trainer) -> dict[str, Any]:  # type: ignore[no-untyped-def]
 
 
 @pytest.mark.parametrize("algorithm", ["grpo", "dr_grpo", "rloo", "reinforce_plus_plus"])
+@pytest.mark.parametrize("epochs", [1, 2])
+@pytest.mark.parametrize("aggregation", ["token-mean", "seq-mean-token-sum-norm"])
 def test_teacher_free_rl_executes_current_policy_rollout_reward_and_update(
-    tmp_path, algorithm: str
+    tmp_path, algorithm: str, epochs: int, aggregation: str
 ) -> None:  # type: ignore[no-untyped-def]
     from miniverl.config import RunConfig
     from miniverl.trainer import OPDTrainer
@@ -119,13 +121,14 @@ def test_teacher_free_rl_executes_current_policy_rollout_reward_and_update(
             "selection": {"selector": "all_model_tokens"},
             "loss": {
                 "mode": "verl_rl_policy",
-                "aggregation": "token-mean",
+                "aggregation": aggregation,
                 "scale_by_temperature_squared": False,
                 "chunk_size": 16,
             },
             "algorithm": {
                 "name": algorithm,
                 "implementation_version": ADVANTAGE_IMPLEMENTATION_VERSION,
+                "actor_ppo_epochs": epochs,
             },
             "reward": {"enabled": True, "provider": "python_api"},
             "train": {
@@ -151,7 +154,7 @@ def test_teacher_free_rl_executes_current_policy_rollout_reward_and_update(
         trainer.close()
 
     assert result.mode == "rl"
-    assert result.global_step == 1
+    assert result.global_step == epochs
     rows = [
         json.loads(line) for line in (result.run_dir / "metrics.jsonl").read_text().splitlines()
     ]
@@ -159,6 +162,7 @@ def test_teacher_free_rl_executes_current_policy_rollout_reward_and_update(
     assert update["verl_rl"]["algorithm"] == algorithm
     assert update["verl_rl"]["ratio_mean"] == pytest.approx(1.0)
     assert update["verl_rl"]["actor_entropy"] > 0.0
+    assert update["divergence_loss"] == pytest.approx(update["loss"], abs=1e-7)
     advantages = [
         json.loads(line) for line in (result.run_dir / "advantages.jsonl").read_text().splitlines()
     ]

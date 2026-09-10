@@ -1,0 +1,2747 @@
+{
+  "fields": {
+    "actor_rollout_ref.actor._target_": [
+      "verl.workers.config.FSDPActorConfig"
+    ],
+    "actor_rollout_ref.actor.calculate_entropy": [
+      false
+    ],
+    "actor_rollout_ref.actor.calculate_sum_pi_squared": [
+      false
+    ],
+    "actor_rollout_ref.actor.checkpoint._target_": [
+      "verl.trainer.config.CheckpointConfig"
+    ],
+    "actor_rollout_ref.actor.checkpoint.async_save": [
+      false
+    ],
+    "actor_rollout_ref.actor.checkpoint.load_contents": [
+      [
+        "model",
+        "optimizer",
+        "extra"
+      ]
+    ],
+    "actor_rollout_ref.actor.checkpoint.save_contents": [
+      [
+        "model",
+        "optimizer",
+        "extra"
+      ]
+    ],
+    "actor_rollout_ref.actor.checkpoint.strict": [
+      true
+    ],
+    "actor_rollout_ref.actor.clip_ratio": [
+      0.2
+    ],
+    "actor_rollout_ref.actor.clip_ratio_c": [
+      3.0
+    ],
+    "actor_rollout_ref.actor.clip_ratio_high": [
+      0.2
+    ],
+    "actor_rollout_ref.actor.clip_ratio_low": [
+      0.2
+    ],
+    "actor_rollout_ref.actor.data_loader_seed": [
+      42
+    ],
+    "actor_rollout_ref.actor.entropy_checkpointing": [
+      false
+    ],
+    "actor_rollout_ref.actor.entropy_coeff": [
+      0
+    ],
+    "actor_rollout_ref.actor.entropy_from_logits_chunk_size": [
+      2048
+    ],
+    "actor_rollout_ref.actor.entropy_from_logits_with_chunking": [
+      false
+    ],
+    "actor_rollout_ref.actor.freeze_vision_tower": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config._target_": [
+      "verl.workers.config.FSDPEngineConfig"
+    ],
+    "actor_rollout_ref.actor.fsdp_config.dtype": [
+      "bfloat16"
+    ],
+    "actor_rollout_ref.actor.fsdp_config.entropy_checkpointing": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.entropy_from_logits_chunk_size": [
+      2048
+    ],
+    "actor_rollout_ref.actor.fsdp_config.entropy_from_logits_with_chunking": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.forward_only": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.forward_prefetch": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.fsdp_size": [
+      -1
+    ],
+    "actor_rollout_ref.actor.fsdp_config.full_determinism": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.model_dtype": [
+      "fp32"
+    ],
+    "actor_rollout_ref.actor.fsdp_config.offload_policy": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.optimizer_offload": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.pad_to_length": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.pad_to_length_bucket": [
+      1024
+    ],
+    "actor_rollout_ref.actor.fsdp_config.param_offload": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.qat._target_": [
+      "verl.workers.config.QATEngineConfig"
+    ],
+    "actor_rollout_ref.actor.fsdp_config.qat.activation_observer": [
+      "static_minmax"
+    ],
+    "actor_rollout_ref.actor.fsdp_config.qat.enable": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.qat.group_size": [
+      16
+    ],
+    "actor_rollout_ref.actor.fsdp_config.qat.ignore_patterns": [
+      [
+        "lm_head",
+        "embed_tokens",
+        "re:.*mlp.gate$"
+      ]
+    ],
+    "actor_rollout_ref.actor.fsdp_config.qat.mode": [
+      "w4a16"
+    ],
+    "actor_rollout_ref.actor.fsdp_config.qat.quantization_config_path": [
+      null
+    ],
+    "actor_rollout_ref.actor.fsdp_config.reshard_after_forward": [
+      true
+    ],
+    "actor_rollout_ref.actor.fsdp_config.seed": [
+      42
+    ],
+    "actor_rollout_ref.actor.fsdp_config.strategy": [
+      "fsdp"
+    ],
+    "actor_rollout_ref.actor.fsdp_config.ulysses_sequence_parallel_size": [
+      1
+    ],
+    "actor_rollout_ref.actor.fsdp_config.use_orig_params": [
+      false
+    ],
+    "actor_rollout_ref.actor.fsdp_config.use_torch_compile": [
+      true
+    ],
+    "actor_rollout_ref.actor.fsdp_config.wrap_policy.min_num_params": [
+      0
+    ],
+    "actor_rollout_ref.actor.grad_clip": [
+      1.0
+    ],
+    "actor_rollout_ref.actor.kl_loss_coef": [
+      0.001
+    ],
+    "actor_rollout_ref.actor.kl_loss_type": [
+      "low_var_kl"
+    ],
+    "actor_rollout_ref.actor.loss_agg_mode": [
+      "seq-mean-token-sum-norm",
+      "token-mean"
+    ],
+    "actor_rollout_ref.actor.loss_scale_factor": [
+      null
+    ],
+    "actor_rollout_ref.actor.optim._target_": [
+      "verl.workers.config.FSDPOptimizerConfig"
+    ],
+    "actor_rollout_ref.actor.optim.betas": [
+      [
+        0.9,
+        0.999
+      ]
+    ],
+    "actor_rollout_ref.actor.optim.clip_grad": [
+      1.0
+    ],
+    "actor_rollout_ref.actor.optim.lr": [
+      1e-06,
+      3e-06
+    ],
+    "actor_rollout_ref.actor.optim.lr_scheduler_type": [
+      "constant"
+    ],
+    "actor_rollout_ref.actor.optim.lr_warmup_steps": [
+      -1
+    ],
+    "actor_rollout_ref.actor.optim.lr_warmup_steps_ratio": [
+      0.0
+    ],
+    "actor_rollout_ref.actor.optim.min_lr_ratio": [
+      0.0
+    ],
+    "actor_rollout_ref.actor.optim.num_cycles": [
+      0.5
+    ],
+    "actor_rollout_ref.actor.optim.optimizer": [
+      "AdamW"
+    ],
+    "actor_rollout_ref.actor.optim.optimizer_impl": [
+      "torch.optim"
+    ],
+    "actor_rollout_ref.actor.optim.override_optimizer_config": [
+      null
+    ],
+    "actor_rollout_ref.actor.optim.total_training_steps": [
+      -1
+    ],
+    "actor_rollout_ref.actor.optim.warmup_style": [
+      null
+    ],
+    "actor_rollout_ref.actor.optim.weight_decay": [
+      0.01
+    ],
+    "actor_rollout_ref.actor.optim.zero_indexed_step": [
+      true
+    ],
+    "actor_rollout_ref.actor.pad_to_length": [
+      false
+    ],
+    "actor_rollout_ref.actor.policy_loss._target_": [
+      "verl.workers.config.PolicyLossConfig"
+    ],
+    "actor_rollout_ref.actor.policy_loss.clip_cov_lb": [
+      1.0
+    ],
+    "actor_rollout_ref.actor.policy_loss.clip_cov_ratio": [
+      0.0002
+    ],
+    "actor_rollout_ref.actor.policy_loss.clip_cov_ub": [
+      5.0
+    ],
+    "actor_rollout_ref.actor.policy_loss.dro_beta": [
+      null
+    ],
+    "actor_rollout_ref.actor.policy_loss.kl_cov_ratio": [
+      0.0002
+    ],
+    "actor_rollout_ref.actor.policy_loss.loss_mode": [
+      "vanilla"
+    ],
+    "actor_rollout_ref.actor.policy_loss.ppo_kl_coef": [
+      0.1
+    ],
+    "actor_rollout_ref.actor.ppo_epochs": [
+      1
+    ],
+    "actor_rollout_ref.actor.ppo_max_token_len_per_gpu": [
+      3000,
+      12288,
+      24576,
+      16384
+    ],
+    "actor_rollout_ref.actor.ppo_micro_batch_size": [
+      null
+    ],
+    "actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu": [
+      2,
+      null,
+      10
+    ],
+    "actor_rollout_ref.actor.ppo_mini_batch_size": [
+      256,
+      32,
+      1024,
+      128
+    ],
+    "actor_rollout_ref.actor.profiler._target_": [
+      "verl.utils.profiler.ProfilerConfig"
+    ],
+    "actor_rollout_ref.actor.profiler.all_ranks": [
+      false
+    ],
+    "actor_rollout_ref.actor.profiler.enable": [
+      false
+    ],
+    "actor_rollout_ref.actor.profiler.ranks": [
+      []
+    ],
+    "actor_rollout_ref.actor.profiler.save_path": [
+      "outputs/profile"
+    ],
+    "actor_rollout_ref.actor.profiler.tool": [
+      null
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.npu._target_": [
+      "verl.utils.profiler.config.NPUToolConfig"
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.npu.analysis": [
+      true
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.npu.contents": [
+      []
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.npu.discrete": [
+      false
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.npu.level": [
+      "level0"
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.nsys._target_": [
+      "verl.utils.profiler.config.NsightToolConfig"
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.nsys.discrete": [
+      false
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.precision_debugger._target_": [
+      "verl.utils.profiler.config.PrecisionDebuggerToolConfig"
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.precision_debugger.config_path": [
+      null
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.precision_debugger.stages": [
+      null
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.precision_debugger.steps": [
+      null
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.precision_debugger.strict": [
+      false
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch._target_": [
+      "verl.utils.profiler.config.TorchProfilerToolConfig"
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch.contents": [
+      []
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch.discrete": [
+      false
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch.schedule._target_": [
+      "verl.utils.profiler.config.TorchProfilerScheduleConfig"
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch.schedule.active": [
+      0
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch.schedule.repeat": [
+      0
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch.schedule.skip_first": [
+      0
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch.schedule.wait": [
+      0
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch.schedule.warmup": [
+      0
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch_memory._target_": [
+      "verl.utils.profiler.config.TorchMemoryToolConfig"
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch_memory.stack_depth": [
+      32
+    ],
+    "actor_rollout_ref.actor.profiler.tool_config.torch_memory.trace_alloc_max_entries": [
+      100000
+    ],
+    "actor_rollout_ref.actor.qat.activation_observer": [
+      "static_minmax"
+    ],
+    "actor_rollout_ref.actor.qat.enable": [
+      false
+    ],
+    "actor_rollout_ref.actor.qat.group_size": [
+      16
+    ],
+    "actor_rollout_ref.actor.qat.ignore_patterns": [
+      [
+        "lm_head",
+        "embed_tokens",
+        "re:.*mlp.gate$"
+      ]
+    ],
+    "actor_rollout_ref.actor.qat.mode": [
+      "w4a16"
+    ],
+    "actor_rollout_ref.actor.qat.quantization_config_path": [
+      null
+    ],
+    "actor_rollout_ref.actor.rollout_n": [
+      5,
+      1,
+      8
+    ],
+    "actor_rollout_ref.actor.router_replay._target_": [
+      "verl.workers.config.RouterReplayConfig"
+    ],
+    "actor_rollout_ref.actor.router_replay.mode": [
+      "disabled"
+    ],
+    "actor_rollout_ref.actor.router_replay.record_file": [
+      null
+    ],
+    "actor_rollout_ref.actor.router_replay.replay_file": [
+      null
+    ],
+    "actor_rollout_ref.actor.shuffle": [
+      false
+    ],
+    "actor_rollout_ref.actor.strategy": [
+      "fsdp"
+    ],
+    "actor_rollout_ref.actor.tau_neg": [
+      1.05
+    ],
+    "actor_rollout_ref.actor.tau_pos": [
+      1.0
+    ],
+    "actor_rollout_ref.actor.ulysses_sequence_parallel_size": [
+      1
+    ],
+    "actor_rollout_ref.actor.use_dynamic_bsz": [
+      true,
+      false
+    ],
+    "actor_rollout_ref.actor.use_fused_kernels": [
+      false
+    ],
+    "actor_rollout_ref.actor.use_kl_loss": [
+      false,
+      true
+    ],
+    "actor_rollout_ref.actor.use_prefix_grouper": [
+      false
+    ],
+    "actor_rollout_ref.actor.use_remove_padding": [
+      true
+    ],
+    "actor_rollout_ref.actor.use_torch_compile": [
+      true
+    ],
+    "actor_rollout_ref.hybrid_engine": [
+      true
+    ],
+    "actor_rollout_ref.model._target_": [
+      "verl.workers.config.HFModelConfig"
+    ],
+    "actor_rollout_ref.model.custom_chat_template": [
+      null
+    ],
+    "actor_rollout_ref.model.enable_activation_offload": [
+      false
+    ],
+    "actor_rollout_ref.model.enable_gradient_checkpointing": [
+      true
+    ],
+    "actor_rollout_ref.model.exclude_modules": [
+      null
+    ],
+    "actor_rollout_ref.model.external_lib": [
+      null
+    ],
+    "actor_rollout_ref.model.fused_kernel_options.impl_backend": [
+      "torch"
+    ],
+    "actor_rollout_ref.model.hf_config_path": [
+      null
+    ],
+    "actor_rollout_ref.model.lora.a2a_experimental": [
+      false
+    ],
+    "actor_rollout_ref.model.lora.adapter_path": [
+      null
+    ],
+    "actor_rollout_ref.model.lora.alpha": [
+      32
+    ],
+    "actor_rollout_ref.model.lora.dropout": [
+      0.0
+    ],
+    "actor_rollout_ref.model.lora.dropout_position": [
+      "pre"
+    ],
+    "actor_rollout_ref.model.lora.dtype": [
+      null
+    ],
+    "actor_rollout_ref.model.lora.exclude_modules": [
+      []
+    ],
+    "actor_rollout_ref.model.lora.freeze_language_model": [
+      true
+    ],
+    "actor_rollout_ref.model.lora.freeze_vision_model": [
+      true
+    ],
+    "actor_rollout_ref.model.lora.freeze_vision_projection": [
+      true
+    ],
+    "actor_rollout_ref.model.lora.lora_A_init_method": [
+      "xavier"
+    ],
+    "actor_rollout_ref.model.lora.lora_B_init_method": [
+      "zero"
+    ],
+    "actor_rollout_ref.model.lora.merge": [
+      false
+    ],
+    "actor_rollout_ref.model.lora.rank": [
+      0
+    ],
+    "actor_rollout_ref.model.lora.target_modules": [
+      [
+        "linear_qkv",
+        "linear_proj",
+        "linear_fc1",
+        "linear_fc2"
+      ]
+    ],
+    "actor_rollout_ref.model.lora.type": [
+      "lora"
+    ],
+    "actor_rollout_ref.model.lora_adapter_path": [
+      null
+    ],
+    "actor_rollout_ref.model.lora_alpha": [
+      16,
+      32
+    ],
+    "actor_rollout_ref.model.lora_rank": [
+      0,
+      64
+    ],
+    "actor_rollout_ref.model.mtp._target_": [
+      "verl.workers.config.MtpConfig"
+    ],
+    "actor_rollout_ref.model.mtp.detach_encoder": [
+      false
+    ],
+    "actor_rollout_ref.model.mtp.enable": [
+      false
+    ],
+    "actor_rollout_ref.model.mtp.enable_rollout": [
+      false
+    ],
+    "actor_rollout_ref.model.mtp.enable_train": [
+      false
+    ],
+    "actor_rollout_ref.model.mtp.method": [
+      "mtp"
+    ],
+    "actor_rollout_ref.model.mtp.mtp_loss_scaling_factor": [
+      0.1
+    ],
+    "actor_rollout_ref.model.mtp.num_speculative_tokens": [
+      1
+    ],
+    "actor_rollout_ref.model.mtp.speculative_algorithm": [
+      "EAGLE"
+    ],
+    "actor_rollout_ref.model.mtp.speculative_eagle_topk": [
+      1
+    ],
+    "actor_rollout_ref.model.mtp.speculative_num_draft_tokens": [
+      4
+    ],
+    "actor_rollout_ref.model.mtp.speculative_num_steps": [
+      3
+    ],
+    "actor_rollout_ref.model.override_config": [
+      {}
+    ],
+    "actor_rollout_ref.model.path": [
+      "Qwen/Qwen3-4B",
+      "Qwen/Qwen3-8B",
+      "mistralai/Mistral-Nemo-Instruct-2407"
+    ],
+    "actor_rollout_ref.model.target_modules": [
+      "all-linear"
+    ],
+    "actor_rollout_ref.model.tiled_mlp.enabled": [
+      false
+    ],
+    "actor_rollout_ref.model.tiled_mlp.num_shards": [
+      4
+    ],
+    "actor_rollout_ref.model.tokenizer_path": [
+      null
+    ],
+    "actor_rollout_ref.model.trust_remote_code": [
+      false
+    ],
+    "actor_rollout_ref.model.use_fused_kernels": [
+      false
+    ],
+    "actor_rollout_ref.model.use_liger": [
+      false
+    ],
+    "actor_rollout_ref.model.use_remove_padding": [
+      true
+    ],
+    "actor_rollout_ref.model.use_shm": [
+      false
+    ],
+    "actor_rollout_ref.nccl_timeout": [
+      600
+    ],
+    "actor_rollout_ref.ref._target_": [
+      "verl.workers.config.FSDPActorConfig"
+    ],
+    "actor_rollout_ref.ref.entropy_checkpointing": [
+      false
+    ],
+    "actor_rollout_ref.ref.entropy_from_logits_chunk_size": [
+      2048
+    ],
+    "actor_rollout_ref.ref.entropy_from_logits_with_chunking": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config._target_": [
+      "verl.workers.config.FSDPEngineConfig"
+    ],
+    "actor_rollout_ref.ref.fsdp_config.dtype": [
+      "bfloat16"
+    ],
+    "actor_rollout_ref.ref.fsdp_config.entropy_checkpointing": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.entropy_from_logits_chunk_size": [
+      2048
+    ],
+    "actor_rollout_ref.ref.fsdp_config.entropy_from_logits_with_chunking": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.forward_only": [
+      true
+    ],
+    "actor_rollout_ref.ref.fsdp_config.forward_prefetch": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.fsdp_size": [
+      -1
+    ],
+    "actor_rollout_ref.ref.fsdp_config.full_determinism": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.model_dtype": [
+      "fp32"
+    ],
+    "actor_rollout_ref.ref.fsdp_config.offload_policy": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.optimizer_offload": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.pad_to_length": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.pad_to_length_bucket": [
+      1024
+    ],
+    "actor_rollout_ref.ref.fsdp_config.param_offload": [
+      true,
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.qat._target_": [
+      "verl.workers.config.QATEngineConfig"
+    ],
+    "actor_rollout_ref.ref.fsdp_config.qat.activation_observer": [
+      "static_minmax"
+    ],
+    "actor_rollout_ref.ref.fsdp_config.qat.enable": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.qat.group_size": [
+      16
+    ],
+    "actor_rollout_ref.ref.fsdp_config.qat.ignore_patterns": [
+      [
+        "lm_head",
+        "embed_tokens",
+        "re:.*mlp.gate$"
+      ]
+    ],
+    "actor_rollout_ref.ref.fsdp_config.qat.mode": [
+      "w4a16"
+    ],
+    "actor_rollout_ref.ref.fsdp_config.qat.quantization_config_path": [
+      null
+    ],
+    "actor_rollout_ref.ref.fsdp_config.reshard_after_forward": [
+      true
+    ],
+    "actor_rollout_ref.ref.fsdp_config.seed": [
+      42
+    ],
+    "actor_rollout_ref.ref.fsdp_config.strategy": [
+      "fsdp"
+    ],
+    "actor_rollout_ref.ref.fsdp_config.ulysses_sequence_parallel_size": [
+      1
+    ],
+    "actor_rollout_ref.ref.fsdp_config.use_orig_params": [
+      false
+    ],
+    "actor_rollout_ref.ref.fsdp_config.use_torch_compile": [
+      true
+    ],
+    "actor_rollout_ref.ref.fsdp_config.wrap_policy.min_num_params": [
+      0
+    ],
+    "actor_rollout_ref.ref.log_prob_max_token_len_per_gpu": [
+      8192,
+      12288,
+      24576,
+      16384
+    ],
+    "actor_rollout_ref.ref.log_prob_micro_batch_size": [
+      null
+    ],
+    "actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu": [
+      2,
+      null
+    ],
+    "actor_rollout_ref.ref.log_prob_use_dynamic_bsz": [
+      true,
+      false
+    ],
+    "actor_rollout_ref.ref.pad_to_length": [
+      false
+    ],
+    "actor_rollout_ref.ref.profiler._target_": [
+      "verl.utils.profiler.ProfilerConfig"
+    ],
+    "actor_rollout_ref.ref.profiler.all_ranks": [
+      false
+    ],
+    "actor_rollout_ref.ref.profiler.enable": [
+      false
+    ],
+    "actor_rollout_ref.ref.profiler.ranks": [
+      []
+    ],
+    "actor_rollout_ref.ref.profiler.save_path": [
+      "outputs/profile"
+    ],
+    "actor_rollout_ref.ref.profiler.tool": [
+      null
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.npu._target_": [
+      "verl.utils.profiler.config.NPUToolConfig"
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.npu.analysis": [
+      true
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.npu.contents": [
+      []
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.npu.discrete": [
+      false
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.npu.level": [
+      "level0"
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.nsys._target_": [
+      "verl.utils.profiler.config.NsightToolConfig"
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.nsys.discrete": [
+      false
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.precision_debugger._target_": [
+      "verl.utils.profiler.config.PrecisionDebuggerToolConfig"
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.precision_debugger.config_path": [
+      null
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.precision_debugger.stages": [
+      null
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.precision_debugger.steps": [
+      null
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.precision_debugger.strict": [
+      false
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch._target_": [
+      "verl.utils.profiler.config.TorchProfilerToolConfig"
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch.contents": [
+      []
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch.discrete": [
+      false
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch.schedule._target_": [
+      "verl.utils.profiler.config.TorchProfilerScheduleConfig"
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch.schedule.active": [
+      0
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch.schedule.repeat": [
+      0
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch.schedule.skip_first": [
+      0
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch.schedule.wait": [
+      0
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch.schedule.warmup": [
+      0
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch_memory._target_": [
+      "verl.utils.profiler.config.TorchMemoryToolConfig"
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch_memory.stack_depth": [
+      32
+    ],
+    "actor_rollout_ref.ref.profiler.tool_config.torch_memory.trace_alloc_max_entries": [
+      100000
+    ],
+    "actor_rollout_ref.ref.rollout_n": [
+      5,
+      1,
+      8
+    ],
+    "actor_rollout_ref.ref.router_replay._target_": [
+      "verl.workers.config.RouterReplayConfig"
+    ],
+    "actor_rollout_ref.ref.router_replay.mode": [
+      "disabled"
+    ],
+    "actor_rollout_ref.ref.router_replay.record_file": [
+      null
+    ],
+    "actor_rollout_ref.ref.router_replay.replay_file": [
+      null
+    ],
+    "actor_rollout_ref.ref.strategy": [
+      "fsdp"
+    ],
+    "actor_rollout_ref.ref.ulysses_sequence_parallel_size": [
+      1
+    ],
+    "actor_rollout_ref.ref.use_torch_compile": [
+      true
+    ],
+    "actor_rollout_ref.rollout._target_": [
+      "verl.workers.config.RolloutConfig"
+    ],
+    "actor_rollout_ref.rollout.agent._target_": [
+      "verl.workers.config.AgentLoopConfig"
+    ],
+    "actor_rollout_ref.rollout.agent.agent_loop_config_path": [
+      null
+    ],
+    "actor_rollout_ref.rollout.agent.custom_async_server._target_": [
+      "verl.workers.config.CustomAsyncServerConfig"
+    ],
+    "actor_rollout_ref.rollout.agent.custom_async_server.name": [
+      null
+    ],
+    "actor_rollout_ref.rollout.agent.custom_async_server.path": [
+      null
+    ],
+    "actor_rollout_ref.rollout.agent.default_agent_loop": [
+      "single_turn_agent"
+    ],
+    "actor_rollout_ref.rollout.agent.num_workers": [
+      8
+    ],
+    "actor_rollout_ref.rollout.calculate_log_probs": [
+      true
+    ],
+    "actor_rollout_ref.rollout.checkpoint_engine._target_": [
+      "verl.workers.config.CheckpointEngineConfig"
+    ],
+    "actor_rollout_ref.rollout.checkpoint_engine.backend": [
+      "naive"
+    ],
+    "actor_rollout_ref.rollout.checkpoint_engine.custom_backend_module": [
+      null
+    ],
+    "actor_rollout_ref.rollout.checkpoint_engine.engine_kwargs": [
+      {}
+    ],
+    "actor_rollout_ref.rollout.checkpoint_engine.update_weights_bucket_megabytes": [
+      4096,
+      2048
+    ],
+    "actor_rollout_ref.rollout.cudagraph_capture_sizes": [
+      null
+    ],
+    "actor_rollout_ref.rollout.data_parallel_size": [
+      1
+    ],
+    "actor_rollout_ref.rollout.disable_log_stats": [
+      true
+    ],
+    "actor_rollout_ref.rollout.disaggregation.bootstrap_port": [
+      null
+    ],
+    "actor_rollout_ref.rollout.disaggregation.decode_replicas": [
+      1
+    ],
+    "actor_rollout_ref.rollout.disaggregation.decode_tensor_model_parallel_size": [
+      null
+    ],
+    "actor_rollout_ref.rollout.disaggregation.enabled": [
+      false
+    ],
+    "actor_rollout_ref.rollout.disaggregation.ib_device": [
+      null
+    ],
+    "actor_rollout_ref.rollout.disaggregation.prefill_replicas": [
+      1
+    ],
+    "actor_rollout_ref.rollout.disaggregation.transfer_backend": [
+      "nixl"
+    ],
+    "actor_rollout_ref.rollout.do_sample": [
+      true
+    ],
+    "actor_rollout_ref.rollout.dtype": [
+      "bfloat16"
+    ],
+    "actor_rollout_ref.rollout.enable_chunked_prefill": [
+      false,
+      true
+    ],
+    "actor_rollout_ref.rollout.enable_prefix_caching": [
+      true
+    ],
+    "actor_rollout_ref.rollout.enable_rollout_routing_replay": [
+      false
+    ],
+    "actor_rollout_ref.rollout.enforce_eager": [
+      false
+    ],
+    "actor_rollout_ref.rollout.engine_kwargs.sglang": [
+      {}
+    ],
+    "actor_rollout_ref.rollout.engine_kwargs.trtllm": [
+      {}
+    ],
+    "actor_rollout_ref.rollout.engine_kwargs.vllm": [
+      {}
+    ],
+    "actor_rollout_ref.rollout.expert_parallel_size": [
+      1
+    ],
+    "actor_rollout_ref.rollout.free_cache_engine": [
+      true
+    ],
+    "actor_rollout_ref.rollout.full_determinism": [
+      false
+    ],
+    "actor_rollout_ref.rollout.gpu_memory_utilization": [
+      0.6,
+      0.7
+    ],
+    "actor_rollout_ref.rollout.ignore_eos": [
+      false
+    ],
+    "actor_rollout_ref.rollout.layered_summon": [
+      false,
+      true
+    ],
+    "actor_rollout_ref.rollout.load_format": [
+      "dummy",
+      "safetensors"
+    ],
+    "actor_rollout_ref.rollout.log_prob_max_token_len_per_gpu": [
+      4096,
+      12288,
+      24576,
+      16384
+    ],
+    "actor_rollout_ref.rollout.log_prob_micro_batch_size": [
+      null
+    ],
+    "actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu": [
+      2,
+      null,
+      10
+    ],
+    "actor_rollout_ref.rollout.log_prob_use_dynamic_bsz": [
+      true,
+      false
+    ],
+    "actor_rollout_ref.rollout.logprobs_mode": [
+      "processed_logprobs"
+    ],
+    "actor_rollout_ref.rollout.max_model_len": [
+      null
+    ],
+    "actor_rollout_ref.rollout.max_num_batched_tokens": [
+      8192
+    ],
+    "actor_rollout_ref.rollout.max_num_seqs": [
+      256
+    ],
+    "actor_rollout_ref.rollout.mode": [
+      "async"
+    ],
+    "actor_rollout_ref.rollout.moe_load_balance_metrics_interval": [
+      0
+    ],
+    "actor_rollout_ref.rollout.mtp._target_": [
+      "verl.workers.config.MtpConfig"
+    ],
+    "actor_rollout_ref.rollout.mtp.detach_encoder": [
+      false
+    ],
+    "actor_rollout_ref.rollout.mtp.enable": [
+      false
+    ],
+    "actor_rollout_ref.rollout.mtp.enable_rollout": [
+      false
+    ],
+    "actor_rollout_ref.rollout.mtp.enable_train": [
+      false
+    ],
+    "actor_rollout_ref.rollout.mtp.method": [
+      "mtp"
+    ],
+    "actor_rollout_ref.rollout.mtp.mtp_loss_scaling_factor": [
+      0.1
+    ],
+    "actor_rollout_ref.rollout.mtp.num_speculative_tokens": [
+      1
+    ],
+    "actor_rollout_ref.rollout.mtp.speculative_algorithm": [
+      "EAGLE"
+    ],
+    "actor_rollout_ref.rollout.mtp.speculative_eagle_topk": [
+      1
+    ],
+    "actor_rollout_ref.rollout.mtp.speculative_num_draft_tokens": [
+      4
+    ],
+    "actor_rollout_ref.rollout.mtp.speculative_num_steps": [
+      3
+    ],
+    "actor_rollout_ref.rollout.multi_stage_wake_up": [
+      false
+    ],
+    "actor_rollout_ref.rollout.multi_turn._target_": [
+      "verl.workers.config.MultiTurnConfig"
+    ],
+    "actor_rollout_ref.rollout.multi_turn.enable": [
+      false
+    ],
+    "actor_rollout_ref.rollout.multi_turn.format": [
+      "hermes"
+    ],
+    "actor_rollout_ref.rollout.multi_turn.function_tool_path": [
+      null
+    ],
+    "actor_rollout_ref.rollout.multi_turn.max_assistant_turns": [
+      null
+    ],
+    "actor_rollout_ref.rollout.multi_turn.max_parallel_calls": [
+      1
+    ],
+    "actor_rollout_ref.rollout.multi_turn.max_tool_response_length": [
+      256
+    ],
+    "actor_rollout_ref.rollout.multi_turn.max_user_turns": [
+      null
+    ],
+    "actor_rollout_ref.rollout.multi_turn.num_repeat_rollouts": [
+      null
+    ],
+    "actor_rollout_ref.rollout.multi_turn.tokenization_sanity_check_mode": [
+      "strict"
+    ],
+    "actor_rollout_ref.rollout.multi_turn.tool_config_path": [
+      null
+    ],
+    "actor_rollout_ref.rollout.multi_turn.tool_response_truncate_side": [
+      "middle"
+    ],
+    "actor_rollout_ref.rollout.multi_turn.use_inference_chat_template": [
+      false
+    ],
+    "actor_rollout_ref.rollout.n": [
+      5,
+      1,
+      8
+    ],
+    "actor_rollout_ref.rollout.n_gpus_per_node": [
+      8,
+      2
+    ],
+    "actor_rollout_ref.rollout.name": [
+      "vllm"
+    ],
+    "actor_rollout_ref.rollout.nnodes": [
+      0
+    ],
+    "actor_rollout_ref.rollout.over_sample_rate": [
+      0
+    ],
+    "actor_rollout_ref.rollout.pipeline_model_parallel_size": [
+      1
+    ],
+    "actor_rollout_ref.rollout.profiler._target_": [
+      "verl.utils.profiler.ProfilerConfig"
+    ],
+    "actor_rollout_ref.rollout.profiler.all_ranks": [
+      false
+    ],
+    "actor_rollout_ref.rollout.profiler.enable": [
+      false
+    ],
+    "actor_rollout_ref.rollout.profiler.ranks": [
+      []
+    ],
+    "actor_rollout_ref.rollout.profiler.save_path": [
+      "outputs/profile"
+    ],
+    "actor_rollout_ref.rollout.profiler.tool": [
+      null
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.npu._target_": [
+      "verl.utils.profiler.config.NPUToolConfig"
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.npu.analysis": [
+      true
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.npu.contents": [
+      []
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.npu.discrete": [
+      false
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.npu.level": [
+      "level0"
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.npu.profile_token_end": [
+      null
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.npu.profile_token_start": [
+      null
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.precision_debugger._target_": [
+      "verl.utils.profiler.config.PrecisionDebuggerToolConfig"
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.precision_debugger.config_path": [
+      null
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.precision_debugger.stages": [
+      null
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.precision_debugger.steps": [
+      null
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.precision_debugger.strict": [
+      false
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.torch._target_": [
+      "verl.utils.profiler.config.TorchProfilerToolConfig"
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.torch.contents": [
+      []
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.torch.discrete": [
+      false
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.torch.profile_token_end": [
+      null
+    ],
+    "actor_rollout_ref.rollout.profiler.tool_config.torch.profile_token_start": [
+      null
+    ],
+    "actor_rollout_ref.rollout.prometheus._target_": [
+      "verl.workers.config.PrometheusConfig"
+    ],
+    "actor_rollout_ref.rollout.prometheus.enable": [
+      false
+    ],
+    "actor_rollout_ref.rollout.prometheus.file": [
+      "/tmp/ray/session_latest/metrics/prometheus/prometheus.yml"
+    ],
+    "actor_rollout_ref.rollout.prometheus.port": [
+      9090
+    ],
+    "actor_rollout_ref.rollout.prometheus.served_model_name": [
+      "Qwen/Qwen3-4B",
+      "Qwen/Qwen3-8B",
+      "mistralai/Mistral-Nemo-Instruct-2407"
+    ],
+    "actor_rollout_ref.rollout.prompt_length": [
+      1024,
+      512,
+      4096
+    ],
+    "actor_rollout_ref.rollout.qat._target_": [
+      "verl.workers.config.QATEngineConfig"
+    ],
+    "actor_rollout_ref.rollout.qat.activation_observer": [
+      "static_minmax"
+    ],
+    "actor_rollout_ref.rollout.qat.enable": [
+      false
+    ],
+    "actor_rollout_ref.rollout.qat.group_size": [
+      16
+    ],
+    "actor_rollout_ref.rollout.qat.ignore_patterns": [
+      [
+        "lm_head",
+        "embed_tokens",
+        "re:.*mlp.gate$"
+      ]
+    ],
+    "actor_rollout_ref.rollout.qat.mode": [
+      "w4a16"
+    ],
+    "actor_rollout_ref.rollout.qat.quantization_config_path": [
+      null
+    ],
+    "actor_rollout_ref.rollout.quantization": [
+      null
+    ],
+    "actor_rollout_ref.rollout.quantization_config_file": [
+      null
+    ],
+    "actor_rollout_ref.rollout.response_length": [
+      1024,
+      2048
+    ],
+    "actor_rollout_ref.rollout.scheduling_policy": [
+      "fcfs"
+    ],
+    "actor_rollout_ref.rollout.seed": [
+      42
+    ],
+    "actor_rollout_ref.rollout.skip_tokenizer_init": [
+      true
+    ],
+    "actor_rollout_ref.rollout.temperature": [
+      1.0
+    ],
+    "actor_rollout_ref.rollout.tensor_model_parallel_size": [
+      2,
+      4
+    ],
+    "actor_rollout_ref.rollout.top_k": [
+      -1
+    ],
+    "actor_rollout_ref.rollout.top_p": [
+      1
+    ],
+    "actor_rollout_ref.rollout.trace._target_": [
+      "verl.workers.config.TraceConfig"
+    ],
+    "actor_rollout_ref.rollout.trace.backend": [
+      null
+    ],
+    "actor_rollout_ref.rollout.trace.experiment_name": [
+      "glm41v_9b_function_rm",
+      "qwen3_8b_lora_vllm_fsdp",
+      "qwen3_8b_ppo_vllm_fsdp_19700101_0000",
+      "qwen3_8b_vllm_fsdp",
+      "grpo_mistral13B-skyworkLlama8b-hhrlhf"
+    ],
+    "actor_rollout_ref.rollout.trace.max_samples_per_step_per_worker": [
+      null
+    ],
+    "actor_rollout_ref.rollout.trace.project_name": [
+      "verl_grpo_example_geo3k",
+      "verl_grpo_lora_gsm8k",
+      "verl_ppo_gsm8k_math",
+      "verl_reinforce_plus_plus_gsm8k_math",
+      "verl_rloo_gsm8k_math",
+      "verl_full_hh_rlhf_examples"
+    ],
+    "actor_rollout_ref.rollout.trace.token2text": [
+      false
+    ],
+    "actor_rollout_ref.rollout.val_kwargs._target_": [
+      "verl.workers.config.SamplingConfig"
+    ],
+    "actor_rollout_ref.rollout.val_kwargs.do_sample": [
+      false
+    ],
+    "actor_rollout_ref.rollout.val_kwargs.n": [
+      1
+    ],
+    "actor_rollout_ref.rollout.val_kwargs.temperature": [
+      0
+    ],
+    "actor_rollout_ref.rollout.val_kwargs.top_k": [
+      -1
+    ],
+    "actor_rollout_ref.rollout.val_kwargs.top_p": [
+      1.0
+    ],
+    "algorithm._target_": [
+      "verl.trainer.config.AlgoConfig"
+    ],
+    "algorithm.adv_estimator": [
+      "grpo",
+      "gae",
+      "reinforce_plus_plus",
+      "rloo"
+    ],
+    "algorithm.filter_groups._target_": [
+      "verl.trainer.config.FilterGroupsConfig"
+    ],
+    "algorithm.filter_groups.enable": [
+      false
+    ],
+    "algorithm.filter_groups.max_inflight_gen_batches": [
+      1
+    ],
+    "algorithm.filter_groups.max_num_gen_batches": [
+      0
+    ],
+    "algorithm.filter_groups.metric": [
+      null
+    ],
+    "algorithm.gamma": [
+      1.0
+    ],
+    "algorithm.kl_ctrl._target_": [
+      "verl.trainer.config.KLControlConfig"
+    ],
+    "algorithm.kl_ctrl.horizon": [
+      10000
+    ],
+    "algorithm.kl_ctrl.kl_coef": [
+      0.001
+    ],
+    "algorithm.kl_ctrl.target_kl": [
+      0.1
+    ],
+    "algorithm.kl_ctrl.type": [
+      "fixed"
+    ],
+    "algorithm.kl_penalty": [
+      "kl"
+    ],
+    "algorithm.lam": [
+      1.0
+    ],
+    "algorithm.norm_adv_by_std_in_grpo": [
+      false,
+      true
+    ],
+    "algorithm.pf_ppo.reweight_method": [
+      "pow"
+    ],
+    "algorithm.pf_ppo.weight_pow": [
+      2.0
+    ],
+    "algorithm.rollout_correction.bypass_mode": [
+      false
+    ],
+    "algorithm.rollout_correction.loss_type": [
+      "ppo_clip"
+    ],
+    "algorithm.rollout_correction.rollout_is": [
+      null
+    ],
+    "algorithm.rollout_correction.rollout_is_batch_normalize": [
+      false
+    ],
+    "algorithm.rollout_correction.rollout_is_threshold": [
+      2.0
+    ],
+    "algorithm.rollout_correction.rollout_rs": [
+      null
+    ],
+    "algorithm.rollout_correction.rollout_rs_threshold": [
+      null
+    ],
+    "algorithm.use_kl_in_reward": [
+      false,
+      true
+    ],
+    "algorithm.use_pf_ppo": [
+      false
+    ],
+    "critic._target_": [
+      "verl.workers.config.FSDPCriticConfig"
+    ],
+    "critic.checkpoint._target_": [
+      "verl.trainer.config.CheckpointConfig"
+    ],
+    "critic.checkpoint.async_save": [
+      false
+    ],
+    "critic.checkpoint.load_contents": [
+      [
+        "model",
+        "optimizer",
+        "extra"
+      ]
+    ],
+    "critic.checkpoint.save_contents": [
+      [
+        "model",
+        "optimizer",
+        "extra"
+      ]
+    ],
+    "critic.cliprange_value": [
+      0.5
+    ],
+    "critic.data_loader_seed": [
+      42
+    ],
+    "critic.enable": [
+      null
+    ],
+    "critic.forward_max_token_len_per_gpu": [
+      32768,
+      24576
+    ],
+    "critic.forward_micro_batch_size": [
+      null
+    ],
+    "critic.forward_micro_batch_size_per_gpu": [
+      null
+    ],
+    "critic.fsdp._target_": [
+      "verl.workers.config.FSDPEngineConfig"
+    ],
+    "critic.fsdp.dtype": [
+      "bfloat16"
+    ],
+    "critic.fsdp.entropy_checkpointing": [
+      false
+    ],
+    "critic.fsdp.entropy_from_logits_chunk_size": [
+      2048
+    ],
+    "critic.fsdp.entropy_from_logits_with_chunking": [
+      false
+    ],
+    "critic.fsdp.forward_only": [
+      false
+    ],
+    "critic.fsdp.forward_prefetch": [
+      false
+    ],
+    "critic.fsdp.fsdp_size": [
+      -1
+    ],
+    "critic.fsdp.full_determinism": [
+      false
+    ],
+    "critic.fsdp.model_dtype": [
+      "fp32"
+    ],
+    "critic.fsdp.offload_policy": [
+      false
+    ],
+    "critic.fsdp.optimizer_offload": [
+      false
+    ],
+    "critic.fsdp.pad_to_length": [
+      false
+    ],
+    "critic.fsdp.pad_to_length_bucket": [
+      1024
+    ],
+    "critic.fsdp.param_offload": [
+      false
+    ],
+    "critic.fsdp.qat._target_": [
+      "verl.workers.config.QATEngineConfig"
+    ],
+    "critic.fsdp.qat.activation_observer": [
+      "static_minmax"
+    ],
+    "critic.fsdp.qat.enable": [
+      false
+    ],
+    "critic.fsdp.qat.group_size": [
+      16
+    ],
+    "critic.fsdp.qat.ignore_patterns": [
+      [
+        "lm_head",
+        "embed_tokens",
+        "re:.*mlp.gate$"
+      ]
+    ],
+    "critic.fsdp.qat.mode": [
+      "w4a16"
+    ],
+    "critic.fsdp.qat.quantization_config_path": [
+      null
+    ],
+    "critic.fsdp.reshard_after_forward": [
+      true
+    ],
+    "critic.fsdp.seed": [
+      42
+    ],
+    "critic.fsdp.strategy": [
+      "fsdp"
+    ],
+    "critic.fsdp.ulysses_sequence_parallel_size": [
+      1
+    ],
+    "critic.fsdp.use_orig_params": [
+      false
+    ],
+    "critic.fsdp.use_torch_compile": [
+      true
+    ],
+    "critic.fsdp.wrap_policy.min_num_params": [
+      0
+    ],
+    "critic.grad_clip": [
+      1.0
+    ],
+    "critic.loss_agg_mode": [
+      "seq-mean-token-sum-norm",
+      "token-mean"
+    ],
+    "critic.loss_scale_factor": [
+      null
+    ],
+    "critic.model._target_": [
+      "verl.workers.config.HFModelConfig"
+    ],
+    "critic.model.custom_chat_template": [
+      null
+    ],
+    "critic.model.enable_activation_offload": [
+      false
+    ],
+    "critic.model.enable_gradient_checkpointing": [
+      true
+    ],
+    "critic.model.exclude_modules": [
+      null
+    ],
+    "critic.model.external_lib": [
+      null
+    ],
+    "critic.model.fused_kernel_options.impl_backend": [
+      "torch"
+    ],
+    "critic.model.hf_config_path": [
+      null
+    ],
+    "critic.model.lora.a2a_experimental": [
+      false
+    ],
+    "critic.model.lora.adapter_path": [
+      null
+    ],
+    "critic.model.lora.alpha": [
+      32
+    ],
+    "critic.model.lora.dropout": [
+      0.0
+    ],
+    "critic.model.lora.dropout_position": [
+      "pre"
+    ],
+    "critic.model.lora.dtype": [
+      null
+    ],
+    "critic.model.lora.exclude_modules": [
+      []
+    ],
+    "critic.model.lora.freeze_language_model": [
+      true
+    ],
+    "critic.model.lora.freeze_vision_model": [
+      true
+    ],
+    "critic.model.lora.freeze_vision_projection": [
+      true
+    ],
+    "critic.model.lora.lora_A_init_method": [
+      "xavier"
+    ],
+    "critic.model.lora.lora_B_init_method": [
+      "zero"
+    ],
+    "critic.model.lora.merge": [
+      false
+    ],
+    "critic.model.lora.rank": [
+      0
+    ],
+    "critic.model.lora.target_modules": [
+      [
+        "linear_qkv",
+        "linear_proj",
+        "linear_fc1",
+        "linear_fc2"
+      ]
+    ],
+    "critic.model.lora.type": [
+      "lora"
+    ],
+    "critic.model.lora_adapter_path": [
+      null
+    ],
+    "critic.model.lora_alpha": [
+      16
+    ],
+    "critic.model.lora_rank": [
+      0
+    ],
+    "critic.model.mtp._target_": [
+      "verl.workers.config.MtpConfig"
+    ],
+    "critic.model.mtp.detach_encoder": [
+      false
+    ],
+    "critic.model.mtp.enable": [
+      false
+    ],
+    "critic.model.mtp.enable_rollout": [
+      false
+    ],
+    "critic.model.mtp.enable_train": [
+      false
+    ],
+    "critic.model.mtp.method": [
+      "mtp"
+    ],
+    "critic.model.mtp.mtp_loss_scaling_factor": [
+      0.1
+    ],
+    "critic.model.mtp.num_speculative_tokens": [
+      1
+    ],
+    "critic.model.mtp.speculative_algorithm": [
+      "EAGLE"
+    ],
+    "critic.model.mtp.speculative_eagle_topk": [
+      1
+    ],
+    "critic.model.mtp.speculative_num_draft_tokens": [
+      4
+    ],
+    "critic.model.mtp.speculative_num_steps": [
+      3
+    ],
+    "critic.model.override_config": [
+      {}
+    ],
+    "critic.model.path": [
+      "~/models/deepseek-llm-7b-chat",
+      "Qwen/Qwen3-8B"
+    ],
+    "critic.model.target_modules": [
+      "all-linear"
+    ],
+    "critic.model.tiled_mlp.enabled": [
+      false
+    ],
+    "critic.model.tiled_mlp.num_shards": [
+      4
+    ],
+    "critic.model.tokenizer_path": [
+      null
+    ],
+    "critic.model.trust_remote_code": [
+      false
+    ],
+    "critic.model.use_fused_kernels": [
+      false
+    ],
+    "critic.model.use_liger": [
+      false
+    ],
+    "critic.model.use_remove_padding": [
+      true
+    ],
+    "critic.model.use_shm": [
+      false
+    ],
+    "critic.optim._target_": [
+      "verl.workers.config.FSDPOptimizerConfig"
+    ],
+    "critic.optim.betas": [
+      [
+        0.9,
+        0.999
+      ]
+    ],
+    "critic.optim.clip_grad": [
+      1.0
+    ],
+    "critic.optim.lr": [
+      1e-05
+    ],
+    "critic.optim.lr_scheduler_type": [
+      "constant"
+    ],
+    "critic.optim.lr_warmup_steps": [
+      -1
+    ],
+    "critic.optim.lr_warmup_steps_ratio": [
+      0.0
+    ],
+    "critic.optim.min_lr_ratio": [
+      0.0
+    ],
+    "critic.optim.num_cycles": [
+      0.5
+    ],
+    "critic.optim.optimizer": [
+      "AdamW"
+    ],
+    "critic.optim.optimizer_impl": [
+      "torch.optim"
+    ],
+    "critic.optim.override_optimizer_config": [
+      null
+    ],
+    "critic.optim.total_training_steps": [
+      -1
+    ],
+    "critic.optim.warmup_style": [
+      null
+    ],
+    "critic.optim.weight_decay": [
+      0.01
+    ],
+    "critic.optim.zero_indexed_step": [
+      true
+    ],
+    "critic.ppo_epochs": [
+      1
+    ],
+    "critic.ppo_max_token_len_per_gpu": [
+      32768,
+      24576
+    ],
+    "critic.ppo_micro_batch_size": [
+      null
+    ],
+    "critic.ppo_micro_batch_size_per_gpu": [
+      null
+    ],
+    "critic.ppo_mini_batch_size": [
+      256,
+      32,
+      1024,
+      128
+    ],
+    "critic.profiler._target_": [
+      "verl.utils.profiler.ProfilerConfig"
+    ],
+    "critic.profiler.all_ranks": [
+      false
+    ],
+    "critic.profiler.enable": [
+      false
+    ],
+    "critic.profiler.ranks": [
+      []
+    ],
+    "critic.profiler.save_path": [
+      "outputs/profile"
+    ],
+    "critic.profiler.tool": [
+      null
+    ],
+    "critic.profiler.tool_config.npu._target_": [
+      "verl.utils.profiler.config.NPUToolConfig"
+    ],
+    "critic.profiler.tool_config.npu.analysis": [
+      true
+    ],
+    "critic.profiler.tool_config.npu.contents": [
+      []
+    ],
+    "critic.profiler.tool_config.npu.discrete": [
+      false
+    ],
+    "critic.profiler.tool_config.npu.level": [
+      "level0"
+    ],
+    "critic.profiler.tool_config.nsys._target_": [
+      "verl.utils.profiler.config.NsightToolConfig"
+    ],
+    "critic.profiler.tool_config.nsys.discrete": [
+      false
+    ],
+    "critic.profiler.tool_config.precision_debugger._target_": [
+      "verl.utils.profiler.config.PrecisionDebuggerToolConfig"
+    ],
+    "critic.profiler.tool_config.precision_debugger.config_path": [
+      null
+    ],
+    "critic.profiler.tool_config.precision_debugger.stages": [
+      null
+    ],
+    "critic.profiler.tool_config.precision_debugger.steps": [
+      null
+    ],
+    "critic.profiler.tool_config.precision_debugger.strict": [
+      false
+    ],
+    "critic.profiler.tool_config.torch._target_": [
+      "verl.utils.profiler.config.TorchProfilerToolConfig"
+    ],
+    "critic.profiler.tool_config.torch.contents": [
+      []
+    ],
+    "critic.profiler.tool_config.torch.discrete": [
+      false
+    ],
+    "critic.profiler.tool_config.torch.schedule._target_": [
+      "verl.utils.profiler.config.TorchProfilerScheduleConfig"
+    ],
+    "critic.profiler.tool_config.torch.schedule.active": [
+      0
+    ],
+    "critic.profiler.tool_config.torch.schedule.repeat": [
+      0
+    ],
+    "critic.profiler.tool_config.torch.schedule.skip_first": [
+      0
+    ],
+    "critic.profiler.tool_config.torch.schedule.wait": [
+      0
+    ],
+    "critic.profiler.tool_config.torch.schedule.warmup": [
+      0
+    ],
+    "critic.profiler.tool_config.torch_memory._target_": [
+      "verl.utils.profiler.config.TorchMemoryToolConfig"
+    ],
+    "critic.profiler.tool_config.torch_memory.stack_depth": [
+      32
+    ],
+    "critic.profiler.tool_config.torch_memory.trace_alloc_max_entries": [
+      100000
+    ],
+    "critic.rollout_n": [
+      5,
+      1,
+      8
+    ],
+    "critic.shuffle": [
+      false
+    ],
+    "critic.strategy": [
+      "fsdp"
+    ],
+    "critic.ulysses_sequence_parallel_size": [
+      1
+    ],
+    "critic.use_dynamic_bsz": [
+      true,
+      false
+    ],
+    "custom_reward_function.name": [
+      null
+    ],
+    "custom_reward_function.path": [
+      null
+    ],
+    "data.apply_chat_template_kwargs": [
+      {}
+    ],
+    "data.audio_key": [
+      "audios"
+    ],
+    "data.continuous_token.enable": [
+      false
+    ],
+    "data.continuous_token.model_family": [
+      "auto"
+    ],
+    "data.custom_cls.name": [
+      null
+    ],
+    "data.custom_cls.path": [
+      null
+    ],
+    "data.dataloader_num_workers": [
+      8
+    ],
+    "data.filter_overlong_prompts": [
+      true
+    ],
+    "data.filter_overlong_prompts_workers": [
+      1
+    ],
+    "data.function_tool_path": [
+      null
+    ],
+    "data.gen_batch_size": [
+      null
+    ],
+    "data.image_key": [
+      "images"
+    ],
+    "data.image_patch_size": [
+      14
+    ],
+    "data.max_prompt_length": [
+      1024,
+      512,
+      4096
+    ],
+    "data.max_response_length": [
+      1024,
+      2048
+    ],
+    "data.mm_processor_kwargs": [
+      {}
+    ],
+    "data.prompt_key": [
+      "prompt"
+    ],
+    "data.return_full_prompt": [
+      false
+    ],
+    "data.return_multi_modal_inputs": [
+      true
+    ],
+    "data.return_raw_chat": [
+      true
+    ],
+    "data.return_raw_input_ids": [
+      false
+    ],
+    "data.reward_fn_key": [
+      "data_source"
+    ],
+    "data.seed": [
+      null
+    ],
+    "data.shuffle": [
+      true
+    ],
+    "data.tokenizer": [
+      null
+    ],
+    "data.tool_config_path": [
+      null
+    ],
+    "data.train_batch_size": [
+      512,
+      64,
+      1024
+    ],
+    "data.train_files": [
+      "/upstream-home/data/gsm8k/train.parquet",
+      [
+        "/upstream-home/data/gsm8k/train.parquet",
+        "/upstream-home/data/math/train.parquet"
+      ],
+      "data/full_hh_rlhf/rl/train.parquet"
+    ],
+    "data.train_max_samples": [
+      -1
+    ],
+    "data.truncation": [
+      "error"
+    ],
+    "data.trust_remote_code": [
+      false
+    ],
+    "data.use_shm": [
+      false
+    ],
+    "data.val_batch_size": [
+      null
+    ],
+    "data.val_files": [
+      "/upstream-home/data/gsm8k/test.parquet",
+      [
+        "/upstream-home/data/gsm8k/test.parquet",
+        "/upstream-home/data/math/test.parquet"
+      ],
+      "data/full_hh_rlhf/rl/train.parquet"
+    ],
+    "data.val_max_samples": [
+      -1
+    ],
+    "data.validation_shuffle": [
+      false
+    ],
+    "data.video_key": [
+      "videos"
+    ],
+    "distillation._target_": [
+      "verl.workers.config.DistillationConfig"
+    ],
+    "distillation.distillation_loss._target_": [
+      "verl.workers.config.DistillationLossConfig"
+    ],
+    "distillation.distillation_loss.clip_ratio": [
+      0.2
+    ],
+    "distillation.distillation_loss.clip_ratio_high": [
+      0.2
+    ],
+    "distillation.distillation_loss.clip_ratio_low": [
+      0.2
+    ],
+    "distillation.distillation_loss.distillation_loss_coef": [
+      1.0
+    ],
+    "distillation.distillation_loss.log_prob_min_clamp": [
+      null
+    ],
+    "distillation.distillation_loss.loss_max_clamp": [
+      null
+    ],
+    "distillation.distillation_loss.loss_mode": [
+      "k3"
+    ],
+    "distillation.distillation_loss.policy_loss_mode": [
+      "vanilla"
+    ],
+    "distillation.distillation_loss.topk": [
+      32
+    ],
+    "distillation.distillation_loss.use_policy_gradient": [
+      false
+    ],
+    "distillation.distillation_loss.use_task_rewards": [
+      true
+    ],
+    "distillation.enabled": [
+      false
+    ],
+    "distillation.n_gpus_per_node": [
+      8
+    ],
+    "distillation.nnodes": [
+      0
+    ],
+    "distillation.teacher_key": [
+      "data_source"
+    ],
+    "distillation.teacher_models.teacher_model._target_": [
+      "verl.workers.config.DistillationTeacherModelConfig"
+    ],
+    "distillation.teacher_models.teacher_model.inference._target_": [
+      "verl.workers.config.RolloutConfig"
+    ],
+    "distillation.teacher_models.teacher_model.inference.cudagraph_capture_sizes": [
+      null
+    ],
+    "distillation.teacher_models.teacher_model.inference.data_parallel_size": [
+      1
+    ],
+    "distillation.teacher_models.teacher_model.inference.disable_log_stats": [
+      true
+    ],
+    "distillation.teacher_models.teacher_model.inference.dtype": [
+      "bfloat16"
+    ],
+    "distillation.teacher_models.teacher_model.inference.enable_chunked_prefill": [
+      true
+    ],
+    "distillation.teacher_models.teacher_model.inference.enable_prefix_caching": [
+      true
+    ],
+    "distillation.teacher_models.teacher_model.inference.enforce_eager": [
+      true
+    ],
+    "distillation.teacher_models.teacher_model.inference.engine_kwargs": [
+      {}
+    ],
+    "distillation.teacher_models.teacher_model.inference.expert_parallel_size": [
+      1
+    ],
+    "distillation.teacher_models.teacher_model.inference.free_cache_engine": [
+      true
+    ],
+    "distillation.teacher_models.teacher_model.inference.gpu_memory_utilization": [
+      0.5
+    ],
+    "distillation.teacher_models.teacher_model.inference.limit_images": [
+      null
+    ],
+    "distillation.teacher_models.teacher_model.inference.load_format": [
+      "auto"
+    ],
+    "distillation.teacher_models.teacher_model.inference.max_model_len": [
+      null
+    ],
+    "distillation.teacher_models.teacher_model.inference.max_num_batched_tokens": [
+      8192
+    ],
+    "distillation.teacher_models.teacher_model.inference.max_num_seqs": [
+      1024
+    ],
+    "distillation.teacher_models.teacher_model.inference.name": [
+      "vllm"
+    ],
+    "distillation.teacher_models.teacher_model.inference.prompt_length": [
+      1024,
+      512,
+      4096
+    ],
+    "distillation.teacher_models.teacher_model.inference.response_length": [
+      1024,
+      2048
+    ],
+    "distillation.teacher_models.teacher_model.inference.skip_tokenizer_init": [
+      true
+    ],
+    "distillation.teacher_models.teacher_model.inference.temperature": [
+      1.0
+    ],
+    "distillation.teacher_models.teacher_model.inference.tensor_model_parallel_size": [
+      2
+    ],
+    "distillation.teacher_models.teacher_model.key": [
+      null
+    ],
+    "distillation.teacher_models.teacher_model.model_path": [
+      null
+    ],
+    "distillation.teacher_models.teacher_model.num_replicas": [
+      0
+    ],
+    "global_profiler._target_": [
+      "verl.utils.profiler.ProfilerConfig"
+    ],
+    "global_profiler.global_tool_config.nsys._target_": [
+      "verl.utils.profiler.config.NsightToolConfig"
+    ],
+    "global_profiler.global_tool_config.nsys.controller_nsight_options.cuda-graph-trace": [
+      "graph"
+    ],
+    "global_profiler.global_tool_config.nsys.controller_nsight_options.cuda-memory-usage": [
+      "true"
+    ],
+    "global_profiler.global_tool_config.nsys.controller_nsight_options.trace": [
+      "cuda,nvtx,cublas,ucx"
+    ],
+    "global_profiler.global_tool_config.nsys.discrete": [
+      false
+    ],
+    "global_profiler.global_tool_config.nsys.worker_nsight_options.capture-range": [
+      "cudaProfilerApi"
+    ],
+    "global_profiler.global_tool_config.nsys.worker_nsight_options.capture-range-end": [
+      null
+    ],
+    "global_profiler.global_tool_config.nsys.worker_nsight_options.cuda-graph-trace": [
+      "graph"
+    ],
+    "global_profiler.global_tool_config.nsys.worker_nsight_options.cuda-memory-usage": [
+      "true"
+    ],
+    "global_profiler.global_tool_config.nsys.worker_nsight_options.kill": [
+      "none"
+    ],
+    "global_profiler.global_tool_config.nsys.worker_nsight_options.trace": [
+      "cuda,nvtx,cublas,ucx"
+    ],
+    "global_profiler.global_tool_config.precision_debugger._target_": [
+      "verl.utils.profiler.config.PrecisionDebuggerToolConfig"
+    ],
+    "global_profiler.global_tool_config.precision_debugger.config_path": [
+      null
+    ],
+    "global_profiler.global_tool_config.precision_debugger.stages": [
+      null
+    ],
+    "global_profiler.global_tool_config.precision_debugger.steps": [
+      null
+    ],
+    "global_profiler.global_tool_config.precision_debugger.strict": [
+      false
+    ],
+    "global_profiler.global_tool_config.torch_memory.context": [
+      "all"
+    ],
+    "global_profiler.global_tool_config.torch_memory.kw_args": [
+      {}
+    ],
+    "global_profiler.global_tool_config.torch_memory.stack_depth": [
+      32
+    ],
+    "global_profiler.global_tool_config.torch_memory.stacks": [
+      "all"
+    ],
+    "global_profiler.global_tool_config.torch_memory.trace_alloc_max_entries": [
+      100000
+    ],
+    "global_profiler.profile_continuous_steps": [
+      false
+    ],
+    "global_profiler.save_path": [
+      "outputs/profile"
+    ],
+    "global_profiler.steps": [
+      null
+    ],
+    "global_profiler.tool": [
+      null
+    ],
+    "model_engine": [
+      "dp"
+    ],
+    "ray_kwargs.ray_init.num_cpus": [
+      null
+    ],
+    "ray_kwargs.timeline_json_file": [
+      null
+    ],
+    "reward._target_": [
+      "verl.workers.config.RewardConfig"
+    ],
+    "reward.custom_reward_function.name": [
+      "compute_score"
+    ],
+    "reward.custom_reward_function.path": [
+      null
+    ],
+    "reward.num_workers": [
+      8
+    ],
+    "reward.reward_manager._target_": [
+      "verl.workers.config.reward.RewardManagerConfig"
+    ],
+    "reward.reward_manager.module._target_": [
+      "verl.trainer.config.config.ModuleConfig"
+    ],
+    "reward.reward_manager.module.name": [
+      "custom_reward_manager"
+    ],
+    "reward.reward_manager.module.path": [
+      null
+    ],
+    "reward.reward_manager.name": [
+      "naive"
+    ],
+    "reward.reward_manager.source": [
+      "register"
+    ],
+    "reward.reward_model._target_": [
+      "verl.workers.config.RewardModelConfig"
+    ],
+    "reward.reward_model.enable": [
+      false,
+      true
+    ],
+    "reward.reward_model.enable_resource_pool": [
+      false
+    ],
+    "reward.reward_model.model_path": [
+      null,
+      "Skywork/Skywork-Reward-Llama-3.1-8B"
+    ],
+    "reward.reward_model.n_gpus_per_node": [
+      8
+    ],
+    "reward.reward_model.nnodes": [
+      0
+    ],
+    "reward.reward_model.rollout._target_": [
+      "verl.workers.config.RolloutConfig"
+    ],
+    "reward.reward_model.rollout.cudagraph_capture_sizes": [
+      null
+    ],
+    "reward.reward_model.rollout.data_parallel_size": [
+      1
+    ],
+    "reward.reward_model.rollout.disable_log_stats": [
+      true
+    ],
+    "reward.reward_model.rollout.disaggregation.bootstrap_port": [
+      null
+    ],
+    "reward.reward_model.rollout.disaggregation.decode_replicas": [
+      1
+    ],
+    "reward.reward_model.rollout.disaggregation.decode_tensor_model_parallel_size": [
+      null
+    ],
+    "reward.reward_model.rollout.disaggregation.enabled": [
+      false
+    ],
+    "reward.reward_model.rollout.disaggregation.ib_device": [
+      null
+    ],
+    "reward.reward_model.rollout.disaggregation.prefill_replicas": [
+      1
+    ],
+    "reward.reward_model.rollout.disaggregation.transfer_backend": [
+      "nixl"
+    ],
+    "reward.reward_model.rollout.do_sample": [
+      true
+    ],
+    "reward.reward_model.rollout.dtype": [
+      "bfloat16"
+    ],
+    "reward.reward_model.rollout.enable_chunked_prefill": [
+      true
+    ],
+    "reward.reward_model.rollout.enable_prefix_caching": [
+      true
+    ],
+    "reward.reward_model.rollout.enforce_eager": [
+      true
+    ],
+    "reward.reward_model.rollout.engine_kwargs": [
+      {}
+    ],
+    "reward.reward_model.rollout.expert_parallel_size": [
+      1
+    ],
+    "reward.reward_model.rollout.free_cache_engine": [
+      true
+    ],
+    "reward.reward_model.rollout.full_determinism": [
+      false
+    ],
+    "reward.reward_model.rollout.gpu_memory_utilization": [
+      0.5,
+      0.8
+    ],
+    "reward.reward_model.rollout.ignore_eos": [
+      false
+    ],
+    "reward.reward_model.rollout.layered_summon": [
+      false
+    ],
+    "reward.reward_model.rollout.limit_images": [
+      null
+    ],
+    "reward.reward_model.rollout.load_format": [
+      "auto"
+    ],
+    "reward.reward_model.rollout.max_model_len": [
+      null
+    ],
+    "reward.reward_model.rollout.max_num_batched_tokens": [
+      8192
+    ],
+    "reward.reward_model.rollout.max_num_seqs": [
+      1024
+    ],
+    "reward.reward_model.rollout.mtp": [
+      null
+    ],
+    "reward.reward_model.rollout.multi_stage_wake_up": [
+      false
+    ],
+    "reward.reward_model.rollout.n": [
+      1
+    ],
+    "reward.reward_model.rollout.name": [
+      "???",
+      "vllm"
+    ],
+    "reward.reward_model.rollout.pipeline_model_parallel_size": [
+      1
+    ],
+    "reward.reward_model.rollout.prompt_length": [
+      2048,
+      8192
+    ],
+    "reward.reward_model.rollout.quantization": [
+      null
+    ],
+    "reward.reward_model.rollout.quantization_config_file": [
+      null
+    ],
+    "reward.reward_model.rollout.response_length": [
+      2048,
+      4096
+    ],
+    "reward.reward_model.rollout.scheduling_policy": [
+      "fcfs"
+    ],
+    "reward.reward_model.rollout.seed": [
+      42
+    ],
+    "reward.reward_model.rollout.skip_tokenizer_init": [
+      false
+    ],
+    "reward.reward_model.rollout.temperature": [
+      1.0
+    ],
+    "reward.reward_model.rollout.tensor_model_parallel_size": [
+      2,
+      1
+    ],
+    "reward.reward_model.rollout.top_k": [
+      -1
+    ],
+    "reward.reward_model.rollout.top_p": [
+      1
+    ],
+    "reward.sandbox_fusion._target_": [
+      "verl.workers.config.SandboxFusionConfig"
+    ],
+    "reward.sandbox_fusion.max_concurrent": [
+      64
+    ],
+    "reward.sandbox_fusion.memory_limit_mb": [
+      1024
+    ],
+    "reward.sandbox_fusion.url": [
+      null
+    ],
+    "reward_model.enable": [
+      null
+    ],
+    "reward_model.enable_resource_pool": [
+      null
+    ],
+    "reward_model.model.external_lib": [
+      null
+    ],
+    "reward_model.model.path": [
+      null
+    ],
+    "reward_model.model.trust_remote_code": [
+      null
+    ],
+    "reward_model.n_gpus_per_node": [
+      null
+    ],
+    "reward_model.nnodes": [
+      null
+    ],
+    "reward_model.num_workers": [
+      null
+    ],
+    "reward_model.reward_loop_class_name": [
+      null
+    ],
+    "reward_model.reward_loop_module_path": [
+      null
+    ],
+    "reward_model.reward_loop_source": [
+      null
+    ],
+    "reward_model.reward_manager": [
+      null
+    ],
+    "reward_model.rollout.cudagraph_capture_sizes": [
+      null
+    ],
+    "reward_model.rollout.data_parallel_size": [
+      null
+    ],
+    "reward_model.rollout.disable_log_stats": [
+      null
+    ],
+    "reward_model.rollout.dtype": [
+      null
+    ],
+    "reward_model.rollout.enable_chunked_prefill": [
+      null
+    ],
+    "reward_model.rollout.enable_prefix_caching": [
+      null
+    ],
+    "reward_model.rollout.enforce_eager": [
+      null
+    ],
+    "reward_model.rollout.engine_kwargs": [
+      null
+    ],
+    "reward_model.rollout.expert_parallel_size": [
+      null
+    ],
+    "reward_model.rollout.free_cache_engine": [
+      null
+    ],
+    "reward_model.rollout.gpu_memory_utilization": [
+      null
+    ],
+    "reward_model.rollout.limit_images": [
+      null
+    ],
+    "reward_model.rollout.load_format": [
+      null
+    ],
+    "reward_model.rollout.max_model_len": [
+      null
+    ],
+    "reward_model.rollout.max_num_batched_tokens": [
+      null
+    ],
+    "reward_model.rollout.max_num_seqs": [
+      null
+    ],
+    "reward_model.rollout.name": [
+      null
+    ],
+    "reward_model.rollout.prompt_length": [
+      null
+    ],
+    "reward_model.rollout.response_length": [
+      null
+    ],
+    "reward_model.rollout.skip_tokenizer_init": [
+      null
+    ],
+    "reward_model.rollout.tensor_model_parallel_size": [
+      null
+    ],
+    "sandbox_fusion.max_concurrent": [
+      null
+    ],
+    "sandbox_fusion.memory_limit_mb": [
+      null
+    ],
+    "sandbox_fusion.url": [
+      null
+    ],
+    "skip._target_": [
+      "verl.utils.skip.SkipManagerConfig"
+    ],
+    "skip.async_rollout.action": [
+      "cache"
+    ],
+    "skip.async_rollout.dump_dir": [
+      "~/.verl/rollout_dump"
+    ],
+    "skip.async_rollout.enable": [
+      false
+    ],
+    "skip.async_rollout.steps": [
+      []
+    ],
+    "skip.rollout.action": [
+      "cache"
+    ],
+    "skip.rollout.dump_dir": [
+      "~/.verl/rollout_dump"
+    ],
+    "skip.rollout.enable": [
+      false
+    ],
+    "skip.rollout.steps": [
+      []
+    ],
+    "skip.rollout_tq.action": [
+      "cache"
+    ],
+    "skip.rollout_tq.dump_dir": [
+      "~/.verl/rollout_dump"
+    ],
+    "skip.rollout_tq.enable": [
+      false
+    ],
+    "skip.rollout_tq.steps": [
+      []
+    ],
+    "trainer.balance_batch": [
+      true
+    ],
+    "trainer.critic_warmup": [
+      0
+    ],
+    "trainer.default_hdfs_dir": [
+      null
+    ],
+    "trainer.default_local_dir": [
+      "checkpoints/verl_grpo_example_geo3k/glm41v_9b_function_rm",
+      "checkpoints/verl_grpo_lora_gsm8k/qwen3_8b_lora_vllm_fsdp",
+      "checkpoints/verl_ppo_gsm8k_math/qwen3_8b_ppo_vllm_fsdp_19700101_0000",
+      "checkpoints/verl_reinforce_plus_plus_gsm8k_math/qwen3_8b_vllm_fsdp",
+      "checkpoints/verl_rloo_gsm8k_math/qwen3_8b_vllm_fsdp",
+      "checkpoints/verl_full_hh_rlhf_examples/grpo_mistral13B-skyworkLlama8b-hhrlhf"
+    ],
+    "trainer.del_local_ckpt_after_load": [
+      false
+    ],
+    "trainer.device": [
+      "cuda"
+    ],
+    "trainer.esi_redundant_time": [
+      0
+    ],
+    "trainer.experiment_name": [
+      "glm41v_9b_function_rm",
+      "qwen3_8b_lora_vllm_fsdp",
+      "qwen3_8b_ppo_vllm_fsdp_19700101_0000",
+      "qwen3_8b_vllm_fsdp",
+      "grpo_mistral13B-skyworkLlama8b-hhrlhf"
+    ],
+    "trainer.log_val_generations": [
+      0
+    ],
+    "trainer.logger": [
+      [
+        "console",
+        "wandb"
+      ]
+    ],
+    "trainer.max_actor_ckpt_to_keep": [
+      null
+    ],
+    "trainer.max_critic_ckpt_to_keep": [
+      null
+    ],
+    "trainer.n_gpus_per_node": [
+      8,
+      2
+    ],
+    "trainer.nnodes": [
+      1
+    ],
+    "trainer.project_name": [
+      "verl_grpo_example_geo3k",
+      "verl_grpo_lora_gsm8k",
+      "verl_ppo_gsm8k_math",
+      "verl_reinforce_plus_plus_gsm8k_math",
+      "verl_rloo_gsm8k_math",
+      "verl_full_hh_rlhf_examples"
+    ],
+    "trainer.ray_wait_register_center_timeout": [
+      300
+    ],
+    "trainer.resume_from_path": [
+      null
+    ],
+    "trainer.resume_mode": [
+      "auto"
+    ],
+    "trainer.rollout_data_dir": [
+      null
+    ],
+    "trainer.save_freq": [
+      20,
+      10
+    ],
+    "trainer.test_freq": [
+      5,
+      -1
+    ],
+    "trainer.total_epochs": [
+      15,
+      5
+    ],
+    "trainer.total_training_steps": [
+      null
+    ],
+    "trainer.use_v1": [
+      true
+    ],
+    "trainer.v1.colocate_async.num_warmup_batches": [
+      1
+    ],
+    "trainer.v1.sampler.custom_sampler.name": [
+      null
+    ],
+    "trainer.v1.sampler.custom_sampler.path": [
+      null
+    ],
+    "trainer.v1.sampler.max_off_policy_strategy": [
+      "drop"
+    ],
+    "trainer.v1.sampler.max_off_policy_threshold": [
+      8
+    ],
+    "trainer.v1.sampler.sampler_kwargs": [
+      {}
+    ],
+    "trainer.v1.sampler.sync_refill_failed_groups": [
+      false
+    ],
+    "trainer.v1.separate_async.num_warmup_batches": [
+      1
+    ],
+    "trainer.v1.separate_async.parameter_sync_step": [
+      4
+    ],
+    "trainer.v1.sync": [
+      {}
+    ],
+    "trainer.v1.trainer_mode": [
+      "sync"
+    ],
+    "trainer.val_before_train": [
+      true,
+      false
+    ],
+    "trainer.val_only": [
+      false
+    ],
+    "trainer.validation_data_dir": [
+      null
+    ],
+    "transfer_queue.backend.MooncakeStore.auto_init": [
+      false
+    ],
+    "transfer_queue.backend.MooncakeStore.device_name": [
+      ""
+    ],
+    "transfer_queue.backend.MooncakeStore.global_segment_size": [
+      4294967296
+    ],
+    "transfer_queue.backend.MooncakeStore.local_buffer_size": [
+      1073741824
+    ],
+    "transfer_queue.backend.MooncakeStore.local_hostname": [
+      "localhost"
+    ],
+    "transfer_queue.backend.MooncakeStore.master_server_address": [
+      "localhost:50124"
+    ],
+    "transfer_queue.backend.MooncakeStore.metadata_server": [
+      "localhost:50123"
+    ],
+    "transfer_queue.backend.MooncakeStore.protocol": [
+      "tcp"
+    ],
+    "transfer_queue.backend.SimpleStorage.num_data_storage_units": [
+      8
+    ],
+    "transfer_queue.backend.SimpleStorage.total_storage_size": [
+      100000
+    ],
+    "transfer_queue.backend.storage_backend": [
+      "SimpleStorage"
+    ],
+    "transfer_queue.enable": [
+      false
+    ],
+    "transfer_queue.metrics.enabled": [
+      false
+    ],
+    "transfer_queue.metrics.port": [
+      0
+    ]
+  },
+  "sources": {
+    "dr-grpo-complete.yaml": "f64d2ac9da0ddf277912e5ffd257692d1f9392425a154c0d844660d9e49d966b",
+    "grpo-complete.yaml": "ae0b657d134b9d81044dba983dac9781f82e700452f9887ad7a101d8dc81ac65",
+    "lora-grpo-complete.yaml": "39f174b7b9350b25196363e2787b363624ce431046b388c5be7eb9b0da293bea",
+    "ppo-complete.yaml": "f33c6bfd710a7d3f318493af7ac97a5119b69137e445df6e9e743840acf2732e",
+    "reinforce-plus-plus-complete.yaml": "ce71504da265a04d8bd0376cfbd8a3bf2ae33e866b25afc189a10867405f419b",
+    "rloo-complete.yaml": "de1fb0f3a4f494e2af36242960ff1c2f74c77dcb5081b5a4fbeb1126b9157278",
+    "trained-rm-grpo-complete.yaml": "e0257a4f91223a408b5d7e01521777939517cfb74deeed34dbf0089440cf49ac"
+  }
+}

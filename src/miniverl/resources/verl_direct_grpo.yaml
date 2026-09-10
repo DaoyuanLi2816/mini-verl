@@ -1,0 +1,82 @@
+# Bounded systems workflow in upstream verl schema; runtime bindings supply local inputs.
+data:
+  train_files:
+  - data/rl-prompts.parquet
+  val_files:
+  - data/rl-prompts.parquet
+  prompt_key: prompt
+  train_batch_size: 2
+  max_prompt_length: 128
+  max_response_length: 24
+  truncation: error
+  shuffle: true
+  seed: 23
+  filter_overlong_prompts: true
+  validation_shuffle: false
+actor_rollout_ref:
+  model:
+    path: Qwen/Qwen3-0.6B
+    enable_gradient_checkpointing: true
+    lora_rank: 16
+    lora_alpha: 32
+    target_modules:
+    - q_proj
+    - k_proj
+    - v_proj
+    - o_proj
+    - gate_proj
+    - up_proj
+    - down_proj
+  actor:
+    optim:
+      lr: 1.0e-05
+      weight_decay: 0.01
+      lr_warmup_steps: 0
+      betas:
+      - 0.9
+      - 0.999
+    ppo_mini_batch_size: 2
+    ppo_epochs: 2
+    loss_agg_mode: seq-mean-token-mean
+    clip_ratio: 0.2
+    clip_ratio_low: 0.2
+    clip_ratio_high: 0.2
+    clip_ratio_c: 3.0
+    use_kl_loss: false
+    entropy_coeff: 0.001
+  rollout:
+    name: vllm
+    n: 2
+    temperature: 1.0
+    top_p: 1.0
+    top_k: 0
+    tensor_model_parallel_size: 8
+    gpu_memory_utilization: 0.6
+    val_kwargs:
+      do_sample: false
+      temperature: 0.0
+      top_p: 1.0
+      top_k: -1
+      n: 1
+algorithm:
+  adv_estimator: grpo
+  norm_adv_by_std_in_grpo: true
+  use_kl_in_reward: false
+trainer:
+  total_training_steps: 2
+  project_name: mini-verl
+  experiment_name: local-grpo
+  save_freq: 1
+  test_freq: 1
+  logger:
+  - console
+  n_gpus_per_node: 8
+  nnodes: 2
+  total_epochs: 1
+  val_before_train: true
+reward:
+  reward_manager:
+    name: naive
+  custom_reward_function:
+    path: local-reward.py
+    name: compute_score

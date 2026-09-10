@@ -1,5 +1,17 @@
 # Release checklist
 
+## v0.15.0 direct-config release
+
+- Preserve all frozen result and task evidence bytes and historical profile identities.
+- Check v4 source schema, packaged direct examples and the 12-case compilation audit.
+- Run full CPU, pinned upstream conformance, GPU/network, packaging, extracted-sdist,
+  privacy/link and four-viewport documentation checks.
+- Qualify the exact hosted candidate wheel: direct PPO/GRPO, explicit bindings,
+  scheduled validation, exact actor/critic/optimizer resume and inspected handoff.
+- Require green PR/main CI before first-attempt full GPU qualification and OIDC release.
+- Verify public PyPI hashes/attestation/install and GitHub assets, then advance main
+  to 0.15.1.dev0 with stable and development documentation synchronized.
+
 This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only
 after the exact release commit and its remote checks are green.
