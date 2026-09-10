@@ -64,6 +64,35 @@ def test_docs_selector_matches_both_channels() -> None:
     assert f">Development {state.development_version}<" in html
 
 
+def test_stable_docs_overlay_changes_only_version_navigation(tmp_path: Path) -> None:
+    from scripts.release_state import overlay_docs_versions
+
+    stable = _clone(tmp_path)
+    state = load_release_state(REPO_ROOT)
+    html_path = stable / "docs/overrides/main.html"
+    original = html_path.read_text(encoding="utf-8")
+    stale = original.replace(state.development_version, "0.0.0.dev0")
+    html_path.write_text(stale, encoding="utf-8")
+    before = {p: (stable / p).read_bytes() for p in TRACKED if p != "docs/overrides/main.html"}
+    overlay_docs_versions(stable, state)
+    assert html_path.read_text(encoding="utf-8") == original
+    assert all((stable / p).read_bytes() == content for p, content in before.items())
+
+
+def test_stable_docs_overlay_rejects_a_different_release(tmp_path: Path) -> None:
+    from scripts.release_state import overlay_docs_versions
+
+    stable = _clone(tmp_path)
+    state = load_release_state(REPO_ROOT)
+    html_path = stable / "docs/overrides/main.html"
+    original = html_path.read_bytes()
+    wrong = ReleaseState("99.0.0", "v99.0.0", "b" * 40, "2026-09-10", "99.0.1.dev0")
+    with pytest.raises(ValueError, match="stable version"):
+        overlay_docs_versions(stable, wrong)
+    assert html_path.read_bytes() == original
+    assert state.stable_version != wrong.stable_version
+
+
 def test_quality_record_floor_names_its_own_release() -> None:
     record = json.loads(
         (REPO_ROOT / "docs" / "generated" / "quality.json").read_text(encoding="utf-8")

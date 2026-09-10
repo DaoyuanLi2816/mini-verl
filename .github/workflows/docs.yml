@@ -80,6 +80,8 @@ jobs:
           fi
           test -n "$stable_tag"
           git worktree add --detach "${RUNNER_TEMP}/stable-checkout" "$stable_tag"
+          # Release content stays pinned; navigation names the current channels.
+          python scripts/release_state.py --docs-overlay "${RUNNER_TEMP}/stable-checkout"
           (
             cd "${RUNNER_TEMP}/stable-checkout"
             mkdocs build --strict --site-dir "${GITHUB_WORKSPACE}/site"

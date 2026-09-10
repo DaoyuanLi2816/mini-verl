@@ -38,6 +38,7 @@ def test_versioned_docs_and_browser_visual_gate_are_wired() -> None:
     workflow = (ROOT / ".github/workflows/docs.yml").read_text(encoding="utf-8")
     assert "mkdocs build --strict" in workflow
     assert "site/dev" in workflow
+    assert 'release_state.py --docs-overlay "${RUNNER_TEMP}/stable-checkout"' in workflow
     assert "playwright install --with-deps chromium" in workflow
     assert "docs-visual-screenshots" in workflow
 

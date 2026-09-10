@@ -365,12 +365,33 @@ def apply_release_state(root: Path, state: ReleaseState | None = None) -> list[s
     return sorted(set(changed))
 
 
+def overlay_docs_versions(stable_root: Path, state: ReleaseState) -> None:
+    """Update navigation metadata in a disposable stable-docs checkout only."""
+    state.validate()
+    if load_release_state(stable_root).stable_version != state.stable_version:
+        raise ValueError("stable version differs from the selected release checkout")
+    relative = "docs/overrides/main.html"
+    path = stable_root / relative
+    text = path.read_text(encoding="utf-8")
+    rules, _ = rules_for(state)
+    for rule in rules:
+        if rule.path != relative:
+            continue
+        matches = rule.matches(text)
+        if len(matches) != 1:
+            raise ValueError(f"expected one docs navigation field: {rule.description}")
+        start, end = matches[0].span("value")
+        text = text[:start] + rule.expected + text[end:]
+    path.write_text(text, encoding="utf-8", newline="")
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check", action="store_true", help="Fail on any disagreement.")
     group.add_argument("--write", action="store_true", help="Regenerate writable claims.")
+    group.add_argument("--docs-overlay", type=Path, help="Refresh a stable checkout's navigation.")
     return parser
 
 
@@ -378,6 +399,9 @@ def main(argv: list[str] | None = None) -> int:
     arguments = _build_parser().parse_args(argv)
     root = arguments.root
     state = load_release_state(root)
+    if arguments.docs_overlay:
+        overlay_docs_versions(arguments.docs_overlay, state)
+        return 0
     if arguments.write:
         changed = apply_release_state(root, state)
         for path in changed:
