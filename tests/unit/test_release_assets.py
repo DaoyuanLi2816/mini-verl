@@ -99,6 +99,11 @@ def _fixture(tmp_path: Path, *, version: str = "0.11.0.dev0") -> tuple[Path, Pat
             "full/v014-product.json",
             b'{"kind":"v014-product"}\n',
         )
+    if version_key >= (0, 15):
+        evidence["full_v015_direct_result"] = (
+            "full/v015-direct.json",
+            b'{"kind":"installed_direct_verl_workflows"}\n',
+        )
     artifacts = []
     for name, (relative, content) in evidence.items():
         path = qualification / relative
@@ -233,6 +238,10 @@ def _fixture(tmp_path: Path, *, version: str = "0.11.0.dev0") -> tuple[Path, Pat
         from miniverl.qualification_product import PRODUCT_CHECKS
 
         payload["checks"]["executed"].extend(PRODUCT_CHECKS)
+    if version_key >= (0, 15):
+        from miniverl.qualification_direct import DIRECT_CHECKS
+
+        payload["checks"]["executed"].extend(DIRECT_CHECKS)
     qualification_path.write_text(json.dumps(payload), encoding="utf-8")
     verification = tmp_path / "verification.json"
     verification.write_text(
@@ -316,6 +325,9 @@ def test_release_evidence_mapping_is_versioned_for_historical_records() -> None:
     }
     assert set(v012) - set(current) == {"full_v012_rl_result"}
     assert set(v013) - set(v012) == {"full_v013_ppo_result"}
+    v014 = _archive_evidence_for_version("0.14.0")
+    v015 = _archive_evidence_for_version("0.15.0")
+    assert set(v015) - set(v014) == {"full_v015_direct_result"}
 
 
 def test_v012_release_archive_includes_rl_qualification(tmp_path: Path) -> None:
@@ -328,7 +340,10 @@ def test_v012_release_archive_includes_rl_qualification(tmp_path: Path) -> None:
     assert check_release_assets(output) == []
 
 
-@pytest.mark.parametrize("version,role", [("0.13.0", "v013_ppo"), ("0.14.0", "v014_product")])
+@pytest.mark.parametrize(
+    "version,role",
+    [("0.13.0", "v013_ppo"), ("0.14.0", "v014_product"), ("0.15.0", "v015_direct")],
+)
 def test_current_release_archive_includes_qualification(
     tmp_path: Path, version: str, role: str
 ) -> None:
@@ -339,6 +354,21 @@ def test_current_release_archive_includes_qualification(
 
     assert role in {member["semantic_role"] for member in manifest["members"]}
     assert check_release_assets(output) == []
+
+
+def test_active_release_evidence_round_trips_without_changing_candidate_bytes(tmp_path: Path):
+    from miniverl import __version__
+    from miniverl.release_assets import check_release_assets
+
+    output = _build(tmp_path, version=__version__)
+    assert check_release_assets(output) == []
+    assert (output / "dist" / f"miniverl-{__version__}-py3-none-any.whl").read_bytes() == (
+        tmp_path / "candidate" / f"miniverl-{__version__}-py3-none-any.whl"
+    ).read_bytes()
+    with tarfile.open(output / "qualification-evidence.tar.gz", "r:gz") as archive:
+        stream = archive.extractfile("v015/direct-workflows.json")
+        assert stream is not None
+        assert stream.read() == (tmp_path / "qualification/full/v015-direct.json").read_bytes()
 
 
 @pytest.mark.parametrize(
