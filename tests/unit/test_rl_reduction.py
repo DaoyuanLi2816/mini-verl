@@ -1,7 +1,10 @@
 """Logical-batch reduction must be invariant to physical microbatching."""
 
 import pytest
-import torch
+
+torch = pytest.importorskip("torch")
+
+pytestmark = pytest.mark.torch
 
 from miniverl.losses.reduction import rl_reduction_weights
 
