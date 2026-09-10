@@ -24,40 +24,39 @@ still lowers to one device; those resource values are reported as
 
 ## verl v0.9 RL compiler
 
-The current `verl-rl-v0.9-single-gpu-v3` profile and preserved v1/v2 profiles target
+The direct `verl-rl-v0.9-single-gpu-v4` profile and preserved v1/v2/v3 profiles target
 official verl `v0.9.0` at
 `483b8a009ba3a97563edee3a19887e4862b8094a`. v1 retains the released
 critic-free contract; v2 adds PPO and its value role. v3 binds upstream prompt
-minibatch units, records physical offload lowerings and rejects unsupported
-loss reductions and repeated non-PPO epochs. Start with the
-[installed PPO/GRPO workflow](local-rl-workflow.md); the
+minibatch units. v4 adds direct execution, common loss reductions, repeated
+actor epochs, prompt filtering, dataset-derived schedules and explicit bindings.
+Start with the [direct PPO/GRPO workflow](direct-verl-config.md); the
 [upstream corpus](verl-compatibility-corpus.md) accounts for complete real configs.
 
 | Surface | Status | Local contract |
 | --- | --- | --- |
 | PPO/GAE | semantically conformant | independent causal-LM critic plus scalar head, GAE and clipped value updates |
 | GRPO | semantically conformant | sample-std group normalization, epsilon placement and masking match v0.9 |
-| Dr.GRPO advantage estimator | semantically conformant | GRPO centering without std normalization; upstream sequence-normalized loss recipe is not implemented |
+| Dr.GRPO advantage estimator | semantically conformant | GRPO centering without std normalization; v4 preserves the sequence-normalized loss |
 | RLOO | semantically conformant | leave-one-out prompt-group baseline |
 | REINFORCE++ | semantically conformant | discounted token returns plus masked whitening |
-| vanilla dual-clipped policy objective | semantically conformant | token-mean reduction, clipping and diagnostics match v0.9 |
+| vanilla dual-clipped policy objective | semantically conformant | token and sequence reductions, clipping and loss gradients match v0.9 |
 | grouped `rollout.n` | exact | complete prompt groups and stable sample identities |
 | behavior log-probability | semantically conformant | current rollout actor, temperature-scaled, recomputed current policy at update |
 | Parquet data and token bounds | exact | source files, key, shuffle, seed and limits drive local loading |
 | exact-answer / target-length rewards | exact | reward-bearing Parquet metadata and deterministic scorers |
 | HF sequence-classifier reward model | supported | pinned model/tokenizer revisions, deterministic batches and phased offload |
-| environment/Python reward providers | supported local API | trusted injection with ordered input and implementation identity |
-| fixed reference reward KL | locally lowered | frozen adapter is scheduled on the compatible actor backbone |
+| environment/Python reward providers | supported | local API, plus checksum-approved upstream Python bindings in v4 |
+| fixed reference reward KL | locally lowered | v4 uses an independent frozen initial base; older profiles retain explicit adapter roles |
 | actor logical mini-batch | semantically conformant | one logical mini-batch, physically microbatched on the GPU |
 | TP/PP/DP, nodes, resource pools | distributed only | original values retained; execution uses one process/device |
 | actor-loss KL / entropy | semantically conformant | sampled-token reference KL and entropy enter the actor objective |
 
-The compiler accepts a resolved documented subset rather than arbitrary Hydra
-YAML. Missing reward or parameterization choices produce a non-executable
-template. Unknown fields, unresolved interpolation, NaN/infinity, unsupported
-estimators and objective-changing values are rejected before publication. Every
-accepted runnable recipe is validated with `RunConfig` and published
-transactionally.
+The compiler consumes resolved YAML. v4 separates semantic acceptance, missing
+local bindings and exact-model hardware capacity; static acceptance does not
+claim execution. Historical importers produce templates for missing choices.
+Unknown active semantics and unresolved interpolation are reported before
+execution. Every executable IR is validated with `RunConfig`.
 
 The [machine-readable v1 report](generated/verl-rl-v0.9-compatibility.json) and
 [v2 PPO report](generated/verl-rl-v0.9-ppo-compatibility.json) are generated

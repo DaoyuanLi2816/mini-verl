@@ -19,10 +19,10 @@
   <a href="README.zh-CN.md">中文</a>
 </p>
 
-**miniVERL runs a validated subset of verl experiment semantics on one NVIDIA
-GPU.** Give it a resolved verl-shaped config and Parquet prompts; its versioned
-compiler produces a reviewable local plan, executes actor/reference/teacher/
-reward roles in phases, and publishes portable PEFT and data artifacts.
+**Run common verl PPO/GRPO configs directly on one NVIDIA GPU.** Hand miniVERL
+your resolved upstream YAML and bind local data or reward code. Its versioned
+compiler preserves the experiment while scheduling actor, critic, reference
+and reward roles in phases. No second configuration language to maintain.
 
 The current development line covers PPO/GAE, GRPO, Dr.GRPO, RLOO and
 REINFORCE++ against official verl `v0.9.0` (`483b8a00`). PPO uses an independent
@@ -31,7 +31,7 @@ regularization, grouped rollouts, task rewards and a pinned sequence-classifier
 reward role share the same provenance model. The established verl `v0.8.0` OPD
 profiles remain available for direct GKD and sampled-k1 distillation.
 
-PyPI `v0.14.0` is stable; `main` is development.
+PyPI `v0.15.0` is stable; `main` is development.
 
 ## Your first local experiment
 
@@ -40,21 +40,20 @@ Install the CUDA-enabled PyTorch build that matches your machine, then:
 ```bash
 python -m pip install "miniverl[train]"
 miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
-  --example ppo --out local-ppo.yaml
-miniverl validate local-ppo.yaml
-miniverl train local-ppo.yaml --dry-run
+miniverl run --example ppo --bind reward.provider=target_length --dry-run
+miniverl run --example ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
-Both PPO and GRPO examples ship in the wheel. The importer writes the original
-input, compatibility report, native recipe and an upstream-adaptation ledger.
-Remove `--dry-run` to run two iterations with the pinned Qwen3-0.6B model.
-Then inspect, resume and export:
+PPO and GRPO inputs ship in upstream format in the wheel. These bounded
+Qwen3-0.6B examples run two iterations; the explicit binding selects a small
+length-reward exercise. To use your own resolved config, replace `--example ppo`
+with `resolved-verl.yaml`. Each run keeps the original bytes, field decisions,
+bindings, resolved snapshots, hardware plan and native IR. Inspect, resume and export:
 
 ```bash
-miniverl train local-ppo.yaml --run-id local-ppo
 miniverl inspect runs/local-ppo
-miniverl train local-ppo.yaml --resume-from runs/local-ppo/checkpoints/step-000002
+miniverl run --example ppo --bind reward.provider=target_length \
+  --resume-from runs/local-ppo/checkpoints/step-000002
 miniverl export-adapter --run runs/local-ppo --out runs/local-ppo/model
 miniverl export-verl --run runs/local-ppo --target-verl v0.9.0 --out ppo-handoff
 miniverl bridge doctor ppo-handoff --json
@@ -100,7 +99,7 @@ the learning signal.
 
 | Goal | First command | Primary artifact | Next step |
 | --- | --- | --- | --- |
-| **Run local RL** | `miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 --example grpo --out local.yaml` | native recipe + compatibility report | [RL quickstart](docs/verl-rl-runtime.md) |
+| **Run local RL** | `miniverl run resolved-verl.yaml --dry-run` | semantic report + local plan | [Direct configs](docs/direct-verl-config.md) |
 | **Run local OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | immutable execution plan | [OPD quickstart](docs/opd-quickstart.md) |
 | **Fit your GPU** | `miniverl plan --config verl-opd.yaml --probe` | measured placement plan | [Hardware planning](docs/hardware-planning.md) |
 | **Hand off artifacts** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor, critic, Parquet + config bundle | [Compatibility contract](docs/compatibility.md) |
@@ -122,8 +121,10 @@ navigation, read-only SQLite and custom tool environments.
 | Ray, FSDP/FSDP2, Megatron, TP/PP/DP > 1 | distributed-only | these change physical scale, not the local objective |
 
 The [upstream compatibility corpus](docs/verl-compatibility-corpus.md) resolves
-real verl examples and records every field's outcome. The v3 profile preserves
-prompt-based minibatch units; v1/v2 remain available for existing recipes.
+real verl examples and records every field's outcome. The v4 direct compiler
+adds prompt filtering, epoch scheduling and common loss reductions, separating
+semantic acceptance from missing inputs and hardware capacity. v1/v2/v3 remain
+available for existing recipes.
 
 ## Measured systems evidence
 

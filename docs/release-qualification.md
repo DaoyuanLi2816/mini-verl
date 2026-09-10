@@ -7,6 +7,12 @@ workflow is manual, not continuous GPU CI and not a pull-request required check.
 
 ## Two levels
 
+v0.15 adds direct-config PPO/GRPO workflows to the existing full qualification.
+The installed candidate must auto-select v4, retain the upstream source bytes,
+use explicit runtime bindings and complete run → inspect → resume → handoff
+without editing native YAML. The evidence validates both repeated actor passes,
+PPO critic counts, exact tensor replay, the IR/rules digests and launch status.
+
 | level | cadence | executed scope |
 | --- | --- | --- |
 | release smoke | diagnostic use | install the hosted-runner candidate wheel, verify import/CLI origin, run CLI doctor/plan/dry-run, pinned Qwen actor and teacher, one rollout/score/update, PEFT export/reload and CUDA teardown |

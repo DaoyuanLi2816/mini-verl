@@ -337,12 +337,16 @@ class OPDTrainer:
             kind=config.train.lr_schedule,
             base_lr=config.train.learning_rate,
             warmup_steps=config.train.warmup_steps,
-            total_steps=total_steps,
+            total_steps=config.train.cycles
+            if config.train.lr_step_unit == "rollout_iteration"
+            else total_steps,
+            zero_indexed_warmup=config.train.zero_indexed_warmup,
         )
         self.critic_schedule = LearningRateSchedule(
             kind=config.critic.lr_schedule,
             base_lr=config.critic.learning_rate,
             warmup_steps=config.critic.warmup_steps,
+            zero_indexed_warmup=config.critic.zero_indexed_warmup,
             total_steps=max(
                 1,
                 config.train.cycles
@@ -351,14 +355,22 @@ class OPDTrainer:
                     1,
                     (
                         config.train.rollouts_per_cycle * config.rollout.samples_per_prompt
-                        + config.train.gradient_accumulation_steps
+                        + (
+                            config.critic.gradient_accumulation_steps
+                            or config.train.gradient_accumulation_steps
+                        )
                         - 1
                     )
-                    // config.train.gradient_accumulation_steps,
+                    // (
+                        config.critic.gradient_accumulation_steps
+                        or config.train.gradient_accumulation_steps
+                    ),
                 ),
             ),
         )
         self.global_step = 0
+        if config.critic.lr_step_unit == "rollout_iteration":
+            self.critic_schedule.total_steps = config.train.cycles
         self.critic_update_count = 0
         from miniverl.training.ppo import PPOPhaseRuntime
 
@@ -403,10 +415,7 @@ class OPDTrainer:
             else rollouts
         )
         steps = max(1, (trajectories + accum - 1) // accum)
-        if (
-            self.config.run.mode is TrainingMode.RL
-            and self.config.algorithm.name is RLAlgorithm.PPO
-        ):
+        if self.config.run.mode is TrainingMode.RL:
             steps *= self.config.algorithm.actor_ppo_epochs
         return steps
 
@@ -629,7 +638,12 @@ class OPDTrainer:
                 from miniverl.data.verl_parquet import VerlParquetDataset
 
                 assert isinstance(config.source, VerlParquetSourceConfig)
-                prompt_dataset = VerlParquetDataset(config.source)
+                filter_tokenizer = (
+                    build_tokenizer(config, local_files_only=local_files_only)
+                    if config.source.filter_overlong_prompts
+                    else None
+                )
+                prompt_dataset = VerlParquetDataset(config.source, tokenizer=filter_tokenizer)
                 prompt_dataset_manifest = prompt_dataset.inspect()
                 if prompt_dataset_manifest.rows["train"] == 0:
                     raise ConfigError("the Parquet training source contains zero prompt rows")
@@ -680,6 +694,12 @@ class OPDTrainer:
                 student = build_student(
                     config, tokenizer, device=device, local_files_only=local_files_only
                 )
+                if config.models.reference is not None:
+                    from miniverl.models.factory import build_frozen_reference
+
+                    reference = build_frozen_reference(
+                        config, tokenizer, local_files_only=local_files_only
+                    )
             if config.algorithm.name is RLAlgorithm.PPO:
                 critic_device = device if plan.strategy is MemoryStrategy.RESIDENT else "cpu"
                 critic = build_critic(
@@ -1217,10 +1237,19 @@ class OPDTrainer:
 
             assert isinstance(self.config.source, VerlParquetSourceConfig)
             assert self.prompt_dataset_manifest is not None
+            rows_per_epoch = int(self.prompt_dataset_manifest.rows["train"])
+            if self.config.source.drop_last:
+                if count > rows_per_epoch:
+                    raise ConfigError(
+                        "logical prompt batch exceeds retained dataset; drop_last yields no batches"
+                    )
+                remainder = self.task_cursor % rows_per_epoch
+                if remainder + count > rows_per_epoch:
+                    self.task_cursor += rows_per_epoch - remainder
+                    self._prompt_train_iterator = None
             output: list[Any] = []
             while len(output) < count:
                 if self._prompt_train_iterator is None:
-                    rows_per_epoch = int(self.prompt_dataset_manifest.rows["train"])
                     self._prompt_train_epoch = self.task_cursor // rows_per_epoch
                     row_offset = self.task_cursor % rows_per_epoch
                     self._prompt_train_iterator = iter(
@@ -2018,11 +2047,17 @@ class OPDTrainer:
                 raise ConfigError("reward trajectory is missing bound row/data provenance")
             extra = metadata.get("extra_info")
             ground_truth = extra.get("ground_truth") if isinstance(extra, dict) else None
+            if ground_truth is None and isinstance(metadata.get("reward_model"), dict):
+                ground_truth = metadata["reward_model"].get("ground_truth")
             response = "".join(
                 span.text
                 for span in trajectory.spans
                 if span.span_type in {SpanType.ASSISTANT_TEXT, SpanType.ASSISTANT_FINAL}
             )
+            if metadata.get("raw_prompt") is not None:
+                eos = getattr(getattr(self.tokenizer, "_tok", None), "eos_token", None)
+                if isinstance(eos, str) and eos:
+                    response = response.replace(eos, "")
             first_generated = next(
                 (
                     index
@@ -2048,7 +2083,13 @@ class OPDTrainer:
                 reward_model=metadata.get("reward_model"),
                 ground_truth=ground_truth,
                 data_source=data_source,
+                raw_prompt=metadata.get("raw_prompt"),
+                extra_info=extra if metadata.get("raw_prompt") is not None else None,
             )
+            if metadata.get("raw_prompt") is not None:
+                from miniverl.rewards.trajectory import trajectory_reward_request
+
+                request = trajectory_reward_request(trajectory, self.tokenizer)
             pending.append((trajectory, request))
         reward_actor_state = None
         reward_role = self.reward_provider
@@ -2373,6 +2414,16 @@ class OPDTrainer:
         group_scale = 1.0 / max(len(group), 1)
         token_mean = config.loss.aggregation is LossAggregation.TOKEN_MEAN
         group_weight_total = sum(sum(sample.alignment.token_weights) for sample in group)
+        rl_weights = None
+        if config.run.mode is TrainingMode.RL:
+            from miniverl.losses.reduction import rl_reduction_weights
+
+            rl_weights, rl_denominator = rl_reduction_weights(
+                [torch.tensor(sample.alignment.token_weights, device=device) for sample in group],
+                config.loss.aggregation.value,
+                response_length=config.rollout.max_new_tokens_per_turn,
+                loss_scale_factor=config.loss.loss_scale_factor,
+            )
         requested_batch_size = config.train.trajectory_batch_size
         physical_batch_size = (
             len(group) if requested_batch_size == "auto" else int(requested_batch_size)
@@ -2436,6 +2487,10 @@ class OPDTrainer:
                 torch.cat(weight_rows) if token_mean else normalize_trajectory_weights(weight_rows)
             )
             weight_normalizer = group_weight_total if token_mean else float(len(samples))
+            if rl_weights is not None:
+                effective_weights = torch.cat([rl_weights[index] for index in index_group])
+                weight_normalizer = rl_denominator
+                microbatch_scale = 1.0
             output = chunked_selected_position_loss(
                 hidden_states=hidden,
                 lm_head=self.student.project,
@@ -2499,17 +2554,32 @@ class OPDTrainer:
                     if token_mean
                     else weight_tensor.sum().clamp_min(1e-12)
                 )
+                component_scale = 1.0 if token_mean else group_scale
+                if rl_weights is not None:
+                    weight_tensor = rl_weights[index_group[sample_index]]
+                    tensor_denominator = torch.tensor(rl_denominator, device=device).clamp_min(
+                        1e-12
+                    )
+                    component_scale = 1.0
                 if output.per_token_divergence is not None:
                     divergence_available = True
-                    divergence_total += float(
-                        (output.per_token_divergence[start:end].to(device) * weight_tensor).sum()
-                        / tensor_denominator
-                    ) * (1.0 if token_mean else group_scale)
+                    divergence_total += (
+                        float(
+                            (
+                                output.per_token_divergence[start:end].to(device) * weight_tensor
+                            ).sum()
+                            / tensor_denominator
+                        )
+                        * component_scale
+                    )
                 if output.per_token_ce is not None:
-                    component = float(
-                        (output.per_token_ce[start:end].to(device) * weight_tensor).sum()
-                        / tensor_denominator
-                    ) * (1.0 if token_mean else group_scale)
+                    component = (
+                        float(
+                            (output.per_token_ce[start:end].to(device) * weight_tensor).sum()
+                            / tensor_denominator
+                        )
+                        * component_scale
+                    )
                     if provider is None:
                         oracle_ce_available = True
                         oracle_ce_total += component
@@ -2608,7 +2678,11 @@ class OPDTrainer:
                 self.config.train.max_grad_norm,
             )
         )
-        lr = self.schedule.lr_at(self.global_step)
+        lr = self.schedule.lr_at(
+            self.cycle
+            if self.config.train.lr_step_unit == "rollout_iteration"
+            else self.global_step
+        )
         for group_params in optimizer.param_groups:
             group_params["lr"] = lr
         try:
@@ -3249,8 +3323,12 @@ class OPDTrainer:
             )
 
         try:
-            if mode is TrainingMode.RL and config.algorithm.name is RLAlgorithm.PPO:
-                critic_records = self._optimize_critic(samples)
+            if mode is TrainingMode.RL:
+                critic_records = (
+                    self._optimize_critic(samples)
+                    if config.algorithm.name is RLAlgorithm.PPO
+                    else []
+                )
                 records = []
                 for epoch in range(config.algorithm.actor_ppo_epochs):
                     records.extend(
@@ -3746,7 +3824,12 @@ class OPDTrainer:
             backend=self.student,
             source_config=config.source,
             rollout_config=config.rollout.model_copy(
-                update={"temperature": config.eval.temperature, "samples_per_prompt": 1}
+                update={
+                    "temperature": config.eval.temperature,
+                    "samples_per_prompt": config.eval.samples_per_prompt,
+                    **({"top_p": config.eval.top_p} if config.eval.top_p is not None else {}),
+                    **({"top_k": config.eval.top_k} if config.eval.top_k is not None else {}),
+                }
             ),
             profile_identity=config.run.profile_identity,
             execution_plan_digest=config.run.execution_plan_digest,
@@ -3768,6 +3851,34 @@ class OPDTrainer:
             elapsed = max(time.perf_counter() - started, 1e-9)
             append_trajectories(self.paths.eval_trajectories, trajectories)
             generated_tokens = sum(item.generated_token_count for item in trajectories)
+            validation_rewards = None
+            if config.run.mode is TrainingMode.RL and self.reward_provider is not None:
+                from miniverl.rewards.providers import score_reward_requests
+                from miniverl.rewards.trajectory import trajectory_reward_request
+
+                actor_state = None
+                phased = (
+                    config.reward.model is not None and config.reward.model.offload_between_phases
+                )
+                try:
+                    if phased:
+                        actor_state = self._student_off_device()
+                        self.reward_provider.to_device(self.plan.device)
+                    scored = score_reward_requests(
+                        self.reward_provider,
+                        [trajectory_reward_request(item, self.tokenizer) for item in trajectories],
+                    )
+                    if any(item.raw_reward is None or item.status.value != "ok" for item in scored):
+                        raise ConfigError("validation reward failed; no numeric value substituted")
+                    validation_rewards = [
+                        float(item.raw_reward) for item in scored if item.raw_reward is not None
+                    ]
+                finally:
+                    if phased:
+                        self.reward_provider.release()
+                        self._student_on_device()
+                        if actor_state is not None:
+                            self.student.load_trainable_state_dict(actor_state)
             payload = {
                 "tag": tag,
                 "split": "val",
@@ -3794,6 +3905,15 @@ class OPDTrainer:
                 },
                 "memory": gpu.snapshot().to_dict(),
             }
+            if validation_rewards is not None:
+                payload["reward_status"] = "measured"
+                payload["reward_mean"] = sum(validation_rewards) / len(validation_rewards)
+                payload["rewards"] = validation_rewards
+                payload["measurement_status"] = {
+                    "response_generation": "measured",
+                    "task_reward": "measured",
+                    "task_success": "not_measured",
+                }
             if write:
                 self.metrics_log.write({"phase": "eval", **payload, "ts": utc_now()})
             self.events.emit(
@@ -3801,7 +3921,7 @@ class OPDTrainer:
                 tag=tag,
                 tasks=len(trajectories),
                 success_rate=None,
-                reward_status="not_applicable_pure_opd",
+                reward_status=payload["reward_status"],
             )
             return payload
         finally:

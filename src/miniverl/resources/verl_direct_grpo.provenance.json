@@ -1,0 +1,14 @@
+{
+  "source": "src/miniverl/resources/verl_grpo.yaml",
+  "source_sha256": "bc8973647cb904c20ca42930b2058c68686d2a8f4207a5f63138ad7241e6b355",
+  "purpose": "bounded direct-run systems qualification; no quality benchmark",
+  "adaptations": [
+    "remove miniVERL-specific source keys",
+    "two actor epochs",
+    "validation each cycle",
+    "prompt prefilter",
+    "explicit target-length reward implementation binding",
+    "GRPO sequence-mean reduction"
+  ],
+  "sha256": "ad5aa3a881c104cb66ea1d63eaccfbae374c59160172cd853807282de69301e1"
+}

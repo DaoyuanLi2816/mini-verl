@@ -407,7 +407,9 @@ class HFBackend(CausalLMBackend):
             lora_alpha=spec.alpha,
             lora_dropout=spec.dropout,
             bias=spec.bias,
-            target_modules=list(spec.target_modules),
+            target_modules="all-linear"
+            if list(spec.target_modules) == ["all-linear"]
+            else list(spec.target_modules),
             task_type="CAUSAL_LM",
         )
         try:

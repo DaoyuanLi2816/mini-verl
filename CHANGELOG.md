@@ -6,6 +6,40 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-10
+
+### Direct verl configurations
+
+- Run resolved upstream PPO/GRPO-style YAML directly with `miniverl run FILE`.
+  The immutable v4 compiler separates semantic acceptance, missing local
+  bindings and exact-model hardware feasibility. Preserve v1/v2/v3 identities.
+- Classify all leaves of seven complete pinned upstream cases; add five stress
+  variants, including explicit unsupported sample-selection behavior.
+- Add typed model/data/reward bindings, checksum-approved Python reward code,
+  snapshot resolution, physical microbatch one and temporal role placement.
+- Retain source bytes, field decisions, bindings, local hardware plan and IR
+  identity through execution and checkpoint resume.
+
+### Experiment semantics
+
+- Support upstream token/sequence reductions, with scalar, gradient and
+  optimizer conformance; retain logical denominators across physical batches.
+- Filter overlong prompts before sampling, preserve drop-last traversal, derive
+  epoch schedules from retained rows, and execute scheduled reward validation.
+- Support repeated critic-free actor epochs, independent critic snapshots and
+  minibatches, and rollout-iteration AdamW learning-rate schedules.
+- Add an independent frozen-base KL reference and the upstream discriminative
+  classifier path using chat rendering and raw logits.
+- Preserve new reduction, validation and critic settings in fail-closed v4
+  handoff templates. Report unmeasured success as N/A and identify RL as on-policy.
+
+### Release integrity
+
+- Gate publication on installed-candidate direct PPO and GRPO runs, exact
+  actor/critic/optimizer replay, source-byte retention and inspected handoff.
+- Keep all frozen scientific JSON/JSONL, published tags and model revisions
+  unchanged. This release adds systems compatibility, not a new quality result.
+
 ## [0.14.0] - 2026-09-09
 
 ### Installed local RL workflows
@@ -1234,7 +1268,9 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.10.1...v0.11.0

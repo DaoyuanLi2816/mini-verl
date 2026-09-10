@@ -27,11 +27,14 @@ class LearningRateSchedule:
     warmup_steps: int
     total_steps: int
     min_lr_ratio: float = 0.0
+    zero_indexed_warmup: bool = False
 
     def lr_at(self, step: int) -> float:
         """Learning rate for ``step`` (0-based)."""
         if self.warmup_steps > 0 and step < self.warmup_steps:
-            return self.base_lr * (step + 1) / self.warmup_steps
+            return (
+                self.base_lr * (step + (0 if self.zero_indexed_warmup else 1)) / self.warmup_steps
+            )
         if self.kind is LRSchedule.CONSTANT:
             return self.base_lr
         decay_steps = max(self.total_steps - self.warmup_steps, 1)
@@ -50,6 +53,7 @@ class LearningRateSchedule:
             "warmup_steps": self.warmup_steps,
             "total_steps": self.total_steps,
             "min_lr_ratio": self.min_lr_ratio,
+            **({"zero_indexed_warmup": True} if self.zero_indexed_warmup else {}),
         }
 
     @classmethod
@@ -61,6 +65,7 @@ class LearningRateSchedule:
             warmup_steps=int(payload["warmup_steps"]),
             total_steps=int(payload["total_steps"]),
             min_lr_ratio=float(payload.get("min_lr_ratio", 0.0)),
+            zero_indexed_warmup=bool(payload.get("zero_indexed_warmup", False)),
         )
 
 

@@ -1,5 +1,9 @@
 # Single-GPU verl RL
 
+For direct execution of ordinary resolved configs, start with the
+[v4 direct-config workflow](direct-verl-config.md). The importer examples below
+document the preserved v3 native-recipe interface.
+
 The v3 compiler translates a resolved, documented verl v0.9 RL subset
 into a native miniVERL recipe. It covers PPO/GAE, critic-free estimators,
 an independent critic, actor KL and entropy. v3 uses upstream prompt-based

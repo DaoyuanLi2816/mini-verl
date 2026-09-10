@@ -1,15 +1,44 @@
-"""Masked, weight-normalized reduction.
-
-Every miniVERL objective is normalized by **the sum of effective token
-weights**, never by the padded sequence length and never by the raw position
-count.  Two runs with different selection budgets therefore produce comparable
-loss magnitudes, and a masked token contributes exactly zero -- not "almost
-zero because it was averaged over a larger denominator".
-"""
+"""Masked reductions and explicit logical-batch RL aggregation contracts."""
 
 from __future__ import annotations
 
 import torch
+
+
+def rl_reduction_weights(
+    rows: list[torch.Tensor],
+    aggregation: str,
+    *,
+    response_length: int,
+    loss_scale_factor: float | None = None,
+) -> tuple[list[torch.Tensor], float]:
+    """Lower pinned verl reductions to weights plus a logical-batch denominator.
+
+    Compute once before physical partitioning. The response horizon is the
+    upstream padded response width, not the local microbatch's longest sample.
+    Fully masked sequences do not contribute to the sequence count.
+    """
+    counts = [float(row.sum()) for row in rows]
+    if not sum(counts) > 0:
+        raise ValueError("RL reduction must select at least one token")
+    if any(not torch.isfinite(row).all() or bool((row < 0).any()) for row in rows):
+        raise ValueError("RL reduction weights must be finite and non-negative")
+    sequences = float(sum(count > 0 for count in counts))
+    if aggregation == "token-mean":
+        return rows, sum(counts)
+    if aggregation == "token-sum":
+        return rows, 1.0
+    if aggregation == "seq-mean-token-sum":
+        return rows, sequences
+    if aggregation == "seq-mean-token-mean":
+        return [row / (count + 1e-8) for row, count in zip(rows, counts, strict=True)], sequences
+    if aggregation == "seq-mean-token-sum-norm":
+        scale = float(response_length if loss_scale_factor is None else loss_scale_factor)
+        if not torch.isfinite(torch.tensor(scale)) or scale <= 0:
+            raise ValueError("loss scale factor must be finite and positive")
+        return rows, sequences * scale
+    raise ValueError(f"unsupported RL aggregation: {aggregation}")
+
 
 __all__ = ["MIN_TOTAL_WEIGHT", "total_weight", "weighted_mean"]
 

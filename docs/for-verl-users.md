@@ -14,20 +14,19 @@ sequential local phases and recorded as a lowering decision.
 
 ```bash
 miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
-  --example grpo --out local-grpo.yaml
-miniverl validate local-grpo.yaml --json
-miniverl train local-grpo.yaml --dry-run
+miniverl run --example grpo --bind reward.provider=target_length --dry-run
+miniverl run --example grpo --bind reward.provider=target_length --run-id local-grpo
 ```
 
 This profile pins official verl `v0.9.0` at
 `483b8a009ba3a97563edee3a19887e4862b8094a`. It accepts a resolved documented
-subset for PPO/GAE, GRPO, Dr.GRPO, RLOO or REINFORCE++, then writes both a native recipe
-and `*.import-report.json`. Scientific-notation strings such as `1e-5` are
+input for PPO/GAE, GRPO, Dr.GRPO, RLOO or REINFORCE++, automatically selecting v4
+and retaining the native IR as an inspection artifact. Replace `--example grpo`
+with your own resolved YAML. Scientific-notation strings such as `1e-5` are
 accepted when finite; `${...}`, NaN, infinity and unknown fields fail before a
 runnable recipe is published.
 
-Follow the [complete installed workflow](local-rl-workflow.md) to run, inspect,
+Follow the [direct-config workflow](direct-verl-config.md) to run, inspect,
 resume and export both examples. The [real upstream corpus](verl-compatibility-corpus.md)
 records complete configuration outcomes; the [RL reference](verl-rl-runtime.md)
 explains the algorithms and local execution model.
@@ -36,14 +35,14 @@ explains the algorithms and local execution model.
 
 | verl action | miniVERL action |
 | --- | --- |
-| capture a resolved Hydra config | provide it to `import-verl --config` |
-| inspect field semantics | read `*.import-report.json` |
-| validate the local plan | `miniverl validate local.yaml --json` |
-| run actor/reward/reference phases | `miniverl train local.yaml` |
+| capture a resolved Hydra config | provide it to `miniverl run resolved-verl.yaml` |
+| inspect field semantics | `miniverl run resolved-verl.yaml --dry-run --json` |
+| inspect the resolved local plan | read `verl-direct-report.json` and `config.resolved.yaml` |
+| run actor/reward/reference phases | `miniverl run resolved-verl.yaml --bind ...` |
 | read prompt Parquet | retain `data.train_files` and `data.prompt_key` directly |
 | lower resource pools | record one process/device plus original source intent |
 | inspect training and versions | `miniverl inspect runs/<id> --json` |
-| recover an interrupted experiment | `miniverl train local.yaml --resume runs/<id>` |
+| recover an interrupted experiment | `miniverl run resolved-verl.yaml --resume runs/<id>` with the original bindings |
 | export actor/critic and data | `miniverl export-verl --run runs/<id> --target-verl v0.9.0 --out handoff` |
 
 ## What maps into the RL runtime
@@ -52,18 +51,16 @@ explains the algorithms and local execution model.
   shuffle and seed drive the local Parquet source.
 - `data.train_batch_size × rollout.n` is the logical trajectory count per
   rollout iteration.
-- v3 treats `actor.ppo_mini_batch_size` as prompts, multiplying by `rollout.n`
-  to obtain the logical trajectory minibatch. Physical trajectory batching
-  remains a separate `miniverl` execution control.
+- v4 retains v3's prompt-based `actor.ppo_mini_batch_size`, multiplying by
+  `rollout.n`. Physical microbatch one and temporal offload are automatic.
 - Actor model, revision, LoRA, optimizer, sampling, clipping and schedule
   fields feed the native recipe with their source units recorded.
-- `trainer.total_training_steps` is the rollout-iteration cap. Epoch-only
-  scheduling is not guessed because it depends on dataset traversal semantics.
-- Task rewards are explicit. The portable compiler accepts the built-in
-  exact-answer and target-length providers; trusted Python and environment
-  providers are injected through the local API.
-- Fixed reference KL requires an explicit frozen reference adapter. The
-  compiler never creates an unqualified same-base reference policy.
+- `trainer.total_training_steps` caps rollout iterations; `total_epochs` derives
+  the schedule from the retained, filtered dataset and drop-last batches.
+- Reward code uses an explicit local file/function binding plus checksum approval.
+  Built-in exercise rewards and the upstream classifier-RM path are also available.
+- Reference KL uses an independently frozen initial base. This role supplies
+  the KL baseline, not a distillation teacher.
 
 Distributed resource counts can be larger than one in the source config. They
 are classified `distributed_only`, preserved in the report, and lowered to one

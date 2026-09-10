@@ -1116,6 +1116,12 @@ def plan_command(
 )
 def verl_run_command(
     ctx: typer.Context,
+    source_path: Optional[Path] = typer.Argument(
+        None, help="Resolved verl RL YAML; compiler selected automatically."
+    ),
+    example: Optional[str] = typer.Option(
+        None, "--example", help="Run a packaged upstream-shaped ppo or grpo config."
+    ),
     config: Optional[str] = typer.Option(
         None, "--config", help="Resolved YAML path or builtin profile."
     ),
@@ -1147,9 +1153,71 @@ def verl_run_command(
     offline: bool = typer.Option(False, "--offline", help="Use cached model files only."),
     dry_run: bool = typer.Option(False, "--dry-run", help="Compile native config only."),
     as_json: bool = typer.Option(False, "--json", help="Emit machine-readable JSON."),
+    bindings: list[str] = typer.Option(
+        [], "--bind", help="Explicit local data/model/reward/output binding, key=value."
+    ),
+    trust_reward_code: Optional[str] = typer.Option(
+        None, "--trust-reward-code", help="SHA256 approval for explicitly bound local reward code."
+    ),
+    resume_from: Optional[Path] = typer.Option(
+        None, "--resume-from", help="Direct RL checkpoint to replay from."
+    ),
 ) -> None:
-    """Execute the pinned verl v0.8 pure-OPD subset on one local CUDA GPU."""
+    """Run a resolved verl RL config directly, or an explicitly selected OPD plan."""
     try:
+        if example is not None:
+            if source_path is not None or example not in {"ppo", "grpo"}:
+                raise ConfigError("choose --example ppo/grpo or a source YAML, not both")
+            source_path = Path(__file__).parent / "resources" / f"verl_direct_{example}.yaml"
+        if source_path is not None:
+            if profile not in {"verl-opd-v0.8-single-gpu-v1", "verl-rl-v0.9-single-gpu-v4"}:
+                raise ConfigError(
+                    "positional RL input selects v4; use import-verl for historical RL compiler profiles"
+                )
+            if resume is not None and resume_from is not None:
+                raise ConfigError("--resume and --resume-from are mutually exclusive")
+            if (
+                config is not None
+                or plan_path is not None
+                or overrides
+                or override_files
+                or ctx.args
+                or accept_local_reinterpretations
+                or rollout_backend is not None
+            ):
+                raise ConfigError(
+                    "direct positional input uses --bind; do not mix OPD plan/config options"
+                )
+            from miniverl.bridge.direct_runtime import execute_direct
+
+            direct = execute_direct(
+                source_path,
+                bindings=bindings,
+                dry_run=dry_run,
+                output=output,
+                run_id=run_id,
+                resume=resume,
+                resume_from=resume_from,
+                offline=offline,
+                approved_reward_sha256=trust_reward_code,
+            )
+            if as_json:
+                _emit_json(direct)
+            else:
+                console.print(
+                    f"semantic: {_esc(direct['semantic_status'])}; execution: {_esc(direct['execution_status'])}"
+                )
+                for issue in [*direct.get("rejections", []), *direct.get("required_bindings", [])]:
+                    console.print(f"  {_esc(issue['field'])}: {_esc(issue['reason'])}")
+                if direct.get("run_dir"):
+                    console.print(f"  run: {_esc(direct['run_dir'])}")
+            if direct["semantic_status"] == "rejected" or (
+                not dry_run and direct["execution_status"] != "completed"
+            ):
+                raise typer.Exit(2)
+            return
+        if bindings or trust_reward_code or resume_from:
+            raise ConfigError("--bind and --trust-reward-code require a positional verl RL config")
         from miniverl.bridge.opd_runtime import build_system_plan, compile_native_run_config
         from miniverl.bridge.profiles import load_profile_source
 
@@ -1455,7 +1523,7 @@ def train(
             (trajectories_per_cycle + config.train.gradient_accumulation_steps - 1)
             // config.train.gradient_accumulation_steps,
         )
-        if config.run.mode.value == "rl" and config.algorithm.name.value == "ppo":
+        if config.run.mode.value == "rl":
             steps_per_cycle *= config.algorithm.actor_ppo_epochs
         plan = {
             "dry_run": True,
@@ -1477,8 +1545,20 @@ def train(
             "planned_prompt_groups": config.train.rollouts_per_cycle * config.train.cycles,
             "planned_rollouts": trajectories_per_cycle * config.train.cycles,
             "planned_critic_updates": (
-                steps_per_cycle
-                // config.algorithm.actor_ppo_epochs
+                (
+                    (
+                        trajectories_per_cycle
+                        + (
+                            config.critic.gradient_accumulation_steps
+                            or config.train.gradient_accumulation_steps
+                        )
+                        - 1
+                    )
+                    // (
+                        config.critic.gradient_accumulation_steps
+                        or config.train.gradient_accumulation_steps
+                    )
+                )
                 * config.critic.ppo_epochs
                 * config.train.cycles
                 if config.run.mode.value == "rl" and config.algorithm.name.value == "ppo"

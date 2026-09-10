@@ -13,9 +13,35 @@ fields, with independent compiler reports. Exact paths, hashes, deterministic
 environment bindings and per-example reasons are in the
 [machine-readable manifest](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/compatibility/verl-v0.9.0/manifest.json).
 
-## Reading the outcomes
+## Direct-config v4 outcomes
 
-The original complete configurations currently reject: they include fields
+The new direct compiler accepts the experiment semantics of **all seven complete
+official configurations**. Every resolved leaf is classified. Local data and
+reward implementations are supplied as explicit runtime bindings; exact-model
+hardware capacity is assessed separately during execution.
+
+Five derived stress configurations extend this audit: sequence-sum PPO and
+sampled validation pass; group filtering, oversampling and shuffled actor
+minibatches are explicit semantic rejections. Overall: **12 cases, 9 accepted,
+3 rejected**. These are static compilation outcomes. None of the 12 exact
+production-model configurations has been executed as part of this release,
+and their hardware status is unassessed—not zero blocked models.
+
+The separate bounded PPO/GRPO qualification uses packaged upstream-format
+inputs and explicit length-reward bindings. It verifies the direct command,
+update counts, validation, exact resume and handoff on the installed candidate.
+See the [direct workflow](direct-verl-config.md) and the
+[v4 machine-readable audit](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/compatibility/verl-v0.9-direct-v4/manifest.json).
+
+```bash
+python scripts/publish_verl_direct_schema.py --check
+python scripts/publish_direct_examples.py --check
+python scripts/publish_direct_compatibility.py --check
+```
+
+## Historical v3 outcomes (preserved)
+
+Under v3, the original complete configurations reject: they include fields
 outside the documented compiler subset, such as automatic prompt filtering,
 upstream reward execution and distributed engine implementation settings.
 Required local reward, parameterization, reference and schedule choices are
@@ -23,7 +49,7 @@ listed even when another field prevents import. The report separates counts
 of executable examples, examples needing local input, rejected examples,
 unimplemented fields and resource fields with a known lowering.
 
-Current totals: **6 source examples, 7 cases, 0 original configurations locally
+Historical v3 totals: **6 source examples, 7 cases, 0 original configurations locally
 executable, 7 rejected, 15 unimplemented field occurrences and 84 safely
 lowered resource-field occurrences**. Dr.GRPO's recommended sequence-normalized
 loss and the upstream rollout-based reward model are explicit unsupported
@@ -48,7 +74,8 @@ capabilities and adds:
 The evidence for minibatch units is upstream
 [`RayPPOTrainer._update_actor` and `_update_critic`](https://github.com/verl-project/verl/blob/483b8a009ba3a97563edee3a19887e4862b8094a/verl/trainer/ppo/ray_trainer.py#L1327).
 Published v1/v2 rules and identities remain unchanged for existing artifacts.
-Use v3 for new imports; it does not reinterpret an existing v2 recipe in place.
+Use v4 direct execution for new upstream configs; v3 remains available for
+existing native-recipe workflows and does not reinterpret v2 artifacts in place.
 
 ## Reproduce the corpus
 

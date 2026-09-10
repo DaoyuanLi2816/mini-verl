@@ -395,6 +395,11 @@ class PromptDatasetRolloutRuntime:
                 "ability": prompt.record.ability,
                 "reward_model": prompt.record.reward_model,
                 "extra_info": prompt.record.extra_info,
+                **(
+                    {"raw_prompt": prompt.record.prompt}
+                    if self.source_config.reward_metadata_mode == "upstream"
+                    else {}
+                ),
                 "source_file": prompt.record.source_file,
                 "source_row_index": prompt.record.source_row_index,
                 "row_digest": prompt.record.row_digest,

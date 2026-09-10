@@ -1,7 +1,7 @@
 # miniVERL
 
-Compile supported verl experiment semantics into a validated execution plan for
-one NVIDIA GPU. The same local runtime produces policy-bound trajectories,
+Run common resolved verl PPO/GRPO configs directly on one NVIDIA GPU.
+The local runtime produces policy-bound trajectories,
 transactional checkpoints and portable PEFT/Parquet artifacts.
 
 [Run PPO or GRPO locally](local-rl-workflow.md){ .md-button .md-button--primary }
@@ -32,16 +32,14 @@ sampled-k1 OPD with explicit teacher targets.
 python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
 python -m pip install "miniverl[train]"
 miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
-  --example ppo --out local-ppo.yaml
-miniverl train local-ppo.yaml --dry-run
+miniverl run --example ppo --bind reward.provider=target_length --dry-run
+miniverl run --example ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
-The import report shows the value and disposition of every source field. The
-generated recipe has already passed `RunConfig` validation and can be inspected
-with `miniverl validate local-ppo.yaml --json` before model weights are loaded.
-The examples ship with the package: no checkout is needed. Continue with
-[run → inspect → resume → handoff](local-rl-workflow.md).
+Replace `--example ppo` with your resolved verl YAML to use an existing experiment.
+`--dry-run` checks semantic compatibility without model downloads; execution
+resolves snapshots, filters prompts, derives the epoch schedule and checks GPU
+capacity. Continue with [direct run → inspect → resume → handoff](direct-verl-config.md).
 
 ## Three ways to use miniVERL
 
@@ -55,13 +53,12 @@ Bring a resolved v0.9-shaped config and run PPO or a grouped critic-free
 algorithm on one CUDA device.
 
 ```bash
-miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 \
-  --config verl-rl.yaml --out local.yaml
+miniverl run verl-rl.yaml --dry-run
 ```
 
 **Artifact:** native recipe plus field-by-field compatibility report.
 
-**Next:** [Single-GPU verl RL](verl-rl-runtime.md)
+**Next:** [Direct verl configs](direct-verl-config.md)
 
 </div>
 

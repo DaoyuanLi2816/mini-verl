@@ -1,47 +1,48 @@
 {
   "schema_version": 2,
-  "release": "0.14.0",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.14.0",
+  "release": "0.15.0",
+  "status": "candidate",
+  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.15.0",
   "local_validation": {
-    "scope": "P0 implementation and CLI compatibility regression on the maintainer workstation",
-    "commit": "f128c98456929cdc53f9f094f5ecf8a791690aed",
-    "commit_relationship": "final PR head; the squash release commit has the same tree",
-    "measured_at": "2026-09-09T06:05:10Z",
+    "scope": "direct-config implementation regression; dirty development tree before candidate freeze",
+    "commit": "1484b27d753500109a68e8d31bbace7e97346f85",
+    "commit_relationship": "development worktree based on this commit; v0.15 candidate changes were uncommitted when measured",
+    "measured_at": "2026-09-10T03:56:32Z",
     "platform": "Windows 11",
     "python": "CPython 3.10.11",
     "coverage_mode": "branch",
+    "gpu": {"passed": 10, "hardware": "NVIDIA GeForce RTX 4080", "platform": "WSL2 Ubuntu"},
+    "network": {"passed": 15, "skipped": 1, "skip_reason": "official verl v0.8.0 is not installed in the local test environment; dedicated bridge CI covers that pin"},
     "cpu_non_gpu_non_network": {
-      "passed": 2656,
-      "skipped": 14,
+      "passed": 2725,
+      "skipped": 24,
       "deselected": 24,
-      "branch_coverage_percent": 83.0,
-      "skip_reason": "10 Windows platform/privilege skips and 4 pinned conformance cases executed separately"
+      "branch_coverage_percent": 82.01,
+      "skip_reason": "Windows privilege/platform skips and pinned upstream tests executed separately"
     },
-    "gpu": {"passed": 10, "hardware": "NVIDIA GeForce RTX 4080"},
-    "network": {"passed": 16},
-    "pinned_upstream_conformance": {"passed": 4, "tag": "v0.9.0"},
-    "docs_visual": {"viewports": 4, "rendered_svg_instances": 44}
+    "pinned_upstream_conformance": {
+      "passed": 18,
+      "tag": "v0.9.0"
+    },
+    "docs_visual": {
+      "viewports": 4,
+      "rendered_svg_instances": 44
+    },
+    "direct_installed_rehearsal": {
+      "status": "passed",
+      "release_evidence": false,
+      "ppo_actor_updates": 4,
+      "ppo_critic_updates": 4,
+      "grpo_actor_updates": 4,
+      "exact_tensor_resume": true,
+      "handoff": "ok"
+    }
   },
   "release_validation": {
-    "commit": "60afc63da1257e3e22aa6056607a63a90d4d90f1",
-    "gpu_coverage": "attempt-1 full qualification; installed PPO and GRPO command workflows, exact tensor resume, v0.9 handoff and historical regression matrix passed on one WSL2 RTX 4080",
+    "commit": "pending",
+    "gpu_coverage": "pending first-attempt full exact-candidate qualification",
     "scope": "exact release candidate wheel",
-    "conclusion": "passed",
-    "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34318072752",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34318072732",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34328973019",
-      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34318072653",
-      "gpu_full_qualification": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34318236880",
-      "release_dry_run": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34325442958",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34328973021"
-    },
-    "publication": {
-      "pypi": "https://pypi.org/project/miniverl/0.14.0/",
-      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.14.0",
-      "wheel_sha256": "f44e607acb2b20608ac217891862374743f7dd443d934664dd8c0349250fbf26",
-      "sdist_sha256": "fe9584bb9450a183372151dc1dea463d268a01cc3b6181afb4aaf54046825324"
-    }
+    "conclusion": "pending full GPU qualification and OIDC publication",
+    "workflows": {}
   }
 }
