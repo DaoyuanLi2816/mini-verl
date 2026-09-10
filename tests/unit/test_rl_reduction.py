@@ -6,7 +6,7 @@ torch = pytest.importorskip("torch")
 
 pytestmark = pytest.mark.torch
 
-from miniverl.losses.reduction import rl_reduction_weights
+from miniverl.losses.reduction import rl_reduction_weights  # noqa: E402
 
 
 @pytest.mark.parametrize(
