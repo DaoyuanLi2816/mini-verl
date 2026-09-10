@@ -1,23 +1,31 @@
 {
   "schema_version": 2,
   "release": "0.15.0",
-  "status": "candidate",
+  "status": "released",
   "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.15.0",
   "local_validation": {
-    "scope": "direct-config implementation regression; dirty development tree before candidate freeze",
-    "commit": "1484b27d753500109a68e8d31bbace7e97346f85",
-    "commit_relationship": "development worktree based on this commit; v0.15 candidate changes were uncommitted when measured",
-    "measured_at": "2026-09-10T03:56:32Z",
+    "scope": "full CPU regression after the release-archive fix; unchanged runtime GPU/network/conformance checks from the implementation pass",
+    "commit": "6de1054f998d87f6306f12b88b2a61405f9a321d",
+    "commit_relationship": "final repair PR head; the squash release commit has the same tree",
+    "measured_at": "2026-09-10T05:50:51Z",
     "platform": "Windows 11",
     "python": "CPython 3.10.11",
     "coverage_mode": "branch",
-    "gpu": {"passed": 10, "hardware": "NVIDIA GeForce RTX 4080", "platform": "WSL2 Ubuntu"},
-    "network": {"passed": 15, "skipped": 1, "skip_reason": "official verl v0.8.0 is not installed in the local test environment; dedicated bridge CI covers that pin"},
+    "gpu": {
+      "passed": 10,
+      "hardware": "NVIDIA GeForce RTX 4080",
+      "platform": "WSL2 Ubuntu"
+    },
+    "network": {
+      "passed": 15,
+      "skipped": 1,
+      "skip_reason": "official verl v0.8.0 is not installed in the local test environment; dedicated bridge CI covers that pin"
+    },
     "cpu_non_gpu_non_network": {
-      "passed": 2725,
-      "skipped": 24,
+      "passed": 2733,
+      "skipped": 28,
       "deselected": 24,
-      "branch_coverage_percent": 82.01,
+      "branch_coverage_percent": 82.21,
       "skip_reason": "Windows privilege/platform skips and pinned upstream tests executed separately"
     },
     "pinned_upstream_conformance": {
@@ -27,22 +35,45 @@
     "docs_visual": {
       "viewports": 4,
       "rendered_svg_instances": 44
-    },
-    "direct_installed_rehearsal": {
-      "status": "passed",
-      "release_evidence": false,
-      "ppo_actor_updates": 4,
-      "ppo_critic_updates": 4,
-      "grpo_actor_updates": 4,
-      "exact_tensor_resume": true,
-      "handoff": "ok"
     }
   },
   "release_validation": {
-    "commit": "pending",
-    "gpu_coverage": "pending first-attempt full exact-candidate qualification",
+    "commit": "659690d92a9ed92a01d1beec0a75873de8b860d5",
+    "gpu_coverage": "attempt-1 full qualification: direct upstream-format PPO/GRPO commands, explicit bindings, exact tensor resume, handoff, historical profiles and complete HF cached/vLLM matrices on one WSL2 RTX 4080",
     "scope": "exact release candidate wheel",
-    "conclusion": "pending full GPU qualification and OIDC publication",
-    "workflows": {}
+    "conclusion": "passed",
+    "hosted_cpu": {
+      "passed": 2721,
+      "skipped": 41,
+      "deselected": 18,
+      "branch_coverage_percent": 82.02
+    },
+    "direct_workflows": {
+      "ppo_actor_updates": 4,
+      "ppo_critic_updates": 4,
+      "grpo_actor_updates": 4,
+      "ppo_peak_reserved_gib": 1.502,
+      "grpo_peak_reserved_gib": 1.5039,
+      "exact_tensor_resume": true,
+      "source_bytes_preserved": true,
+      "manual_native_yaml_edits": false,
+      "handoff": "ok",
+      "distributed_execution_tested": false
+    },
+    "workflows": {
+      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34442426777",
+      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34442426780",
+      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34442426834",
+      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34436699306",
+      "gpu_full_qualification": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34442828628",
+      "release_dry_run": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34447536443",
+      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34448233909"
+    },
+    "publication": {
+      "pypi": "https://pypi.org/project/miniverl/0.15.0/",
+      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.15.0",
+      "wheel_sha256": "e9b909a7bb3983e3699ba39b99f424ce215d1f60ecb0c84b07e647d217803ff3",
+      "sdist_sha256": "6a32dcd93fed32df44ba65ca08cd1ecf26001ba65ea32feb39245f289add3577"
+    }
   }
 }

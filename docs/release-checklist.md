@@ -1,16 +1,28 @@
 # Release checklist
 
+## v0.15.1 development
+
+- [x] Begin from the verified v0.15.0 release and advance the canonical
+  development version to `0.15.1.dev0`, keeping stable docs on the release tag.
+
 ## v0.15.0 direct-config release
 
-- Preserve all frozen result and task evidence bytes and historical profile identities.
-- Check v4 source schema, packaged direct examples and the 12-case compilation audit.
-- Run full CPU, pinned upstream conformance, GPU/network, packaging, extracted-sdist,
+- [x] Preserve all frozen result and task evidence bytes and historical profile identities.
+- [x] Check v4 source schema, packaged direct examples and the 12-case compilation audit.
+- [x] Run full CPU, pinned upstream conformance, GPU/network, packaging, extracted-sdist,
   privacy/link and four-viewport documentation checks.
-- Qualify the exact hosted candidate wheel: direct PPO/GRPO, explicit bindings,
+- [x] Qualify the exact hosted candidate wheel: direct PPO/GRPO, explicit bindings,
   scheduled validation, exact actor/critic/optimizer resume and inspected handoff.
-- Require green PR/main CI before first-attempt full GPU qualification and OIDC release.
-- Verify public PyPI hashes/attestation/install and GitHub assets, then advance main
-  to 0.15.1.dev0 with stable and development documentation synchronized.
+- [x] Require green PR/main CI before first-attempt full GPU qualification and OIDC release.
+- [x] Verify public PyPI hashes/attestation/install and GitHub assets; prepare the
+  0.15.1.dev0 state-sync with stable and development documentation.
+
+Published from `659690d92a9ed92a01d1beec0a75873de8b860d5` via
+[full qualification](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34442828628),
+[rehearsal](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34447536443), and
+[OIDC release](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34448233909).
+The first rehearsal caught an unregistered evidence role; PR #121 fixed the
+archive mapping and the replacement candidate was fully requalified.
 
 This is the release gate and publication record for miniVERL. A checked item
 names an invariant exercised on the stated source. Publication begins only

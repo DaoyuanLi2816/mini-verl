@@ -6,20 +6,28 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-09-10.
 
-Canonical release state: releasing `v0.15.0`.
+Canonical release state: stable `v0.15.0` (`659690d92a9ed92a01d1beec0a75873de8b860d5`), development `0.15.1.dev0`.
 
 ## Release state
 
-- v0.15.0 is preparing the direct-config release. Implementation and installed
-  development-wheel PPO/GRPO rehearsals pass; formal candidate qualification
-  and OIDC publication are pending.
+- v0.15.0 is published on PyPI and GitHub. The release uses the exact candidate
+  from full RTX 4080 qualification `34442828628` (attempt 1), accepted by
+  rehearsal `34447536443` and OIDC publication `34448233909`.
 - v4 semantically accepts all seven complete pinned upstream configurations.
   Five derived stress cases add two accepted and three explicit rejections.
   Exact production-model execution is not claimed by static compilation.
-- The installed direct rehearsal completed four actor updates in both cases,
-  four PPO critic updates, reward validation, exact tensor replay and handoff.
-- Local full regression: 2,725 passed, 82.01% branch coverage, plus 18 pinned
-  upstream conformance cases and four documentation viewports.
+- The installed release wheel completed four actor updates in both direct
+  workflows, four PPO critic updates, reward validation, exact tensor replay
+  and inspected handoff. Original upstream YAML bytes were retained.
+- Local full regression: 2,733 passed, 28 skipped, 24 deselected and 82.21%
+  branch coverage. Eighteen pinned upstream conformance checks, 10 GPU tests,
+  15 network tests (one local upstream-v0.8 skip) and four browser viewports
+  also passed; the dedicated upstream bridge CI covered that local skip.
+- Release asset preparation and its current-version round trip include the
+  direct-workflow record at `v015/direct-workflows.json` in the evidence archive.
+- Public PyPI hashes, trusted-publisher attestations, a clean core installation
+  and all 13 GitHub Release assets were verified. The development line is now
+  `0.15.1.dev0`; stable documentation remains tied to `v0.15.0`.
 
 ### Prior stable release (historical)
 
@@ -39,16 +47,16 @@ Canonical release state: releasing `v0.15.0`.
   coverage; 10 RTX 4080 GPU and 16 network tests passed. Four pinned upstream
   conformance tests and four-viewport documentation browser checks passed.
 
-- Stable release: `v0.14.0` at
+- Prior stable release: `v0.14.0` at
   `60afc63da1257e3e22aa6056607a63a90d4d90f1`.
-- Current development line: `0.14.1.dev0`.
+- Development after that release: `0.14.1.dev0`.
 - Stable docs: <https://daoyuanli2816.github.io/mini-verl/>.
 - Development docs: <https://daoyuanli2816.github.io/mini-verl/dev/>.
 - Historical build log: [v0.1-v0.9 archive](docs/history/project-state-v0.1-v0.9.md).
 
 ## Current product boundary
 
-Release `0.15.0` has a closed typed profile compiler: it retains v1/v2/v3 and adds
+Development `0.15.1.dev0` has a closed typed profile compiler: it retains v1/v2/v3 and adds
 `verl-rl-v0.9-single-gpu-v4`, direct execution of resolved RL inputs from official verl
 `v0.9.0` at commit `483b8a009ba3a97563edee3a19887e4862b8094a`.
 It compiles PPO/GAE into phased one-GPU actor, critic, reference and reward
@@ -94,8 +102,8 @@ v0.8 environment/PPO artifact bridge is migration-only.
 
 | Evidence | Status |
 | --- | --- |
-| Installed PPO product workflow | Qwen3-0.6B, 8 trajectories, 4 actor/4 critic updates, 2.7266 GiB peak reserved, 15.688 s reported train duration; exact tensor replay and handoff passed |
-| Installed GRPO product workflow | Qwen3-0.6B, 8 trajectories, 2 actor updates, 1.502 GiB peak reserved, 8.923 s reported train duration; exact tensor replay and handoff passed |
+| Installed direct PPO workflow (v0.15.0) | Qwen3-0.6B, 8 trajectories, 4 actor/4 critic updates, 1.502 GiB peak reserved; exact tensor replay and handoff passed |
+| Installed direct GRPO workflow (v0.15.0) | Qwen3-0.6B, 8 trajectories, 4 actor updates, 1.5039 GiB peak reserved; exact tensor replay and handoff passed |
 | Qwen3-0.6B/1.7B developer workload | 32 prompts, 8 current-policy updates, 3.1914 GiB peak reserved on one RTX 4080; matched interruption/resume was byte-identical |
 | Qwen3 sampled-k1 PG | 32 prompts, 8 updates, exact interruption/resume, 3.1914 GiB peak reserved; no quality comparison |
 | SmolLM2-360M/1.7B direct GKD | 32 prompts, 8 updates, 1.4961 GiB peak reserved; exact resume, PEFT reload and materialized export passed |
