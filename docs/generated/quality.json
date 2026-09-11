@@ -55,6 +55,8 @@
     "distributed_execution_tested": false
   },
   "release_validation": {
+    "commit": "pending",
+    "gpu_coverage": "pending exact-release-SHA full qualification",
     "status": "pending exact-release-SHA full qualification and publication",
     "scope": "same hosted candidate bytes must pass full GPU qualification, non-publishing gate and OIDC workflow"
   }
