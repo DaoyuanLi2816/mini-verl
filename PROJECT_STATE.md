@@ -6,7 +6,7 @@ current product and evidence state rather than repeating release history.
 
 Last updated: 2026-09-11.
 
-Canonical release state: stable `v0.15.0` (`659690d92a9ed92a01d1beec0a75873de8b860d5`), development `0.15.1.dev0`.
+Canonical release state: releasing `v0.16.0`.
 
 ## Release state
 
@@ -16,6 +16,8 @@ Canonical release state: stable `v0.15.0` (`659690d92a9ed92a01d1beec0a75873de8b8
 - Development installed-wheel RTX 4080 rehearsal passed native PPO and GRPO,
   shuffled epochs, real GRPO filtering, exact tensor replay and handoff. This
   rehearsal does not replace the mandatory exact-release candidate qualification.
+
+### Previous stable release: v0.15.0
 
 - v0.15.0 is published on PyPI and GitHub. The release uses the exact candidate
   from full RTX 4080 qualification `34442828628` (attempt 1), accepted by
@@ -63,8 +65,8 @@ Canonical release state: stable `v0.15.0` (`659690d92a9ed92a01d1beec0a75873de8b8
 
 ## Current product boundary
 
-Development `0.15.1.dev0` has a closed typed profile compiler: it retains v1/v2/v3 and adds
-`verl-rl-v0.9-single-gpu-v4`, direct execution of resolved RL inputs from official verl
+Release `0.16.0` has a closed typed profile compiler: it retains v1/v2/v3/v4 and adds
+`verl-rl-v0.9-single-gpu-v5`, native Hydra ingestion and deterministic sampling from verl
 `v0.9.0` at commit `483b8a009ba3a97563edee3a19887e4862b8094a`.
 It compiles PPO/GAE into phased one-GPU actor, critic, reference and reward
 roles. The critic is independently trainable and owns its optimizer, schedule,

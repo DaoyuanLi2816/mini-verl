@@ -230,11 +230,11 @@ def rules_for(state: ReleaseState) -> tuple[list[Rule], list[Presence]]:
         ),
         Rule(
             path="PROJECT_STATE.md",
-            description="current development product line",
+            description="current product line",
             pattern=re.compile(
-                r"(?:Development|Release) `(?P<value>[^`]+)` has a closed typed profile"
+                r"(?P<value>(?:Development|Release) `[^`]+`) has a closed typed profile"
             ),
-            expected=state.development_version,
+            expected=f"{'Release' if state.is_release else 'Development'} `{state.development_version}`",
         ),
         Rule(
             path="CHANGELOG.md",

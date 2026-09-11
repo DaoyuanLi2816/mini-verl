@@ -109,6 +109,19 @@ def test_security_and_current_product_prose_follow_the_canonical_state() -> None
     assert f"{product_prefix} `{state.development_version}` has a closed typed profile" in project
 
 
+def test_generator_updates_product_phase_and_version_together(tmp_path: Path) -> None:
+    root = _clone(tmp_path)
+    releasing = ReleaseState("9.0.0", "v9.0.0", "pending", "2026-09-11", "9.0.0", phase="release")
+    apply_release_state(root, releasing)
+    project = root / "PROJECT_STATE.md"
+    assert "Release `9.0.0` has a closed typed profile" in project.read_text(encoding="utf-8")
+    developing = ReleaseState("9.0.0", "v9.0.0", "a" * 40, "2026-09-11", "9.0.1.dev0")
+    apply_release_state(root, developing)
+    assert "Development `9.0.1.dev0` has a closed typed profile" in project.read_text(
+        encoding="utf-8"
+    )
+
+
 # --------------------------------------------------------------- validation
 
 
