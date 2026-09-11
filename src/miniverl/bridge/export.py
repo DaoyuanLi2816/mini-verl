@@ -546,7 +546,11 @@ def _rl_v09_overrides(
     samples = int(rollout.get("samples_per_prompt", 1))
     prompts = int(train.get("rollouts_per_cycle", 1))
     mini_batch = int(train.get("gradient_accumulation_steps", prompts * samples))
-    direct = _get(config, "run.profile_identity.profile_name") == "verl-rl-v0.9-single-gpu-v4"
+    from miniverl.bridge.direct_v5 import PROFILE as HYDRA_PROFILE
+    from miniverl.bridge.direct_v5 import SamplingSemantics
+
+    profile_name = _get(config, "run.profile_identity.profile_name")
+    direct = profile_name in {"verl-rl-v0.9-single-gpu-v4", HYDRA_PROFILE}
     if direct or _get(config, "run.profile_identity.profile_name") == "verl-rl-v0.9-single-gpu-v3":
         if mini_batch % samples:
             raise ConfigError(
@@ -666,6 +670,25 @@ def _rl_v09_overrides(
             overrides["critic"]["ppo_mini_batch_size"] = (
                 int(critic.get("gradient_accumulation_steps") or mini_batch * samples) // samples
             )
+    if profile_name == HYDRA_PROFILE:
+        sampling = SamplingSemantics.model_validate(
+            _get(config, "run.profile_identity.v5_sampling") or {}
+        )
+        overrides["actor_rollout_ref"]["actor"].update(
+            shuffle=sampling.actor_shuffle, data_loader_seed=sampling.actor_seed
+        )
+        if name == "ppo":
+            overrides["critic"].update(
+                shuffle=sampling.critic_shuffle, data_loader_seed=sampling.critic_seed
+            )
+        overrides["algorithm"]["filter_groups"] = {
+            "enable": sampling.filter_metric is not None,
+            "metric": sampling.filter_metric,
+            "max_inflight_gen_batches": sampling.max_inflight_gen_batches,
+        }
+        overrides["trainer"]["v1"] = {
+            "sampler": {"sync_refill_failed_groups": sampling.refill_failed_groups}
+        }
     return overrides
 
 
@@ -1041,9 +1064,10 @@ def _export_rl_v09_bundle(
         raise ConfigError("RL export requires config.resolved.yaml")
     validated = RunConfig.from_yaml(config_path)
     from miniverl.bridge.direct import DIRECT_PROFILE
+    from miniverl.bridge.direct_v5 import PROFILE as HYDRA_PROFILE
 
     profile = validated.run.profile_identity.get("profile_name")
-    if profile not in {VERL_RL_V09_PRODUCT_PROFILE, DIRECT_PROFILE}:
+    if profile not in {VERL_RL_V09_PRODUCT_PROFILE, DIRECT_PROFILE, HYDRA_PROFILE}:
         profile = VERL_RL_V09_PPO_PROFILE
     if validated.run.mode.value != "rl":
         raise ConfigError("verl v0.9 export requires a completed run.mode=rl run")
@@ -1126,6 +1150,14 @@ def _export_rl_v09_bundle(
             provenance / "miniverl-manifest.json", portable_payload(read_json(manifest_path))
         )
         write_json(provenance / "source-config.json", portable_payload(config))
+        if profile == HYDRA_PROFILE:
+            for name in ("verl-direct-report.json", "verl-composition.json"):
+                path = run / name
+                if path.is_file():
+                    write_json(provenance / name, portable_payload(read_json(path)))
+            blockers.append(
+                "local sampling attempt guard and equal-age dispatch-order tie-break require upstream review"
+            )
         report: dict[str, Any] = {
             "schema_version": 3,
             "profile": profile,
@@ -1136,7 +1168,7 @@ def _export_rl_v09_bundle(
             },
             "miniverl_version": __version__,
             "algorithm": validated.algorithm.name.value,
-            "algorithm_semantic_parity": True,
+            "algorithm_semantic_parity": profile != HYDRA_PROFILE,
             "artifact_bundle_complete": True,
             "upstream_config_parse_passed": False,
             "model_data_load_smoke_passed": False,

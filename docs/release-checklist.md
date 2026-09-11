@@ -1,5 +1,22 @@
 # Release checklist
 
+## v0.16.0 native Hydra release
+
+- [x] Preserve frozen scientific evidence and v1/v2/v3/v4 compiler identities.
+- [x] Compose the pinned upstream tree and ordinary overrides without a user-generated intermediate YAML.
+- [x] Test actor/critic shuffle, complete-group filtering, failed-group refill,
+  physical OOM repartition, cycle interruption and exact tensor replay.
+- [x] Regenerate the 16-case native corpus and verify official composition equivalence.
+- [x] Exercise installed-wheel PPO/GRPO on RTX 4080 in a development rehearsal,
+  including real zero-variance filtering, exact resume and handoff.
+- [x] Require exact-release-SHA candidate qualification, green CI, a non-publishing
+  release rehearsal and same-byte OIDC publication before the stable tag ships.
+- [x] Include native Hydra evidence in the versioned release archive and verify
+  current-version archive round trips before candidate qualification.
+
+The exact publication run IDs and distribution hashes are added to the
+post-publication state record; development rehearsals are not release evidence.
+
 ## v0.15.1 development
 
 - [x] Begin from the verified v0.15.0 release and advance the canonical

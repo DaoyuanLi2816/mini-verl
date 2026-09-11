@@ -6,6 +6,26 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-11
+
+### Native verl Hydra ingestion and single-GPU sampling
+
+- Compose the pinned verl v0.9.0 tree, config name and ordered Hydra overrides
+  directly through `miniverl run`; retain resolved-YAML v4 and all older identities.
+- Package the original 52 upstream YAML files and use Hydra 1.3.2 in a narrow
+  isolated adapter. Record defaults, exact overrides, tree hashes and resolved bytes.
+- Add v5 actor/critic DataLoader shuffling, raw-metric group filtering,
+  synchronous refill and a separately bound local attempt guard. Preserve
+  logical batches, policy freshness and exact cycle replay through OOM downshifts.
+- Distinguish unused legacy oversampling knobs from the pinned V1 refill logic;
+  record deterministic local tie-breaking for equal-age surplus groups.
+- Add a 16-case native-composition audit, upstream ordering/filter conformance,
+  filtered-run inspection and provenance-preserving v5 handoff templates.
+- Gate release promotion and canonical evidence archives on exact-wheel native
+  Hydra PPO/GRPO workflows, tensor replay, measured memory and inspected handoff.
+- Update English/Chinese entry points and keep published stable docs available
+  while the next release is being qualified.
+
 ## [0.15.0] - 2026-09-10
 
 ### Direct verl configurations
@@ -1268,7 +1288,8 @@ Same-tokenizer only; one trajectory per forward pass; `swap` unavailable for
 quantized models; only Qwen3 and Qwen2 architectures tested; single-seed GPU
 results. The full list is in `docs/limitations.md`.
 
-[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/DaoyuanLi2816/mini-verl/compare/v0.12.0...v0.13.0

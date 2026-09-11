@@ -9,6 +9,7 @@ from typing import Any
 
 from miniverl.errors import ConfigError
 from miniverl.rewards.models import (
+    RewardComponent,
     RewardProviderIdentity,
     RewardRequest,
     RewardResult,
@@ -23,7 +24,9 @@ class BoundVerlReward:
     report can authorize execution. Recheck on every process start/resume.
     """
 
-    def __init__(self, binding: str, *, approved_sha256: str) -> None:
+    def __init__(
+        self, binding: str, *, approved_sha256: str, preserve_metrics: bool = False
+    ) -> None:
         filename, separator, function = binding.rpartition(":")
         if not separator or not function.isidentifier():
             raise ConfigError("reward.function must be a local file.py:function_name")
@@ -40,9 +43,10 @@ class BoundVerlReward:
         if not callable(scorer):
             raise ConfigError("bound reward function is not callable")
         self.scorer = scorer
+        self.preserve_metrics = preserve_metrics
         self.identity = RewardProviderIdentity(
             name=function,
-            version="verl-python-abi-v1",
+            version="verl-python-abi-v2" if preserve_metrics else "verl-python-abi-v1",
             config_digest=digest,
             package_name="explicit-local-binding",
             deterministic=False,
@@ -55,7 +59,18 @@ class BoundVerlReward:
             ground_truth=request.ground_truth,
             extra_info=request.extra_info,
         )
+        components = []
         if isinstance(value, dict):
+            if self.preserve_metrics:
+                for name, metric in sorted(value.items()):
+                    if (
+                        name != "score"
+                        and isinstance(metric, (int, float))
+                        and not isinstance(metric, bool)
+                    ):
+                        if not math.isfinite(metric):
+                            raise ConfigError("bound reward metrics must be finite")
+                        components.append(RewardComponent(name=name, value=float(metric)))
             value = value.get("score")
         if (
             isinstance(value, bool)
@@ -71,6 +86,7 @@ class BoundVerlReward:
             provider=self.identity,
             input_digest=request.input_digest,
             raw_reward=float(value),
+            components=tuple(components),
             status=RewardStatus.OK,
             duration_ms=0.0,
             deterministic=self.identity.deterministic,

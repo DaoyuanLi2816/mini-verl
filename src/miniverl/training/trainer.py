@@ -15,6 +15,7 @@ import random
 import shutil
 import threading
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -1362,6 +1363,21 @@ class OPDTrainer:
                     policy_version=self.policy_version,
                     seed=seed,
                 )
+                from miniverl.training.sampling import RolloutGroupFailure, run_sampling
+
+                if run_sampling(self.config) is not None:
+                    missing = [
+                        not output.token_ids or output.stop_reason in {"error", "failed", "aborted"}
+                        for output in generated.outputs
+                    ]
+                    if not generated.outputs or all(missing):
+                        raise RolloutGroupFailure(
+                            "rollout group produced no materializable trajectories"
+                        )
+                    if any(missing):
+                        raise ConfigError(
+                            "partial failed groups require masked-group semantics, not full-group replacement"
+                        )
                 self._backend_sync_identity = generated.rollout_policy_identity_digest
                 if self.config.rollout.backend.value == "vllm":
                     lifecycle = getattr(
@@ -1399,10 +1415,16 @@ class OPDTrainer:
                     transaction_id=transaction_id,
                 )
             except BaseException as exc:
+                from miniverl.training.sampling import RolloutGroupFailure
+
+                if isinstance(exc, RolloutGroupFailure):
+                    exc.prompt_group_ids = tuple(self._pending_group_identity)
                 self.task_cursor = prompt_cursor_before
                 self._prompt_train_iterator = None
                 self._pending_group_identity = []
-                if isinstance(exc, KeyboardInterrupt):
+                from miniverl.training.sampling import run_sampling
+
+                if isinstance(exc, KeyboardInterrupt) and run_sampling(self.config) is None:
                     try:
                         self._save_checkpoint_impl(name="interrupted-group")
                     except BaseException as checkpoint_error:
@@ -2008,7 +2030,9 @@ class OPDTrainer:
         cache.flush()
         return samples
 
-    def _score_task_rewards(self, trajectories: list[Trajectory]) -> None:
+    def _score_task_rewards(
+        self, trajectories: list[Trajectory], *, defer_advantages: bool = False
+    ) -> None:
         """Score one complete rollout group and attach explicit task advantages."""
         if self.config.loss.mode not in {
             LossMode.VERL_PG_K1_REWARDED,
@@ -2017,7 +2041,7 @@ class OPDTrainer:
             return
         if self.reward_provider is None:
             raise ConfigError("reward-driven policy training requires a configured reward provider")
-        if self.config.algorithm.name is RLAlgorithm.PPO:
+        if self.config.algorithm.name is RLAlgorithm.PPO and not defer_advantages:
             self._score_critic_values(trajectories)
         from miniverl.rewards import (
             AdvantageComposer,
@@ -2126,6 +2150,11 @@ class OPDTrainer:
             groups.setdefault(group_id, []).append((trajectory, result))
 
         if self.config.loss.mode is LossMode.VERL_RL_POLICY:
+            if defer_advantages:
+                for members in groups.values():
+                    for trajectory, result in members:
+                        trajectory.metadata["task_reward"] = result.model_dump(mode="json")
+                return
             self._attach_rl_advantages(groups)
             return
 
@@ -2772,6 +2801,10 @@ class OPDTrainer:
                 cleanup=clear_grads,
             )
             record.update(self._commit_update())
+            from miniverl.training.sampling import run_sampling
+
+            if run_sampling(self.config) is not None:
+                record["minibatch_trajectory_ids"] = [s.trajectory.trajectory_id for s in group]
             self.global_step += 1
             self.parameter_version += 1
             elapsed = max(time.perf_counter() - started, 1e-9)
@@ -2997,6 +3030,12 @@ class OPDTrainer:
         }
         for cycle in range(self._start_cycle, config.train.cycles):
             self.cycle = cycle
+            from miniverl.training.sampling import run_sampling
+
+            if config.run.mode is TrainingMode.RL and run_sampling(config) is not None:
+                # This transaction includes group selection and both role passes.
+                # Interrupted partial work is replayed from this exact boundary.
+                self._save_checkpoint_impl()
             last_records = self._run_cycle()
             self._cycles_completed = cycle + 1
             cumulative_selected += int(
@@ -3229,24 +3268,36 @@ class OPDTrainer:
             collection_tasks = config.train.rollouts_per_cycle
             if mode is TrainingMode.OFFLINE_KD and config.offline_kd.collection_tasks is not None:
                 collection_tasks = config.offline_kd.collection_tasks
-            tasks = self._next_tasks(collection_tasks)
+            from miniverl.training.sampling import collect_selected_groups, run_sampling
+
+            sampling = run_sampling(config)
+            select_groups = (
+                mode is TrainingMode.RL
+                and sampling is not None
+                and (sampling.filter_metric is not None or sampling.refill_failed_groups)
+            )
+            tasks = [] if select_groups else self._next_tasks(collection_tasks)
             oracle = mode is TrainingMode.SFT or (
                 mode is TrainingMode.OFFLINE_KD
                 and config.offline_kd.trajectory_source is OfflineKDTrajectorySource.ORACLE
             )
             rollout_started = time.perf_counter()
-            trajectories, stats = self._collect(
-                tasks,
-                oracle=oracle,
-                rollout_seed_base=(
-                    config.offline_kd.collection_seed
-                    if mode is TrainingMode.OFFLINE_KD
-                    and config.offline_kd.trajectory_source
-                    is OfflineKDTrajectorySource.FROZEN_STUDENT
-                    else None
-                ),
-            )
-            self._score_task_rewards(trajectories)
+            if select_groups:
+                assert sampling is not None
+                trajectories, stats = collect_selected_groups(self, sampling)
+            else:
+                trajectories, stats = self._collect(
+                    tasks,
+                    oracle=oracle,
+                    rollout_seed_base=(
+                        config.offline_kd.collection_seed
+                        if mode is TrainingMode.OFFLINE_KD
+                        and config.offline_kd.trajectory_source
+                        is OfflineKDTrajectorySource.FROZEN_STUDENT
+                        else None
+                    ),
+                )
+                self._score_task_rewards(trajectories)
             if trajectories:
                 rollout_policy_version = trajectories[0].policy_version
             rollout_seconds = max(time.perf_counter() - rollout_started, 1e-9)
@@ -3330,10 +3381,24 @@ class OPDTrainer:
                     else []
                 )
                 records = []
-                for epoch in range(config.algorithm.actor_ppo_epochs):
+                from miniverl.training.sampling import epoch_samples, run_sampling
+
+                sampling = run_sampling(config)
+                orders: Iterator[list[TrainSample]] = (
+                    samples for _ in range(config.algorithm.actor_ppo_epochs)
+                )
+                if sampling is not None:
+                    orders = epoch_samples(
+                        samples,
+                        minibatch=config.train.gradient_accumulation_steps,
+                        epochs=config.algorithm.actor_ppo_epochs,
+                        shuffle=sampling.actor_shuffle,
+                        seed=sampling.actor_seed,
+                    )
+                for epoch, ordered in enumerate(orders):
                     records.extend(
                         self._optimize(
-                            samples,
+                            ordered,
                             phase=config.run.mode.value,
                             allow_ppo_replay=epoch > 0,
                             ppo_epoch=epoch,

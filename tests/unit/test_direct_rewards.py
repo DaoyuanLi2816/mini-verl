@@ -85,3 +85,34 @@ def test_bound_python_reward_uses_upstream_abi(tmp_path):
     )
     assert provider.score(request).raw_reward == 1.0
     assert provider.identity.deterministic is False
+
+
+def test_v5_bound_reward_preserves_named_filter_metrics(tmp_path):
+    import hashlib
+
+    from miniverl.rewards import RewardRequest
+    from miniverl.rewards.binding import BoundVerlReward
+
+    path = tmp_path / "reward.py"
+    path.write_text("def score(**kwargs):\n    return {'score': 0.2, 'accuracy': 1.0}\n")
+    provider = BoundVerlReward(
+        f"{path}:score",
+        approved_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+        preserve_metrics=True,
+    )
+    request = RewardRequest.create(
+        trajectory_id="t",
+        prompt_group_id="g",
+        sample_index=0,
+        samples_per_prompt=1,
+        row_digest="a" * 64,
+        prompt_text="prompt",
+        response_text="yes",
+        reward_model={},
+        ground_truth="yes",
+        data_source="unit",
+    )
+    result = provider.score(request)
+    assert result.raw_reward == 0.2
+    assert [(r.name, r.value) for r in result.components] == [("accuracy", 1.0)]
+    assert provider.identity.version == "verl-python-abi-v2"

@@ -166,6 +166,7 @@ def inspect_artifacts(
     cycles = [r for r in metrics if str(r.get("phase", "")).endswith("_cycle")]
     rewards = read_records(root / "rewards.jsonl")
     advantages = read_records(root / "advantages.jsonl")
+    sampling_summary = None
     rollout_summary: dict[str, Any] = {}
     if manifest.get("mode") == "rl" and (root / "trajectories.jsonl").exists():
         from miniverl.trajectory.io import read_trajectories
@@ -177,6 +178,41 @@ def inspect_artifacts(
         ids = {t.trajectory_id for t in trajectories}
         if len(ids) != len(trajectories):
             raise ReportError("duplicate training trajectory identity")
+        advantage_ids = ids
+        identity = manifest.get("profile_identity") or {}
+        sampling = identity.get("v5_sampling") or {}
+        if identity.get("profile_name") == "verl-rl-v0.9-single-gpu-v5" and (
+            sampling.get("filter_metric") or sampling.get("refill_failed_groups")
+        ):
+            selected = [
+                key
+                for row in metrics
+                if row.get("phase") == "rl_sampling"
+                for key in row.get("selected_trajectory_ids", [])
+            ]
+            excluded = [
+                key
+                for row in metrics
+                if row.get("phase") == "rl_group_selection"
+                and row.get("decision") in {"filtered_zero_variance", "discarded_surplus_group"}
+                for key in row.get("trajectory_ids", [])
+            ]
+            if (
+                any(not isinstance(key, str) for key in selected + excluded)
+                or len(selected) != len(set(selected))
+                or len(excluded) != len(set(excluded))
+                or set(selected) & set(excluded)
+                or not set(selected + excluded).issubset(ids)
+            ):
+                raise ReportError("invalid or overlapping group selection identities")
+            if manifest.get("status") == "completed" and set(selected + excluded) != ids:
+                raise ReportError("completed run has unaccounted group selection decisions")
+            advantage_ids = set(selected)
+            sampling_summary = {
+                "selected_trajectories": len(selected),
+                "excluded_trajectories": len(excluded),
+                "cycles": [row for row in metrics if row.get("phase") == "rl_sampling"],
+            }
         for records, label in ((rewards, "reward"), (advantages, "advantage")):
             recorded = [row.get("trajectory_id") for row in records]
             if any(not isinstance(key, str) for key in recorded) or len(set(recorded)) != len(
@@ -185,7 +221,8 @@ def inspect_artifacts(
                 raise ReportError(f"invalid or duplicate {label} identity")
             if not set(recorded).issubset(ids):
                 raise ReportError(f"{label} record has no training trajectory")
-            if manifest.get("status") == "completed" and set(recorded) != ids:
+            expected_ids = advantage_ids if label == "advantage" else ids
+            if manifest.get("status") == "completed" and set(recorded) != expected_ids:
                 raise ReportError(f"completed run is missing {label} records")
         rollout_summary = {
             "trajectories": len(trajectories),
@@ -235,6 +272,7 @@ def inspect_artifacts(
             "models": manifest.get("models") or {},
             "local_placement": manifest.get("memory") or {},
             "rollouts": rollout_summary,
+            "sampling": sampling_summary,
             "miniverl_version": manifest.get("miniverl_version"),
             "updates": {
                 "actor_records": len(actor),

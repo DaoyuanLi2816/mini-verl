@@ -109,6 +109,19 @@ def test_security_and_current_product_prose_follow_the_canonical_state() -> None
     assert f"{product_prefix} `{state.development_version}` has a closed typed profile" in project
 
 
+def test_generator_updates_product_phase_and_version_together(tmp_path: Path) -> None:
+    root = _clone(tmp_path)
+    releasing = ReleaseState("9.0.0", "v9.0.0", "pending", "2026-09-11", "9.0.0", phase="release")
+    apply_release_state(root, releasing)
+    project = root / "PROJECT_STATE.md"
+    assert "Release `9.0.0` has a closed typed profile" in project.read_text(encoding="utf-8")
+    developing = ReleaseState("9.0.0", "v9.0.0", "a" * 40, "2026-09-11", "9.0.1.dev0")
+    apply_release_state(root, developing)
+    assert "Development `9.0.1.dev0` has a closed typed profile" in project.read_text(
+        encoding="utf-8"
+    )
+
+
 # --------------------------------------------------------------- validation
 
 
@@ -264,6 +277,20 @@ def test_pending_commit_is_only_accepted_while_releasing() -> None:
         ReleaseState(
             "0.6.3", "v0.6.3", "pending", "2026-08-06", "0.6.4.dev0", phase="development"
         ).validate()
+
+
+def test_pending_release_overlay_keeps_published_stable_and_updates_dev(tmp_path):
+    from scripts.release_state import overlay_docs_versions
+
+    stable = _clone(tmp_path)
+    previous = load_release_state(stable)
+    releasing = ReleaseState("9.0.0", "v9.0.0", "pending", "2026-09-11", "9.0.0", phase="release")
+    before = (stable / "README.md").read_bytes()
+    overlay_docs_versions(stable, releasing, allow_pending_release=True)
+    html = (stable / "docs/overrides/main.html").read_text()
+    assert f'data-stable-version="{previous.stable_version}"' in html
+    assert 'data-dev-version="9.0.0"' in html
+    assert (stable / "README.md").read_bytes() == before
 
 
 def test_unknown_phase_is_rejected() -> None:

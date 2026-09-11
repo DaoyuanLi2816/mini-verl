@@ -104,6 +104,11 @@ def _fixture(tmp_path: Path, *, version: str = "0.11.0.dev0") -> tuple[Path, Pat
             "full/v015-direct.json",
             b'{"kind":"installed_direct_verl_workflows"}\n',
         )
+    if version_key >= (0, 16):
+        evidence["full_v016_hydra_result"] = (
+            "full/v016-hydra.json",
+            b'{"kind":"installed_native_hydra_workflows"}\n',
+        )
     artifacts = []
     for name, (relative, content) in evidence.items():
         path = qualification / relative
@@ -242,6 +247,10 @@ def _fixture(tmp_path: Path, *, version: str = "0.11.0.dev0") -> tuple[Path, Pat
         from miniverl.qualification_direct import DIRECT_CHECKS
 
         payload["checks"]["executed"].extend(DIRECT_CHECKS)
+    if version_key >= (0, 16):
+        from miniverl.qualification_hydra import HYDRA_CHECKS
+
+        payload["checks"]["executed"].extend(HYDRA_CHECKS)
     qualification_path.write_text(json.dumps(payload), encoding="utf-8")
     verification = tmp_path / "verification.json"
     verification.write_text(
@@ -342,7 +351,12 @@ def test_v012_release_archive_includes_rl_qualification(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize(
     "version,role",
-    [("0.13.0", "v013_ppo"), ("0.14.0", "v014_product"), ("0.15.0", "v015_direct")],
+    [
+        ("0.13.0", "v013_ppo"),
+        ("0.14.0", "v014_product"),
+        ("0.15.0", "v015_direct"),
+        ("0.16.0", "v016_hydra"),
+    ],
 )
 def test_current_release_archive_includes_qualification(
     tmp_path: Path, version: str, role: str

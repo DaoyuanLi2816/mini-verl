@@ -84,6 +84,7 @@ jobs:
           python scripts/publish_verl_direct_schema.py --check
           python scripts/publish_direct_examples.py --check
           python scripts/publish_direct_compatibility.py --check
+          python scripts/publish_hydra_compatibility.py --check
           python scripts/check_markdown_links.py
           python scripts/check_text_integrity.py
           miniverl --help

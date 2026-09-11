@@ -1,79 +1,63 @@
 {
   "schema_version": 2,
-  "release": "0.15.0",
-  "status": "released",
-  "quality_floor": "2,000+ tests and 80%+ branch coverage at v0.15.0",
+  "release": "0.16.0",
+  "status": "candidate",
+  "quality_floor": "2,800+ tests and 80%+ combined line/branch coverage for the v0.16.0 candidate",
   "local_validation": {
-    "scope": "full CPU regression after the release-archive fix; unchanged runtime GPU/network/conformance checks from the implementation pass",
-    "commit": "6de1054f998d87f6306f12b88b2a61405f9a321d",
-    "commit_relationship": "final repair PR head; the squash release commit has the same tree",
-    "measured_at": "2026-09-10T05:50:51Z",
+    "scope": "native Hydra and sampling implementation; release metadata changes checked separately",
+    "commit": "cd8be51f74c0fa182ae8ae651a35c813c8b15514",
+    "commit_relationship": "tested runtime plus separately tested composition-path and pending-docs navigation fixes",
+    "measured_at": "2026-09-11T07:56:00Z",
     "platform": "Windows 11",
     "python": "CPython 3.10.11",
     "coverage_mode": "branch",
+    "cpu_non_gpu_non_network": {
+      "passed": 2812,
+      "skipped": 10,
+      "deselected": 24,
+      "combined_coverage_percent": 82.15,
+      "line_coverage_percent": 85.25,
+      "branch_coverage_percent": 72.59,
+      "skip_reason": "Windows symlink privilege and POSIX-only tests"
+    },
     "gpu": {
       "passed": 10,
       "hardware": "NVIDIA GeForce RTX 4080",
       "platform": "WSL2 Ubuntu"
     },
     "network": {
-      "passed": 15,
-      "skipped": 1,
-      "skip_reason": "official verl v0.8.0 is not installed in the local test environment; dedicated bridge CI covers that pin"
-    },
-    "cpu_non_gpu_non_network": {
-      "passed": 2733,
-      "skipped": 28,
-      "deselected": 24,
-      "branch_coverage_percent": 82.21,
-      "skip_reason": "Windows privilege/platform skips and pinned upstream tests executed separately"
+      "passed": 16,
+      "skipped": 0
     },
     "pinned_upstream_conformance": {
-      "passed": 18,
-      "tag": "v0.9.0"
+      "scope": "included in full CPU suite",
+      "tag": "v0.9.0",
+      "ordering_and_group_filter_tests": 10
     },
     "docs_visual": {
       "viewports": 4,
-      "rendered_svg_instances": 44
+      "rendered_svg_instances": 44,
+      "manually_inspected": true
     }
   },
+  "development_rehearsal": {
+    "release_evidence": false,
+    "installed_candidate": true,
+    "ppo_actor_updates": 4,
+    "ppo_critic_updates": 4,
+    "grpo_actor_updates": 4,
+    "grpo_filtered_groups": 4,
+    "ppo_peak_reserved_gib": 1.502,
+    "grpo_peak_reserved_gib": 1.502,
+    "exact_tensor_resume": true,
+    "journal_comparison": "trajectories and advantages byte-exact; rewards identical excluding measured duration_ms",
+    "handoff": "ok",
+    "distributed_execution_tested": false
+  },
   "release_validation": {
-    "commit": "659690d92a9ed92a01d1beec0a75873de8b860d5",
-    "gpu_coverage": "attempt-1 full qualification: direct upstream-format PPO/GRPO commands, explicit bindings, exact tensor resume, handoff, historical profiles and complete HF cached/vLLM matrices on one WSL2 RTX 4080",
-    "scope": "exact release candidate wheel",
-    "conclusion": "passed",
-    "hosted_cpu": {
-      "passed": 2721,
-      "skipped": 41,
-      "deselected": 18,
-      "branch_coverage_percent": 82.02
-    },
-    "direct_workflows": {
-      "ppo_actor_updates": 4,
-      "ppo_critic_updates": 4,
-      "grpo_actor_updates": 4,
-      "ppo_peak_reserved_gib": 1.502,
-      "grpo_peak_reserved_gib": 1.5039,
-      "exact_tensor_resume": true,
-      "source_bytes_preserved": true,
-      "manual_native_yaml_edits": false,
-      "handoff": "ok",
-      "distributed_execution_tested": false
-    },
-    "workflows": {
-      "ci": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34442426777",
-      "build": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34442426780",
-      "docs": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34442426834",
-      "pinned_verl_bridge": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34436699306",
-      "gpu_full_qualification": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34442828628",
-      "release_dry_run": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34447536443",
-      "release": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34448233909"
-    },
-    "publication": {
-      "pypi": "https://pypi.org/project/miniverl/0.15.0/",
-      "github_release": "https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.15.0",
-      "wheel_sha256": "e9b909a7bb3983e3699ba39b99f424ce215d1f60ecb0c84b07e647d217803ff3",
-      "sdist_sha256": "6a32dcd93fed32df44ba65ca08cd1ecf26001ba65ea32feb39245f289add3577"
-    }
+    "commit": "pending",
+    "gpu_coverage": "pending exact-release-SHA full qualification",
+    "status": "pending exact-release-SHA full qualification and publication",
+    "scope": "same hosted candidate bytes must pass full GPU qualification, non-publishing gate and OIDC workflow"
   }
 }
