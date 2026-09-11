@@ -84,10 +84,12 @@ jobs:
       - name: Compare GRPO, Dr.GRPO, RLOO, REINFORCE++, GAE, policy and value math
         env:
           MINIVERL_VERL_V09_SOURCE: _verl-v0.9.0
-        run: python -m pytest -q tests/conformance/test_verl_v09_rl.py -m verl_conformance
+        run: python -m pytest -q tests/conformance/test_verl_v09_rl.py tests/conformance/test_verl_v09_sampling.py -m verl_conformance
       - name: Regenerate the real upstream compatibility corpus
         run: >-
           python scripts/publish_verl_compatibility_corpus.py --upstream _verl-v0.9.0 --check
+          python scripts/publish_verl_hydra_tree.py --upstream _verl-v0.9.0 --check
+          python scripts/publish_hydra_compatibility.py --check
       - name: Verify packaged PPO and GRPO workflows
         run: python scripts/publish_rl_product_examples.py --check
       - name: Materialize and recheck the pure-OPD bundle

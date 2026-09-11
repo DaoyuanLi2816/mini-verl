@@ -321,6 +321,17 @@ class GPUQualification(_Strict):
                         "v0.15 direct qualification evidence is missing: "
                         + ", ".join(sorted(missing_direct))
                     )
+            if requires_v013 and (int(version_parts[0]), int(version_parts[1])) >= (0, 16):
+                from miniverl.qualification_hydra import HYDRA_CHECKS
+
+                missing_hydra = set(HYDRA_CHECKS) - set(self.checks.executed)
+                if "full_v016_hydra_result" not in {artifact.name for artifact in self.artifacts}:
+                    missing_hydra.add("full_v016_hydra_result")
+                if missing_hydra:
+                    raise ValueError(
+                        "v0.16 native Hydra evidence is missing: "
+                        + ", ".join(sorted(missing_hydra))
+                    )
         return self
 
 

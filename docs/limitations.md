@@ -12,12 +12,29 @@ the corresponding sections below.
 
 ## Current local RL boundary
 
-The v3 compiler accepts a resolved, versioned profile subset. The seven
-[real upstream configuration cases](verl-compatibility-corpus.md) currently
-reject as complete inputs: unsupported engine settings, automatic prompt
-filtering, rollout-based RM execution or sequence-normalized losses require
-explicit adaptation. The packaged PPO/GRPO examples retain a field-by-field
-adaptation ledger and run from the installed wheel.
+Native Hydra v5 and resolved-YAML v4 accept the seven
+[real upstream configuration cases](verl-compatibility-corpus.md) semantically.
+The original production-scale model/data combinations have not been executed
+locally. Historical v3 rejections stay in the original audit, rather than being
+overwritten by later profile behavior.
+
+Hydra ingestion targets exactly verl v0.9.0 and Hydra 1.3.2. Original upstream
+YAML files must match the pin (line endings may differ); add a local config or
+use overrides instead of changing those base files. Sweeps, search-path/runtime
+overrides, environment/custom resolvers, escaping defaults, YAML constructors
+and credentials in configuration are rejected. Ordinary references and
+`oc.select` work. The installed Python environment and Hydra package are trusted;
+the subprocess is state isolation, not an OS security sandbox.
+
+The v5 synchronous group sampler matches the pinned zero-variance predicate,
+refill credits and bounded dispatch waves. Equal-age surplus selection uses
+deterministic dispatch order instead of unspecified upstream set order. Partial
+failed groups require masked-group support and are rejected; OOM is handled by
+physical repartitioning, not relabelled as a failed sample. A local attempt guard
+can stop an all-filtered stream without committing a smaller optimizer batch.
+Legacy `over_sample_rate` has no execution consumer at the pin, and V1 ignores
+`max_num_gen_batches`; neither is a working retry control. Filtered runs keep a
+cycle-start checkpoint so interruption replays the entire collection/update unit.
 
 PPO and GRPO qualification measures update integrity, memory, resume and
 handoff on the RTX 4080. Its bounded length reward is a systems workload, not
@@ -479,10 +496,11 @@ one-statement limit. Use an external sandbox when the tool itself is untrusted.
 ### Verl bridge boundary
 
 The RL compiler targets official verl `v0.9.0` at commit
-`483b8a009ba3a97563edee3a19887e4862b8094a` and accepts a closed resolved
-subset. It preserves data, actor, rollout, algorithm and schedule fields with
+`483b8a009ba3a97563edee3a19887e4862b8094a`. Native Hydra v5 composes that
+version's tree; v4 accepts resolved files. They preserve data, actor, rollout, algorithm and schedule fields with
 tested local semantics; distributed resource fields lower to one process and
-device. It is not a generic Hydra composition engine.
+device. Arbitrary upstream versions, custom resolvers and distributed execution
+require separately implemented contracts.
 
 The historical **miniVERL-defined compatibility Level 3** bridge targets official verl
 `v0.8.0` at one exact commit and one named profile. It validates standard

@@ -1,7 +1,7 @@
 # For verl users
 
-miniVERL turns supported experiment semantics from a resolved verl-shaped
-config into a validated one-GPU plan. Field names, datasets, logical batches,
+miniVERL composes your verl config tree/name/overrides into a validated one-GPU
+plan. Field names, datasets, logical batches,
 algorithms and artifacts remain recognizable; cluster placement is replaced by
 sequential local phases and recorded as a lowering decision.
 
@@ -14,17 +14,18 @@ sequential local phases and recorded as a lowering decision.
 
 ```bash
 miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
-miniverl run --example grpo --bind reward.provider=target_length --dry-run
-miniverl run --example grpo --bind reward.provider=target_length --run-id local-grpo
+miniverl run --example hydra-ppo --bind reward.provider=target_length --dry-run
+miniverl run --example hydra-ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
 This profile pins official verl `v0.9.0` at
-`483b8a009ba3a97563edee3a19887e4862b8094a`. It accepts a resolved documented
-input for PPO/GAE, GRPO, Dr.GRPO, RLOO or REINFORCE++, automatically selecting v4
-and retaining the native IR as an inspection artifact. Replace `--example grpo`
-with your own resolved YAML. Scientific-notation strings such as `1e-5` are
-accepted when finite; `${...}`, NaN, infinity and unknown fields fail before a
-runnable recipe is published.
+`483b8a009ba3a97563edee3a19887e4862b8094a`. Install `miniverl[train,hydra]`
+after CUDA PyTorch. Use `--verl-config-path /path/to/verl/trainer/config
+--verl-config-name ppo_trainer` followed by your usual dotted overrides to bring
+an existing experiment. Without a path, the pinned tree comes from the wheel.
+Hydra composition selects v5; resolved YAML still selects v4. Both retain the
+native IR as an inspection artifact, with PPO/GAE, GRPO, Dr.GRPO, RLOO and
+REINFORCE++ available. `--print-resolved` shows exactly what the compiler receives.
 
 Follow the [direct-config workflow](direct-verl-config.md) to run, inspect,
 resume and export both examples. The [real upstream corpus](verl-compatibility-corpus.md)
@@ -35,7 +36,8 @@ explains the algorithms and local execution model.
 
 | verl action | miniVERL action |
 | --- | --- |
-| capture a resolved Hydra config | provide it to `miniverl run resolved-verl.yaml` |
+| compose config name + overrides | `miniverl run --verl-config-name ppo_trainer algorithm.adv_estimator=grpo` |
+| use an already resolved config | `miniverl run resolved-verl.yaml` |
 | inspect field semantics | `miniverl run resolved-verl.yaml --dry-run --json` |
 | inspect the resolved local plan | read `verl-direct-report.json` and `config.resolved.yaml` |
 | run actor/reward/reference phases | `miniverl run resolved-verl.yaml --bind ...` |

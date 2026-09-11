@@ -139,6 +139,10 @@ def prepare_direct(
     from miniverl.data.verl_parquet import VerlParquetDataset
     from miniverl.models.factory import build_tokenizer
 
+    native_builder = build_native
+    if report.get("profile") == "verl-rl-v0.9-single-gpu-v5":
+        from miniverl.bridge.direct_v5 import build_native as native_builder
+
     if report["semantic_status"] != "accepted":
         return None, report
     effective = copy.deepcopy(report["effective_source"])
@@ -166,7 +170,7 @@ def prepare_direct(
             offline=offline,
         )
         _put(effective, "miniverl.reward.revision", revision)
-    native = build_native(
+    native = native_builder(
         effective, cycles=_get(effective, "trainer.total_training_steps", None) or 1
     )
     available = torch.cuda.mem_get_info()[0] / 2**30 if torch.cuda.is_available() else 0.0
@@ -194,7 +198,7 @@ def prepare_direct(
     epochs = _get(effective, "trainer.total_epochs", 1)
     limit = _get(effective, "trainer.total_training_steps", None)
     cycles = min(batches * epochs, limit) if limit is not None else batches * epochs
-    native = build_native(effective, cycles=cycles)
+    native = native_builder(effective, cycles=cycles)
     native["memory"]["strategy"] = "swap"  # actor/critic/RM temporal placement
     native["rollout"]["prompt_batch_size"] = 1
     native["train"]["trajectory_batch_size"] = 1
@@ -202,6 +206,7 @@ def prepare_direct(
         {
             "source_config_sha256": report["source_config_sha256"],
             "runtime_bindings": report["runtime_bindings"],
+            **({"composition": report["composition"]} if "composition" in report else {}),
             "local_placement": {"physical_microbatch": 1, "strategy": "swap", "reference": "cpu"},
             "dataset_content_digest": manifest.content_digest,
             "local_snapshot_digests": {
@@ -239,10 +244,18 @@ def execute_direct(
     offline: bool,
     approved_reward_sha256: str | None,
     resume_from: Path | None = None,
+    profile: str = "verl-rl-v0.9-single-gpu-v4",
+    composition: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     from miniverl.bridge.direct import compile_direct
 
+    if profile == "verl-rl-v0.9-single-gpu-v5":
+        from miniverl.bridge.direct_v5 import compile_direct
+    elif profile != "verl-rl-v0.9-single-gpu-v4":
+        raise ConfigError("unsupported direct runtime profile")
     report = compile_direct(source, bindings=bindings)
+    if composition is not None:
+        report.update({"composition_status": "resolved", "composition": composition})
     if dry_run or report["semantic_status"] != "accepted":
         return report
     binding = next(
@@ -259,6 +272,8 @@ def execute_direct(
         if (
             previous.get("source_config_sha256") != report["source_config_sha256"]
             or previous.get("runtime_bindings") != report["runtime_bindings"]
+            or previous.get("composition") != report.get("composition")
+            or previous.get("profile") != report.get("profile")
         ):
             raise ConfigError("resume requires the original upstream bytes and runtime bindings")
         previous_native = previous.get("resolved_native_config", {})
@@ -285,7 +300,11 @@ def execute_direct(
 
         if not approved_reward_sha256:
             raise ConfigError("local reward code requires --trust-reward-code SHA256")
-        provider = BoundVerlReward(binding, approved_sha256=approved_reward_sha256)
+        provider = BoundVerlReward(
+            binding,
+            approved_sha256=approved_reward_sha256,
+            preserve_metrics=profile == "verl-rl-v0.9-single-gpu-v5",
+        )
         config.run.profile_identity["reward_code_sha256"] = approved_reward_sha256
     config.run.execution_plan_digest = None
     config.run.execution_plan_digest = _digest(config.model_dump(mode="json"))
@@ -308,6 +327,8 @@ def execute_direct(
             raise ConfigError("source config changed after semantic compilation")
         (trainer.paths.root / "verl-source.yaml").write_bytes(original)
         write_json_atomic(trainer.paths.root / "verl-direct-report.json", report)
+        if composition is not None:
+            write_json_atomic(trainer.paths.root / "verl-composition.json", composition)
         result = trainer.train()
         return {
             **report,

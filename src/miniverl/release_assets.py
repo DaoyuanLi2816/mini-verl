@@ -66,6 +66,9 @@ V014_ARCHIVE_EVIDENCE = {
 V015_ARCHIVE_EVIDENCE = {
     "full_v015_direct_result": ("v015_direct", "v015/direct-workflows.json"),
 }
+V016_ARCHIVE_EVIDENCE = {
+    "full_v016_hydra_result": ("v016_hydra", "v016/hydra-workflows.json"),
+}
 _SPECIAL_EVIDENCE = {"candidate-manifest.json"}
 QUALIFICATION_SUM_FILES = (
     "candidate-manifest.json",
@@ -150,6 +153,7 @@ def _validate_archive_mapping() -> None:
         **V013_ARCHIVE_EVIDENCE,
         **V014_ARCHIVE_EVIDENCE,
         **V015_ARCHIVE_EVIDENCE,
+        **V016_ARCHIVE_EVIDENCE,
     }.items():
         if (
             not original_name
@@ -186,6 +190,8 @@ def _archive_evidence_for_version(version: str) -> dict[str, tuple[str, str]]:
         mapping.update(V014_ARCHIVE_EVIDENCE)
     if release_series >= (0, 15):
         mapping.update(V015_ARCHIVE_EVIDENCE)
+    if release_series >= (0, 16):
+        mapping.update(V016_ARCHIVE_EVIDENCE)
     return mapping
 
 

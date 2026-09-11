@@ -4,11 +4,18 @@ Current maintainer handoff for **miniVERL** (`mini-verl` package, `miniverl`
 CLI). `release-state.yaml` is the canonical version source; this page indexes
 current product and evidence state rather than repeating release history.
 
-Last updated: 2026-09-10.
+Last updated: 2026-09-11.
 
 Canonical release state: stable `v0.15.0` (`659690d92a9ed92a01d1beec0a75873de8b860d5`), development `0.15.1.dev0`.
 
 ## Release state
+
+- The v0.16 work adds native pinned Hydra input and immutable v5 sampling
+  semantics. Its 16-case audit has 14 successful compositions and 12 semantic
+  acceptances, with explicit composition/semantic rejection cases.
+- Development installed-wheel RTX 4080 rehearsal passed native PPO and GRPO,
+  shuffled epochs, real GRPO filtering, exact tensor replay and handoff. This
+  rehearsal does not replace the mandatory exact-release candidate qualification.
 
 - v0.15.0 is published on PyPI and GitHub. The release uses the exact candidate
   from full RTX 4080 qualification `34442828628` (attempt 1), accepted by

@@ -45,6 +45,7 @@ def gate_plan(
         Gate("release_state", (python, "scripts/release_state.py", "--check")),
         Gate("pypi_readme", (python, "scripts/build_pypi_readme.py", "--check")),
         Gate("known_good_environment", (python, "scripts/check_known_good_environment.py")),
+        Gate("native_hydra_corpus", (python, "scripts/publish_hydra_compatibility.py", "--check")),
         Gate(
             "qualification_schema",
             (python, "scripts/publish_gpu_qualification_schema.py", "--check"),

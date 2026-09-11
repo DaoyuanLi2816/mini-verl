@@ -18,8 +18,8 @@
   <a href="README.md">English</a>
 </p>
 
-**在一张 NVIDIA GPU 上直接运行常见 verl PPO／GRPO 配置。** 把 resolved 上游 YAML
-交给 miniVERL，再绑定本地数据或奖励代码。版本化编译器保留实验语义，让 actor、critic、
+**在一张 NVIDIA GPU 上直接运行常见 verl PPO／GRPO 配置。** 把上游配置树、config name
+和 Hydra overrides 交给 miniVERL，再绑定本地数据或奖励代码。版本化编译器保留实验语义，让 actor、critic、
 reference 和 reward 按阶段共用显卡，无需另外维护一套配置语言。
 
 当前开发线针对官方 verl `v0.9.0`（`483b8a00`）支持 PPO/GAE、GRPO、Dr.GRPO、
@@ -35,20 +35,27 @@ PyPI `v0.15.0` 是稳定版；`main` 是开发版。
 先安装与本机匹配的 CUDA PyTorch，再运行：
 
 ```bash
-python -m pip install "miniverl[train]"
+python -m pip install "miniverl[train,hydra]"
 miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
-miniverl run --example ppo --bind reward.provider=target_length --dry-run
-miniverl run --example ppo --bind reward.provider=target_length --run-id local-ppo
+miniverl run --example hydra-ppo --bind reward.provider=target_length --dry-run
+miniverl run --example hydra-ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
-PPO 与 GRPO 示例以**上游格式**包含在安装包里，用 Qwen3-0.6B 运行两个 iteration；
-显式 binding 选择小规模长度奖励练习。使用自己的配置时，把 `--example ppo` 换成
-`resolved-verl.yaml`。每次运行保存原始字节、逐字段决策、binding、解析后的模型快照、
-硬件计划和内部 IR。接着检查、恢复并导出：
+安装包里的 Hydra 示例组合官方 verl defaults 与 Qwen3-0.6B 启动参数，
+显式 binding 选择长度奖励练习。自己的配置直接这样运行：
+
+```bash
+miniverl run --verl-config-path /path/to/verl/trainer/config \
+  --verl-config-name ppo_trainer --dry-run \
+  algorithm.adv_estimator=grpo actor_rollout_ref.rollout.n=8 trainer.n_gpus_per_node=8
+```
+
+每次运行保存配置树身份、有序 overrides、解析字节、逐字段决策、binding、
+模型快照和执行计划。接着检查、恢复并导出：
 
 ```bash
 miniverl inspect runs/local-ppo
-miniverl run --example ppo --bind reward.provider=target_length \
+miniverl run --example hydra-ppo --bind reward.provider=target_length \
   --resume-from runs/local-ppo/checkpoints/step-000002
 miniverl export-adapter --run runs/local-ppo --out runs/local-ppo/model
 miniverl export-verl --run runs/local-ppo --target-verl v0.9.0 --out ppo-handoff
@@ -58,7 +65,7 @@ miniverl bridge doctor ppo-handoff --json
 [五分钟工作流](docs/for-verl-users.md)解释每个产物，并给出对应的 GRPO 命令。
 这是小规模长度奖励练习，奖励值可以直接在 `rewards.jsonl` 中检查。
 
-`[train]` 安装训练依赖，`[cuda]` 额外安装量化依赖；CUDA PyTorch build 通过
+`[train]` 安装训练依赖，`[hydra]` 固定配置解析依赖，`[cuda]` 安装量化依赖；CUDA PyTorch build 通过
 [PyTorch 安装器](https://pytorch.org/get-started/locally/)单独选择。
 [单卡指南](docs/single-gpu-guide.md)包含显存规划与维护者实测的 RTX 4080 环境。
 
@@ -90,7 +97,7 @@ estimator 并更新 actor。PPO 额外执行独立 critic 的 clipped value upda
 
 | 目标 | 第一个命令 | 主要产物 | 下一步 |
 | --- | --- | --- | --- |
-| **本地 RL** | `miniverl run resolved-verl.yaml --dry-run` | 语义报告 + 本地执行计划 | [直接运行配置](docs/direct-verl-config.md) |
+| **本地 RL** | `miniverl run --verl-config-name ppo_trainer --dry-run` | 配置解析 + 语义报告 + 执行计划 | [直接运行配置](docs/direct-verl-config.md) |
 | **本地 OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | 不可变执行计划 | [OPD quickstart](docs/opd-quickstart.md) |
 | **适配显卡** | `miniverl plan --config verl-opd.yaml --probe` | 实测 placement plan | [硬件规划](docs/hardware-planning.md) |
 | **交接产物** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor、critic、Parquet + config bundle | [兼容性契约](docs/compatibility.md) |
@@ -112,8 +119,8 @@ SQLite 和自定义 tool environment。
 | Ray、FSDP/FSDP2、Megatron、TP/PP/DP > 1 | 仅分布式 | 这些能力改变物理规模，不改变本地 objective |
 
 [上游兼容语料库](docs/verl-compatibility-corpus.md)解析真实 verl 示例，逐项记录字段结果。
-v4 直接编译器保留上游 prompt minibatch 单位，支持多种损失归约、prompt 过滤及 epoch 调度。
-报告分别列出语义兼容、所需本地输入与硬件容量；v1/v2/v3 继续用于已有 recipe。
+原生 Hydra 解析、独立 actor/critic shuffle、group 过滤与失败组补采样使用新的 v5 profile。
+解析状态、语义兼容与硬件容量分别报告；resolved YAML 与历史 v1/v2/v3/v4 继续可用。
 
 ## 实测系统证据
 

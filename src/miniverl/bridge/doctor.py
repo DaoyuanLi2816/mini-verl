@@ -21,6 +21,7 @@ from miniverl.bridge.contract import (
     VERL_TAG,
 )
 from miniverl.bridge.direct import DIRECT_PROFILE
+from miniverl.bridge.direct_v5 import PROFILE as HYDRA_PROFILE
 from miniverl.bridge.opd_pg_v08 import VERL_OPD_PG_K1_V08_PROFILE
 from miniverl.bridge.opd_v08 import VERL_OPD_V08_PROFILE
 from miniverl.bridge.preflight import preflight_bundle_tree
@@ -107,6 +108,7 @@ def _check_requirements(root: Path) -> dict[str, Any]:
         VERL_RL_V09_PPO_PROFILE,
         VERL_RL_V09_PRODUCT_PROFILE,
         DIRECT_PROFILE,
+        HYDRA_PROFILE,
     }:
         from miniverl.algorithms.contract import UPSTREAM_VERL_COMMIT, UPSTREAM_VERL_TAG
 
@@ -424,7 +426,12 @@ def _check_config(root: Path) -> dict[str, Any]:
         if not required_roots.issubset(actual):
             rl_problems.append("missing required RL root")
         profile = compatibility.get("profile")
-        if profile not in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE, DIRECT_PROFILE}:
+        if profile not in {
+            VERL_RL_V09_PPO_PROFILE,
+            VERL_RL_V09_PRODUCT_PROFILE,
+            DIRECT_PROFILE,
+            HYDRA_PROFILE,
+        }:
             rl_problems.append("unregistered verl v0.9 RL profile")
         try:
             model = payload["actor_rollout_ref"]["model"]
@@ -448,7 +455,7 @@ def _check_config(root: Path) -> dict[str, Any]:
                 if critic.get("enable") is not True:
                     rl_problems.append("critic.enable")
                 if (critic.get("model") or {}).get("path") != (
-                    "critic/base" if profile == DIRECT_PROFILE else "model/base"
+                    "critic/base" if profile in {DIRECT_PROFILE, HYDRA_PROFILE} else "model/base"
                 ):
                     rl_problems.append("critic.model.path")
                 if payload["algorithm"].get("adv_estimator") != "gae":
@@ -1377,7 +1384,7 @@ def inspect_bridge_bundle(
         bundle,
         required=(
             config.get("profile")
-            in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE, DIRECT_PROFILE}
+            in {VERL_RL_V09_PPO_PROFILE, VERL_RL_V09_PRODUCT_PROFILE, DIRECT_PROFILE, HYDRA_PROFILE}
             and compatibility.get("algorithm") == "ppo"
         ),
     )

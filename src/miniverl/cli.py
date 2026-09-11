@@ -1116,11 +1116,11 @@ def plan_command(
 )
 def verl_run_command(
     ctx: typer.Context,
-    source_path: Optional[Path] = typer.Argument(
+    source_path: Optional[str] = typer.Argument(
         None, help="Resolved verl RL YAML; compiler selected automatically."
     ),
     example: Optional[str] = typer.Option(
-        None, "--example", help="Run a packaged upstream-shaped ppo or grpo config."
+        None, "--example", help="Packaged hydra-ppo/hydra-grpo or legacy resolved ppo/grpo input."
     ),
     config: Optional[str] = typer.Option(
         None, "--config", help="Resolved YAML path or builtin profile."
@@ -1162,13 +1162,112 @@ def verl_run_command(
     resume_from: Optional[Path] = typer.Option(
         None, "--resume-from", help="Direct RL checkpoint to replay from."
     ),
+    verl_config_path: Optional[str] = typer.Option(
+        None, "--verl-config-path", help="Pinned verl config tree; defaults to the packaged tree."
+    ),
+    verl_config_name: Optional[str] = typer.Option(
+        None, "--verl-config-name", help="Compose this Hydra config name with trailing overrides."
+    ),
+    print_resolved: bool = typer.Option(
+        False, "--print-resolved", help="Print resolved Hydra YAML without training."
+    ),
 ) -> None:
-    """Run a resolved verl RL config directly, or an explicitly selected OPD plan."""
+    """Run a verl config tree or resolved YAML, or an explicitly selected OPD plan."""
     try:
+        if example in {"hydra-ppo", "hydra-grpo"}:
+            if source_path or verl_config_path or verl_config_name:
+                raise ConfigError("choose a packaged Hydra example or your own config inputs")
+            from miniverl.bridge.hydra_examples import qualification_overrides
+
+            if ctx.args:
+                raise ConfigError("extend packaged Hydra examples with --set key=value")
+            overrides = qualification_overrides(example.removeprefix("hydra-")) + overrides
+            verl_config_name = "ppo_trainer"
+            example = None
+        if verl_config_path is not None or verl_config_name is not None:
+            if (
+                config
+                or plan_path
+                or example
+                or override_files
+                or accept_local_reinterpretations
+                or rollout_backend
+            ):
+                raise ConfigError("Hydra input cannot be combined with native recipe/plan options")
+            if profile not in {"verl-opd-v0.8-single-gpu-v1", "verl-rl-v0.9-single-gpu-v5"}:
+                raise ConfigError("native Hydra selects the versioned v5 profile")
+            if resume is not None and resume_from is not None:
+                raise ConfigError("--resume and --resume-from are mutually exclusive")
+            from miniverl.bridge.hydra import compose_verl
+
+            arguments = ([str(source_path)] if source_path is not None else []) + list(ctx.args)
+            if overrides and arguments:
+                raise ConfigError(
+                    "use trailing Hydra overrides or --set, not both; order must be explicit"
+                )
+            try:
+                composed = compose_verl(
+                    config_path=verl_config_path,
+                    config_name=verl_config_name or "ppo_trainer",
+                    overrides=arguments or overrides,
+                )
+            except ConfigError as exc:
+                if as_json:
+                    _emit_json(
+                        {
+                            "composition_status": "failed",
+                            "semantic_status": "not_assessed",
+                            "execution_status": "not_assessed",
+                            "error": str(exc),
+                        }
+                    )
+                    raise typer.Exit(2) from exc
+                raise
+            if print_resolved:
+                typer.echo(composed.resolved_yaml.decode("utf-8"), nl=False)
+                return
+            import tempfile
+
+            from miniverl.bridge.direct_runtime import execute_direct
+
+            with tempfile.TemporaryDirectory(prefix="miniverl-resolved-") as directory:
+                resolved = Path(directory) / "resolved.yaml"
+                resolved.write_bytes(composed.resolved_yaml)
+                direct = execute_direct(
+                    resolved,
+                    bindings=bindings,
+                    dry_run=dry_run,
+                    output=output,
+                    run_id=run_id,
+                    resume=resume,
+                    resume_from=resume_from,
+                    offline=offline,
+                    approved_reward_sha256=trust_reward_code,
+                    profile="verl-rl-v0.9-single-gpu-v5",
+                    composition=composed.provenance,
+                )
+            if as_json:
+                _emit_json(direct)
+            else:
+                console.print(
+                    f"composition: resolved; semantic: {_esc(direct['semantic_status'])}; "
+                    f"execution: {_esc(direct['execution_status'])}"
+                )
+                for issue in [*direct.get("rejections", []), *direct.get("required_bindings", [])]:
+                    console.print(f"  {_esc(issue['field'])}: {_esc(issue['reason'])}")
+                if direct.get("run_dir"):
+                    console.print(f"  run: {_esc(direct['run_dir'])}")
+            if direct["semantic_status"] == "rejected" or (
+                not dry_run and direct["execution_status"] != "completed"
+            ):
+                raise typer.Exit(2)
+            return
+        if print_resolved:
+            raise ConfigError("--print-resolved requires --verl-config-name or --verl-config-path")
         if example is not None:
             if source_path is not None or example not in {"ppo", "grpo"}:
-                raise ConfigError("choose --example ppo/grpo or a source YAML, not both")
-            source_path = Path(__file__).parent / "resources" / f"verl_direct_{example}.yaml"
+                raise ConfigError("choose --example ppo/grpo/hydra-ppo/hydra-grpo or source inputs")
+            source_path = str(Path(__file__).parent / "resources" / f"verl_direct_{example}.yaml")
         if source_path is not None:
             if profile not in {"verl-opd-v0.8-single-gpu-v1", "verl-rl-v0.9-single-gpu-v4"}:
                 raise ConfigError(
@@ -1191,7 +1290,7 @@ def verl_run_command(
             from miniverl.bridge.direct_runtime import execute_direct
 
             direct = execute_direct(
-                source_path,
+                Path(source_path),
                 bindings=bindings,
                 dry_run=dry_run,
                 output=output,

@@ -365,10 +365,19 @@ def apply_release_state(root: Path, state: ReleaseState | None = None) -> list[s
     return sorted(set(changed))
 
 
-def overlay_docs_versions(stable_root: Path, state: ReleaseState) -> None:
+def overlay_docs_versions(
+    stable_root: Path, state: ReleaseState, *, allow_pending_release: bool = False
+) -> None:
     """Update navigation metadata in a disposable stable-docs checkout only."""
     state.validate()
-    if load_release_state(stable_root).stable_version != state.stable_version:
+    selected = load_release_state(stable_root)
+    if selected.stable_version != state.stable_version and not (
+        allow_pending_release
+        and state.is_release
+        and state.stable_commit == "pending"
+        and tuple(map(int, selected.stable_version.split(".")))
+        < tuple(map(int, state.stable_version.split(".")))
+    ):
         raise ValueError("stable version differs from the selected release checkout")
     relative = "docs/overrides/main.html"
     path = stable_root / relative
@@ -381,7 +390,8 @@ def overlay_docs_versions(stable_root: Path, state: ReleaseState) -> None:
         if len(matches) != 1:
             raise ValueError(f"expected one docs navigation field: {rule.description}")
         start, end = matches[0].span("value")
-        text = text[:start] + rule.expected + text[end:]
+        expected = selected.stable_version if "stable" in rule.description else rule.expected
+        text = text[:start] + expected + text[end:]
     path.write_text(text, encoding="utf-8", newline="")
 
 
@@ -400,7 +410,7 @@ def main(argv: list[str] | None = None) -> int:
     root = arguments.root
     state = load_release_state(root)
     if arguments.docs_overlay:
-        overlay_docs_versions(arguments.docs_overlay, state)
+        overlay_docs_versions(arguments.docs_overlay, state, allow_pending_release=state.is_release)
         return 0
     if arguments.write:
         changed = apply_release_state(root, state)

@@ -1,16 +1,18 @@
 # miniVERL
 
-Run common resolved verl PPO/GRPO configs directly on one NVIDIA GPU.
+Run common verl PPO/GRPO config trees directly on one NVIDIA GPU.
 The local runtime produces policy-bound trajectories,
 transactional checkpoints and portable PEFT/Parquet artifacts.
 
-[Run PPO or GRPO locally](local-rl-workflow.md){ .md-button .md-button--primary }
+[Run PPO or GRPO locally](direct-verl-config.md){ .md-button .md-button--primary }
 [Choose a workflow](comparisons.md){ .md-button }
 
 ## From a verl config to one GPU
 
 ```text
-resolved verl-shaped config
+verl config tree + config name + overrides
+        ↓  pinned Hydra composition
+resolved upstream config
         ↓  versioned compatibility compiler
 field report + validated native recipe
         ↓  temporal role scheduler
@@ -30,13 +32,14 @@ sampled-k1 OPD with explicit teacher targets.
 
 ```bash
 python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
-python -m pip install "miniverl[train]"
+python -m pip install "miniverl[train,hydra]"
 miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
-miniverl run --example ppo --bind reward.provider=target_length --dry-run
-miniverl run --example ppo --bind reward.provider=target_length --run-id local-ppo
+miniverl run --example hydra-ppo --bind reward.provider=target_length --dry-run
+miniverl run --example hydra-ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
-Replace `--example ppo` with your resolved verl YAML to use an existing experiment.
+Use `--verl-config-name ppo_trainer` plus your usual overrides for an existing experiment.
+Add `--verl-config-path` for a pinned upstream checkout; resolved YAML also works.
 `--dry-run` checks semantic compatibility without model downloads; execution
 resolves snapshots, filters prompts, derives the epoch schedule and checks GPU
 capacity. Continue with [direct run → inspect → resume → handoff](direct-verl-config.md).
@@ -49,11 +52,11 @@ capacity. Continue with [direct run → inspect → resume → handoff](direct-v
 
 ### Prototype verl RL
 
-Bring a resolved v0.9-shaped config and run PPO or a grouped critic-free
+Bring a v0.9 config tree and run PPO or a grouped critic-free
 algorithm on one CUDA device.
 
 ```bash
-miniverl run verl-rl.yaml --dry-run
+miniverl run --verl-config-name ppo_trainer --dry-run
 ```
 
 **Artifact:** native recipe plus field-by-field compatibility report.

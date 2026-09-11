@@ -24,12 +24,14 @@ still lowers to one device; those resource values are reported as
 
 ## verl v0.9 RL compiler
 
-The direct `verl-rl-v0.9-single-gpu-v4` profile and preserved v1/v2/v3 profiles target
+Native Hydra `verl-rl-v0.9-single-gpu-v5`, resolved-file v4 and preserved v1/v2/v3 profiles target
 official verl `v0.9.0` at
 `483b8a009ba3a97563edee3a19887e4862b8094a`. v1 retains the released
 critic-free contract; v2 adds PPO and its value role. v3 binds upstream prompt
 minibatch units. v4 adds direct execution, common loss reductions, repeated
 actor epochs, prompt filtering, dataset-derived schedules and explicit bindings.
+v5 adds pinned config-tree composition, independent shuffled actor/critic epochs,
+zero-variance group filtering and synchronous failed-group refill.
 Start with the [direct PPO/GRPO workflow](direct-verl-config.md); the
 [upstream corpus](verl-compatibility-corpus.md) accounts for complete real configs.
 
@@ -52,10 +54,11 @@ Start with the [direct PPO/GRPO workflow](direct-verl-config.md); the
 | TP/PP/DP, nodes, resource pools | distributed only | original values retained; execution uses one process/device |
 | actor-loss KL / entropy | semantically conformant | sampled-token reference KL and entropy enter the actor objective |
 
-The compiler consumes resolved YAML. v4 separates semantic acceptance, missing
+The native command composes Hydra inputs; v4 still consumes resolved YAML.
+Composition success is independent of semantic acceptance, missing
 local bindings and exact-model hardware capacity; static acceptance does not
 claim execution. Historical importers produce templates for missing choices.
-Unknown active semantics and unresolved interpolation are reported before
+Unknown active semantics and unresolvable interpolation are reported before
 execution. Every executable IR is validated with `RunConfig`.
 
 The [machine-readable v1 report](generated/verl-rl-v0.9-compatibility.json) and

@@ -266,6 +266,20 @@ def test_pending_commit_is_only_accepted_while_releasing() -> None:
         ).validate()
 
 
+def test_pending_release_overlay_keeps_published_stable_and_updates_dev(tmp_path):
+    from scripts.release_state import overlay_docs_versions
+
+    stable = _clone(tmp_path)
+    previous = load_release_state(stable)
+    releasing = ReleaseState("9.0.0", "v9.0.0", "pending", "2026-09-11", "9.0.0", phase="release")
+    before = (stable / "README.md").read_bytes()
+    overlay_docs_versions(stable, releasing, allow_pending_release=True)
+    html = (stable / "docs/overrides/main.html").read_text()
+    assert f'data-stable-version="{previous.stable_version}"' in html
+    assert 'data-dev-version="9.0.0"' in html
+    assert (stable / "README.md").read_bytes() == before
+
+
 def test_unknown_phase_is_rejected() -> None:
     with pytest.raises(ValueError, match="phase must be one of"):
         ReleaseState("0.6.3", "v0.6.3", "a" * 40, "2026-08-06", "0.6.4.dev0", phase="rc").validate()

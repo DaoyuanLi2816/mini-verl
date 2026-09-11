@@ -557,6 +557,7 @@ def promote(
     v013_ppo: Path | None = None,
     v014_product: Path | None = None,
     v015_direct: Path | None = None,
+    v016_hydra: Path | None = None,
 ) -> GPUQualification:
     problems = validate_qualification_file(qualification_path)
     if problems:
@@ -619,6 +620,15 @@ def promote(
         validate_direct_evidence(_load(v015_direct), qualification)
         direct_sources = {"v015_direct": v015_direct}
 
+    hydra_sources: dict[str, Path] = {}
+    if tuple(int(part) for part in qualification.miniverl_version.split(".")[:2]) >= (0, 16):
+        from miniverl.qualification_hydra import validate_hydra_evidence
+
+        if v016_hydra is None:
+            raise ValueError("v0.16 full qualification requires native Hydra evidence")
+        validate_hydra_evidence(_load(v016_hydra), qualification)
+        hydra_sources = {"v016_hydra": v016_hydra}
+
     root = qualification_path.parent
     destination = root / "full"
     destination.mkdir(parents=True, exist_ok=False)
@@ -637,7 +647,12 @@ def promote(
         target = destination / f"{name.replace('_', '-')}.json"
         shutil.copy2(source, target)
         additions.append((f"full_{name}_result", target))
-    for name, source in {**v013_sources, **product_sources, **direct_sources}.items():
+    for name, source in {
+        **v013_sources,
+        **product_sources,
+        **direct_sources,
+        **hydra_sources,
+    }.items():
         target = destination / f"{name.replace('_', '-')}.json"
         shutil.copy2(source, target)
         additions.append((f"full_{name}_result", target))
@@ -673,6 +688,10 @@ def promote(
         from miniverl.qualification_direct import DIRECT_CHECKS
 
         payload["checks"]["executed"].extend(DIRECT_CHECKS)
+    if hydra_sources:
+        from miniverl.qualification_hydra import HYDRA_CHECKS
+
+        payload["checks"]["executed"].extend(HYDRA_CHECKS)
     promoted = GPUQualification.model_validate(payload)
     write_json_atomic(qualification_path, promoted.model_dump(mode="json"))
     final_problems = validate_qualification_file(qualification_path)
@@ -695,6 +714,7 @@ def main() -> int:
     parser.add_argument("--v013-ppo", type=Path)
     parser.add_argument("--v014-product", type=Path)
     parser.add_argument("--v015-direct", type=Path)
+    parser.add_argument("--v016-hydra", type=Path)
     args = parser.parse_args()
     promoted = promote(
         args.qualification,
@@ -709,6 +729,7 @@ def main() -> int:
         v013_ppo=args.v013_ppo,
         v014_product=args.v014_product,
         v015_direct=args.v015_direct,
+        v016_hydra=args.v016_hydra,
     )
     print(json.dumps(promoted.model_dump(mode="json"), sort_keys=True, allow_nan=False))
     return 0

@@ -106,6 +106,13 @@ run — see
 
 ## Other assets
 
+`src/miniverl/resources/verl_v09_hydra_tree.json` packages the 52 original YAML
+files under `verl/trainer/config` from verl v0.9.0, commit
+`483b8a009ba3a97563edee3a19887e4862b8094a`, under Apache-2.0. Original copyright
+and license headers are retained inside each YAML payload. This is configuration
+data, generated from pinned Git blobs by `scripts/publish_verl_hydra_tree.py`;
+Hydra's own composer is used rather than a copied upstream resolution engine.
+
 `docs/banner.svg` was drawn for this project. It uses no third-party artwork,
 font file, icon set or trademark. The `Contributor Covenant` text in
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) is version 2.1, distributed under

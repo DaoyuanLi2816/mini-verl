@@ -20,7 +20,7 @@
 </p>
 
 **Run common verl PPO/GRPO configs directly on one NVIDIA GPU.** Hand miniVERL
-your resolved upstream YAML and bind local data or reward code. Its versioned
+your upstream config tree, config name and Hydra overrides; bind local data or reward code. Its versioned
 compiler preserves the experiment while scheduling actor, critic, reference
 and reward roles in phases. No second configuration language to maintain.
 
@@ -38,21 +38,28 @@ PyPI `v0.15.0` is stable; `main` is development.
 Install the CUDA-enabled PyTorch build that matches your machine, then:
 
 ```bash
-python -m pip install "miniverl[train]"
+python -m pip install "miniverl[train,hydra]"
 miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
-miniverl run --example ppo --bind reward.provider=target_length --dry-run
-miniverl run --example ppo --bind reward.provider=target_length --run-id local-ppo
+miniverl run --example hydra-ppo --bind reward.provider=target_length --dry-run
+miniverl run --example hydra-ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
-PPO and GRPO inputs ship in upstream format in the wheel. These bounded
-Qwen3-0.6B examples run two iterations; the explicit binding selects a small
-length-reward exercise. To use your own resolved config, replace `--example ppo`
-with `resolved-verl.yaml`. Each run keeps the original bytes, field decisions,
-bindings, resolved snapshots, hardware plan and native IR. Inspect, resume and export:
+The packaged Hydra examples compose official verl defaults plus bounded
+Qwen3-0.6B launch overrides. The binding selects a length-reward exercise.
+Bring your own config directly:
+
+```bash
+miniverl run --verl-config-path /path/to/verl/trainer/config \
+  --verl-config-name ppo_trainer --dry-run \
+  algorithm.adv_estimator=grpo actor_rollout_ref.rollout.n=8 trainer.n_gpus_per_node=8
+```
+
+Each run records the config tree, ordered overrides, resolved bytes, field decisions,
+bindings, snapshots and execution plan. Inspect, resume and export:
 
 ```bash
 miniverl inspect runs/local-ppo
-miniverl run --example ppo --bind reward.provider=target_length \
+miniverl run --example hydra-ppo --bind reward.provider=target_length \
   --resume-from runs/local-ppo/checkpoints/step-000002
 miniverl export-adapter --run runs/local-ppo --out runs/local-ppo/model
 miniverl export-verl --run runs/local-ppo --target-verl v0.9.0 --out ppo-handoff
@@ -63,7 +70,7 @@ The [five-minute workflow](docs/for-verl-users.md) explains each artifact and
 offers the matching GRPO commands. These are small length-reward exercises;
 their reward is directly inspectable in `rewards.jsonl`.
 
-`[train]` supplies the ML stack; `[cuda]` additionally supplies quantization.
+`[train]` supplies the ML stack, `[hydra]` pins composition, and `[cuda]` adds quantization.
 Select PyTorch's CUDA build with the [PyTorch installer](https://pytorch.org/get-started/locally/).
 The [single-GPU guide](docs/single-gpu-guide.md) covers memory planning and the
 maintainer-measured RTX 4080 environment.
@@ -99,7 +106,7 @@ the learning signal.
 
 | Goal | First command | Primary artifact | Next step |
 | --- | --- | --- | --- |
-| **Run local RL** | `miniverl run resolved-verl.yaml --dry-run` | semantic report + local plan | [Direct configs](docs/direct-verl-config.md) |
+| **Run local RL** | `miniverl run --verl-config-name ppo_trainer --dry-run` | composition + semantic report + local plan | [Direct configs](docs/direct-verl-config.md) |
 | **Run local OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | immutable execution plan | [OPD quickstart](docs/opd-quickstart.md) |
 | **Fit your GPU** | `miniverl plan --config verl-opd.yaml --probe` | measured placement plan | [Hardware planning](docs/hardware-planning.md) |
 | **Hand off artifacts** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor, critic, Parquet + config bundle | [Compatibility contract](docs/compatibility.md) |
@@ -121,10 +128,10 @@ navigation, read-only SQLite and custom tool environments.
 | Ray, FSDP/FSDP2, Megatron, TP/PP/DP > 1 | distributed-only | these change physical scale, not the local objective |
 
 The [upstream compatibility corpus](docs/verl-compatibility-corpus.md) resolves
-real verl examples and records every field's outcome. The v4 direct compiler
-adds prompt filtering, epoch scheduling and common loss reductions, separating
-semantic acceptance from missing inputs and hardware capacity. v1/v2/v3 remain
-available for existing recipes.
+real verl examples and records every field's outcome. Native Hydra composition,
+shuffled actor/critic epochs and group filtering/refill use the new v5 profile.
+Composition, semantics and hardware remain separate statuses. Resolved YAML
+and historical v1/v2/v3/v4 profiles remain available.
 
 ## Measured systems evidence
 

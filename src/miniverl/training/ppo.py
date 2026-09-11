@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import time
+from collections.abc import Iterator
 from typing import Any
 
 from miniverl.config.models import MemoryStrategy
@@ -264,14 +265,30 @@ class PPOPhaseRuntime:
                 host.config.critic.gradient_accumulation_steps
                 or host.config.train.gradient_accumulation_steps
             )
-            for epoch in range(host.config.critic.ppo_epochs):
-                for start in range(0, len(samples), accum):
-                    group = samples[start : start + accum]
+            from miniverl.training.sampling import epoch_samples, run_sampling
+
+            sampling = run_sampling(host.config)
+            orders: Iterator[list[Any]] = (samples for _ in range(host.config.critic.ppo_epochs))
+            if sampling is not None:
+                orders = epoch_samples(
+                    samples,
+                    minibatch=accum,
+                    epochs=host.config.critic.ppo_epochs,
+                    shuffle=sampling.critic_shuffle,
+                    seed=sampling.critic_seed,
+                )
+            for epoch, ordered in enumerate(orders):
+                for start in range(0, len(ordered), accum):
+                    group = ordered[start : start + accum]
                     if not group:
                         continue
                     started = time.perf_counter()
                     record = self._compute_with_oom_retry(group)
                     record.update(self.commit_update())
+                    if sampling is not None:
+                        record["minibatch_trajectory_ids"] = [
+                            s.trajectory.trajectory_id for s in group
+                        ]
                     record.update(
                         {
                             "phase": "ppo_critic",

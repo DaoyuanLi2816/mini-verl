@@ -113,6 +113,9 @@ jobs:
           miniverl doctor --json > /tmp/doctor.json
           python -c "import json; d=json.load(open('/tmp/doctor.json')); assert d['verdict']['core_commands'] is True"
           python -c "import miniverl, sys; assert 'torch' not in sys.modules"
+          python -m pip install "$(echo dist/*.whl)[hydra]"
+          miniverl run --verl-config-name ppo_trainer --dry-run --json algorithm.adv_estimator=grpo > /tmp/hydra-core.json
+          python -c "import json; d=json.load(open('/tmp/hydra-core.json')); assert d['composition_status']=='resolved' and d['semantic_status']=='accepted'"
           deactivate
 
       - name: Install the training extra into a second clean environment
