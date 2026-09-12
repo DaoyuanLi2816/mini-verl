@@ -1,23 +1,23 @@
 {
   "schema_version": 2,
   "release": "0.16.0",
-  "status": "candidate",
-  "quality_floor": "2,800+ tests and 80%+ combined line/branch coverage for the v0.16.0 candidate",
+  "status": "released",
+  "quality_floor": "2,800+ tests and 80%+ combined line/branch coverage for v0.16.0",
   "local_validation": {
-    "scope": "native Hydra and sampling implementation; release metadata changes checked separately",
-    "commit": "cd8be51f74c0fa182ae8ae651a35c813c8b15514",
-    "commit_relationship": "tested runtime plus separately tested composition-path and pending-docs navigation fixes",
-    "measured_at": "2026-09-11T07:56:00Z",
+    "scope": "final native Hydra and sampling PR head before squash merge",
+    "commit": "63e2c268133c1dd731036ca9f0fabde9b2f7e5a6",
+    "commit_relationship": "identical source tree to the release squash commit",
+    "measured_at": "2026-09-11T08:15:55.477Z",
     "platform": "Windows 11",
     "python": "CPython 3.10.11",
     "coverage_mode": "branch",
     "cpu_non_gpu_non_network": {
-      "passed": 2812,
+      "passed": 2814,
       "skipped": 10,
       "deselected": 24,
       "combined_coverage_percent": 82.15,
-      "line_coverage_percent": 85.25,
-      "branch_coverage_percent": 72.59,
+      "line_coverage_percent": 85.26,
+      "branch_coverage_percent": 72.60,
       "skip_reason": "Windows symlink privilege and POSIX-only tests"
     },
     "gpu": {
@@ -55,9 +55,42 @@
     "distributed_execution_tested": false
   },
   "release_validation": {
-    "commit": "pending",
-    "gpu_coverage": "pending exact-release-SHA full qualification",
-    "status": "pending exact-release-SHA full qualification and publication",
-    "scope": "same hosted candidate bytes must pass full GPU qualification, non-publishing gate and OIDC workflow"
+    "commit": "7a6ad7d9fa6e05787dca1b950ba6706c36384382",
+    "gpu_coverage": "exact-release-SHA full qualification on WSL2 RTX 4080; attempt 1",
+    "status": "published on PyPI and GitHub; public hashes, attestations, clean installation and all 13 assets verified",
+    "scope": "same hosted candidate bytes passed full GPU qualification, non-publishing gate and OIDC publication",
+    "qualification_url": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34579023220",
+    "rehearsal_url": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34679933372",
+    "publication_url": "https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34680345232",
+    "wheel_sha256": "072cb36baf9808869094968c2b09a2aae6d3cc05dd108ca7802f290158182ce8",
+    "sdist_sha256": "7b137b66671ef0b1703d0d3fa731a794bf50275eb8858b19cacbd7d060b20278",
+    "hosted_cpu": {
+      "run_id": 34578386179,
+      "passed": 2774,
+      "skipped": 51,
+      "deselected": 18,
+      "combined_coverage_percent": 81.96
+    },
+    "native_hydra": {
+      "evidence_archive_path": "v016/hydra-workflows.json",
+      "ppo_actor_updates": 4,
+      "ppo_critic_updates": 4,
+      "grpo_actor_updates": 4,
+      "grpo_filtered_groups": 4,
+      "ppo_peak_reserved_gib": 1.502,
+      "grpo_peak_reserved_gib": 1.502,
+      "exact_tensor_resume": true,
+      "exact_semantic_journal_resume": true,
+      "journal_comparison": "trajectories and advantages byte-exact; rewards identical excluding top-level measured duration_ms",
+      "handoff": "ok",
+      "distributed_execution_tested": false,
+      "scientific_scope": "bounded length-reward systems qualification; no task-quality claim"
+    },
+    "public_install": {
+      "core_commands": true,
+      "hydra_grpo_semantic_status": "accepted",
+      "hydra_grpo_execution_status": "requires_bindings",
+      "core_and_hydra_torch_free": true
+    }
   }
 }

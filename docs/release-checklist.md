@@ -1,5 +1,10 @@
 # Release checklist
 
+## v0.16.1 development
+
+- [x] Advance the canonical development version to `0.16.1.dev0`, retaining
+  stable documentation and package artifacts on the immutable `v0.16.0` tag.
+
 ## v0.16.0 native Hydra release
 
 - [x] Preserve frozen scientific evidence and v1/v2/v3/v4 compiler identities.
@@ -14,8 +19,37 @@
 - [x] Include native Hydra evidence in the versioned release archive and verify
   current-version archive round trips before candidate qualification.
 
-The exact publication run IDs and distribution hashes are added to the
-post-publication state record; development rehearsals are not release evidence.
+Published on 2026-09-12 from `7a6ad7d9fa6e05787dca1b950ba6706c36384382` via
+[full qualification](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34579023220),
+[rehearsal](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34679933372), and
+[OIDC release](https://github.com/DaoyuanLi2816/mini-verl/actions/runs/34680345232).
+
+- [x] Verify public PyPI files and cryptographic trusted-publisher attestations;
+  install core and Hydra from PyPI in a fresh environment without PyTorch.
+- [x] Compare all 13 public GitHub assets against the formal workflow artifact;
+  check the canonical archive, including `v016/hydra-workflows.json`.
+- [x] Verify all 39 historical result/evidence JSON/JSONL files are unchanged.
+
+Native installed-wheel qualification completed PPO 4 actor / 4 critic updates
+and GRPO 4 actor updates with 4 filtered groups, exact tensor and semantic-journal
+resume, and inspected handoff. Peak reserved memory was 1.502 GiB in both paths.
+The reward journal comparison excludes only top-level measured `duration_ms`;
+trajectories and advantages remain byte-exact. These are bounded systems checks.
+
+Public distribution SHA-256:
+
+```text
+072cb36baf9808869094968c2b09a2aae6d3cc05dd108ca7802f290158182ce8  miniverl-0.16.0-py3-none-any.whl
+7b137b66671ef0b1703d0d3fa731a794bf50275eb8858b19cacbd7d060b20278  miniverl-0.16.0.tar.gz
+```
+
+[PyPI](https://pypi.org/project/miniverl/0.16.0/) and
+[GitHub Release](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.16.0)
+serve the same qualified distribution bytes. Local regression passed 2,814 tests
+with 82.15% combined coverage; GPU/network suites passed 10/16 tests. Hosted
+main CPU CI passed 2,774 tests with 81.96% combined coverage. Full build,
+extracted-sdist, clean-install, static, generated-artifact, link/privacy and
+four-viewport browser checks passed before publication.
 
 ## v0.15.1 development
 
