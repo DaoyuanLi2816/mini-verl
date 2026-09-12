@@ -6,7 +6,7 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
-## [0.16.0] - 2026-09-11
+## [0.16.0] - 2026-09-12
 
 ### Native verl Hydra ingestion and single-GPU sampling
 

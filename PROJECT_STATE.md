@@ -4,18 +4,34 @@ Current maintainer handoff for **miniVERL** (`mini-verl` package, `miniverl`
 CLI). `release-state.yaml` is the canonical version source; this page indexes
 current product and evidence state rather than repeating release history.
 
-Last updated: 2026-09-11.
+Last updated: 2026-09-12.
 
-Canonical release state: releasing `v0.16.0`.
+Canonical release state: stable `v0.16.0` (`7a6ad7d9fa6e05787dca1b950ba6706c36384382`), development `0.16.1.dev0`.
 
 ## Release state
 
 - The v0.16 work adds native pinned Hydra input and immutable v5 sampling
   semantics. Its 16-case audit has 14 successful compositions and 12 semantic
   acceptances, with explicit composition/semantic rejection cases.
-- Development installed-wheel RTX 4080 rehearsal passed native PPO and GRPO,
-  shuffled epochs, real GRPO filtering, exact tensor replay and handoff. This
-  rehearsal does not replace the mandatory exact-release candidate qualification.
+- v0.16.0 is published on PyPI and GitHub from exact-release-SHA full RTX 4080
+  qualification `34579023220` (attempt 1), non-publishing rehearsal `34679933372`
+  and OIDC publication `34680345232`. No distributions were rebuilt for publication.
+- The installed candidate completed native PPO (4 actor / 4 critic updates)
+  and GRPO (4 actor updates, 4 filtered groups), shuffled epochs, synchronous
+  refill, exact tensor and semantic-journal resume, and inspected handoff.
+  Both workflows reserved at most 1.502 GiB. This is a bounded length-reward
+  systems qualification, not a task-quality or distributed-execution result.
+- Final local regression: 2,814 passed, 10 skipped, 24 deselected; 82.15%
+  combined line/branch coverage (85.26% lines, 72.60% branches). Local GPU and
+  network suites passed 10 and 16 tests. Hosted main CI passed 2,774 CPU tests
+  at 81.96% combined coverage; pinned bridge and four-viewport docs jobs passed.
+- Public PyPI hashes, trusted-publisher attestations, clean core and Hydra
+  installation, and all 13 GitHub Release assets were independently verified.
+  The archive includes `v016/hydra-workflows.json`. All 39 historical result
+  and evidence JSON/JSONL files remain byte-identical.
+- Stable docs: <https://daoyuanli2816.github.io/mini-verl/>. Development docs:
+  <https://daoyuanli2816.github.io/mini-verl/dev/>. The canonical state now
+  advances development to `0.16.1.dev0` while stable content remains tag-pinned.
 
 ### Previous stable release: v0.15.0
 
@@ -35,8 +51,8 @@ Canonical release state: releasing `v0.16.0`.
 - Release asset preparation and its current-version round trip include the
   direct-workflow record at `v015/direct-workflows.json` in the evidence archive.
 - Public PyPI hashes, trusted-publisher attestations, a clean core installation
-  and all 13 GitHub Release assets were verified. The development line is now
-  `0.15.1.dev0`; stable documentation remains tied to `v0.15.0`.
+  and all 13 GitHub Release assets were verified. That release advanced the
+  development line to `0.15.1.dev0`, with stable documentation on `v0.15.0`.
 
 ### Prior stable release (historical)
 
@@ -65,7 +81,7 @@ Canonical release state: releasing `v0.16.0`.
 
 ## Current product boundary
 
-Release `0.16.0` has a closed typed profile compiler: it retains v1/v2/v3/v4 and adds
+Development `0.16.1.dev0` has a closed typed profile compiler: it retains v1/v2/v3/v4 and adds
 `verl-rl-v0.9-single-gpu-v5`, native Hydra ingestion and deterministic sampling from verl
 `v0.9.0` at commit `483b8a009ba3a97563edee3a19887e4862b8094a`.
 It compiles PPO/GAE into phased one-GPU actor, critic, reference and reward
