@@ -93,7 +93,7 @@ def test_measured_consumer_runtime_artifacts_are_exact_and_data_bound() -> None:
             "66111cd7fc876cf1befea3297a1a51bcd99252c0bf8989c029381e1dc155a98b"
         ),
         "docs/consumer-runtime-v1-pareto.svg": (
-            "430a319b95be014c02dfd5047e496c5c396c11a63e223d0f3682408f566bbfb0"
+            "7db3c7224cc2faf125caedae3a7b474ca3cd645447ce382b9ec1642f7d3dae6c"
         ),
     }
     for relative, digest in expected.items():

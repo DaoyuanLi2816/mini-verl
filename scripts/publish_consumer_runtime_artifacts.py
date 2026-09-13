@@ -121,7 +121,7 @@ def render_pareto(payload: dict[str, Any], source_sha256: str) -> str:
     body.extend(
         [
             '<text class="axis" x="439" y="554" text-anchor="middle">peak reserved CUDA memory (GiB) →</text>',
-            '<text class="axis" x="42" y="335" transform="rotate(-90 42 335)" text-anchor="middle">trajectories / second →</text>',
+            '<text class="axis" x="39" y="335" transform="rotate(-90 39 335)" text-anchor="middle">trajectories / second →</text>',
         ]
     )
 

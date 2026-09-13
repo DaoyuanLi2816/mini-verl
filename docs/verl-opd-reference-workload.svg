@@ -20,19 +20,19 @@
 <text x="74" y="216" class="panel-title" text-anchor="start">Median phase time</text>
 <text x="526" y="216" class="small" text-anchor="end">seconds</text>
 <text x="74" y="260" class="label" text-anchor="start">Actor rollout</text>
-<rect x="210" y="240" width="210" height="24" rx="6" fill="#1b2b44"/>
-<rect x="210" y="240" width="210.00" height="24" rx="6" fill="#56B4E9"/>
+<rect x="240" y="240" width="180" height="24" rx="6" fill="#1b2b44"/>
+<rect x="240" y="240" width="180.00" height="24" rx="6" fill="#56B4E9"/>
 <circle cx="420.00" cy="252" r="6" fill="#f8fafc" stroke="#56B4E9" stroke-width="3"/>
 <text x="526" y="260" class="value" text-anchor="end">9.7200</text>
 <text x="74" y="336" class="label" text-anchor="start">Teacher scoring</text>
-<rect x="210" y="316" width="210" height="24" rx="6" fill="#1b2b44"/>
-<rect x="210" y="316" width="10.51" height="24" rx="6" fill="#E69F00"/>
-<circle cx="220.51" cy="328" r="6" fill="#f8fafc" stroke="#E69F00" stroke-width="3"/>
+<rect x="240" y="316" width="180" height="24" rx="6" fill="#1b2b44"/>
+<rect x="240" y="316" width="9.01" height="24" rx="6" fill="#E69F00"/>
+<circle cx="249.01" cy="328" r="6" fill="#f8fafc" stroke="#E69F00" stroke-width="3"/>
 <text x="526" y="336" class="value" text-anchor="end">0.4864</text>
 <text x="74" y="412" class="label" text-anchor="start">Actor update</text>
-<rect x="210" y="392" width="210" height="24" rx="6" fill="#1b2b44"/>
-<rect x="210" y="392" width="50.25" height="24" rx="6" fill="#009E73"/>
-<circle cx="260.25" cy="404" r="6" fill="#f8fafc" stroke="#009E73" stroke-width="3"/>
+<rect x="240" y="392" width="180" height="24" rx="6" fill="#1b2b44"/>
+<rect x="240" y="392" width="43.07" height="24" rx="6" fill="#009E73"/>
+<circle cx="283.07" cy="404" r="6" fill="#f8fafc" stroke="#009E73" stroke-width="3"/>
 <text x="526" y="412" class="value" text-anchor="end">2.3260</text>
 <text x="74" y="472" class="note" text-anchor="start">Direct labels; bars share a zero baseline.</text>
 <rect x="570" y="180" width="500" height="314" rx="14" fill="#111f34" stroke="#2b4263"/>

@@ -84,13 +84,13 @@ def render(payload: dict[str, Any]) -> str:
     max_phase = max(value for _, value, _ in phase_rows)
     for index, (label, value, color) in enumerate(phase_rows):
         y = 260 + index * 76
-        width = 210 * value / max_phase
+        width = 180 * value / max_phase
         parts.extend(
             [
                 _text(74, y, label, "label"),
-                f'<rect x="210" y="{y - 20}" width="210" height="24" rx="6" fill="#1b2b44"/>',
-                f'<rect x="210" y="{y - 20}" width="{width:.2f}" height="24" rx="6" fill="{color}"/>',
-                f'<circle cx="{210 + width:.2f}" cy="{y - 8}" r="6" fill="#f8fafc" stroke="{color}" stroke-width="3"/>',
+                f'<rect x="240" y="{y - 20}" width="180" height="24" rx="6" fill="#1b2b44"/>',
+                f'<rect x="240" y="{y - 20}" width="{width:.2f}" height="24" rx="6" fill="{color}"/>',
+                f'<circle cx="{240 + width:.2f}" cy="{y - 8}" r="6" fill="#f8fafc" stroke="{color}" stroke-width="3"/>',
                 _text(526, y, f"{value:.4f}", "value", "end"),
             ]
         )

@@ -1001,8 +1001,8 @@ def _outcome_cost_matrix(payload: dict[str, Any]) -> str:
             )
     body.extend(
         [
-            '<text class="small" data-role="legend-label" x="48" y="684">Bars show the three-seed mean except VRAM, whose main bar is the observed maximum; seed shapes show every run.</text>',
-            '<text class="small" data-role="legend-label" x="48" y="707">Query ratio is selected target positions, not teacher FLOPs. DPO time includes its pinned TRL job.</text>',
+            '<text class="small" data-role="legend-label" x="48" y="684">Bars: three-seed mean; VRAM: observed maximum. Seed shapes show every run.</text>',
+            '<text class="small" data-role="legend-label" x="48" y="711">Query ratio: selected target positions, not FLOPs. DPO time includes its pinned TRL job.</text>',
         ]
     )
     return _svg_shell(
