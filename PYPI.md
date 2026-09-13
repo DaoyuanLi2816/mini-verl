@@ -1,5 +1,8 @@
 <p align="center">
+  <picture>
+  <source media="(max-width: 760px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner-mobile.svg">
   <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — lower verl experiment semantics onto one CUDA GPU" width="880">
+  </picture>
 </p>
 
 <div align="center">
@@ -91,7 +94,7 @@ maintainer-measured RTX 4080 environment.
 ## How it works
 
 <picture>
-  <source media="(max-width: 640px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime-mobile.svg">
+  <source media="(max-width: 760px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime-mobile.svg">
   <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime.svg" alt="A resolved verl config compiles into a validated single-GPU plan; actor, critic, reference, teacher and reward roles run in phases and produce portable artifacts plus a readiness report.">
 </picture>
 

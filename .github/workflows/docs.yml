@@ -31,6 +31,7 @@ jobs:
         run: python -m pip install -e ".[dev]"
       - name: Verify generated documentation artifacts
         run: |
+          python scripts/refresh_visual_assets.py --check
           python scripts/publish_alignment_lab_artifacts.py --check
           python scripts/publish_verl_bridge_diagrams.py --check
           python scripts/publish_verl_opd_compatibility.py --check
@@ -86,6 +87,10 @@ jobs:
             cd "${RUNNER_TEMP}/stable-checkout"
             mkdocs build --strict --site-dir "${GITHUB_WORKSPACE}/site"
           )
+          # Keep stable prose/API content tag-pinned. Overlay only SVG layout
+          # corrections after proving the stable scientific inputs unchanged.
+          python scripts/refresh_visual_assets.py --overlay-site site \
+            --stable-source "${RUNNER_TEMP}/stable-checkout"
           mkdir -p "${GITHUB_WORKSPACE}/site/dev"
           cp -a "${RUNNER_TEMP}/dev-site/." "${GITHUB_WORKSPACE}/site/dev/"
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b

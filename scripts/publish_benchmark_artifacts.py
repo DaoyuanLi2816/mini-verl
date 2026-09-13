@@ -172,7 +172,7 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         "sft-continued": "Continued SFT",
         "opd-raw-teacher": "Raw teacher (control)",
         "opd-privileged-context": "Privileged context (control)",
-        "opd-protocol-sft-teacher": "OPD · protocol-aligned teacher",
+        "opd-protocol-sft-teacher": "OPD · protocol teacher",
     }
 
     def line(text: str) -> str:
@@ -275,7 +275,7 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         if diagnostic_start is not None and index == diagnostic_start:
             svg += line(
                 f'<rect x="24" y="{y - 57}" width="1072" height="28" rx="14" '
-                'fill="#fb7185" fill-opacity=".075" stroke="#fb7185" stroke-opacity=".16"/>'
+                'fill="#241c30" stroke="#fb7185" stroke-opacity=".16"/>'
             )
             svg += line(
                 f'<text class="section" x="38" y="{y - 39}">'
@@ -322,11 +322,11 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
 
         if row["name"] == "cold-start-only":
             svg += line(
-                f'<rect class="pill" x="{time_x + 12}" y="{y - 13}" width="190" '
+                f'<rect class="pill" x="{time_x + 12}" y="{y - 13}" width="224" '
                 'height="26" rx="13" stroke="#64748b"/>'
             )
             svg += line(
-                f'<text class="value" x="{time_x + 107}" y="{y + 4}" '
+                f'<text class="value" x="{time_x + 124}" y="{y + 4}" '
                 'text-anchor="middle" fill="#94a3b8">0 CONTINUATION UPDATES</text>'
             )
         else:

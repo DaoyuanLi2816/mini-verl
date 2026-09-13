@@ -1,5 +1,8 @@
 <p align="center">
+  <picture>
+  <source media="(max-width: 760px)" srcset="docs/banner-mobile.svg">
   <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — 把 verl 实验语义转换为单张 CUDA GPU 上的执行计划" width="880">
+  </picture>
 </p>
 
 <div align="center">
@@ -84,7 +87,7 @@ miniverl bridge doctor ppo-handoff --json
 ## 工作方式
 
 <picture>
-  <source media="(max-width: 640px)" srcset="docs/verl-local-runtime-mobile.svg">
+  <source media="(max-width: 760px)" srcset="docs/verl-local-runtime-mobile.svg">
   <img src="docs/verl-local-runtime.svg" alt="Resolved verl 配置被编译为经过验证的单卡执行计划；actor、critic、reference、teacher 与 reward 角色分阶段执行，并生成可携带产物与 readiness report。">
 </picture>
 

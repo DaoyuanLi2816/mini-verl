@@ -22,6 +22,8 @@ def _shell(*, width: int, height: int, title: str, description: str, body: list[
         ".role{font-size:15px;font-weight:700}.status{font-size:22px;font-weight:800}"
         ".foot{font-size:15px;fill:#9fb0ca}"
     )
+    if width > 390:
+        style += ".sub,.body,.role,.foot{font-size:18px}"
     return "".join(
         [
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
@@ -49,13 +51,13 @@ def _desktop() -> str:
         '<text class="layer" data-role="diagram-label" x="98" y="154">1 · miniVERL local runtime</text>',
         '<text class="body" data-role="diagram-label" x="98" y="181">single-GPU training, evaluation and portable provenance</text>',
         '<rect x="98" y="199" width="210" height="38" rx="9" fill="#12304d"/>',
-        '<text class="role" data-role="diagram-label" x="116" y="224">teacher role · targets</text>',
+        '<text class="role" data-role="diagram-label" x="116" y="224">teacher · targets</text>',
         '<rect x="322" y="199" width="214" height="38" rx="9" fill="#2d2343"/>',
-        '<text class="role" data-role="diagram-label" x="340" y="224">reference role · DPO</text>',
+        '<text class="role" data-role="diagram-label" x="340" y="224">reference · DPO</text>',
         '<rect x="550" y="199" width="224" height="38" rx="9" fill="#16372f"/>',
-        '<text class="role" data-role="diagram-label" x="568" y="224">reward role · verifier</text>',
+        '<text class="role" data-role="diagram-label" x="568" y="224">reward · verifier</text>',
         '<rect x="788" y="199" width="234" height="38" rx="9" fill="#352d17"/>',
-        '<text class="role" data-role="diagram-label" x="806" y="224">student · local updates</text>',
+        '<text class="role" data-role="diagram-label" x="806" y="224">student · updates</text>',
         '<line x1="560" y1="254" x2="560" y2="285" stroke="#80c7ff" stroke-width="4"/>',
         '<polygon points="551,278 569,278 560,291" fill="#80c7ff"/>',
         '<rect x="100" y="291" width="920" height="148" rx="18" fill="#101f38" stroke="#4e87b7" stroke-width="2"/>',

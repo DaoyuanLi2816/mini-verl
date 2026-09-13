@@ -79,10 +79,10 @@ def render_pareto(payload: dict[str, Any], source_sha256: str) -> str:
 
     style = (
         "text{font-family:Inter,'Segoe UI',sans-serif;fill:#e8eefc}"
-        ".title{font-size:30px;font-weight:760}.sub{font-size:16px;fill:#9fb0cc}"
-        ".axis{font-size:14px;fill:#91a1bd}.point{font-size:14px;font-weight:750}"
-        ".metric{font-size:25px;font-weight:760}.small{font-size:14px;fill:#9fb0cc}"
-        ".legend{font-size:15px;font-weight:650}.foot{font-size:15px;fill:#91a1bd}"
+        ".title{font-size:30px;font-weight:760}.sub{font-size:18px;fill:#9fb0cc}"
+        ".axis{font-size:18px;fill:#91a1bd}.point{font-size:18px;font-weight:750}"
+        ".metric{font-size:25px;font-weight:760}.small{font-size:18px;fill:#9fb0cc}"
+        ".legend{font-size:18px;font-weight:650}.foot{font-size:18px;fill:#91a1bd}"
     )
     body = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
@@ -98,7 +98,7 @@ def render_pareto(payload: dict[str, Any], source_sha256: str) -> str:
         '<text class="title" x="52" y="66">Batch-4 is the Pareto knee on one RTX 4080</text>',
         '<text class="sub" x="52" y="96">8-trajectory strict OPD update · Qwen3-0.6B · '
         "NF4 weights / FP32 compute · medians over 3 updates</text>",
-        '<circle cx="550" cy="129" r="6" fill="#fb7185"/><text class="legend" x="564" y="134">dual model</text>',
+        '<circle cx="510" cy="129" r="6" fill="#fb7185"/><text class="legend" x="524" y="134">dual model</text>',
         '<circle cx="664" cy="129" r="6" fill="#22d3ee"/><text class="legend" x="678" y="134">shared backbone</text>',
     ]
 
@@ -121,7 +121,7 @@ def render_pareto(payload: dict[str, Any], source_sha256: str) -> str:
     body.extend(
         [
             '<text class="axis" x="439" y="554" text-anchor="middle">peak reserved CUDA memory (GiB) →</text>',
-            '<text class="axis" x="24" y="335" transform="rotate(-90 24 335)" text-anchor="middle">trajectories / second →</text>',
+            '<text class="axis" x="39" y="335" transform="rotate(-90 39 335)" text-anchor="middle">trajectories / second →</text>',
         ]
     )
 
@@ -154,6 +154,7 @@ def render_pareto(payload: dict[str, Any], source_sha256: str) -> str:
             body.extend(
                 [
                     f'<circle cx="{px:.1f}" cy="{py:.1f}" r="8" fill="#0b1224" stroke="{color}" stroke-width="4"/>',
+                    f'<rect x="{px + dx - 3:.1f}" y="{py + dy - 20:.1f}" width="{48 if batch == "auto" else 32}" height="27" rx="3" fill="#0b1224"/>',
                     f'<text class="point" x="{px + dx:.1f}" y="{py + dy:.1f}" fill="{color}">{escape(label)}</text>',
                 ]
             )
@@ -178,7 +179,7 @@ def render_pareto(payload: dict[str, Any], source_sha256: str) -> str:
             f'<text class="small" x="846" y="446">{dual_speedup:.2f}× vs sequential</text>',
             '<text class="small" x="824" y="502">Same batch, dual ↔ shared</text>',
             '<text class="legend" x="824" y="526">loss + gradients: exact</text>',
-            '<text class="legend" x="824" y="548">update logits: exact</text>',
+            '<text class="legend" x="824" y="556">update logits: exact</text>',
             '<line x1="52" y1="568" x2="1068" y2="568" stroke="#20304f"/>',
             '<text class="foot" x="52" y="591">Higher and left is better · auto = all 8 padded trajectories · '
             f"source SHA-256 {escape(source_sha256[:16])}</text>",
@@ -229,7 +230,7 @@ def render_pareto_mobile(payload: dict[str, Any], source_sha256: str) -> str:
     row_height = 26
     block = 30 + row_height * (len(batches) + 1) + 18
     header = 140
-    height = header + block * len(runtimes) + 74
+    height = header + block * len(runtimes) + 92
     inner = MOBILE_WIDTH - 24
     body = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{MOBILE_WIDTH}" height="{height}" '

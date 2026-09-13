@@ -622,6 +622,8 @@ def build_result(
 
 
 def _svg_shell(width: int, height: int, title: str, desc: str, body: list[str]) -> str:
+    if width > 390:
+        body = ["<style>.sub,.head,.label,.value,.small{font-size:18px}</style>", *body]
     return "\n".join(
         [
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img">',
@@ -644,7 +646,7 @@ def render_gate_matrix(result: dict[str, Any], *, mobile: bool) -> str:
     ]
     if mobile:
         body = [
-            '<text x="22" y="45" class="title">Checkpoint gate matrix</text>',
+            '<text x="22" y="45" class="title">Checkpoint gates</text>',
             '<text x="22" y="74" class="sub">8 candidates · same task IDs</text>',
             '<line x1="22" y1="98" x2="368" y2="98" stroke="#53698d"/>',
         ]

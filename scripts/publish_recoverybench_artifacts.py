@@ -143,7 +143,7 @@ def _svg(title: str, subtitle: str, rows: list[tuple[str, float, float]], *, x_l
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img" aria-labelledby="title desc">',
         f'<title id="title">{escape(title)}</title><desc id="desc">{escape(subtitle)}</desc>',
         '<rect width="1120" height="100%" fill="#090f1f"/>',
-        "<style>text{font-family:Inter,Segoe UI,sans-serif;fill:#e8eefc}.muted{fill:#94a3b8}.label{font-size:18px}.value{font-size:16px;font-weight:700}.title{font-size:30px;font-weight:750}.sub{font-size:16px}</style>",
+        "<style>text{font-family:Inter,Segoe UI,sans-serif;fill:#e8eefc}.muted{fill:#94a3b8}.label{font-size:18px}.value{font-size:18px;font-weight:700}.title{font-size:30px;font-weight:750}.sub{font-size:18px}</style>",
         f'<text class="title" x="40" y="48">{escape(title)}</text>',
         f'<text class="sub muted" x="40" y="78">{escape(subtitle)}</text>',
         f'<text class="sub muted" x="1040" y="112" text-anchor="end">{escape(x_label)}</text>',

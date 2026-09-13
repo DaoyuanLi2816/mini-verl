@@ -6,6 +6,11 @@ All notable changes to miniVERL are recorded here. The format follows
 
 ## [Unreleased]
 
+- Repair banner and chart label overlaps, add a mobile README banner, and keep
+  figure text readable at its rendered documentation width.
+- Extend browser checks to README figures, every native SVG and untagged graphic
+  collisions. Regenerate visual layouts without changing frozen measurements.
+
 ## [0.16.0] - 2026-09-12
 
 ### Native verl Hydra ingestion and single-GPU sampling

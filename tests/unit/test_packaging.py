@@ -390,7 +390,7 @@ def test_published_gpu_visualization_matches_its_source_result():
         assert "0%" in arm_text
         assert "PROTOCOL MISMATCH" not in arm_text
     assert "COLLAPSED" not in visible_text
-    assert text_nodes.index("OPD · protocol-aligned teacher") < text_nodes.index(
+    assert text_nodes.index("OPD · protocol teacher") < text_nodes.index(
         "DIAGNOSTIC NEGATIVE CONTROLS · TEACHERS NOT PROTOCOL-QUALIFIED"
     )
     assert "\ufffd" not in visible_text
@@ -423,7 +423,7 @@ def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
     assert "1× CUDA GPU" in banner
     assert "BF16 / FP16 auto" in banner
     assert "typed provenance" in banner
-    assert "Run verl experiment semantics on one consumer GPU" in banner
+    assert "verl semantics. One CUDA GPU." in banner
     assert "actor rollout · reward / ref / teacher · update" in banner
     assert "PEFT · Parquet · targets · metrics · provenance" in banner
     assert 'pip install "miniverl[train,cuda]"' not in banner
