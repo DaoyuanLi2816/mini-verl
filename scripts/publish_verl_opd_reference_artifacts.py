@@ -166,7 +166,7 @@ def render_mobile(payload: dict[str, Any]) -> str:
         .label { fill:#dbe7fa; font-size:14px; }
         .value { fill:#ffffff; font-size:14px; font-weight:700; }
         .note { fill:#a9b8d4; font-size:13px; }
-        .small { fill:#a9b8d4; font-size:12px; }
+        .small { fill:#a9b8d4; font-size:13px; }
         </style>""",
         '<rect width="390" height="920" rx="18" fill="#08111f"/>',
         '<rect x="14" y="14" width="362" height="892" rx="14" fill="#0f1b2d" stroke="#283b58"/>',
