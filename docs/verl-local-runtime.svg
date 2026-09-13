@@ -37,8 +37,8 @@
     <path d="M716 248v48" stroke="#67e8f9" stroke-width="3" marker-end="url(#arrow)"/>
 
     <rect x="342" y="306" width="730" height="84" rx="16" fill="#18213c" stroke="#a78bfa"/>
-    <text x="364" y="338" fill="#c4b5fd" font-size="16" font-weight="700">INSPECTABLE OUTPUTS</text>
-    <text x="364" y="362" fill="#f8fafc" font-size="16" font-weight="650">actor + critic checkpoint · PEFT · rewards / targets · trajectories</text>
+    <text x="364" y="333" fill="#c4b5fd" font-size="16" font-weight="700">INSPECTABLE OUTPUTS</text>
+    <text x="364" y="357" fill="#f8fafc" font-size="16" font-weight="650">actor + critic checkpoint · PEFT · rewards / targets · trajectories</text>
     <text x="364" y="382" fill="#cbd5e1" font-size="16">metrics · provenance · source and compatibility records</text>
     <path d="M707 390v42" stroke="#67e8f9" stroke-width="3" marker-end="url(#arrow)"/>
 
