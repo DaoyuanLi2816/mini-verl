@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 
@@ -66,9 +67,13 @@ def test_bridge_diagrams_are_generated_responsive_and_fail_closed() -> None:
         assert "independent project; no endorsement" in content
         assert "Distributed execution: NOT TESTED" in content
         assert "stroke-dasharray" in content
-        assert "teacher role" in content
-        assert "reference role" in content
-        assert "reward role" in content
+        labels = [
+            "".join(node.itertext())
+            for node in ET.fromstring(content).iter("{http://www.w3.org/2000/svg}text")
+            if node.attrib.get("class") == "role"
+        ]
+        for role in ("teacher", "reference", "reward", "student"):
+            assert sum(label.startswith(role + " ") for label in labels) == 1
         assert "export-verl" not in content
 
     page = (root / "docs" / "verl-bridge.md").read_text(encoding="utf-8")
