@@ -275,7 +275,7 @@ def render_svg(result: BenchmarkResult, source_sha256: str) -> str:
         if diagnostic_start is not None and index == diagnostic_start:
             svg += line(
                 f'<rect x="24" y="{y - 57}" width="1072" height="28" rx="14" '
-                'fill="#fb7185" fill-opacity=".075" stroke="#fb7185" stroke-opacity=".16"/>'
+                'fill="#241c30" stroke="#fb7185" stroke-opacity=".16"/>'
             )
             svg += line(
                 f'<text class="section" x="38" y="{y - 39}">'

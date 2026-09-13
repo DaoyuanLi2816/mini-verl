@@ -423,7 +423,7 @@ def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
     assert "1× CUDA GPU" in banner
     assert "BF16 / FP16 auto" in banner
     assert "typed provenance" in banner
-    assert "Run verl experiment semantics on one consumer GPU" in banner
+    assert "verl semantics. One CUDA GPU." in banner
     assert "actor rollout · reward / ref / teacher · update" in banner
     assert "PEFT · Parquet · targets · metrics · provenance" in banner
     assert 'pip install "miniverl[train,cuda]"' not in banner

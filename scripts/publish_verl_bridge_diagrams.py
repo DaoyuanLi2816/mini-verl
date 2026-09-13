@@ -22,6 +22,8 @@ def _shell(*, width: int, height: int, title: str, description: str, body: list[
         ".role{font-size:15px;font-weight:700}.status{font-size:22px;font-weight:800}"
         ".foot{font-size:15px;fill:#9fb0ca}"
     )
+    if width > 390:
+        style += ".sub,.body,.role,.foot{font-size:18px}"
     return "".join(
         [
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '

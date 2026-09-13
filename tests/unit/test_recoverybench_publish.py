@@ -84,13 +84,13 @@ def test_published_recoverybench_artifacts_are_exact_and_data_bound() -> None:
             "8a6891f74aed80f07ec00d5ea1909895c579346e1abbb1d5d95a354bb46c6b81"
         ),
         "docs/recoverybench/recovery-success.svg": (
-            "0deab77a739cb27bd76f7399297231ebe7bf323a04026d43a1b5af78ace42dad"
+            "ec442e56c1959a0dc64ad0c9a679713b66207f56c27f9538224e721bd67aaa48"
         ),
         "docs/recoverybench/cost-quality-pareto.svg": (
-            "865725bded3982ecf3bf0e3582342cf23e123a8d50269e8779336a54c453afcc"
+            "17387d166cfca319a3f50b7e7e4867be202319e2de82015d9f5f6bccf92a78de"
         ),
         "docs/recoverybench/fresh-vs-frozen.svg": (
-            "54ce1275ce1f828eb22ec2f518b227f7bf8a175bfcea93c8b8e3a063e0f05897"
+            "b1c859033d543b2848761045f010e4985a4ab73f69c14795837cb2ccf63ead14"
         ),
         "paper/recoverybench-v1/recoverybench-v1.pdf": (
             "c506300599942445f24b30a4e0d7e01972c75daa7834f6d1eff5b8132dce93af"

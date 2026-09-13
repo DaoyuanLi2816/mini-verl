@@ -186,3 +186,53 @@ def test_the_gate_inspects_untagged_text_nodes(svg_page: Any) -> None:
             )
     finally:
         path.unlink(missing_ok=True)
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        '<path d="M80 20V90" fill="none" stroke="cyan" stroke-width="2"/>',
+        '<rect x="80" y="20" width="100" height="70" fill="#123" stroke="cyan"/>',
+        '<circle cx="95" cy="55" r="6" fill="white"/>',
+        '<path d="M95 45l7 10-7 10-7-10z" fill="white"/>',
+        '<rect x="5" y="5" width="390" height="110" fill="#123"/>',
+        '<path d="M5 5H395V115H5Z" fill="#123"/>',
+    ],
+)
+def test_untagged_graphics_must_not_cover_text(svg_page: Any, tmp_path: Path, shape: str):
+    path = tmp_path / "collision.svg"
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120">'
+        "<title>Collision</title><desc>Regression for banner and workload marks</desc>"
+        '<text x="20" y="60" font-size="20">Readable label</text>' + shape + "</svg>",
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="graphic intersects text"):
+        gate.assert_svg_document(svg_page, path.as_uri(), rendered_width=400, min_font_px=10)
+
+
+def test_background_panels_and_bent_connectors_are_not_false_collisions(
+    svg_page: Any, tmp_path: Path
+):
+    path = tmp_path / "clear.svg"
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120">'
+        "<title>Clear</title><desc>A label inside a panel and a routed connector</desc>"
+        '<rect x="5" y="5" width="390" height="110" fill="#123" stroke="cyan"/>'
+        '<path d="M10 80V20H200V80" fill="none" stroke="cyan"/>'
+        '<text x="30" y="60" font-size="20">Readable label</text></svg>',
+        encoding="utf-8",
+    )
+    gate.assert_svg_document(svg_page, path.as_uri(), rendered_width=400, min_font_px=10)
+
+
+def test_rendered_font_floor_includes_svg_scale(svg_page: Any, tmp_path: Path):
+    path = tmp_path / "scaled.svg"
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 120">'
+        "<title>Scale</title><desc>Twenty SVG units become ten CSS pixels</desc>"
+        '<text x="20" y="60" font-size="20">Scaled label</text></svg>',
+        encoding="utf-8",
+    )
+    with pytest.raises(AssertionError, match="text below"):
+        gate.assert_svg_document(svg_page, path.as_uri(), rendered_width=400, min_font_px=11)

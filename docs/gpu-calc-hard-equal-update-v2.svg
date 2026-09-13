@@ -63,7 +63,7 @@
 <circle class="dot" cx="969.0" cy="365" r="3.5" stroke="#34d399"/>
 <text class="value" x="1016" y="365">524s</text>
 </g>
-<rect x="24" y="417" width="1072" height="28" rx="14" fill="#fb7185" fill-opacity=".075" stroke="#fb7185" stroke-opacity=".16"/>
+<rect x="24" y="417" width="1072" height="28" rx="14" fill="#241c30" stroke="#fb7185" stroke-opacity=".16"/>
 <text class="section" x="38" y="435">DIAGNOSTIC NEGATIVE CONTROLS · TEACHERS NOT PROTOCOL-QUALIFIED</text>
 <rect class="row" x="24" y="444" width="1072" height="60" rx="10"/>
 <g data-arm="opd-raw-teacher" data-success-mean="0.000000" data-train-seconds-mean="443.953792">

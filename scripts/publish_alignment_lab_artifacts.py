@@ -583,10 +583,10 @@ MOBILE_WIDTH = 390
 
 _DESKTOP_STYLE = (
     "text{font-family:'DejaVu Sans','Segoe UI',sans-serif;fill:#edf4ff}"
-    ".title{font-size:31px;font-weight:760}.sub{font-size:17px;fill:#aebbd2}"
-    ".axis{font-size:17px;fill:#aebbd2}.label{font-size:17px;font-weight:650}"
-    ".value{font-size:17px;font-weight:760}.small{font-size:16px;fill:#b9c5d8}"
-    ".header{font-size:16px;font-weight:700;fill:#dce7f8}"
+    ".title{font-size:31px;font-weight:760}.sub{font-size:18px;fill:#aebbd2}"
+    ".axis{font-size:18px;fill:#aebbd2}.label{font-size:18px;font-weight:650}"
+    ".value{font-size:18px;font-weight:760}.small{font-size:18px;fill:#b9c5d8}"
+    ".header{font-size:18px;font-weight:700;fill:#dce7f8}"
 )
 # Every mobile class stays at or above 14 px so the rendered size clears 11 px.
 _MOBILE_STYLE = (
@@ -611,7 +611,7 @@ def _svg_shell(
     if len(title) > 48:
         raise ValueError("SVG title must remain portable across deterministic fallback fonts")
     style = _MOBILE_STYLE if mobile else _DESKTOP_STYLE
-    radius, inset = (16, 12) if mobile else (24, 20)
+    radius, inset = (16, 4) if mobile else (24, 20)
     title_x = 16 if mobile else 48
     title_y, subtitle_y = (34, 56) if mobile else (66, 98)
     return "".join(
@@ -710,7 +710,7 @@ def _delta_from_sft(payload: dict[str, Any]) -> str:
         width = 2.5 if tick == 0 else 1
         body.extend(
             [
-                f'<line x1="{x:.1f}" y1="160" x2="{x:.1f}" y2="612" stroke="{stroke}" stroke-width="{width}" data-axis-domain="-40,5"/>',
+                f'<line x1="{x:.1f}" y1="198" x2="{x:.1f}" y2="612" stroke="{stroke}" stroke-width="{width}" data-axis-domain="-40,5"/>',
                 f'<text class="axis" x="{x:.1f}" y="640" text-anchor="middle">{tick:+d}</text>',
             ]
         )
@@ -729,7 +729,7 @@ def _delta_from_sft(payload: dict[str, Any]) -> str:
             [
                 f'<text class="label" data-role="chart-label" x="48" y="{y - 18}">{escape(LABELS[method])}</text>',
                 f'<text class="small" data-role="chart-label" x="48" y="{y + 6}">A {_pp(align_mean)}  ({" / ".join(_pp(v) for v in alignment)})</text>',
-                f'<text class="small" data-role="chart-label" x="48" y="{y + 28}">U {_pp(utility_mean)}  ({" / ".join(_pp(v) for v in utility)})</text>',
+                f'<text class="small" data-role="chart-label" x="48" y="{y + 33}">U {_pp(utility_mean)}  ({" / ".join(_pp(v) for v in utility)})</text>',
                 f'<line x1="{left}" y1="{y}" x2="{right}" y2="{y}" stroke="#182a46"/>',
             ]
         )
@@ -903,15 +903,15 @@ def _outcome_cost_matrix(payload: dict[str, Any]) -> str:
     body: list[str] = [
         '<text class="header" x="48" y="142">Method</text>',
         '<text class="header" x="330" y="132">Alignment</text>',
-        '<text class="small" x="330" y="154">0–100%</text>',
+        '<text class="small" x="330" y="159">0–100%</text>',
         '<text class="header" x="478" y="132">Tool utility</text>',
-        '<text class="small" x="478" y="154">0–100%</text>',
+        '<text class="small" x="478" y="159">0–100%</text>',
         '<text class="header" x="626" y="132">GPU time</text>',
-        '<text class="small" x="626" y="154">0–100 s</text>',
+        '<text class="small" x="626" y="159">0–100 s</text>',
         '<text class="header" x="774" y="132">Peak VRAM</text>',
-        '<text class="small" x="774" y="154">0–2 GiB</text>',
+        '<text class="small" x="774" y="159">0–2 GiB</text>',
         '<text class="header" x="922" y="132">Teacher query</text>',
-        '<text class="small" x="922" y="154">0–100%</text>',
+        '<text class="small" x="922" y="159">0–100%</text>',
     ]
     summary = {row["method"]: row for row in payload["method_summary"]}
     for index, method in enumerate(METHODS):

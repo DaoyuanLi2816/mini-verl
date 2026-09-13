@@ -622,6 +622,8 @@ def build_result(
 
 
 def _svg_shell(width: int, height: int, title: str, desc: str, body: list[str]) -> str:
+    if width > 390:
+        body = ["<style>.sub,.head,.label,.value,.small{font-size:18px}</style>", *body]
     return "\n".join(
         [
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}" role="img">',

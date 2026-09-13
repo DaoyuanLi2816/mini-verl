@@ -60,12 +60,12 @@ def render(payload: dict[str, Any]) -> str:
         """<style>
         text { font-family: Inter, Segoe UI, Arial, sans-serif; }
         .title { fill:#f8fafc; font-size:30px; font-weight:750; }
-        .subtitle { fill:#a9b8d4; font-size:17px; }
+        .subtitle { fill:#a9b8d4; font-size:18px; }
         .panel-title { fill:#f8fafc; font-size:19px; font-weight:700; }
-        .label { fill:#dbe7fa; font-size:16px; }
-        .value { fill:#ffffff; font-size:16px; font-weight:700; }
-        .note { fill:#a9b8d4; font-size:15px; }
-        .small { fill:#a9b8d4; font-size:14px; }
+        .label { fill:#dbe7fa; font-size:18px; }
+        .value { fill:#ffffff; font-size:18px; font-weight:700; }
+        .note { fill:#a9b8d4; font-size:18px; }
+        .small { fill:#a9b8d4; font-size:18px; }
         </style>""",
         '<rect width="1120" height="690" rx="22" fill="#08111f"/>',
         '<rect x="28" y="28" width="1064" height="634" rx="18" fill="#0f1b2d" stroke="#283b58"/>',
@@ -78,17 +78,17 @@ def render(payload: dict[str, Any]) -> str:
             "subtitle",
         ),
         '<rect x="50" y="180" width="500" height="314" rx="14" fill="#111f34" stroke="#2b4263"/>',
-        _text(74, 216, "Median steady-state phase time", "panel-title"),
+        _text(74, 216, "Median phase time", "panel-title"),
         _text(526, 216, "seconds", "small", "end"),
     ]
     max_phase = max(value for _, value, _ in phase_rows)
     for index, (label, value, color) in enumerate(phase_rows):
         y = 260 + index * 76
-        width = 300 * value / max_phase
+        width = 210 * value / max_phase
         parts.extend(
             [
                 _text(74, y, label, "label"),
-                f'<rect x="210" y="{y - 20}" width="300" height="24" rx="6" fill="#1b2b44"/>',
+                f'<rect x="210" y="{y - 20}" width="210" height="24" rx="6" fill="#1b2b44"/>',
                 f'<rect x="210" y="{y - 20}" width="{width:.2f}" height="24" rx="6" fill="{color}"/>',
                 f'<circle cx="{210 + width:.2f}" cy="{y - 8}" r="6" fill="#f8fafc" stroke="{color}" stroke-width="3"/>',
                 _text(526, y, f"{value:.4f}", "value", "end"),
@@ -98,27 +98,27 @@ def render(payload: dict[str, Any]) -> str:
         [
             _text(74, 472, "Direct labels; bars share a zero baseline.", "note"),
             '<rect x="570" y="180" width="500" height="314" rx="14" fill="#111f34" stroke="#2b4263"/>',
-            _text(594, 216, "Median steady-state throughput", "panel-title"),
+            _text(594, 216, "Median throughput", "panel-title"),
             _text(1046, 216, "items / second", "small", "end"),
         ]
     )
     max_rate = max(value for _, value, _ in rate_rows)
     for index, (label, value, color) in enumerate(rate_rows):
         y = 260 + index * 76
-        width = 278 * value / max_rate
+        width = 160 * value / max_rate
         parts.extend(
             [
                 _text(594, y, label, "label"),
-                f'<rect x="750" y="{y - 20}" width="278" height="24" rx="6" fill="#1b2b44"/>',
-                f'<rect x="750" y="{y - 20}" width="{width:.2f}" height="24" rx="6" fill="{color}"/>',
-                f'<path d="M {750 + width:.2f} {y - 19} l 7 11 l -7 11 l -7 -11 z" fill="#f8fafc" stroke="{color}" stroke-width="2"/>',
+                f'<rect x="790" y="{y - 20}" width="160" height="24" rx="6" fill="#1b2b44"/>',
+                f'<rect x="790" y="{y - 20}" width="{width:.2f}" height="24" rx="6" fill="{color}"/>',
+                f'<path d="M {790 + width:.2f} {y - 19} l 7 11 l -7 11 l -7 -11 z" fill="#f8fafc" stroke="{color}" stroke-width="2"/>',
                 _text(1046, y, f"{value:.2f}", "value", "end"),
             ]
         )
     gauge_width = 760 * peak / limit
     parts.extend(
         [
-            _text(594, 472, "Token and selected-position rates are labelled separately.", "note"),
+            _text(594, 472, "Token and position rates are separate metrics.", "note"),
             '<rect x="50" y="516" width="1020" height="118" rx="14" fill="#111f34" stroke="#2b4263"/>',
             _text(74, 550, "Peak reserved VRAM", "panel-title"),
             _text(1046, 550, f"{peak:.4f} GiB / {limit:.1f} GiB release gate", "value", "end"),
@@ -129,7 +129,7 @@ def render(payload: dict[str, Any]) -> str:
             _text(
                 74,
                 620,
-                "Resume: adapter + optimizer + trajectories + training state matched exactly · systems evidence only · no quality endpoint",
+                "Exact resume: adapter, optimizer, trajectories and training state. Systems check; no quality endpoint.",
                 "note",
             ),
             "</svg>",
@@ -180,12 +180,12 @@ def render_mobile(payload: dict[str, Any]) -> str:
     max_phase = max(value for _, value, _ in phase_rows)
     for index, (label, value, color) in enumerate(phase_rows):
         y = 204 + index * 58
-        width = 174 * value / max_phase
+        width = 306 * value / max_phase
         parts.extend(
             [
                 _text(42, y, label, "label"),
-                f'<rect x="154" y="{y - 17}" width="174" height="20" rx="5" fill="#1b2b44"/>',
-                f'<rect x="154" y="{y - 17}" width="{width:.2f}" height="20" rx="5" fill="{color}"/>',
+                f'<rect x="42" y="{y + 10}" width="306" height="12" rx="5" fill="#1b2b44"/>',
+                f'<rect x="42" y="{y + 10}" width="{width:.2f}" height="12" rx="5" fill="{color}"/>',
                 _text(348, y, f"{value:.4f}", "value", "end"),
             ]
         )
@@ -200,12 +200,12 @@ def render_mobile(payload: dict[str, Any]) -> str:
     max_rate = max(value for _, value, _ in rate_rows)
     for index, (label, value, color) in enumerate(rate_rows):
         y = 482 + index * 58
-        width = 174 * value / max_rate
+        width = 306 * value / max_rate
         parts.extend(
             [
                 _text(42, y, label, "label"),
-                f'<rect x="154" y="{y - 17}" width="174" height="20" rx="5" fill="#1b2b44"/>',
-                f'<rect x="154" y="{y - 17}" width="{width:.2f}" height="20" rx="5" fill="{color}"/>',
+                f'<rect x="42" y="{y + 10}" width="306" height="12" rx="5" fill="#1b2b44"/>',
+                f'<rect x="42" y="{y + 10}" width="{width:.2f}" height="12" rx="5" fill="{color}"/>',
                 _text(348, y, f"{value:.2f}", "value", "end"),
             ]
         )

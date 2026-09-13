@@ -25,6 +25,7 @@ import math
 import re
 import threading
 from collections.abc import Iterator
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -252,7 +253,8 @@ _SVG_JS = """(options) => {
     .map((node) => ({
       node,
       rect: node.getBoundingClientRect(),
-      size: parseFloat(getComputedStyle(node).fontSize || '0'),
+      size: parseFloat(getComputedStyle(node).fontSize || '0') *
+            Math.hypot(node.getScreenCTM().c, node.getScreenCTM().d),
       role: node.getAttribute('data-role') || '',
       text: (node.textContent || '').trim(),
     }));
@@ -295,6 +297,60 @@ _SVG_JS = """(options) => {
     }
   }
 
+  // Check actual outlines, not their bounding boxes: a routed elbow can safely
+  // surround a label, but a connector, card edge or untagged marker cannot cut it.
+  // Zero-width vertical lines are visible too, unlike image/text boxes above.
+  const graphics = [...svg.querySelectorAll('path,line,polyline,polygon,rect,circle,ellipse')]
+    .filter(node => {
+      if (node.closest('defs,clipPath,mask')) return false;
+      const style = getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden') return false;
+      if (parseFloat(style.opacity || '1') === 0) return false;
+      return true;
+    });
+  const graphicOverlap = [];
+  const contains = (a, b, pad = 0) => a.left <= b.left - pad && a.top <= b.top - pad &&
+    a.right >= b.right + pad && a.bottom >= b.bottom + pad;
+  for (const {node: textNode, rect, text} of texts) {
+    for (const node of graphics) {
+      const r = node.getBoundingClientRect();
+      if (r.right < rect.left || r.left > rect.right ||
+          r.bottom < rect.top || r.top > rect.bottom) continue;
+      const earlier = !!(node.compareDocumentPosition(textNode) & Node.DOCUMENT_POSITION_FOLLOWING);
+      if (earlier && node.tagName === 'rect' && contains(r, rect, 1)) continue;
+      const style = getComputedStyle(node);
+      // Background washes may sit behind text, never paint over it afterwards.
+      if (earlier && style.stroke === 'none' && node.tagName === 'path' &&
+          r.width * r.height >= root.width * root.height * .05) continue;
+      const matrix = node.getScreenCTM();
+      const center = new DOMPoint((rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2);
+      if (!earlier && style.fill !== 'none' && +style.fillOpacity > 0 &&
+          node.isPointInFill(center.matrixTransform(matrix.inverse()))) {
+        graphicOverlap.push(`"${text.slice(0, 55)}" covered by <${node.tagName}>`);
+        continue;
+      }
+      const length = node.getTotalLength();
+      const step = Math.max(.25, 1 / Math.max(Math.hypot(matrix.a, matrix.b), .01));
+      for (let at = 0; at <= length; at += step) {
+        const p = node.getPointAtLength(at).matrixTransform(matrix);
+        if (p.x <= rect.left + 1 || p.x >= rect.right - 1 ||
+            p.y <= rect.top + 1 || p.y >= rect.bottom - 1) continue;
+        // A solid label backing can legitimately mask a grid behind it.
+        const masked = graphics.some(cover => {
+          if (cover === node || cover.tagName !== 'rect') return false;
+          if (!(node.compareDocumentPosition(cover) & Node.DOCUMENT_POSITION_FOLLOWING)) return false;
+          const style = getComputedStyle(cover);
+          if (style.fill === 'none' || +style.fillOpacity < 1 || +style.opacity < 1) return false;
+          return cover.isPointInFill(new DOMPoint(p.x, p.y).matrixTransform(cover.getScreenCTM().inverse()));
+        });
+        if (!masked) {
+          graphicOverlap.push(`"${text.slice(0, 55)}" x <${node.tagName}>`);
+          break;
+        }
+      }
+    }
+  }
+
   const legends = [...svg.querySelectorAll('[data-role="legend"]')].filter(visible);
   const plots = [...svg.querySelectorAll('[data-role="plot-region"]')].filter(visible);
   const legendPlotOverlap = [];
@@ -311,6 +367,7 @@ _SVG_JS = """(options) => {
     .map((item) => `${item.size.toFixed(2)}px:${item.text.slice(0, 50)}`);
 
   return {outside, textOverlap: [...new Set(textOverlap)], occlusion: [...new Set(occlusion)],
+          graphicOverlap: [...new Set(graphicOverlap)],
           legendPlotOverlap, tooSmall, textNodes: texts.length,
           renderedWidth: root.width, renderedHeight: root.height};
 }"""
@@ -335,6 +392,7 @@ def assert_svg_document(
     width = max(1, math.floor(rendered_width))
     page.set_viewport_size({"width": width, "height": 1200})
     page.goto(url, wait_until="load")
+    page.evaluate("document.fonts.ready")
     result = page.evaluate(
         _SVG_JS,
         {
@@ -355,6 +413,8 @@ def assert_svg_document(
         raise AssertionError(f"{where}: overlapping text: {result['textOverlap']}")
     if result["occlusion"]:
         raise AssertionError(f"{where}: label occludes a data mark: {result['occlusion']}")
+    if result["graphicOverlap"]:
+        raise AssertionError(f"{where}: graphic intersects text: {result['graphicOverlap']}")
     if result["legendPlotOverlap"]:
         raise AssertionError(f"{where}: legend overlaps the plotting region")
     if enforce_font and result["tooSmall"]:
@@ -363,6 +423,30 @@ def assert_svg_document(
 
 
 # ------------------------------------------------------------------- driver
+
+
+def readme_figure_preview(root: Path, base_url: str, language: str = "README.md") -> str:
+    """Render the actual README picture markup in a GitHub-width content column.
+
+    Badge/network requests and Markdown prose do not determine SVG geometry.
+    Keep picture sources intact so this also catches missing mobile branches.
+    """
+    source = (root / language).read_text(encoding="utf-8")
+    pictures = re.findall(r"<picture\b[^>]*>.*?</picture>|<img\b[^>]*>", source, re.S)
+    figures = "\n".join(pictures)
+    figures = re.sub(
+        r"https://raw\.githubusercontent\.com/DaoyuanLi2816/mini-verl/[^/]+/",
+        f"{base_url}/",
+        figures,
+    )
+    return (
+        f'<html><head><base href="{base_url}/"><style>'
+        "body{margin:0;background:#0d1117;color:#e6edf3;font:16px Arial}"
+        ".md-content__inner{max-width:880px;margin:0 auto;padding:16px}"
+        "picture{display:block;margin:0 0 32px}img{max-width:100%;height:auto}"
+        "</style></head><body><main class='md-content__inner md-typeset'>"
+        f"<h1>{escape(language)} figures</h1>{figures}</main></body></html>"
+    )
 
 
 def check(site: Path, screenshots: Path) -> None:
@@ -375,7 +459,8 @@ def check(site: Path, screenshots: Path) -> None:
     # One entry per (svg, viewport): the same file is checked again whenever a
     # different viewport renders it at a different real width.
     measured: dict[tuple[str, int], float] = {}
-    with _server(site) as base_url, sync_playwright() as playwright:
+    root = Path(__file__).resolve().parents[1]
+    with _server(site) as base_url, _server(root) as repo_url, sync_playwright() as playwright:
         browser = playwright.chromium.launch()
         try:
             for width, height in VIEWPORTS:
@@ -398,9 +483,36 @@ def check(site: Path, screenshots: Path) -> None:
                         full_page=True,
                         animations="disabled",
                     )
+                for language in ("README.md", "README.zh-CN.md"):
+                    page.set_content(readme_figure_preview(root, repo_url, language))
+                    page.wait_for_function(
+                        "[...document.images].every(img => img.complete && img.naturalWidth > 0)"
+                    )
+                    for image in _assert_page(page, route=language, width=width):
+                        measured[(image["src"], width)] = image["width"]
+                    if width <= NARROW_VIEWPORT_PX:
+                        selected = page.locator("picture img").evaluate_all(
+                            "nodes => nodes.map(node => node.currentSrc)"
+                        )
+                        if not all(src.endswith("-mobile.svg") for src in selected):
+                            raise AssertionError(f"README mobile layout missing: {selected}")
+                    page.screenshot(
+                        path=str(screenshots / f"{width}x{height}-{language}.png"),
+                        full_page=True,
+                        animations="disabled",
+                    )
                 context.close()
 
             svg_page = browser.new_page()
+            # Include unembedded/social/legacy assets too. Native-size geometry
+            # is independent of whether MkDocs currently links a particular SVG.
+            for asset in sorted((root / "docs").rglob("*.svg")):
+                url = f"{repo_url}/{asset.relative_to(root).as_posix()}"
+                svg_page.goto(url)
+                native = svg_page.evaluate("document.documentElement.viewBox.baseVal.width")
+                assert_svg_document(svg_page, url, rendered_width=native, min_font_px=0)
+                slug = asset.relative_to(root / "docs").as_posix().replace("/", "-")
+                svg_page.locator("svg").screenshot(path=str(screenshots / f"native-{slug}.png"))
             for (url, viewport), rendered in sorted(measured.items()):
                 narrow = viewport <= NARROW_VIEWPORT_PX
                 minimum = MIN_FONT_PX_NARROW if narrow else MIN_FONT_PX_WIDE
