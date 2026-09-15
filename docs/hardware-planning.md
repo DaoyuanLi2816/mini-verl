@@ -1,11 +1,18 @@
-# Hardware planning and bounded probes
+# Plan a workload for your GPU
 
-## Evidence before a fit claim
+Start by inspecting the schedule, then calibrate OPD memory with a short probe.
+Model size, sequence lengths and the roles resident at each phase determine
+how much VRAM a run needs. The [single-GPU guide](single-gpu-guide.md) explains
+the settings you can adjust.
+
+## Inspect the PPO/GRPO schedule
 
 The maintained qualification device is one RTX 4080. For the new PPO/GRPO
 workflow, `train local.yaml --dry-run --json` reports logical prompts,
 trajectories, actor updates and critic updates before model loading.
-It is a schedule/configuration plan, not a measured VRAM prediction.
+The output counts planned work; actual peak VRAM comes from executing the recipe.
+
+## Hardware coverage
 
 | VRAM class | PPO/GRPO planning status | Useful evidence |
 | --- | --- | --- |
@@ -14,12 +21,10 @@ It is a schedule/configuration plan, not a measured VRAM prediction.
 | 16 GB | maintainer RTX 4080 qualification for named workloads | exact-wheel release record and `inspect` |
 | 24 GB | unknown on other devices until measured | community submissions stay unreviewed |
 
-Capacity alone does not establish kernel, dtype or model compatibility.
-Measured numbers bind the model/revision, algorithm, role strategy, token
-bounds, package versions and GPU. Estimates must identify their method;
-absence stays unknown. Quantized roles cannot swap, and PPO cannot share a
-trainable critic adapter as though it were a frozen teacher. Illegal placement
-is rejected before training.
+Measurements include the model/revision, algorithm, role strategy, token bounds,
+package versions and GPU so you can compare them to your setup. Check kernel
+and dtype support as well as VRAM capacity. Placement rules keep quantized roles
+resident and PPO's trainable critic separate from a frozen teacher.
 
 ## OPD calibration
 
@@ -52,8 +57,7 @@ runtime, Torch and miniVERL versions, plan digest, model/tokenizer revisions,
 quantization, LoRA, token bounds and top-k. A mismatched or modified cache is
 never reused. Use `--force-probe` to remeasure deliberately.
 
-The probe is calibration, not training or a throughput benchmark. Its tiny
-inputs do not prove that the full logical workload fits. Retain configured
-headroom and treat the recommended batches as conservative starting points;
-the runtime still fails closed rather than changing model, teacher, context,
-top-k or loss semantics after an OOM.
+Use the recommended batches as starting points and retain the configured
+headroom: the probe's tiny inputs calibrate phases, while a complete run measures
+the full workload. An OOM stops execution with the model, teacher, context,
+top-k and loss settings preserved. See [limitations](limitations.md) for probe scope.

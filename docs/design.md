@@ -30,21 +30,18 @@ supervised fine-tuning on teacher text, it removes the train/inference
 distribution mismatch; compared with RL from a scalar reward, it gives dense
 per-token supervision.
 
-For a tool-using agent the setting adds a complication that most distillation
-code does not handle: the trajectory is not one contiguous block of model
-output. It interleaves a system prompt, a user prompt, model-generated tool
+For a tool-using agent, the trajectory interleaves a system prompt, a user prompt, model-generated tool
 calls, environment observations, and a final answer. Tool output is *context*
 that the model must condition on but must never be trained to reproduce. Getting
 that wrong does not crash anything — it silently trains the policy to hallucinate
 tool results.
 
-The OPD path is a single-GPU implementation of that loop with three properties it
-tries to make checkable rather than aspirational:
+The OPD path implements that loop on one GPU and checks three invariants:
 
-1. **Token provenance is a validated data structure, not a convention.** Every
+1. **Token spans are validated.** Every
    token belongs to exactly one typed span, the masks are re-derived from the
    spans on every load, and a mismatch raises.
-2. **"On-policy" is enforced by the cache, not by the docstring.** Teacher
+2. **Cached targets belong to a policy version.** Teacher
    targets carry the `policy_version` they were produced under, and consuming
    them at a different version raises `StaleCacheError`.
 3. **The memory tricks are equivalence-preserving.** The only thing an
@@ -53,29 +50,11 @@ tries to make checkable rather than aspirational:
 
 ### 1.1 Position in the ecosystem
 
-miniVERL is a small, readable, single-GPU lab. Production frameworks cover
-larger execution surfaces; the following comparison was checked in 2026-07:
-
-- **verl** (`verl-project/verl`, Apache-2.0) already has first-class on-policy
-  distillation in core (`verl/trainer/distillation/`, config namespace
-  `distillation.*`, GKD-style forward KL and a policy-gradient reverse-KL
-  variant, teacher sharing the student tokenizer) **and** an Agent Loop for
-  multi-turn tool calling. It uses Ray unconditionally, trains with
-  FSDP/FSDP2/Megatron-LM, rolls out with vLLM/SGLang/HF, and its sizing
-  documentation starts at one H100.
-- **TRL** has `GKDTrainer` (now under `trl.experimental.gkd`) with `lmbda=0.5`
-  and `beta=0.5` generalized JSD by default, recomputing full-vocabulary teacher
-  logits under `no_grad` each step with no teacher cache and no multi-turn tool
-  environment for the distillation trainers. TRL's `ServerDistillationTrainer`
-  has `loss_top_k` (default 1) plus an optional tail bucket, so top-k-plus-tail
-  teacher targets are not novel.
-- **KDFlow** (`songmzhang/KDFlow`, MIT) does on-policy and cross-tokenizer KD on
-  Ray + SGLang + FSDP2, with examples assuming 8 GPUs per node and no tool use.
-
-What miniVERL does differently is a matter of scope, not of capability: no
-distributed runtime, one process, one GPU, an explicit teacher-target cache with
-a policy-version contract, and an objective layer small enough to be read in one
-sitting and tested against brute-force references.
+miniVERL brings familiar verl experiments to a single consumer GPU. It keeps
+training objectives readable, records teacher targets and policy versions, and
+tests numerical operations against small reference implementations. The
+[workflow comparison](comparisons.md) covers adjacent tools;
+[compatibility](compatibility.md) documents the supported upstream profiles.
 
 ---
 

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "miniverl"
 dynamic = ["version"]
-description = "Verl experiment semantics compiled for one NVIDIA GPU."
+description = "verl for a single consumer GPU: PPO, GRPO and on-policy distillation."
 readme = "PYPI.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }

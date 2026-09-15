@@ -1,9 +1,11 @@
-# Current verl-style OPD runtime
+# On-policy distillation on one GPU
 
-This is miniVERL's current executable path: five closed profiles from official
-verl `v0.8.0`, pinned at `7aed6b23`, compiled into local phases on one NVIDIA
-CUDA GPU. Two profiles have measured systems records; the grouped and rewarded
-extensions are conformance-only.
+Generate with a student, score with a teacher and update the student, all on
+one NVIDIA GPU. Start from a built-in model pair or use your own verl profile.
+
+The five profiles target verl `v0.8.0` (`7aed6b23`). Their
+[compatibility records](compatibility.md) distinguish the two measured systems
+workloads from grouped and rewarded extensions checked by conformance tests.
 
 ## Start from the pinned profile
 

@@ -1,7 +1,8 @@
 # Run verl-style OPD locally
 
-miniVERL's direct-GKD profile brings a pinned verl v0.8 field subset into one
-local CUDA process: one actor, one teacher, one generation per prompt,
+Distill a teacher into a smaller student on one NVIDIA GPU. The student
+generates responses, the teacher scores them, and the student learns from that
+feedback. This quickstart uses the verl v0.8 direct-GKD profile with
 `forward_kl_topk`, token-mean aggregation and a LoRA/QLoRA student.
 
 Install a CUDA build of PyTorch that matches your machine first, then:
@@ -30,10 +31,10 @@ prompts, 64 response tokens and eight optimizer updates. See its
 | --- | --- | --- | --- | ---: | ---: | --- |
 | RTX 4080 16 GiB | Qwen3-0.6B / Qwen3-1.7B, both NF4 | dual resident | 128 + 16 tokens / 32 | 3.176 GiB | 12.02 s | measured |
 
-The measured run completed one current-policy rollout/scoring/update cycle,
-exported a loadable PEFT adapter, and used one RTX 4080. It demonstrates
-runtime and artifact correctness only; task-quality comparisons live in the
-research reports.
+The measured run completed one current-policy rollout/scoring/update cycle
+and exported a loadable PEFT adapter on an RTX 4080. These measurements cover
+runtime and artifact correctness; see [evidence scope](limitations.md#evidence-scope)
+for the distinction from task-quality studies.
 The checksummed record is
 [`rtx4080-verl-opd-runtime-v1.json`](https://github.com/DaoyuanLi2816/mini-verl/blob/main/benchmarks/results/rtx4080-verl-opd-runtime-v1.json).
 

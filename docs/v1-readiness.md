@@ -1,5 +1,9 @@
 # v1 readiness contract
 
+This historical assessment records the v0.10.1 release and its proposed v1
+gates. Use the [current compatibility matrix](compatibility.md) for today's
+features; the evidence and gate statuses below are the original assessment.
+
 Version 1 marks a reviewed stability promise across the public surface. Release
 qualification supplies the binary evidence; the contracts below define the
 additional API, artifact and maintenance commitments.
@@ -58,7 +62,7 @@ consumer-GPU coverage.
 | independent reproduction or explicit v1 hardware scope | **not yet satisfied** | Reproduce on a machine independent of the current workstation before a broad consumer-GPU claim, or approve a dedicated v1 scope decision limited to the maintainer-qualified stack. Untested GPUs are not evidence. |
 | dedicated v1 candidate decision | **not yet satisfied** | Review a dedicated PR that updates classifiers, versioning, support policy and migration notes after all chosen gates pass. This documentation repair cannot trigger it. |
 
-miniVERL is therefore **not a v1 candidate**. PPO, GRPO, critics, general reward
-pipelines, arbitrary verl YAML, Ray, FSDP, Megatron, vLLM/SGLang execution,
-multi-GPU, multi-node and distributed launch remain outside the current product
-boundary. Scale-out artifacts do not prove distributed execution.
+At this assessment, the v1 gates remained open. Later releases added local
+PPO, GRPO, a trainable critic and managed vLLM rollout support. Their current
+scope is documented in [compatibility](compatibility.md) and
+[limitations](limitations.md); a v1 stability commitment requires its own review.

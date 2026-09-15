@@ -7,19 +7,17 @@
     [scale-out materialization](scaleout-materialization.md); the legacy
     PPO/reward scaffold described below remains non-launchable.
 
-miniVERL v0.6 adds a narrow, tested bridge to official verl `v0.8.0`. The goal
-is not to imitate a distributed runtime on a laptop. It is to make the boundary
-between local scientific diagnosis and later scale-out explicit, standard and
-reviewable.
+miniVERL v0.6 adds an artifact bridge to official verl `v0.8.0`. It packages
+the model, data and configuration from a local experiment and checks the
+handoff against a pinned upstream version.
 
 ## Flagship article
 
 Online post-training has two distinct engineering regimes. On one GPU, a small
 team can inspect every rollout, token mask, teacher query, update and evaluation
 decision. At scale, orchestration, sharding and high-throughput generation are
-the hard parts. Treating those regimes as interchangeable produces either a
-local system that is impossible to audit or a “compatible” exporter that
-quietly changes algorithm semantics.
+the hard parts. The bridge connects the two through standard artifacts and
+a report showing which handoff checks have passed.
 
 miniVERL keeps the local regime small: actor → rollout → teacher/reference or
 reward → update → evaluation, in one process on one CUDA device. v0.6 then adds

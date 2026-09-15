@@ -1,8 +1,7 @@
-# Choose the right distillation stack
+# Choose your training workflow
 
 miniVERL, verl, TRL GKD, KDFlow and research OPD harnesses serve different
-workflows. Start from the execution environment and the artifact contract you
-need, then choose the smallest stack that covers them.
+workflows. Start with what you want to train and where you want to run it.
 
 The source snapshot behind this page was checked on 2026-07-29. Upstream
 projects evolve, so follow the primary links in [references](references.md)
@@ -23,7 +22,7 @@ before making a long-lived infrastructure decision.
 
 | Dimension | miniVERL | verl | TRL GKD | KDFlow | OPSD | plain SFT |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Design center** | Verl experiment semantics lowered to one GPU, plus native SFT/DPO/KD | General RL and distillation post-training at scale | A distillation trainer inside the Transformers ecosystem | Distributed KD across policy, tokenizer and modality choices | Paper-oriented OPD experiments built on verl | Next-token learning on a fixed dataset |
+| **Design center** | Local RL and OPD on one consumer GPU, plus SFT/DPO/KD | General RL and distillation post-training at scale | A distillation trainer inside the Transformers ecosystem | Distributed KD across policy, tokenizer and modality choices | Paper-oriented OPD experiments built on verl | Next-token learning on a fixed dataset |
 | **Runtime shape** | One Python process; optional CUDA training stack | Ray with distributed model and rollout backends | Transformers Trainer + Accelerate | Ray + SGLang | verl-based | Framework-dependent |
 | **On-policy path** | Grouped rollout → reward/reference or teacher → actor update | First-class distributed RL, distillation and agent-loop paths | Configurable student-generated sequences | Available | Available | Fixed dataset |
 | **Tool trajectories** | Calculator, JSON navigation, read-only SQLite and custom typed environments | Agent loop and tool parser | Chat-dataset training | Project-dependent | Tool-oriented experiments | Dataset-defined |
@@ -31,26 +30,15 @@ before making a long-lived infrastructure decision.
 | **Primary output** | PEFT adapter, trajectories, cache, plan and portable provenance bundle | Distributed checkpoints and rollout/training artifacts | Transformers model or adapter | Project-defined model artifacts | Experiment artifacts | Model or adapter |
 | **Best fit** | One-GPU experiments where semantic traceability matters | Throughput, scale and RL integration | Existing Transformers/TRL workflows | Broader KD research space | Reproducing its published setup | A known supervised target dataset |
 
-The table summarizes each project's documented design center rather than
-ranking quality or speed. Hardware numbers and algorithm outcomes are meaningful
-only within their original model, data and runtime setup.
-
 ## miniVERL's design center
 
-miniVERL concentrates on the parts of a local post-training run that benefit
-from explicit evidence:
+miniVERL makes the local experiment easy to follow: reuse your verl config,
+inspect generated responses and learning signals, resume interrupted training,
+and export a model you can use elsewhere. PPO, grouped reward-driven methods
+and OPD share these tools.
 
-- a typed compiler that records how each source field affects local execution;
-- group/sample and policy-version binding across rollout, rewards and targets;
-- verl v0.9-conformant GRPO, Dr.GRPO, RLOO and REINFORCE++ primitives;
-- token-span provenance created during generation;
-- exact, top-k and sampled-k1 teacher signals with checksummed cache identity;
-- transactional plans, checkpoints and export publication;
-- standard PEFT, safetensors and Parquet interchange.
-
-That design is especially useful when you have one personal NVIDIA GPU, want
-to inspect or change the loss, and value semantic traceability over rollout
-throughput.
+Start here when you have one NVIDIA GPU and want a short path from configuring
+an experiment to understanding its behavior.
 
 ## When scale is the main requirement
 
@@ -65,7 +53,11 @@ list of miniVERL's algorithm, architecture and evidence boundaries lives in
 [limitations](limitations.md), while [compatibility](compatibility.md) defines
 the exact versioned profile contract.
 
-## Evidence notes
+## Scope and sources
+
+The table describes workflows and documented features. Performance comparisons
+need matched model, data and runtime settings; the dated upstream snapshot is
+linked above.
 
 The public miniVERL results cover one-GPU systems behavior and several scoped
 task studies. They include negative outcomes and preregistered early stops.

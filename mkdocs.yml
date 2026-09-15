@@ -1,5 +1,5 @@
 site_name: miniVERL
-site_description: Verl experiment semantics compiled for one NVIDIA GPU
+site_description: 'verl for a single consumer GPU: PPO, GRPO and on-policy distillation'
 site_url: https://daoyuanli2816.github.io/mini-verl/
 repo_url: https://github.com/DaoyuanLi2816/mini-verl
 repo_name: DaoyuanLi2816/mini-verl
@@ -41,7 +41,7 @@ plugins:
   - search
 nav:
   - Home: index.md
-  - Choose a stack: comparisons.md
+  - Choose a workflow: comparisons.md
   - For verl users: for-verl-users.md
   - Run a verl config directly: direct-verl-config.md
   - PPO and GRPO walkthrough: local-rl-workflow.md
@@ -52,7 +52,7 @@ nav:
   - Config overrides: config-overrides.md
   - Immutable plans: immutable-plans.md
   - Hardware planning: hardware-planning.md
-  - Current verl-style OPD runtime: verl-opd-runtime.md
+  - On-policy distillation: verl-opd-runtime.md
   - Run verl-style OPD: opd-quickstart.md
   - RTX 4080 developer workload: verl-opd-reference-workload.md
   - SmolLM2 developer workload: smollm2-opd-workload.md
@@ -105,4 +105,4 @@ extra_css:
   - assets/stylesheets/extra.css
 extra_javascript:
   - assets/javascripts/versioning.js
-copyright: miniVERL · verl semantics on one GPU · Apache-2.0
+copyright: miniVERL · verl for a single consumer GPU · Apache-2.0

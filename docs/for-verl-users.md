@@ -1,9 +1,9 @@
 # For verl users
 
-miniVERL composes your verl config tree/name/overrides into a validated one-GPU
-plan. Field names, datasets, logical batches,
-algorithms and artifacts remain recognizable; cluster placement is replaced by
-sequential local phases and recorded as a lowering decision.
+Bring your verl experiments to a single consumer NVIDIA GPU. Keep familiar
+configs and Hydra overrides, connect your data and reward function, and run
+PPO, GRPO or OPD locally. This guide takes you from the first run to inspecting,
+resuming and exporting a model.
 
 <picture>
   <source media="(max-width: 640px)" srcset="../verl-local-runtime-mobile.svg">

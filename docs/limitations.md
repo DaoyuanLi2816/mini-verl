@@ -1,5 +1,21 @@
 # Limitations
 
+## Product scope
+
+miniVERL is an independent implementation for one NVIDIA CUDA GPU. The phrase
+"verl for a single consumer GPU" describes its workflow and intended hardware,
+not an official verl distribution or support for every upstream configuration.
+The [compatibility matrix](compatibility.md) lists the supported versioned
+profiles. Model fit depends on available VRAM, sequence lengths and placement;
+measured hardware coverage is recorded below.
+
+Local training and artifact export are the implemented workflow. A bridge
+readiness report describes which upstream setup checks passed; distributed
+execution needs its own runtime and verification. Systems measurements and
+task-quality studies answer different questions; see [evidence scope](#evidence-scope).
+
+## Measurement background
+
 This page collects miniVERL's scientific, runtime, compatibility and security
 boundaries so the product guides can stay focused on workflows. Each item is
 traceable to a repository file or an executed command. Measurements come from

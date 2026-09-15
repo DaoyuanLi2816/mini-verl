@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
   <source media="(max-width: 760px)" srcset="docs/banner-mobile.svg">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — 把 verl 实验语义转换为单张 CUDA GPU 上的执行计划" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — 单张消费级 GPU 上的 verl" width="880">
   </picture>
 </p>
 
@@ -21,21 +21,16 @@
   <a href="README.md">English</a>
 </p>
 
-**在一张 NVIDIA GPU 上直接运行常见 verl PPO／GRPO 配置。** 把上游配置树、config name
-和 Hydra overrides 交给 miniVERL，再绑定本地数据或奖励代码。版本化编译器保留实验语义，让 actor、critic、
-reference 和 reward 按阶段共用显卡，无需另外维护一套配置语言。
+**单张消费级 GPU 上的 verl。**
 
-当前开发线针对官方 verl `v0.9.0`（`483b8a00`）支持 PPO/GAE、GRPO、Dr.GRPO、
-RLOO 与 REINFORCE++。PPO 使用独立可训练 critic 及其 optimizer/checkpoint；actor KL、
-entropy regularization、grouped rollout、task reward 和固定 revision 的 sequence-classifier
-reward role 共用同一套 provenance。已有 verl `v0.8.0` OPD profile 继续提供 direct GKD
-与 sampled-k1 蒸馏。
+在一张 NVIDIA 显卡上运行 PPO、GRPO 和在线策略蒸馏（OPD）。
+沿用 verl 配置，本地训练、中断续跑，再把模型导出到下一步工作流。
 
-PyPI `v0.16.0` 是稳定版；`main` 是开发版。
+PyPI `v0.16.0` 是稳定版；`main` 为开发版。
 
-## 第一个本地实验
+## 第一次本地实验
 
-先安装与本机匹配的 CUDA PyTorch，再运行：
+先通过 [PyTorch 安装向导](https://pytorch.org/get-started/locally/) 安装匹配的 CUDA 版本，然后运行：
 
 ```bash
 python -m pip install "miniverl[train,hydra]"
@@ -44,8 +39,10 @@ miniverl run --example hydra-ppo --bind reward.provider=target_length --dry-run
 miniverl run --example hydra-ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
-安装包里的 Hydra 示例组合官方 verl defaults 与 Qwen3-0.6B 启动参数，
-显式 binding 选择长度奖励练习。自己的配置直接这样运行：
+这个 Qwen3-0.6B 示例使用简单的长度奖励，可以在 `rewards.jsonl` 中直接查看。
+[五分钟工作流](docs/for-verl-users.md) 还介绍了如何换成 GRPO、恢复训练和导出 adapter。
+
+已经有 verl 实验？直接传入配置树和 Hydra overrides：
 
 ```bash
 miniverl run --verl-config-path /path/to/verl/trainer/config \
@@ -53,106 +50,58 @@ miniverl run --verl-config-path /path/to/verl/trainer/config \
   algorithm.adv_estimator=grpo actor_rollout_ref.rollout.n=8 trainer.n_gpus_per_node=8
 ```
 
-每次运行保存配置树身份、有序 overrides、解析字节、逐字段决策、binding、
-模型快照和执行计划。接着检查、恢复并导出：
+[直接运行配置](docs/direct-verl-config.md) 介绍数据和奖励函数的绑定方式；
+[单 GPU 指南](docs/single-gpu-guide.md) 帮你选择模型与显存设置。
+安装 extras 分别补充训练、Hydra 或量化依赖，CUDA PyTorch 版本需要单独选择。
 
-```bash
-miniverl inspect runs/local-ppo
-miniverl run --example hydra-ppo --bind reward.provider=target_length \
-  --resume-from runs/local-ppo/checkpoints/step-000002
-miniverl export-adapter --run runs/local-ppo --out runs/local-ppo/model
-miniverl export-verl --run runs/local-ppo --target-verl v0.9.0 --out ppo-handoff
-miniverl bridge doctor ppo-handoff --json
-```
+## 选择你的路径
 
-[五分钟工作流](docs/for-verl-users.md)解释每个产物，并给出对应的 GRPO 命令。
-这是小规模长度奖励练习，奖励值可以直接在 `rewards.jsonl` 中检查。
+| 你想做什么 | 从这里开始 | 得到什么 |
+| --- | --- | --- |
+| **用奖励训练** | [PPO / GRPO 工作流](docs/for-verl-users.md) | 训练后的 adapter、奖励日志和可恢复检查点 |
+| **蒸馏教师模型** | [OPD 快速上手](docs/opd-quickstart.md) | 学生在自己生成的轨迹上接受教师反馈 |
+| **迁移到更大的训练环境** | [导出与交接](docs/verl-opd-scaleout.md) | PEFT、Parquet、配置文件，以及待完成配置的报告 |
 
-`[train]` 安装训练依赖，`[hydra]` 固定配置解析依赖，`[cuda]` 安装量化依赖；CUDA PyTorch build 通过
-[PyTorch 安装器](https://pytorch.org/get-started/locally/)单独选择。
-[单卡指南](docs/single-gpu-guide.md)包含显存规划与维护者实测的 RTX 4080 环境。
+原生 recipe 还支持 SFT、DPO 和离线 KD。
+[硬件规划](docs/hardware-planning.md) 帮你根据显存安排工作负载。
 
 ## 一次运行会得到什么
 
-- **逐字段编译报告。** 实验字段保留语义，物理分布字段得到明确的单卡 lowering。
-- **与策略绑定的 trajectory。** group/sample 身份、模型生成 token span、behavior
-  log-probability 与 policy version 始终一起保存。
-- **可审计的 reward 与 objective。** reward component、group advantage、reference
-  KL、clip fraction、entropy 与 update metric 都是结构化数据。
-- **精确恢复。** 事务化 manifest 与 checkpoint 在下一次 rollout 前恢复 policy、
-  optimizer、cursor、RNG 与 reward identity。
-- **可携带产物。** PEFT adapter、safetensors、Parquet、resolved config 与类型化
-  provenance 可以进入更大的工作流。
+- **熟悉的配置。** 沿用 verl 字段和 overrides，查看各项配置如何映射到本地执行。
+- **看得见的训练过程。** 检查生成轨迹、奖励、loss 和教师目标。
+- **精确续训。** 从检查点恢复模型、optimizer、数据位置和随机状态。
+- **可复用的产物。** 导出 adapter、数据集，以及对应的配置和来源信息。
 
 ## 工作方式
 
 <picture>
   <source media="(max-width: 760px)" srcset="docs/verl-local-runtime-mobile.svg">
-  <img src="docs/verl-local-runtime.svg" alt="Resolved verl 配置被编译为经过验证的单卡执行计划；actor、critic、reference、teacher 与 reward 角色分阶段执行，并生成可携带产物与 readiness report。">
+  <img src="docs/verl-local-runtime.svg" alt="单张 GPU 按阶段运行 rollout、奖励、reference、teacher 和更新，最后导出模型、数据和交接报告。">
 </picture>
 
-miniVERL 把一张 GPU 当作逻辑角色的时间调度器。RL 先生成完整 prompt group，计算
-outcome reward，按需运行 reference 与 reward-model 角色，再计算固定版本的 advantage
-estimator 并更新 actor。PPO 额外执行独立 critic 的 clipped value update。OPD 复用相同
-的 trajectory 与 checkpoint 基础设施，以 teacher target 提供学习信号。
+actor、critic、reference、reward 和 teacher 按阶段共用 GPU。
+PPO 分别训练 actor 和 critic；GRPO 使用分组奖励；OPD 在学生当前策略生成的轨迹上学习教师目标。
 
-## 选择你的路径
+## 实测结果
 
-| 目标 | 第一个命令 | 主要产物 | 下一步 |
-| --- | --- | --- | --- |
-| **本地 RL** | `miniverl run --verl-config-name ppo_trainer --dry-run` | 配置解析 + 语义报告 + 执行计划 | [直接运行配置](docs/direct-verl-config.md) |
-| **本地 OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | 不可变执行计划 | [OPD quickstart](docs/opd-quickstart.md) |
-| **适配显卡** | `miniverl plan --config verl-opd.yaml --probe` | 实测 placement plan | [硬件规划](docs/hardware-planning.md) |
-| **交接产物** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor、critic、Parquet + config bundle | [兼容性契约](docs/compatibility.md) |
+在 RTX 4080 上，Qwen3-0.6B/1.7B OPD 工作负载用 32 条不同 prompt 完成了八次更新，
+峰值 reserved 显存为 **3.1914 GiB**。第四次更新后中断并恢复，生成轨迹、adapter
+和 optimizer 张量均与连续运行逐字节一致。SmolLM2-360M/1.7B 工作负载使用 **1.4961 GiB**。
+[工作负载与测量记录](docs/verl-opd-reference-workload.md) ·
+[24 组 rollout 后端测量](docs/benchmarks/rollout-runtime-v2.md)。
 
-原生 recipe 还支持 SFT、DPO、offline KD，以及 calculator、JSON navigation、只读
-SQLite 和自定义 tool environment。
-
-## 当前能力矩阵
-
-| 实验能力 | 本地状态 | 契约 |
-| --- | --- | --- |
-| PPO / GAE | 语义一致 | 独立 critic、clipped value loss、actor/critic 精确续训 |
-| GRPO / Dr.GRPO | 语义一致 | verl v0.9 group statistic 与 vanilla clipped policy loss |
-| RLOO / REINFORCE++ | 语义一致 | verl v0.9 advantage 与 masking 规则 |
-| Grouped `n > 1` rollout | 已支持 | 完整 group、稳定 sample seed 与 behavior-policy identity |
-| Task reward 与训练型 RM | 已支持 | 内置奖励、environment verifier、可信 Python API 或固定 HF sequence classifier |
-| Actor KL 与 entropy | 语义一致 | sampled-token reference KL 与 entropy regularization |
-| Direct GKD / sampled-k1 OPD | 已支持 | 固定 verl v0.8 profile 与 teacher target |
-| Ray、FSDP/FSDP2、Megatron、TP/PP/DP > 1 | 仅分布式 | 这些能力改变物理规模，不改变本地 objective |
-
-[上游兼容语料库](docs/verl-compatibility-corpus.md)解析真实 verl 示例，逐项记录字段结果。
-原生 Hydra 解析、独立 actor/critic shuffle、group 过滤与失败组补采样使用新的 v5 profile。
-解析状态、语义兼容与硬件容量分别报告；resolved YAML 与历史 v1/v2/v3/v4 继续可用。
-
-## 实测系统证据
-
-已发布的 Qwen3-0.6B/1.7B OPD workload 在 RTX 4080 上消费 32 个不同 prompt，完成
-8 次 current-policy update，peak reserved VRAM 为 3.1914 GiB。第 4 次 update 后的
-匹配中断/续跑复现了字节一致的 trajectory、adapter 与 optimizer tensor。配套
-SmolLM2-360M/1.7B workload 以 1.4961 GiB 完成同一形状；完整配置、哈希和阶段耗时见
-[系统记录](docs/verl-opd-reference-workload.md)。
-
-Rollout Runtime v2 在 RTX 4080 上测量了 `hf_cached` 与 managed vLLM 的 24 个 cell，
-覆盖不同 response length、sampling mode 与 `n=1/4`。详见
-[runtime 报告](docs/benchmarks/rollout-runtime-v2.md)。新 RL 家族的证据由 exact-wheel
-release qualification 发布，不作为任务质量对比。
-
-## 研究记录
-
-科学报告保留原始结论与 frozen 输入：
-[calculator protocol](docs/benchmarking.md)、
+任务效果见[计算器实验](docs/benchmarking.md)、
 [RecoveryBench](docs/recoverybench/recoverybench-v1.md)、
-[Alignment Lab](docs/alignment-lab/alignment-lab-v1.md) 与
-[External Alignment Gate](docs/alignment-external/alignment-external-v1.md)。这些是范围明确的
-研究记录，与 runtime qualification 分开。
+[Alignment Lab](docs/alignment-lab/alignment-lab-v1.md) 和
+[External Alignment Gate](docs/alignment-external/alignment-external-v1.md)。
+其中的负面和混合结果、原始数据与研究范围均完整保留。
 
-## 兼容边界
+## 项目与兼容性
 
-miniVERL 面向一个本地进程、一张 NVIDIA CUDA GPU。编译器分别标记精确或语义一致、
-本地物理 lowering、仅分布式、概念上可行但尚未实现，以及因具体原因不支持的输入。
-[兼容性政策](docs/compatibility.md)给出完整矩阵；[限制页面](docs/limitations.md)集中说明
-架构、测量、安全与泛化边界。miniVERL 是独立的 Apache-2.0 项目。
+miniVERL 是面向单张 NVIDIA CUDA GPU 的独立 Apache-2.0 项目，
+支持文档列出的 verl 配置 profile。能容纳多大的模型取决于显存与工作负载。
+[兼容性矩阵](docs/compatibility.md) 列出上游版本和配置支持情况；
+[限制说明](docs/limitations.md) 集中介绍硬件验证范围、科学结论和分布式执行边界。
 
 ## 开发
 
@@ -163,6 +112,5 @@ python -m pip install -e ".[dev,train]"
 pytest -q -m "not gpu and not network"
 ```
 
-另见 [CONTRIBUTING.md](CONTRIBUTING.md)、[CHANGELOG.md](CHANGELOG.md)、
-[CITATION.cff](CITATION.cff)、[SECURITY.md](SECURITY.md) 与
-[Apache-2.0 license](LICENSE)。
+[参与贡献](CONTRIBUTING.md) · [更新记录](CHANGELOG.md) ·
+[引用](CITATION.cff) · [安全](SECURITY.md) · [许可证](LICENSE)

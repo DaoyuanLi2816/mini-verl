@@ -1,48 +1,29 @@
 # miniVERL
 
-Run common verl PPO/GRPO config trees directly on one NVIDIA GPU.
-The local runtime produces policy-bound trajectories,
-transactional checkpoints and portable PEFT/Parquet artifacts.
+**verl for a single consumer GPU.**
 
-[Run PPO or GRPO locally](direct-verl-config.md){ .md-button .md-button--primary }
+Train with PPO, GRPO or on-policy distillation on one NVIDIA GPU.
+Bring your verl configs, follow the training, resume from a checkpoint
+and take the resulting models into your next workflow.
+
+[Start training](for-verl-users.md){ .md-button .md-button--primary }
 [Choose a workflow](comparisons.md){ .md-button }
-
-## From a verl config to one GPU
-
-```text
-verl config tree + config name + overrides
-        ↓  pinned Hydra composition
-resolved upstream config
-        ↓  versioned compatibility compiler
-field report + validated native recipe
-        ↓  temporal role scheduler
-actor rollout → reward / reference / teacher → actor update
-                 ↘ PPO critic/value update
-        ↓
-PEFT + Parquet + config + typed provenance
-```
-
-The current RL profile targets official verl `v0.9.0` at commit
-`483b8a009ba3a97563edee3a19887e4862b8094a`. It runs PPO/GAE, GRPO, Dr.GRPO,
-RLOO and REINFORCE++ with grouped samples, task rewards, trained reward-model
-inference and optional fixed reference-policy KL. The existing verl `v0.8.0` profiles run direct GKD and
-sampled-k1 OPD with explicit teacher targets.
 
 ## Start with PPO
 
+Install the matching CUDA-enabled build from the
+[PyTorch installer](https://pytorch.org/get-started/locally/), then:
+
 ```bash
-python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
 python -m pip install "miniverl[train,hydra]"
 miniverl data sample --reward-profile target-length --rows 8 --out data/rl-prompts.parquet
 miniverl run --example hydra-ppo --bind reward.provider=target_length --dry-run
 miniverl run --example hydra-ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
-Use `--verl-config-name ppo_trainer` plus your usual overrides for an existing experiment.
-Add `--verl-config-path` for a pinned upstream checkout; resolved YAML also works.
-`--dry-run` checks semantic compatibility without model downloads; execution
-resolves snapshots, filters prompts, derives the epoch schedule and checks GPU
-capacity. Continue with [direct run → inspect → resume → handoff](direct-verl-config.md).
+This Qwen3-0.6B example uses a simple length reward you can inspect in
+`rewards.jsonl`. The dry run checks the configuration before downloading models.
+Continue with [inspect → resume → export](for-verl-users.md).
 
 ## Three ways to use miniVERL
 
@@ -50,18 +31,18 @@ capacity. Continue with [direct run → inspect → resume → handoff](direct-v
 
 <div class="path-card" markdown>
 
-### Prototype verl RL
+### Train with rewards
 
-Bring a v0.9 config tree and run PPO or a grouped critic-free
-algorithm on one CUDA device.
+Run PPO or GRPO using your verl config and local data.
 
 ```bash
-miniverl run --verl-config-name ppo_trainer --dry-run
+miniverl run --example hydra-ppo \
+  --bind reward.provider=target_length --dry-run
 ```
 
-**Artifact:** native recipe plus field-by-field compatibility report.
+**Artifact:** training recipe and configuration report.
 
-**Next:** [Direct verl configs](direct-verl-config.md)
+**Next:** [Bring your own config](direct-verl-config.md)
 
 </div>
 
@@ -69,62 +50,58 @@ miniverl run --verl-config-name ppo_trainer --dry-run
 
 ### Distill locally
 
-Compile a direct-GKD or sampled-k1 OPD profile, then inspect teacher targets,
-trajectory provenance and the final adapter.
+Train a student on its own rollouts with feedback from a teacher.
 
 ```bash
 miniverl plan --profile verl-opd-v0.8-single-gpu-v1 \
-  --config verl-opd.yaml --out plan.json
+  --config builtin:qwen3-0.6b-1.7b-opd
 ```
 
-**Artifact:** immutable plan, teacher cache, trajectories and PEFT adapter.
+**Artifact:** a memory and execution plan for the student/teacher pair.
 
-**Next:** [OPD quickstart](opd-quickstart.md)
+**Next:** [Run your first OPD update](opd-quickstart.md)
 
 </div>
 
 <div class="path-card" markdown>
 
-### Prepare scale-out artifacts
+### Prepare a larger run
 
-Package a local run into standard PEFT, safetensors, Parquet and config
-artifacts with a separate readiness report.
+Export your model, data and config for handoff to verl.
 
 ```bash
-miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout
+miniverl export-verl --run runs/my-run \
+  --target-verl v0.9.0 --out scaleout
 ```
 
-**Artifact:** checksummed portable bundle and compatibility states.
+**Artifact:** PEFT, Parquet and config files with a setup checklist.
 
-**Next:** [Inspect and hand off](local-rl-workflow.md)
-
-</div>
+**Next:** [Review the bundle](verl-opd-scaleout.md)
 
 </div>
 
-## Capability map
+</div>
 
-| Surface | Local status |
-| --- | --- |
-| PPO/GAE | independent actor/critic updates with exact dual-role resume |
-| GRPO, Dr.GRPO, RLOO, REINFORCE++ | verl v0.9-conformant estimator and policy-loss semantics |
-| Grouped rollout, task rewards, trained RM, actor KL/entropy | supported and provenance-bound |
-| Direct GKD and sampled-k1 OPD | supported through pinned verl v0.8 profiles |
-| SFT, DPO, offline KD, tool environments | native recipe workflows |
-| Ray, FSDP/FSDP2, Megatron, TP/PP/DP > 1 | distributed-only |
+## Make the most of your GPU
 
-Read [compatibility](compatibility.md) for the complete field and semantic
-contract. [Limitations](limitations.md) collects measurement, architecture,
-security and generalization boundaries.
+miniVERL schedules training roles in phases so actor, critic, reference,
+reward and teacher can share one GPU. Choose a model and placement strategy
+with the [single-GPU guide](single-gpu-guide.md) and
+[hardware planner](hardware-planning.md).
+Native recipes also offer SFT, DPO and offline KD.
 
-## Evidence and research
+## Explore the results
 
-The RTX 4080 systems record covers current-policy OPD updates, exact resume and
-rollout backends. The v0.9 RL path adds upstream numerical/gradient conformance,
-CPU integration and exact-wheel GPU qualification. Runtime qualification is
-kept separate from task-quality claims.
+- [OPD on an RTX 4080](verl-opd-reference-workload.md): update timing, memory and exact recovery.
+- [Rollout Runtime v2](benchmarks/rollout-runtime-v2.md): 24 measurements across rollout settings.
+- [Alignment Lab](alignment-lab/alignment-lab-v1.md): a saturated tool-policy case study.
+- [RecoveryBench](recoverybench/recoverybench-v1.md): tool recovery outcomes.
+- [External Alignment Gate](alignment-external/alignment-external-v1.md): frozen external evaluation results.
 
-- [RTX 4080 workload](verl-opd-reference-workload.md)
-- [Rollout Runtime v2](benchmarks/rollout-runtime-v2.md)
-- [Scientific studies](alignment-lab/alignment-lab-v1.md)
-- [For verl users](for-verl-users.md)
+## About and support
+
+miniVERL is an independent project for single-GPU NVIDIA CUDA training.
+The [compatibility matrix](compatibility.md) lists supported verl versions,
+profiles and handoff stages. [Limitations](limitations.md) collects hardware,
+scientific and security scope. See [comparisons](comparisons.md) for help choosing
+a training workflow.

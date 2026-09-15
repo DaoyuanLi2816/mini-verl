@@ -1,10 +1,8 @@
 # RTX 4080 OPD developer workload
 
-This measured workload asks a systems question: can the documented
-`verl-opd-v0.8-single-gpu-v1` path sustain several useful-size rollout,
-teacher-scoring and update cycles, survive an interruption, and stay well
-inside a 16 GiB consumer-GPU envelope? It is **not** a task-quality or alignment
-benchmark.
+This workload measures OPD update timing, memory use and interruption recovery
+on an RTX 4080. The `verl-opd-v0.8-single-gpu-v1` run consumes 32 distinct
+prompts across eight rollout, teacher-scoring and update cycles.
 
 <picture>
   <source media="(max-width: 600px)" srcset="../verl-opd-reference-workload-mobile.svg">
@@ -62,7 +60,7 @@ compatibility smoke stays immutable as historical evidence.
 
 ## Scope
 
-No reward, task correctness, alignment, preference, safety or method-comparison
-endpoint was evaluated. This record does not show that OPD beats SFT, DPO or
-KD, and it does not show that a distributed verl job ran. It validates two
-pinned model pairs on the same one-GPU, forward-top-k profile.
+Measured endpoints are timing, memory, artifact reload and exact recovery for
+two pinned model pairs on the same one-GPU, forward-top-k profile. Task quality,
+alignment, preference, safety, method comparisons and distributed execution
+were not evaluated. See the consolidated [evidence scope](limitations.md#evidence-scope).
