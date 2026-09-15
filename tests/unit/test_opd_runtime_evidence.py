@@ -26,6 +26,8 @@ def test_rtx4080_runtime_record_is_scoped_and_complete() -> None:
 
 def test_unmeasured_hardware_rows_are_not_promoted_to_measurements() -> None:
     text = Path("docs/opd-quickstart.md").read_text(encoding="utf-8")
-    assert "12 GiB CUDA GPU" in text and "not measured" in text
-    assert "24 GiB CUDA GPU" in text and "not measured" in text
-    assert "demonstrates\nruntime and artifact correctness only" in text
+    for hardware in ("12 GiB CUDA GPU", "24 GiB CUDA GPU"):
+        row = next(line for line in text.splitlines() if line.startswith(f"| {hardware} |"))
+        assert "| not measured |" in row
+    assert "measurements cover runtime and artifact correctness" in " ".join(text.split())
+    assert "limitations.md#evidence-scope" in text

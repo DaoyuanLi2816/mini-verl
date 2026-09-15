@@ -30,7 +30,8 @@ def test_v1_readiness_has_no_obsolete_or_contradictory_gate() -> None:
         "first same-run pair",
     )
     assert all(phrase not in text for phrase in obsolete)
-    assert "not a v1 candidate" in text
+    assert "historical assessment" in text
+    assert "v1 stability commitment requires its own review" in text
     assert "not yet satisfied" in text
     assert "v1 public api baseline" in text
     assert "backward-compatibility evidence" in text
