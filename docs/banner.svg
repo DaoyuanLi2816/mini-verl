@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 250" width="880" height="250"
      role="img" aria-labelledby="banner-title banner-desc">
   <title id="banner-title">miniVERL</title>
-  <desc id="banner-desc">A local runtime that compiles supported verl experiment semantics for one CUDA GPU.</desc>
+  <desc id="banner-desc">PPO, GRPO and on-policy distillation on a single consumer NVIDIA GPU.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#030711"/>
@@ -46,13 +46,13 @@
       mini<tspan fill="url(#brand)">VERL</tspan>
     </text>
     <text x="44" y="109" font-size="14.8" font-weight="570" fill="#e2e8f0">
-      verl semantics. One CUDA GPU.
+      verl for a single consumer GPU.
     </text>
     <text x="44" y="135" font-size="12.8" fill="#a9b8cf">
-      Native configs. Local training.
+      Your configs. Local training.
     </text>
     <text x="44" y="154" font-size="12.8" fill="#a9b8cf">
-      Inspectable rewards and portable artifacts.
+      Train, resume and export your models.
     </text>
 
     <g font-size="12" font-weight="500">
@@ -87,8 +87,8 @@
               stroke="#67e8f9" stroke-opacity=".52"/>
       <path d="M444 57h12M450 51v12" stroke="#a5f3fc" stroke-width="1.8"
             stroke-linecap="round"/>
-      <text x="478" y="52" font-size="14" font-weight="720" fill="#f8fafc">Compile</text>
-      <text x="478" y="71" font-size="12" fill="#afbed3">verl-shaped YAML · typed compatibility report</text>
+      <text x="478" y="52" font-size="14" font-weight="720" fill="#f8fafc">Bring your configs</text>
+      <text x="478" y="71" font-size="12" fill="#afbed3">verl configs · Hydra overrides · local data</text>
     </g>
 
     <g>

@@ -423,7 +423,7 @@ def test_single_gpu_visual_identity_and_pypi_link_are_prominent() -> None:
     assert "1× CUDA GPU" in banner
     assert "BF16 / FP16 auto" in banner
     assert "typed provenance" in banner
-    assert "verl semantics. One CUDA GPU." in banner
+    assert "verl for a single consumer GPU." in banner
     assert "actor rollout · reward / ref / teacher · update" in banner
     assert "PEFT · Parquet · targets · metrics · provenance" in banner
     assert 'pip install "miniverl[train,cuda]"' not in banner
@@ -453,7 +453,8 @@ def test_verl_bridge_visual_and_launch_assets_are_accessible_and_honest() -> Non
     assert "Hugging Face card addenda" in launch
     assert "Distributed execution" in launch
     assert "Verified-bridge demo recording script" in demo
-    assert "does not prove a distributed verl job ran" in demo
+    assert "Distributed execution: not tested" in demo
+    assert "launchable: false" in demo
 
 
 def test_generated_pypi_readme_is_byte_bound_and_has_only_navigable_project_links() -> None:

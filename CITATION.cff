@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "miniVERL: Run verl experiment semantics on one GPU"
+title: "miniVERL: verl for a single consumer GPU"
 message: "If you use miniVERL in your work, please cite it as below."
 type: software
 version: 0.16.0
@@ -8,17 +8,13 @@ license: Apache-2.0
 repository-code: "https://github.com/DaoyuanLi2816/mini-verl"
 url: "https://github.com/DaoyuanLi2816/mini-verl"
 abstract: >-
-  miniVERL compiles supported verl experiment semantics for one NVIDIA GPU.
-  Its versioned profiles consume resolved configuration and Parquet prompts,
-  run PPO with an independent critic or critic-free reward-driven algorithms,
-  and support on-policy distillation with explicit teachers. Typed trajectories,
-  role identities, transactional checkpoints and exact replay make local runs
-  inspectable and resumable. Portable PEFT, critic, Parquet and provenance
-  bundles support handoff toward pinned upstream verl. Installed PPO and GRPO
-  walkthroughs exercise the complete workflow. Runtime qualification is measured
-  on one RTX 4080 and kept separate from task-quality research; distributed
-  execution is outside the local runtime. Frozen studies preserve their original
-  negative and mixed results.
+  miniVERL brings verl workflows to a single consumer NVIDIA GPU. It runs PPO,
+  GRPO and on-policy distillation using documented verl configuration profiles,
+  with native recipes for SFT, DPO and offline knowledge distillation. Training
+  roles share the GPU in phases. Users can inspect rollouts and rewards, resume
+  model and optimizer state exactly, and export PEFT adapters, Parquet data and
+  configuration bundles. The repository includes reproducible systems measurements
+  and task studies with their original data, methods and outcomes.
 authors:
   - family-names: Li
     given-names: Daoyuan

@@ -1,6 +1,6 @@
 # SmolLM2 direct-GKD developer workload
 
-This is a maintainer-measured systems recipe, not a model-quality benchmark.
+This workload measures memory, phase timing and exact recovery on an RTX 4080.
 It uses the direct `forward_kl_topk` profile with pinned Apache-2.0
 SmolLM2-360M-Instruct actor and SmolLM2-1.7B-Instruct teacher snapshots.
 

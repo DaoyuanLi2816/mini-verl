@@ -15,9 +15,9 @@ documentation on 2026-07-29.
 Guangming Sheng, Chi Zhang, Zilingfeng Ye, Xibin Wu, Wang Zhang, Ru Zhang,
 Yanghua Peng, Haibin Lin, Chuan Wu. arXiv:2409.19256, submitted 2024-09-28.
 <https://arxiv.org/abs/2409.19256>
-The paper verl implements. Its hybrid single-controller / multi-controller
-dataflow is the scaling design miniVERL deliberately does not attempt; the name
-"miniVERL" acknowledges the debt without implying compatibility.
+The paper behind verl's hybrid single-controller / multi-controller dataflow.
+miniVERL brings documented verl configurations to a single-GPU runtime;
+[compatibility](compatibility.md) describes the supported profiles and handoff.
 
 **verl** `[primary]`
 `verl-project/verl`, Apache-2.0. <https://github.com/verl-project/verl>

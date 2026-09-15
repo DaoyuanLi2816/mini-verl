@@ -1,0 +1,97 @@
+{
+  "release_commit": "7a6ad7d9fa6e05787dca1b950ba6706c36384382",
+  "files": {
+    "docs/comparisons.md": {
+      "before": "41b74fd641fc3264e32e7c31c3597181d02b1124824e2b7e683cbf8ef04b6e43",
+      "after": "a46a9477bf26c7730a9b01bdcd4582009d9b869d485e5d81732a4c0e7d4a291a"
+    },
+    "docs/competitive-landscape.md": {
+      "before": "4c980fd52bb4985225971d73a26e7b6ee37b0a1fce43b315e34c6a75d17682b5",
+      "after": "8581b5850b1a2c74f043be6060caae424256b256039f6728883f1d983cdd405f"
+    },
+    "docs/consumer-runtime/index.md": {
+      "before": "18c3362038c9f4dd86dd307acd39717f34ad4c8246a5ced353b29823250cd5b0",
+      "after": "dbf15c3513288117aad8a611d2be824a4db08813373f19086a92dbc1eac037f6"
+    },
+    "docs/design.md": {
+      "before": "80e5e449f8a1ed4287c707294ab1ac02c6f16a7c4affdff7cfcc7b37cd60db37",
+      "after": "a9124870dedb562fa2a0715d5389a00baab5bc107cbdd87555b88fdbf219d9b2"
+    },
+    "docs/direct-verl-config.md": {
+      "before": "7ab1f8cb3ed8b5058be674f70fbebe676cc9c4e2590a8ab9cffc2043cbc44d5b",
+      "after": "88b7d13559e6aad824954261eeb5c18f20f1b6a6c41b7c9f050db88c6cc04419"
+    },
+    "docs/for-verl-users.md": {
+      "before": "54f5b1f3bf946f08a4c1d5919daa85ffe3d9762539f4d168f2c9b8d17740dc64",
+      "after": "927bd9da48addcaf17f0fa86986d02fba5f386b4c4c1c907579818183be9570e"
+    },
+    "docs/hardware-planning.md": {
+      "before": "f7a9f29cea84a1f95e29a39ddca87b4fee29627223c4550716786fcbb01a432d",
+      "after": "e67d61936676222eb53da6e3fd052325805570077440c77ab26b77a8cb944f06"
+    },
+    "docs/index.md": {
+      "before": "89255f70192fbf435af8066bc410d85df98a52a8ebc825b49683dd240aa753e2",
+      "after": "639f1d16de19b78573c17f148c01c497848f7f2a25708b3a5a9700ff84c885db"
+    },
+    "docs/limitations.md": {
+      "before": "f382b3d0eb2f4a710a9580dae9b6556ea5e87f308c5d0160638682705cc80b3f",
+      "after": "528e787c49fd893c4cc21c0e834accfc0afe0f93ed255bd562862b53c7acf0f3"
+    },
+    "docs/local-rl-workflow.md": {
+      "before": "dafcbef9badfe5bae4476d17b776bd0ea9ecbfd99d95bc5e233938873f9278ab",
+      "after": "7dbb14650875a74044588517a40f0b1318e34df80c89ef4eb91eb61e1a9b82ff"
+    },
+    "docs/opd-quickstart.md": {
+      "before": "bd2b0e222bb6c901698717aa5173ddc4e828962a2ce60dcea62abd3adb1b0d59",
+      "after": "6ef721991b1f35a6d4a56033297f749eac9d94af241015f8623f7ef97651db11"
+    },
+    "docs/references.md": {
+      "before": "c855b5eb6e3af94e548686f10d71e719ece65a522dbc8a1e817216e99d2a8fa1",
+      "after": "6ea262461c3ab613d831468ed955d6c6c4d08effe83281340d7c6204cd2c3b3a"
+    },
+    "docs/single-gpu-guide.md": {
+      "before": "ea2ee267cf6e3ade9c297e0880d3b0b1057bfa904782fa407ec5e02073d59d7f",
+      "after": "dd9bebeb9b31afc0448581578d35cc070209e4e4a2a3fd7637d7f8b7afcd8655"
+    },
+    "docs/smollm2-opd-workload.md": {
+      "before": "1f06ee7aeca58649412ea53e0c24fbf378b00616f055bd7c65af15d66e90835f",
+      "after": "c37ed06d6a3943163dd0ef7450f6d1831caca83080e37da5f94f2c4aacad5c20"
+    },
+    "docs/v1-readiness.md": {
+      "before": "60601ca8ff1d5d6ca422acd53f2fd02fd5129d0fecb548d9c2bfad57265c5451",
+      "after": "c019f4fe20381a833d555d21293b072af4112aa4caea2b33e7937aca9ce73d46"
+    },
+    "docs/verl-bridge-demo.md": {
+      "before": "351729fd5b49ba6c098eb0f8760ae89146eb31a57fbbf1346572b24f388e72b9",
+      "after": "f921823260b1363f5bb62dcde2da25ec58f39d7be03be06f6cf6ae5f11a5d317"
+    },
+    "docs/verl-bridge-launch.md": {
+      "before": "7f1553597909bfbdb6529a98f50f3879ea782d75da264174770e6bf03695b430",
+      "after": "f98971267509a0517a80ed658bcf2874c8ce580150ec80c4955103de6101ef73"
+    },
+    "docs/verl-bridge.md": {
+      "before": "a0d621c046c4fda136cbb06a6a0caf6adfdce5a20df9b5946948c76c4115b458",
+      "after": "e8dc35527064f118b90628fdaaec6d3b957943507b20591edc108630ddcbaf07"
+    },
+    "docs/verl-opd-reference-workload.md": {
+      "before": "0eece96cafc2a226c93d9383c8cfcac90f2677cfb1119c61579d809d1c40f64b",
+      "after": "f04a0d376f719a8c8174a834909d6d9ace66087a2fccc6b5e2b8bb10c2e0215c"
+    },
+    "docs/verl-opd-runtime.md": {
+      "before": "5b2824813a3bfb44e829f46c13c4751a3f42a78e17f3debd6bfa741fa04a9e42",
+      "after": "54239a9ca985ae982b8e1bcee0b0ed343bf2f0c785d065695e21e2ed88d3509f"
+    },
+    "docs/verl-opd-scaleout.md": {
+      "before": "416d3aa46a68612ed6f3c84825f59b4689eaaa7c050248405d6be32ac469bcde",
+      "after": "1c93ef02ce3a2f42cfda2993112fa2af1c05a90004f6208aae78ad303c88abf6"
+    },
+    "docs/verl-pg-k1-workload.md": {
+      "before": "4229fd0cae3c48475101d1d1242261e837f4bd9fde8719cc4fefb525c29d31a6",
+      "after": "8e4f8d0265e0f1743bac9293512f2f89c7e336bab2ccd32951e9d30658ad8898"
+    },
+    "mkdocs.yml": {
+      "before": "9fa131d9ac830eab45cc89835423d607b8aff98ff956a038144d34ac364e036f",
+      "after": "419381a2af1f007ddc228cb8017b51b52e316792bd252934b912e52b98018efe"
+    }
+  }
+}

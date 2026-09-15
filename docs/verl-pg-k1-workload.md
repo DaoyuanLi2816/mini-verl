@@ -1,8 +1,7 @@
 # RTX 4080 sampled-k1 PG systems workload
 
-This is runtime and semantic-conformance evidence for
-`verl-opd-v0.8-single-gpu-pg-k1-v1`, not a task-quality or algorithm
-comparison result. The source profile pins verl `v0.8.0` at
+This workload measures runtime and semantic conformance for
+`verl-opd-v0.8-single-gpu-pg-k1-v1`. The source profile pins verl `v0.8.0` at
 `7aed6b230776f963fa09509c10d9c3a767d1102c`.
 
 | Item | Measured value |
@@ -36,3 +35,8 @@ The complete machine-readable record is
 (SHA-256 `b549905b2b62b5e51d721ba2932befb7b910284ff1b4016095d341ec232a725f`).
 The estimator/scalar/gradient contract is documented in
 [ADR 0010](adr/0010-verl-v0.8-pg-k1-contract.md).
+
+## Scope
+
+The endpoints are local runtime, recovery and the documented scalar/gradient
+contract. Task quality and algorithm comparisons were not evaluated.

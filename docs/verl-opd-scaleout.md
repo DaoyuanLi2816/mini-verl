@@ -1,9 +1,8 @@
-# Current OPD scale-out contract
+# Take your local OPD run to verl
 
-A completed direct-GKD or sampled-k1 PG profile run can export portable PEFT,
-Parquet, config and provenance artifacts for the exact pinned upstream profile.
-The handoff advances through explicit bundle, materialization, launch and
-execution states.
+Export your trained adapter, data and configuration, then use bridge doctor
+to see what the upstream setup still needs. Direct-GKD and sampled-k1 PG runs
+preserve their model identities and objective settings in the bundle.
 
 ```bash
 miniverl export-verl --run runs/my-opd --target-verl v0.8.0 --out scaleout
@@ -17,7 +16,7 @@ the selected profile's exact `forward_kl_topk` or sampled-k1 policy-loss
 overrides. The PG bundle has no top-k requirement. Any inserted placeholder is listed; missing
 validation data remains missing rather than being replaced with training data.
 
-## Readiness states stay separate
+## Read the readiness report
 
 | State | What it proves |
 | --- | --- |

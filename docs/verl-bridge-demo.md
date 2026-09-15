@@ -35,9 +35,10 @@ python -c "import json; p=json.load(open('_demo-bundle/provenance/compatibility-
 python -c "from pathlib import Path; print('\n'.join(p.as_posix() for p in sorted(Path('_demo-bundle').rglob('*')) if p.is_file()))"
 ```
 
-Narration: “This proves that the handoff is pinned, structurally checked and
-checksummed. It does not prove a distributed verl job ran: the reward scaffold
-still fails closed and the bundle is not launchable.”
+Narration: “Here are the model, data and config files in the bundle. The report
+checks their structure and hashes against the pinned upstream version. This
+fixture still needs a reward implementation, so it reports launchable: false.
+Distributed execution: not tested.”
 
 The release's stronger compatibility evidence additionally installs the exact
 official verl commit and uses OmegaConf plus PEFT to load the relevant surfaces.

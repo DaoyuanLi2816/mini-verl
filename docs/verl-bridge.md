@@ -1,4 +1,4 @@
-# verl bridge: portable artifacts, bounded semantics
+# verl bridge: portable training artifacts
 
 !!! note "Combined historical reference"
 
@@ -8,12 +8,12 @@
     page](legacy-verl-bridge.md). This combined page remains as a detailed
     historical security and artifact reference.
 
-miniVERL is an independent project; no endorsement by the verl project is
-implied. The bridge targets the documented
+The bridge packages local models, data and config for the documented
 `single-gpu-online-distillation-v1` profile subset of
 [`verl v0.8.0`](https://github.com/verl-project/verl/tree/v0.8.0), pinned to
 commit `7aed6b230776f963fa09509c10d9c3a767d1102c` (`7aed6b23`). It is
-**miniVERL-defined compatibility Level 3**, not full verl compatibility.
+**miniVERL-defined compatibility Level 3**: the parse/load checks described below.
+Project relationship and execution scope are collected in [limitations](limitations.md).
 
 <picture class="bridge-architecture">
   <source media="(max-width: 600px)" srcset="../verl-bridge-architecture-mobile.svg">
@@ -21,9 +21,8 @@ commit `7aed6b230776f963fa09509c10d9c3a767d1102c` (`7aed6b23`). It is
 </picture>
 
 The solid arrows cover local artifact production, the portable bundle, and the
-pinned parse/load smoke. The dashed arrow is deliberate: no Ray, FSDP, vLLM or
-distributed verl job ran, and no miniVERL-OPD-to-verl-PPO semantic parity is
-claimed.
+pinned parse/load smoke. The dashed arrow marks distributed execution as
+untested. The state table below records each completed check and its scope.
 
 ## Compatibility state
 

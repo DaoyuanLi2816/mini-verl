@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 500" role="img" aria-labelledby="title desc">
-  <title id="title">miniVERL semantic lowering and local execution flow</title>
+  <title id="title">How miniVERL trains on one GPU</title>
   <desc id="desc">A resolved verl configuration and Parquet prompts enter a versioned compiler, then one GPU schedules actor rollout, reward, reference, teacher and critic phases. Inspectable artifacts retain explicit readiness states.</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#050816"/><stop offset="1" stop-color="#111b38"/></linearGradient>
@@ -9,8 +9,8 @@
   <rect width="1120" height="500" rx="24" fill="url(#bg)"/>
   <rect x="1" y="1" width="1118" height="498" rx="23" fill="none" stroke="#475569"/>
   <g font-family="Inter,DejaVu Sans,Segoe UI,sans-serif">
-    <text x="48" y="54" fill="#f8fafc" font-size="25" font-weight="750">verl experiment semantics, lowered onto one GPU</text>
-    <text x="48" y="82" fill="#94a3b8" font-size="18">Every boundary is typed, recorded, and resumable.</text>
+    <text x="48" y="54" fill="#f8fafc" font-size="25" font-weight="750">Your verl experiment, on one GPU</text>
+    <text x="48" y="82" fill="#94a3b8" font-size="18">Bring your config. Train in phases. Resume and export.</text>
 
     <g fill="#0f2740" stroke="#38bdf8">
       <rect x="48" y="124" width="244" height="124" rx="16"/>

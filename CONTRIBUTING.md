@@ -71,20 +71,32 @@ required hardware or credentials are unavailable.
 * A benchmark number without the hardware and the command that produced it.
 * A comparison table cell asserting that another project lacks a feature,
   without a link to the code or docs that show it.
-* Marketing language. No "blazing", "seamless", "state of the art", or claims
-  that miniVERL is first, fastest or best at anything.
+* Unsubstantiated superlatives such as "fastest" or "state of the art".
+  Describe a useful capability or cite a measured comparison instead.
 * Silent behaviour: truncating a sequence, changing a model, reusing a stale
   cache, or swallowing an exception. Fail loudly with a hint instead.
 
 ## Documentation voice
 
 Lead with what the workflow does, who it helps and which artifact it produces.
+The short product description is **"verl for a single consumer GPU"**
+(**"单张消费级 GPU 上的 verl"**). Follow it with concrete actions: train with
+PPO/GRPO, distill a teacher, resume a run, export a model. Introduce compiler,
+semantic-lowering and provenance terminology when explaining how these work,
+after the reader has a reason to care.
+
 State a local constraint where it changes the reader's next action; link to
 the [compatibility policy](docs/compatibility.md) or
 [limitations](docs/limitations.md) for complete exclusion lists and scientific
 boundaries. Avoid repeating a catalogue of absent features after every product
 capability. Research reports and security contracts should keep their precise
 caveats close to the evidence or decision they qualify.
+
+Prefer "This workload measures timing, memory and recovery" to a list of all
+the things it does not measure. Keep a clearly labelled scope section in the
+report. Preserve negative results, failed gates, security warnings and exact
+compatibility statuses; a voice edit changes the presentation, not the evidence.
+Mark old release assessments as historical and link to the current support table.
 
 ## Adding an environment
 

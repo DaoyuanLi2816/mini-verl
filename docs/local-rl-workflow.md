@@ -103,9 +103,8 @@ in miniVERL; it is not an upstream sharded checkpoint.
 
 ## What the exercise measures
 
-These commands demonstrate the training and recovery workflow, not improvement
-on an external task benchmark. The length reward is an understandable example
-objective, not a quality judge. Compare each run's actual metrics with its
+These commands exercise training and recovery using an inspectable length reward.
+Their measurements cover that example objective and runtime behavior. Compare each run's actual metrics with its
 exact-wheel [RTX 4080 release qualification](release-qualification.md). The
 [v0.14.0 release assets](https://github.com/DaoyuanLi2816/mini-verl/releases/tag/v0.14.0)
 publish the measured per-case rewards, losses, runtime and peak VRAM in

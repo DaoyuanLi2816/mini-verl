@@ -1,8 +1,8 @@
 # Bring your own GPU
 
-miniVERL is a **single-GPU CUDA LLM post-training** stack. One process uses one
-CUDA device, and the model pair, sequence budget and runtime strategy determine
-how the recipe fits. Start with the installed PPO/GRPO examples:
+Train with PPO, GRPO or distillation on your NVIDIA GPU. Choose a model,
+sequence length and placement strategy to match your available VRAM.
+Start with the installed PPO/GRPO examples:
 
 ```bash
 miniverl import-verl --profile verl-rl-v0.9-single-gpu-v3 --example ppo --out local-ppo.yaml
@@ -10,8 +10,7 @@ miniverl train local-ppo.yaml --dry-run --json
 ```
 
 The [complete walkthrough](local-rl-workflow.md) includes installation, data,
-inspection, resume and export. These examples use unquantized Qwen3-0.6B LoRA,
-not the historical calculator recipe's two-model NF4 configuration. PPO's
+inspection, resume and export. These examples use unquantized Qwen3-0.6B LoRA. PPO's
 independent critic owns additional parameters and optimizer state. Its physical
 microbatch size can shrink without changing the logical prompt group.
 

@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
   <source media="(max-width: 760px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner-mobile.svg">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — lower verl experiment semantics onto one CUDA GPU" width="880">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/banner.svg" alt="miniVERL — verl for a single consumer GPU" width="880">
   </picture>
 </p>
 
@@ -22,23 +22,16 @@
   <a href="https://github.com/DaoyuanLi2816/mini-verl/blob/main/README.zh-CN.md">中文</a>
 </p>
 
-**Run common verl PPO/GRPO configs directly on one NVIDIA GPU.** Hand miniVERL
-your upstream config tree, config name and Hydra overrides; bind local data or reward code. Its versioned
-compiler preserves the experiment while scheduling actor, critic, reference
-and reward roles in phases. No second configuration language to maintain.
+**verl for a single consumer GPU.**
 
-The current development line covers PPO/GAE, GRPO, Dr.GRPO, RLOO and
-REINFORCE++ against official verl `v0.9.0` (`483b8a00`). PPO uses an independent
-trainable critic with its own optimizer and checkpoint state; actor KL, entropy
-regularization, grouped rollouts, task rewards and a pinned sequence-classifier
-reward role share the same provenance model. The established verl `v0.8.0` OPD
-profiles remain available for direct GKD and sampled-k1 distillation.
+Run PPO, GRPO and on-policy distillation on one NVIDIA GPU. Bring your verl
+configs, train locally, pick up interrupted runs and export your models.
 
 PyPI `v0.16.0` is stable; `main` is development.
 
 ## Your first local experiment
 
-Install the CUDA-enabled PyTorch build that matches your machine, then:
+Install the matching CUDA-enabled build using the [PyTorch installer](https://pytorch.org/get-started/locally/), then:
 
 ```bash
 python -m pip install "miniverl[train,hydra]"
@@ -47,9 +40,11 @@ miniverl run --example hydra-ppo --bind reward.provider=target_length --dry-run
 miniverl run --example hydra-ppo --bind reward.provider=target_length --run-id local-ppo
 ```
 
-The packaged Hydra examples compose official verl defaults plus bounded
-Qwen3-0.6B launch overrides. The binding selects a length-reward exercise.
-Bring your own config directly:
+This Qwen3-0.6B example trains with a simple length reward. Inspect it in
+`rewards.jsonl`, or follow the [five-minute workflow](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/for-verl-users.md)
+to use GRPO, resume training and export an adapter.
+
+Already have a verl experiment? Bring its config tree and Hydra overrides:
 
 ```bash
 miniverl run --verl-config-path /path/to/verl/trainer/config \
@@ -57,118 +52,62 @@ miniverl run --verl-config-path /path/to/verl/trainer/config \
   algorithm.adv_estimator=grpo actor_rollout_ref.rollout.n=8 trainer.n_gpus_per_node=8
 ```
 
-Each run records the config tree, ordered overrides, resolved bytes, field decisions,
-bindings, snapshots and execution plan. Inspect, resume and export:
+The [direct-config guide](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/direct-verl-config.md) walks through binding your
+data and reward function. The [single-GPU guide](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/single-gpu-guide.md)
+helps you choose a model and memory settings. Install extras add training,
+Hydra or quantization dependencies; choose the CUDA PyTorch build separately.
 
-```bash
-miniverl inspect runs/local-ppo
-miniverl run --example hydra-ppo --bind reward.provider=target_length \
-  --resume-from runs/local-ppo/checkpoints/step-000002
-miniverl export-adapter --run runs/local-ppo --out runs/local-ppo/model
-miniverl export-verl --run runs/local-ppo --target-verl v0.9.0 --out ppo-handoff
-miniverl bridge doctor ppo-handoff --json
-```
+## Choose your path
 
-The [five-minute workflow](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/for-verl-users.md) explains each artifact and
-offers the matching GRPO commands. These are small length-reward exercises;
-their reward is directly inspectable in `rewards.jsonl`.
+| You want to… | Start here | Take away |
+| --- | --- | --- |
+| **Train with rewards** | [PPO / GRPO walkthrough](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/for-verl-users.md) | A trained adapter, reward logs and resumable checkpoints |
+| **Distill a teacher** | [OPD quickstart](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/opd-quickstart.md) | A student trained on its own rollouts with teacher feedback |
+| **Move to a larger setup** | [Export and hand off](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-opd-scaleout.md) | PEFT, Parquet and config files, plus a report of remaining setup |
 
-`[train]` supplies the ML stack, `[hydra]` pins composition, and `[cuda]` adds quantization.
-Select PyTorch's CUDA build with the [PyTorch installer](https://pytorch.org/get-started/locally/).
-The [single-GPU guide](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/single-gpu-guide.md) covers memory planning and the
-maintainer-measured RTX 4080 environment.
+SFT, DPO and offline KD are also available through native recipes.
+[Hardware planning](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/hardware-planning.md) helps fit a workload to your GPU.
 
 ## What a run gives you
 
-- **A field-by-field compiler report.** Experiment fields retain their meaning;
-  physical distribution fields receive an explicit one-GPU lowering.
-- **Policy-bound trajectories.** Group/sample identity, generated-token spans,
-  behavior log-probabilities and policy version travel together.
-- **Auditable rewards and objectives.** Reward components, group advantages,
-  reference KL, clipping, entropy and update metrics are structured data.
-- **Exact recovery.** Transactional manifests and checkpoints restore policy,
-  optimizer, cursor, RNG and reward identities before another rollout.
-- **Portable outputs.** PEFT adapters, safetensors, Parquet, resolved config and
-  typed provenance can move into a larger workflow.
+- **Familiar configs.** Reuse verl fields and overrides; inspect how each maps to local execution.
+- **Visible training.** Follow rollouts, rewards, losses and teacher targets.
+- **Exact recovery.** Resume model, optimizer, data position and random state from a checkpoint.
+- **Reusable outputs.** Export adapters, datasets and the configuration and source identities behind the run.
 
 ## How it works
 
 <picture>
   <source media="(max-width: 760px)" srcset="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime-mobile.svg">
-  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime.svg" alt="A resolved verl config compiles into a validated single-GPU plan; actor, critic, reference, teacher and reward roles run in phases and produce portable artifacts plus a readiness report.">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/mini-verl/main/docs/verl-local-runtime.svg" alt="One GPU runs rollout, reward, reference, teacher and update phases in sequence, then exports models and data with a readiness report.">
 </picture>
 
-One GPU is treated as a temporal scheduler for logical roles. RL generates
-complete prompt groups, scores outcomes, evaluates optional reference and
-reward-model roles, computes the pinned advantage estimator, and updates the
-actor. PPO adds a separate critic phase with clipped value updates. OPD uses
-the same trajectory and checkpoint foundations, with teacher targets supplying
-the learning signal.
+Actor, critic, reference, reward and teacher roles share the GPU in phases.
+PPO trains an actor and a separate critic; GRPO uses grouped rewards; OPD learns
+from teacher targets on the student's current rollouts.
 
-## Choose your path
+## Measured results
 
-| Goal | First command | Primary artifact | Next step |
-| --- | --- | --- | --- |
-| **Run local RL** | `miniverl run --verl-config-name ppo_trainer --dry-run` | composition + semantic report + local plan | [Direct configs](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/direct-verl-config.md) |
-| **Run local OPD** | `miniverl plan --profile verl-opd-v0.8-single-gpu-v1 --config verl-opd.yaml --out plan.json` | immutable execution plan | [OPD quickstart](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/opd-quickstart.md) |
-| **Fit your GPU** | `miniverl plan --config verl-opd.yaml --probe` | measured placement plan | [Hardware planning](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/hardware-planning.md) |
-| **Hand off artifacts** | `miniverl export-verl --run runs/my-run --target-verl v0.9.0 --out scaleout` | actor, critic, Parquet + config bundle | [Compatibility contract](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md) |
+On an RTX 4080, the Qwen3-0.6B/1.7B OPD workload completed eight updates over
+32 distinct prompts at **3.1914 GiB** peak reserved VRAM. An interruption after
+update four reproduced byte-identical trajectories, adapter and optimizer
+tensors on resume. The SmolLM2-360M/1.7B workload used **1.4961 GiB**.
+[Workload and measurements](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-opd-reference-workload.md) ·
+[24-cell rollout-backend study](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/benchmarks/rollout-runtime-v2.md).
 
-Native recipes also support SFT, DPO and offline KD, plus calculator, JSON
-navigation, read-only SQLite and custom tool environments.
-
-## Current capability matrix
-
-| Experiment surface | Local status | Contract |
-| --- | --- | --- |
-| PPO / GAE | semantically conformant | independent critic, clipped value loss, actor/critic exact resume |
-| GRPO / Dr.GRPO | semantically conformant | verl v0.9 group statistics and vanilla clipped policy loss |
-| RLOO / REINFORCE++ | semantically conformant | verl v0.9 advantage and masking rules |
-| Grouped `n > 1` rollouts | supported | complete groups, stable sample seeds and behavior-policy identity |
-| Task rewards and trained RM | supported | built-ins, environment verifier, trusted Python API, or pinned HF sequence classifier |
-| Actor KL and entropy | semantically conformant | sampled-token reference KL and entropy regularization |
-| Direct GKD / sampled-k1 OPD | supported | pinned verl v0.8 profiles with teacher targets |
-| Ray, FSDP/FSDP2, Megatron, TP/PP/DP > 1 | distributed-only | these change physical scale, not the local objective |
-
-The [upstream compatibility corpus](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-compatibility-corpus.md) resolves
-real verl examples and records every field's outcome. Native Hydra composition,
-shuffled actor/critic epochs and group filtering/refill use the new v5 profile.
-Composition, semantics and hardware remain separate statuses. Resolved YAML
-and historical v1/v2/v3/v4 profiles remain available.
-
-## Measured systems evidence
-
-The published Qwen3-0.6B/1.7B OPD workload consumed 32 distinct prompts and
-completed eight current-policy updates at 3.1914 GiB peak reserved VRAM on an
-RTX 4080. A matched interruption after update four reproduced byte-identical
-trajectories, adapter and optimizer tensors. The SmolLM2-360M/1.7B workload
-completed the same shape at 1.4961 GiB. [System records](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/verl-opd-reference-workload.md)
-contain configs, hashes and phase timings.
-
-Rollout Runtime v2 measured `hf_cached` and managed vLLM across 24 RTX 4080
-cells spanning response length, sampling mode and `n=1/4`. See the
-[runtime report](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/benchmarks/rollout-runtime-v2.md). Evidence for the new
-RL family is published through the exact-wheel release qualification rather
-than presented as a task-quality comparison.
-
-## Research record
-
-The scientific reports preserve their original outcomes and frozen inputs:
-[calculator protocol](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/benchmarking.md),
+For task outcomes, read the [calculator study](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/benchmarking.md),
 [RecoveryBench](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/recoverybench/recoverybench-v1.md),
-[Alignment Lab](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/alignment-lab-v1.md), and the
+[Alignment Lab](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-lab/alignment-lab-v1.md) and
 [External Alignment Gate](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/alignment-external/alignment-external-v1.md).
-They are scoped studies, separate from runtime qualification.
+These include negative and mixed results, with their original data and scope.
 
-## Compatibility boundary
+## About and compatibility
 
-miniVERL targets one local process and one NVIDIA CUDA GPU. The compiler
-distinguishes exact or conformant semantics, local physical lowering,
-distributed-only settings, feasible work not yet implemented, and technically
-unsupported inputs. The [compatibility policy](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md) is the
-complete matrix; [limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/limitations.md) collects architecture,
-measurement, security and generalization boundaries in one place. miniVERL is
-an independent Apache-2.0 project.
+miniVERL is an independent Apache-2.0 project for single-GPU NVIDIA CUDA
+training. It supports documented verl configuration profiles; model fit
+depends on GPU memory and workload. See the [compatibility matrix](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/compatibility.md)
+for supported upstream versions and semantics, and [limitations](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/limitations.md)
+for hardware coverage, scientific scope and the distributed-execution boundary.
 
 ## Development
 
@@ -179,7 +118,5 @@ python -m pip install -e ".[dev,train]"
 pytest -q -m "not gpu and not network"
 ```
 
-See [CONTRIBUTING.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CONTRIBUTING.md), [CHANGELOG.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md),
-[CITATION.cff](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CITATION.cff), the [guide for verl users](https://github.com/DaoyuanLi2816/mini-verl/blob/main/docs/for-verl-users.md),
-[SECURITY.md](https://github.com/DaoyuanLi2816/mini-verl/blob/main/SECURITY.md) and the
-[Apache-2.0 license](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE).
+[Contributing](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CONTRIBUTING.md) · [Changelog](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CHANGELOG.md) ·
+[Citation](https://github.com/DaoyuanLi2816/mini-verl/blob/main/CITATION.cff) · [Security](https://github.com/DaoyuanLi2816/mini-verl/blob/main/SECURITY.md) · [License](https://github.com/DaoyuanLi2816/mini-verl/blob/main/LICENSE)

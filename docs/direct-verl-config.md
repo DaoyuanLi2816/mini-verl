@@ -1,6 +1,6 @@
 # Run a verl config directly
 
-Bring a verl `v0.9.0` config tree, name and launch overrides to one CUDA GPU.
+Use your verl `v0.9.0` config tree and launch overrides to train on one NVIDIA GPU.
 Install matching CUDA PyTorch, then `pip install "miniverl[train,hydra]"`:
 
 ```bash
@@ -10,8 +10,8 @@ miniverl run --verl-config-path /path/to/verl/trainer/config \
 ```
 
 Omit `--verl-config-path` to use the exact upstream tree packaged in the wheel.
-Add runtime `--bind` options and remove `--dry-run` to execute. No intermediate
-resolved YAML or native recipe is required. The existing resolved-file path also works:
+Add runtime `--bind` options and remove `--dry-run` to execute directly.
+You can also start from a resolved YAML file:
 
 ```bash
 miniverl run resolved-verl.yaml --dry-run

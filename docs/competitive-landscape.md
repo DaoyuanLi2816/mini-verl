@@ -1,10 +1,9 @@
-# Competitive landscape
+# v0.11 backend selection: historical source audit
 
-miniVERL's v0.11 development line is focused on current-policy rollout speed,
-grouped samples and deterministic reward composition on one consumer GPU. This
-page records the upstream state used to make engineering choices; it is not a
-leaderboard. A capability observed in source is kept separate from a workload
-measured on the local RTX 4080.
+This historical snapshot records the sources and RTX 4080 measurements used
+to select a rollout backend during v0.11 development. For today's product
+workflow, start with [comparisons](comparisons.md) or [the user guide](for-verl-users.md).
+Source observations and local measurements have separate columns below.
 
 Inspected: **2026-08-29**.
 

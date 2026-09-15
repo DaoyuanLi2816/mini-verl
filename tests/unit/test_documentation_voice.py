@@ -34,6 +34,24 @@ def test_product_entry_points_lead_with_workflows() -> None:
     assert "## 选择你的路径" in entry_points
 
 
+def test_product_positioning_is_plain_and_consistent() -> None:
+    for path in ("README.md", "docs/index.md"):
+        text = _read(path)
+        assert "verl for a single consumer GPU" in text
+        opening = text.split("## ", 1)[0]
+        for jargon in ("semantic lowering", "versioned", "compiler preserves", "policy-bound"):
+            assert jargon not in opening
+    assert "单张消费级 GPU 上的 verl" in _read("README.zh-CN.md")
+    for path in ("docs/banner.svg", "docs/banner-mobile.svg"):
+        assert "verl for a single consumer GPU" in _read(path)
+
+
+def test_historical_readiness_does_not_describe_current_features_as_absent() -> None:
+    text = _read("docs/v1-readiness.md")
+    assert "historical" in text.lower()
+    assert "PPO, GRPO, critics, general reward" not in text
+
+
 def test_complete_boundaries_have_canonical_destinations() -> None:
     for path in ("README.md", "README.zh-CN.md", "docs/index.md", "docs/comparisons.md"):
         text = _read(path)
